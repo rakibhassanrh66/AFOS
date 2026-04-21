@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "876169920187",
+    "project_id": "ezyhouse",
+    "storage_bucket": "ezyhouse.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876169920187:android:ed85a47a21eb81bd07339e",
+        "android_client_info": {
+          "package_name": "com.example.ezy_house"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "876169920187-o3lh5te3mhk05dh7pl0hj8v7b7apkjit.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAmFimYokFqaoxkO_jzMPO21Qi1KyxVy34"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "876169920187-o3lh5te3mhk05dh7pl0hj8v7b7apkjit.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "876169920187-bn06698vdht7e1gkod95h8m24j2kl8l2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.ezyHouse"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
