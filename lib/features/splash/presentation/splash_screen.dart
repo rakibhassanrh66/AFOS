@@ -1,0 +1,132 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../config/theme/app_colors.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late AnimationController _particleCtrl;
+  final List<_Particle> _particles = [];
+  bool _showTagline = false, _showSub = false, _showTeam = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _particleCtrl = AnimationController(vsync:this, duration:const Duration(seconds:10))
+      ..repeat();
+    final rng = Random();
+    for(int i=0; i<60; i++) {
+      _particles.add(_Particle(
+        x: rng.nextDouble(), y: rng.nextDouble(),
+        r: rng.nextDouble()*2+0.5,
+        dx: (rng.nextDouble()-0.5)*0.001,
+        dy: (rng.nextDouble()-0.5)*0.001,
+        opacity: rng.nextDouble()*0.5+0.1,
+      ));
+    }
+    _animate();
+  }
+
+  Future<void> _animate() async {
+    await Future.delayed(const Duration(milliseconds:2000));
+    if(mounted) setState(()=>_showTagline=true);
+    await Future.delayed(const Duration(milliseconds:500));
+    if(mounted) setState(()=>_showSub=true);
+    await Future.delayed(const Duration(milliseconds:500));
+    if(mounted) setState(()=>_showTeam=true);
+    await Future.delayed(const Duration(milliseconds:1500));
+    if(!mounted) return;
+    final session = Supabase.instance.client.auth.currentSession;
+    context.go(session!=null ? '/home' : '/auth/login');
+  }
+
+  @override
+  void dispose() { _particleCtrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Stack(children:[
+        AnimatedBuilder(animation:_particleCtrl, builder:(_,__)=>
+          CustomPaint(painter:_ParticlePainter(_particles,_particleCtrl.value),
+            size: Size.infinite)),
+        Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
+          Row(mainAxisSize:MainAxisSize.min, children:[
+            _letter('A', AppColors.blue, 0),
+            const SizedBox(width:10),
+            _letter('F', AppColors.gold, 300),
+            const SizedBox(width:10),
+            _letter('O', AppColors.green, 600),
+            const SizedBox(width:10),
+            _letter('S', AppColors.coral, 900),
+          ]),
+          const SizedBox(height:24),
+          AnimatedOpacity(opacity:_showTagline?1:0, duration:600.ms,
+            child: Text('All Facilities One System',
+              style: const TextStyle(color:Colors.white70, fontSize:16,
+                letterSpacing:1.5, fontWeight:FontWeight.w300))),
+          const SizedBox(height:6),
+          AnimatedOpacity(opacity:_showSub?1:0, duration:600.ms,
+            child: const Text('Daffodil International University',
+              style: TextStyle(color:AppColors.textSecondary, fontSize:13))),
+          const SizedBox(height:32),
+          AnimatedOpacity(opacity:_showTeam?1:0, duration:600.ms,
+            child: Column(children:[
+              const SizedBox(width:120, child:LinearProgressIndicator(
+                backgroundColor: AppColors.border,
+                valueColor: AlwaysStoppedAnimation(AppColors.blue),
+              )),
+              const SizedBox(height:12),
+              const Text('AFOS v1.0.0', style:TextStyle(color:AppColors.textMuted,fontSize:11,
+                fontFamily:'monospace', letterSpacing:1)),
+            ])),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _letter(String l, Color c, int delayMs) {
+    return Container(
+      width:64, height:64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color:c.withOpacity(0.4), width:1),
+        gradient: RadialGradient(colors:[c.withOpacity(0.15),Colors.transparent],radius:1),
+      ),
+      alignment: Alignment.center,
+      child: Text(l, style:TextStyle(color:c,fontSize:30,fontWeight:FontWeight.w900)),
+    )
+    .animate(delay:Duration(milliseconds:delayMs))
+    .slideY(begin:-0.5,end:0,duration:500.ms,curve:Curves.easeOutBack)
+    .fadeIn(duration:400.ms);
+  }
+}
+
+class _Particle { double x,y,r,dx,dy,opacity;
+  _Particle({required this.x,required this.y,required this.r,
+    required this.dx,required this.dy,required this.opacity}); }
+
+class _ParticlePainter extends CustomPainter {
+  final List<_Particle> particles;
+  final double tick;
+  _ParticlePainter(this.particles, this.tick);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    for(final p in particles) {
+      p.x = (p.x + p.dx) % 1.0;
+      p.y = (p.y + p.dy) % 1.0;
+      paint.color = const Color(0xFF1E6FFF).withOpacity(p.opacity);
+      canvas.drawCircle(Offset(p.x*size.width, p.y*size.height), p.r, paint);
+    }
+  }
+  @override bool shouldRepaint(_) => true;
+}
