@@ -374,10 +374,12 @@ class _Step2 extends StatelessWidget {
       else
         DropdownButtonFormField<DepartmentOption>(
           value: selectedDept,
+          isExpanded: true,
           decoration: _decoration(context, 'Department', Icons.school_outlined),
           dropdownColor: AppColors.surfaceOf(context),
           style: TextStyle(color:textPrimary),
-          items: departments.map((d)=>DropdownMenuItem(value:d,child:Text(d.name))).toList(),
+          items: departments.map((d)=>DropdownMenuItem(value:d,
+            child:Text(d.name, overflow:TextOverflow.ellipsis))).toList(),
           onChanged: onDept,
         ),
       const SizedBox(height:16),
@@ -387,10 +389,12 @@ class _Step2 extends StatelessWidget {
         else if(selectedDept != null)
           DropdownButtonFormField<ProgramOption>(
             value: selectedProgram,
+            isExpanded: true,
             decoration: _decoration(context, 'Program', Icons.menu_book_outlined),
             dropdownColor: AppColors.surfaceOf(context),
             style: TextStyle(color:textPrimary),
-            items: programs.map((p)=>DropdownMenuItem(value:p,child:Text(p.name))).toList(),
+            items: programs.map((p)=>DropdownMenuItem(value:p,
+              child:Text(p.name, overflow:TextOverflow.ellipsis))).toList(),
             onChanged: onProgram,
           ),
         const SizedBox(height:16),
