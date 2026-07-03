@@ -3,7 +3,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
-import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -44,11 +43,11 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Mentorship'),
       body: Column(children: [
-        Container(color: AppColors.surface, child: TabBar(controller: _tab,
-            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondary,
+        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
+            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
             tabs: const [Tab(text: 'Find Mentor'), Tab(text: 'My Sessions')])),
         Expanded(child: TabBarView(controller: _tab, children: [
@@ -64,22 +63,17 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   void _showBookingDialog(BuildContext ctx, Map<String, dynamic> mentor) {
     final topicCtrl = TextEditingController();
     showModalBottomSheet(context: ctx, isScrollControlled: true,
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.surfaceOf(ctx),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         builder: (_) => Padding(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Book Session', style: AppTextStyles.headlineLarge),
+              Text('Book Session', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(ctx))),
               const SizedBox(height: 6),
               Text('with ${(mentor['profiles'] as Map?)?['full_name'] ?? ''}',
-                  style: AppTextStyles.bodyMedium),
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),
               const SizedBox(height: 20),
-              TextField(controller: topicCtrl, maxLines: 3,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(hintText: 'What topic do you need help with?',
-                      filled: true, fillColor: AppColors.card,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.border)))),
+              AfosTextField(hint: 'What topic do you need help with?', controller: topicCtrl, maxLines: 3),
               const SizedBox(height: 16),
               AfosButton(label: 'Request Session', onTap: () async {
                 if (topicCtrl.text.trim().isEmpty) return;
@@ -119,8 +113,8 @@ class _MentorList extends StatelessWidget {
           final specs = (m['specializations'] as List?)?.cast<String>() ?? [];
           return Container(margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(width: 56, height: 56, decoration: BoxDecoration(
                     shape: BoxShape.circle, border: Border.all(color: AppColors.blue.withOpacity(0.3), width: 2),
@@ -128,9 +122,9 @@ class _MentorList extends StatelessWidget {
                     child: const Center(child: Icon(Icons.person_rounded, color: AppColors.blue, size: 28))),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(profile['full_name'] ?? '', style: AppTextStyles.titleLarge),
-                  Text(m['title'] ?? '', style: AppTextStyles.bodyMedium),
-                  Text(profile['department'] ?? '', style: AppTextStyles.bodyMedium),
+                  Text(profile['full_name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+                  Text(m['title'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+                  Text(profile['department'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
                   const SizedBox(height: 8),
                   if (specs.isNotEmpty) Wrap(spacing: 6, runSpacing: 4, children: specs.map((s) =>
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -179,8 +173,8 @@ class _SessionsTab extends StatelessWidget {
           final status = s['status'] as String? ?? 'pending';
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 44, height: 44, decoration: BoxDecoration(
                     color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
@@ -188,8 +182,8 @@ class _SessionsTab extends StatelessWidget {
                     child: const Icon(Icons.school_rounded, color: AppColors.blue, size: 22)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(mentor['full_name'] ?? 'Faculty', style: AppTextStyles.titleMedium),
-                  Text(s['topic'] ?? '', style: AppTextStyles.bodyMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(mentor['full_name'] ?? 'Faculty', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                  Text(s['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ])),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.12), borderRadius: BorderRadius.circular(10)),

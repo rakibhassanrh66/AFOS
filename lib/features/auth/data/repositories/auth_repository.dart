@@ -1,4 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../config/supabase_config.dart';
 import '../../../../shared/models/user_model.dart';
 
@@ -11,17 +10,52 @@ class AuthRepository {
     
     // Fetch profile, role, and potential student/teacher extensions
     final profile = await _client.from('profiles')
-        .select('*, roles(name), students(*), teachers(*)')
+        .select('*, roles!role_id(name), students(*), teachers(*)')
         .eq('id', res.user!.id)
         .single();
         
     return UserModel.fromJson(profile);
   }
 
-  Future<void> signUp({required String email, required String password}) async {
-    final res = await _client.auth.signUp(email:email, password:password);
+  /// Returns the freshly-registered user if a session was issued immediately
+  /// (accounts auto-confirm server-side), or null if email confirmation is
+  /// still pending for some reason.
+  Future<UserModel?> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String studentId,
+    required String department,
+    required int semester,
+    required String accountType,
+    String? programId,
+    String? batch,
+    String? section,
+    String? designation,
+  }) async {
+    final res = await _client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': fullName,
+        'university_id': studentId,
+        'department': department,
+        'semester': semester,
+        'account_type': accountType,
+        if(programId != null) 'program_id': programId,
+        if(batch != null) 'batch': batch,
+        if(section != null) 'section': section,
+        if(designation != null) 'designation': designation,
+      },
+    );
     if(res.user==null) throw Exception('Sign up failed');
-    // Trigger handles profile and role creation
+    if(res.session==null) return null;
+
+    final profile = await _client.from('profiles')
+        .select('*, roles!role_id(name), students(*), teachers(*)')
+        .eq('id', res.user!.id)
+        .single();
+    return UserModel.fromJson(profile);
   }
 
   Future<void> forgotPassword(String email) async {
@@ -33,7 +67,10 @@ class AuthRepository {
   Future<UserModel?> getCurrentUser() async {
     final user = _client.auth.currentUser;
     if(user==null) return null;
-    final profile = await _client.from('profiles').select().eq('id',user.id).maybeSingle();
+    final profile = await _client.from('profiles')
+        .select('*, roles!role_id(name), students(*), teachers(*)')
+        .eq('id', user.id)
+        .maybeSingle();
     if(profile==null) return null;
     return UserModel.fromJson(profile);
   }

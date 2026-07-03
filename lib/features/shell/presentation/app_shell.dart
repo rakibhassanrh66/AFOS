@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../config/theme/app_colors.dart';
 import '../bloc/shell_bloc.dart';
 import 'slide_menu.dart';
 
@@ -22,15 +24,23 @@ class _ShellBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ShellBloc,ShellState>(
       builder:(ctx,state) => Scaffold(
-        backgroundColor: const Color(0xFF060D1F),
+        backgroundColor: AppColors.surfaceOf(context),
         body: Stack(children:[
           child,
-          // Blur overlay
+          // Dim + blur overlay behind the slide menu
           if(state.isOpen)
             GestureDetector(
               onTap:()=>ctx.read<ShellBloc>().add(CloseMenu()),
-              child: Container(
-                color: Colors.black.withOpacity(0.6),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds:250),
+                curve: Curves.easeOutCubic,
+                opacity: state.isOpen ? 1 : 0,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.45),
+                  ),
+                ),
               ),
             ),
           // Slide menu

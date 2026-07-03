@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -17,7 +16,6 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStateMixin {
-  late TabController _tab;
   int _day = DateTime.now().weekday - 1; // Mon=0
   UserModel? _user;
   bool _loading = true;
@@ -27,7 +25,6 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length:2,vsync:this);
     _loadUser();
   }
 
@@ -42,14 +39,15 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AfosAppBar(title:'Class Schedule'),
       body: Column(children:[
         _DaySelector(selected:_day, onTap:(i)=>setState(()=>_day=i)),
         Expanded(child: _loading
           ? const Padding(padding:EdgeInsets.all(16),child:ShimmerList())
           : _user==null
-            ? const Center(child:Text('Could not load profile',style:TextStyle(color:AppColors.textSecondary)))
+            ? Center(child:Text('Could not load profile',
+                style:TextStyle(color:AppColors.textSecondaryOf(context))))
             : StreamBuilder<List<ClassSlot>>(
                 stream: _repo.watchSchedule(_user!.department, _user!.semester, _day),
                 builder:(ctx,snap) {
@@ -77,7 +75,7 @@ class _DaySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height:52, color:AppColors.surface,
+      height:52, color:AppColors.surfaceOf(context),
       child: ListView.builder(
         scrollDirection:Axis.horizontal, padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),
         itemCount:_days.length,
@@ -86,13 +84,14 @@ class _DaySelector extends StatelessWidget {
           return GestureDetector(
             onTap:()=>onTap(i),
             child: AnimatedContainer(
-              duration:200.ms, margin:const EdgeInsets.only(right:8),
+              duration:200.ms, curve: Curves.easeOutCubic, margin:const EdgeInsets.only(right:8),
               padding:const EdgeInsets.symmetric(horizontal:16,vertical:6),
               decoration:BoxDecoration(
-                color:sel?AppColors.blue:AppColors.card,
+                gradient: sel ? AppColors.holoGradient : null,
+                color:sel?null:AppColors.glassFill(context),
                 borderRadius:BorderRadius.circular(20),
-                border:Border.all(color:sel?AppColors.blue:AppColors.border,width:0.5)),
-              child:Text(_days[i],style:TextStyle(color:sel?Colors.white:AppColors.textSecondary,
+                border:Border.all(color:sel?Colors.transparent:AppColors.glassBorder(context),width:0.5)),
+              child:Text(_days[i],style:TextStyle(color:sel?Colors.white:AppColors.textSecondaryOf(context),
                 fontSize:13,fontWeight:sel?FontWeight.w600:FontWeight.w400)),
             ),
           );
@@ -106,57 +105,71 @@ class _ClassCard extends StatelessWidget {
   const _ClassCard({required this.slot,required this.index});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin:const EdgeInsets.only(bottom:12),
-      decoration:BoxDecoration(
-        color:AppColors.card,
-        borderRadius:BorderRadius.circular(16),
-        border:Border.all(color:AppColors.border,width:0.5)),
-      child: Stack(children:[
-        Padding(
-          padding:const EdgeInsets.all(16),
-          child: Row(children:[
-            Column(children:[
-              Text(slot.startTime,style:AppTextStyles.monoSmall.copyWith(color:AppColors.blue)),
-              Container(margin:const EdgeInsets.symmetric(vertical:4),width:1,height:24,color:AppColors.border),
-              Text(slot.endTime,style:AppTextStyles.monoSmall),
-            ]),
-            const SizedBox(width:14),
-            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-              Text(slot.subject,style:AppTextStyles.titleMedium,maxLines:2),
-              const SizedBox(height:6),
-              Row(children:[
-                const Icon(Icons.location_on_rounded,size:13,color:AppColors.textSecondary),
-                const SizedBox(width:3),
-                Text('${slot.building} · ${slot.roomNumber}',style:AppTextStyles.bodyMedium),
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return RepaintBoundary(
+      child: Container(
+        margin:const EdgeInsets.only(bottom:12),
+        decoration:BoxDecoration(
+          borderRadius:BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [AppColors.holoBlue.withOpacity(AppColors.isDark(context)?0.3:0.2),
+                     AppColors.holoTeal.withOpacity(0.12)]),
+        ),
+        padding: const EdgeInsets.all(1),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(15)),
+          child: Stack(children:[
+            Padding(
+              padding:const EdgeInsets.all(16),
+              child: Row(children:[
+                Column(children:[
+                  Text(slot.startTime,style:AppTextStyles.monoSmall.copyWith(color:AppColors.holoBlue)),
+                  Container(margin:const EdgeInsets.symmetric(vertical:4),width:1,height:24,color:AppColors.borderOf(context)),
+                  Text(slot.endTime,style:AppTextStyles.monoSmall.copyWith(color:textSecondary)),
+                ]),
+                const SizedBox(width:14),
+                Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                  Text(slot.subject,style:AppTextStyles.titleMedium.copyWith(color:textPrimary),maxLines:2),
+                  const SizedBox(height:6),
+                  Row(children:[
+                    Icon(Icons.location_on_rounded,size:13,color:textSecondary),
+                    const SizedBox(width:3),
+                    Text('${slot.building} · ${slot.roomNumber}',style:AppTextStyles.bodyMedium.copyWith(color:textSecondary)),
+                  ]),
+                  const SizedBox(height:3),
+                  Row(children:[
+                    Icon(Icons.person_outline,size:13,color:textSecondary),
+                    const SizedBox(width:3),
+                    Text(slot.teacherName,style:AppTextStyles.bodyMedium.copyWith(color:textSecondary)),
+                  ]),
+                ])),
+                Container(
+                  padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),
+                  decoration:BoxDecoration(color:AppColors.holoBlue.withOpacity(0.12),borderRadius:BorderRadius.circular(6)),
+                  child:Text('${slot.creditHours}cr',style:const TextStyle(color:AppColors.holoBlue,fontSize:11,fontWeight:FontWeight.w600))),
               ]),
-              const SizedBox(height:3),
-              Row(children:[
-                const Icon(Icons.person_outline,size:13,color:AppColors.textSecondary),
-                const SizedBox(width:3),
-                Text(slot.teacherName,style:AppTextStyles.bodyMedium),
-              ]),
-            ])),
-            Container(
-              padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),
-              decoration:BoxDecoration(color:AppColors.blue.withOpacity(0.1),borderRadius:BorderRadius.circular(6)),
-              child:Text('${slot.creditHours}cr',style:const TextStyle(color:AppColors.blue,fontSize:11,fontWeight:FontWeight.w600))),
+            ),
+            if(slot.isCancelled) Positioned.fill(
+              child:Container(
+                decoration:BoxDecoration(color:AppColors.red.withOpacity(0.88),borderRadius:BorderRadius.circular(15)),
+                alignment:Alignment.center,
+                child:Column(mainAxisSize:MainAxisSize.min,children:[
+                  const Icon(Icons.cancel_rounded,color:Colors.white,size:32),
+                  const SizedBox(height:6),
+                  const Text('CLASS CANCELLED',style:TextStyle(color:Colors.white,fontSize:16,fontWeight:FontWeight.w800,letterSpacing:1.5)),
+                  if(slot.cancelledReason!=null) Padding(padding:const EdgeInsets.only(top:4),
+                    child:Text(slot.cancelledReason!,style:const TextStyle(color:Colors.white70,fontSize:12))),
+                ]),
+              ),
+            ),
           ]),
         ),
-        if(slot.isCancelled) Positioned.fill(
-          child:Container(
-            decoration:BoxDecoration(color:AppColors.red.withOpacity(0.85),borderRadius:BorderRadius.circular(16)),
-            alignment:Alignment.center,
-            child:Column(mainAxisSize:MainAxisSize.min,children:[
-              const Icon(Icons.cancel_rounded,color:Colors.white,size:32),
-              const SizedBox(height:6),
-              const Text('CLASS CANCELLED',style:TextStyle(color:Colors.white,fontSize:16,fontWeight:FontWeight.w800,letterSpacing:1.5)),
-              if(slot.cancelledReason!=null) Padding(padding:const EdgeInsets.only(top:4),
-                child:Text(slot.cancelledReason!,style:const TextStyle(color:Colors.white70,fontSize:12))),
-            ]),
-          ),
-        ),
-      ]),
-    ).animate(delay:Duration(milliseconds:index*80)).fadeIn().slideY(begin:0.05);
+      ),
+    ).animate(delay:Duration(milliseconds:index*80))
+        .fadeIn(curve: Curves.easeOutCubic).slideY(begin:0.05, curve: Curves.easeOutCubic);
   }
 }

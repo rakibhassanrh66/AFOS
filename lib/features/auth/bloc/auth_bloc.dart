@@ -26,8 +26,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onRegister(AuthRegisterRequested e, Emitter<AuthState> emit) async {
     emit(AuthLoading());
     try {
-      await _repo.signUp(email:e.email, password:e.password);
-      emit(AuthEmailVerificationSent());
+      final user = await _repo.signUp(
+        email: e.email,
+        password: e.password,
+        fullName: e.fullName,
+        studentId: e.studentId,
+        department: e.department,
+        semester: e.semester,
+        accountType: e.accountType,
+        programId: e.programId,
+        batch: e.batch,
+        section: e.section,
+        designation: e.designation,
+      );
+      if(user != null) {
+        emit(AuthAuthenticated(user));
+      } else {
+        emit(AuthEmailVerificationSent());
+      }
     } catch(err) {
       emit(AuthError(err.toString().replaceAll('Exception: ','')));
     }

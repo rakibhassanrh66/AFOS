@@ -10,11 +10,11 @@ class ShimmerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.card,
-      highlightColor: AppColors.border,
+      baseColor: AppColors.surfaceOf(context),
+      highlightColor: AppColors.borderOf(context),
       child: Container(
         width: width, height: height,
-        decoration: BoxDecoration(color:AppColors.card, borderRadius:BorderRadius.circular(radius)),
+        decoration: BoxDecoration(color:AppColors.surfaceOf(context), borderRadius:BorderRadius.circular(radius)),
       ),
     );
   }
