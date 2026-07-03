@@ -3,6 +3,8 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -40,15 +42,15 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Hall Allocation'),
       body: Column(children: [
         Container(
-          color: AppColors.surface,
+          color: AppColors.surfaceOf(context),
           child: TabBar(
               controller: _tab,
               labelColor: AppColors.blue,
-              unselectedLabelColor: AppColors.textSecondary,
+              unselectedLabelColor: AppColors.textSecondaryOf(context),
               indicatorColor: AppColors.blue,
               indicatorSize: TabBarIndicatorSize.label,
               tabs: const [Tab(text: 'My Application'), Tab(text: 'Apply'), Tab(text: 'Complaints')])),
@@ -77,12 +79,12 @@ class _MyApplicationTab extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Column(children: [
         const SizedBox(height: 40),
-        const Icon(Icons.apartment_outlined, color: AppColors.textMuted, size: 64),
+        Icon(Icons.apartment_outlined, color: AppColors.textMutedOf(context), size: 64),
         const SizedBox(height: 16),
-        Text('No Application Yet', style: AppTextStyles.headlineLarge),
+        Text('No Application Yet', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
         const SizedBox(height: 8),
         Text('Apply for a hall seat from the Apply tab',
-            style: AppTextStyles.bodyMedium, textAlign: TextAlign.center),
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
       ]));
 
     final status    = app!['status'] as String? ?? 'pending';
@@ -91,7 +93,7 @@ class _MyApplicationTab extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Application Status', style: AppTextStyles.headlineLarge),
+        Text('Application Status', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
         const SizedBox(height: 20),
         ...List.generate(_steps.length, (i) {
           final done  = i <= stepIndex;
@@ -102,19 +104,19 @@ class _MyApplicationTab extends StatelessWidget {
                 width: 28, height: 28,
                 decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: done ? AppColors.green : AppColors.card,
-                    border: Border.all(color: done ? AppColors.green : AppColors.border)),
+                    color: done ? AppColors.green : AppColors.surfaceOf(context),
+                    border: Border.all(color: done ? AppColors.green : AppColors.borderOf(context))),
                 child: Center(child: done
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
-                    : Text('${i+1}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)))),
+                    : Text('${i+1}', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12)))),
               if (!isLast) Container(width: 2, height: 40,
-                  color: i < stepIndex ? AppColors.green : AppColors.border),
+                  color: i < stepIndex ? AppColors.green : AppColors.borderOf(context)),
             ]),
             const SizedBox(width: 14),
             Expanded(child: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_steps[i], style: AppTextStyles.titleMedium),
+                Text(_steps[i], style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                 if (i == stepIndex) Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Text(
@@ -130,23 +132,23 @@ class _MyApplicationTab extends StatelessWidget {
 
         if (status == 'approved') ...[
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-                color: AppColors.green.withAlpha(20),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.green.withAlpha(76))),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.apartment, color: AppColors.green),
-                const SizedBox(width: 8),
-                Text('Your Room', style: AppTextStyles.titleLarge.copyWith(color: AppColors.green)),
+          RepaintBoundary(
+            child: GlassCard(
+              glowColor: AppColors.green,
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.apartment, color: AppColors.green),
+                  const SizedBox(width: 8),
+                  Text('Your Room', style: AppTextStyles.titleLarge.copyWith(color: AppColors.green)),
+                ]),
+                const SizedBox(height: 12),
+                _InfoRow('Room',     app!['assigned_room'] ?? '-'),
+                _InfoRow('Floor',    '${app!['assigned_floor'] ?? '-'}'),
+                _InfoRow('Building', app!['assigned_building'] ?? '-'),
               ]),
-              const SizedBox(height: 12),
-              _InfoRow('Room',     app!['assigned_room'] ?? '-'),
-              _InfoRow('Floor',    '${app!['assigned_floor'] ?? '-'}'),
-              _InfoRow('Building', app!['assigned_building'] ?? '-'),
-            ])),
+            ),
+          ),
         ],
 
         if (status == 'rejected') ...[
@@ -172,8 +174,8 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Row(children: [
-      SizedBox(width: 80, child: Text(label, style: AppTextStyles.bodyMedium)),
-      Text(value, style: AppTextStyles.titleMedium),
+      SizedBox(width: 80, child: Text(label, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))),
+      Text(value, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
     ]));
 }
 
@@ -217,16 +219,16 @@ class _ApplyTabState extends State<_ApplyTab> {
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Apply for Hall Seat', style: AppTextStyles.headlineLarge),
+          Text('Apply for Hall Seat', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
             value: _hall,
             decoration: InputDecoration(
-                labelText: 'Preferred Hall', filled: true, fillColor: AppColors.card,
+                labelText: 'Preferred Hall', filled: true, fillColor: AppColors.surfaceOf(context),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.border))),
-            dropdownColor: AppColors.card,
-            style: const TextStyle(color: AppColors.textPrimary),
+                    borderSide: BorderSide(color: AppColors.borderOf(context)))),
+            dropdownColor: AppColors.surfaceOf(context),
+            style: TextStyle(color: AppColors.textPrimaryOf(context)),
             items: ['Ahsanullah Hall', 'Bangabandhu Hall', 'Pritilata Hall', 'Sheikh Hasina Hall']
                 .map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
             onChanged: (v) => setState(() => _hall = v!),
@@ -238,12 +240,10 @@ class _ApplyTabState extends State<_ApplyTab> {
             Expanded(child: _PrefChip('Shared', _pref, (v) => setState(() => _pref = v))),
           ]),
           const SizedBox(height: 16),
-          TextFormField(
+          AfosTextField(
+            hint: 'Reason for applying...',
             controller: _reasonCtrl,
             maxLines: 3,
-            style: const TextStyle(color: AppColors.textPrimary),
-            decoration: const InputDecoration(
-                hintText: 'Reason for applying...', filled: true, fillColor: AppColors.card),
             validator: (v) => v == null || v.isEmpty ? 'Reason required' : null,
           ),
           const SizedBox(height: 24),
@@ -265,11 +265,11 @@ class _PrefChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-            color: sel ? AppColors.blue : AppColors.card,
+            color: sel ? AppColors.blue : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: sel ? AppColors.blue : AppColors.border)),
+            border: Border.all(color: sel ? AppColors.blue : AppColors.borderOf(context))),
         child: Center(child: Text(label, style: TextStyle(
-            color: sel ? Colors.white : AppColors.textSecondary,
+            color: sel ? Colors.white : AppColors.textSecondaryOf(context),
             fontWeight: FontWeight.w600)))));
   }
 }
@@ -277,7 +277,7 @@ class _PrefChip extends StatelessWidget {
 class _ComplaintsTab extends StatelessWidget {
   const _ComplaintsTab();
   @override
-  Widget build(BuildContext context) => const Center(
+  Widget build(BuildContext context) => Center(
       child: Text('Submit complaints via hall management office.',
-          style: TextStyle(color: AppColors.textSecondary)));
+          style: TextStyle(color: AppColors.textSecondaryOf(context))));
 }

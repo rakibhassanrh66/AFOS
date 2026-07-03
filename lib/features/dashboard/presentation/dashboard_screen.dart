@@ -31,9 +31,9 @@ class _DashboardState extends State<DashboardScreen> {
           .from('profiles').select().eq('id', uid).single();
       final noticesRaw = await SupabaseConfig.client
           .from('notices').select()
-          .order('created_at', ascending: false).limit(3) as List;
+          .order('created_at', ascending: false).limit(3);
       if (mounted) setState(() {
-        _user    = UserModel.fromJson(profileRaw as Map<String,dynamic>);
+        _user    = UserModel.fromJson(profileRaw);
         _notices = noticesRaw.cast<Map<String,dynamic>>();
         _loading = false;
       });
@@ -60,19 +60,32 @@ class _DashboardState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AfosAppBar(title: 'Dashboard'),
       body: RefreshIndicator(
-        onRefresh: _load, color: AppColors.blue, backgroundColor: AppColors.card,
+        onRefresh: _load, color: AppColors.holoBlue,
+        backgroundColor: AppColors.surfaceOf(context),
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _Greeting(user: _user, loading: _loading),
-              const SizedBox(height: 20),
-              _QuickChips(),
+              RepaintBoundary(
+                child: GlassCard(
+                  borderRadius: 20,
+                  glowColor: AppColors.holoBlue,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _Greeting(user: _user, loading: _loading),
+                      const SizedBox(height: 16),
+                      _QuickChips(),
+                    ]),
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
-              Text('Modules', style: AppTextStyles.headlineLarge),
+              Text('Modules', style: AppTextStyles.headlineLarge
+                  .copyWith(color: AppColors.textPrimaryOf(context))),
               const SizedBox(height: 12),
             ]),
           )),
@@ -93,18 +106,19 @@ class _DashboardState extends State<DashboardScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('📢 Latest Notices', style: AppTextStyles.headlineLarge),
+                Text('📢 Latest Notices', style: AppTextStyles.headlineLarge
+                    .copyWith(color: AppColors.textPrimaryOf(context))),
                 TextButton(
                   onPressed: () => context.go('/notifications'),
-                  child: const Text('See all →', style: TextStyle(color: AppColors.blue))),
+                  child: Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
               ]),
               const SizedBox(height: 12),
               if (_loading) const ShimmerList(count: 3, itemHeight: 80)
               else if (_notices.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text('No notices yet',
-                      style: TextStyle(color: AppColors.textSecondary)))
+                      style: TextStyle(color: AppColors.textSecondaryOf(context))))
               else ..._notices.asMap().entries.map((e) =>
                   _NoticeCard(notice: e.value, index: e.key)),
               const SizedBox(height: 32),
@@ -128,11 +142,13 @@ class _Greeting extends StatelessWidget {
     ]);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('${AppFormatters.greetingEmoji()} ${AppFormatters.greeting()},',
-          style: AppTextStyles.bodyMedium),
-      Text(user?.firstName ?? 'Student', style: AppTextStyles.displayMedium),
+          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+      Text(user?.firstName ?? 'Student', style: AppTextStyles.displayMedium
+          .copyWith(color: AppColors.textPrimaryOf(context))),
       const SizedBox(height: 4),
-      Text(AppFormatters.fullDate(DateTime.now()), style: AppTextStyles.bodyMedium),
-    ]).animate().fadeIn(duration: const Duration(milliseconds: 600));
+      Text(AppFormatters.fullDate(DateTime.now()),
+          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+    ]).animate().fadeIn(duration: const Duration(milliseconds: 500), curve: Curves.easeOutCubic);
   }
 }
 
@@ -148,12 +164,42 @@ class _QuickChips extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                      color: AppColors.card,
+                      color: AppColors.glassFill(context),
                       borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: AppColors.border, width: 0.5)),
-                  child: Text(t, style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 12)))))
+                      border: Border.all(color: AppColors.glassBorder(context), width: 0.5)),
+                  child: Text(t, style: TextStyle(
+                      color: AppColors.textPrimaryOf(context), fontSize: 12)))))
           .toList()));
+  }
+}
+
+/// Lightweight repeated-list-item card: gradient border only, no BackdropFilter.
+/// Used for grid/list items where many are on screen at once — full [GlassCard]
+/// blur is reserved for hero/summary panels per the perf budget.
+class _LiteCard extends StatelessWidget {
+  final Widget child; final double borderRadius; final Color accent;
+  const _LiteCard({required this.child, required this.accent, this.borderRadius = 16});
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [accent.withOpacity(AppColors.isDark(context) ? 0.35 : 0.25),
+                     AppColors.holoTeal.withOpacity(0.15)]),
+        ),
+        padding: const EdgeInsets.all(1),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(borderRadius - 1),
+          ),
+          child: child,
+        ),
+      ),
+    );
   }
 }
 
@@ -164,8 +210,8 @@ class _ModuleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => context.go(m.route),
-      child: GlassCard( // Using the new GlassCard
-        borderRadius: 16,
+      child: _LiteCard(
+        accent: m.color,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -179,16 +225,19 @@ class _ModuleCard extends StatelessWidget {
               const Spacer(),
             ]),
             const Spacer(),
-            Text(m.title, style: AppTextStyles.titleMedium.copyWith(color: Colors.white),
+            Text(m.title, style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textPrimaryOf(context)),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
-            Text(m.subtitle, style: AppTextStyles.bodyMedium.copyWith(color: Colors.white70),
+            Text(m.subtitle, style: AppTextStyles.bodyMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context)),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ]),
         ),
       ),
     ).animate(delay: Duration(milliseconds: index * 60))
-        .fadeIn().scale(begin: const Offset(0.95, 0.95));
+        .fadeIn(curve: Curves.easeOutCubic)
+        .scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutCubic);
   }
 }
 
@@ -197,7 +246,7 @@ class _NoticeCard extends StatelessWidget {
   const _NoticeCard({required this.notice, required this.index});
 
   Color _catColor(String? cat) => switch (cat) {
-    'EXAM'   => AppColors.red,   'EVENT' => AppColors.blue,
+    'EXAM'   => AppColors.red,   'EVENT' => AppColors.holoBlue,
     'URGENT' => AppColors.gold,  _ => AppColors.green,
   };
 
@@ -205,27 +254,34 @@ class _NoticeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cat = notice['category'] as String? ?? 'GENERAL';
     final c = _catColor(cat);
-    return GlassCard( // Using the new GlassCard
-      borderRadius: 12,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-            border: Border(left: BorderSide(color: c, width: 3))),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-                color: c.withAlpha(38), borderRadius: BorderRadius.circular(4)),
-            child: Text(cat, style: TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.w700))),
-          const SizedBox(height: 6),
-          Text(notice['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: Colors.white),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(notice['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: Colors.white70),
-              maxLines: 2, overflow: TextOverflow.ellipsis),
-        ]),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _LiteCard(
+        borderRadius: 12,
+        accent: c,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: c, width: 3))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                  color: c.withAlpha(38), borderRadius: BorderRadius.circular(4)),
+              child: Text(cat, style: TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.w700))),
+            const SizedBox(height: 6),
+            Text(notice['title'] ?? '', style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textPrimaryOf(context)),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Text(notice['body'] ?? '', style: AppTextStyles.bodyMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context)),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+          ]),
+        ),
       ),
-    ).animate(delay: Duration(milliseconds: index * 100)).fadeIn().slideY(begin: 0.05);
+    ).animate(delay: Duration(milliseconds: index * 100))
+        .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }
 

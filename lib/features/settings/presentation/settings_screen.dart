@@ -1,8 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,6 +12,8 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -63,11 +63,11 @@ class _SettingsState extends State<SettingsScreen> {
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.card,
-        title: const Text('Log out?', style: TextStyle(color: Colors.white)),
-        content: const Text('Are you sure you want to sign out of AFOS?',
-            style: TextStyle(color: AppColors.textSecondary)),
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.surfaceOf(dialogCtx),
+        title: Text('Log out?', style: TextStyle(color: AppColors.textPrimaryOf(dialogCtx))),
+        content: Text('Are you sure you want to sign out of AFOS?',
+            style: TextStyle(color: AppColors.textSecondaryOf(dialogCtx))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.pop(context, true),
@@ -84,14 +84,18 @@ class _SettingsState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Settings'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
           : ListView(padding: const EdgeInsets.all(16), children: [
 
               // ── Profile Section ─────────────────────────────────────────
-              _Section(title: 'Profile', children: [
+              RepaintBoundary(
+                child: GlassCard(
+                  glowColor: AppColors.blue,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(children: [
                 Center(child: Stack(children: [
                   GestureDetector(
                     onTap: _pickAndUploadAvatar,
@@ -100,7 +104,7 @@ class _SettingsState extends State<SettingsScreen> {
                       decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2),
-                          color: AppColors.card),
+                          color: AppColors.surfaceOf(context)),
                       child: ClipOval(child: _user?.avatarUrl != null
                           ? Image.network(_user!.avatarUrl!, fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => _InitialsWidget(_user!.initials))
@@ -121,7 +125,9 @@ class _SettingsState extends State<SettingsScreen> {
                 _InfoTile('Department', _user?.department ?? '', Icons.school_outlined),
                 _InfoTile('Semester', 'Semester ${_user?.semester ?? 1}', Icons.calendar_today_outlined),
                 _InfoTile('Role', _user?.role ?? '', Icons.admin_panel_settings_outlined),
-              ]),
+                  ]),
+                ),
+              ),
 
               const SizedBox(height: 16),
 
@@ -130,7 +136,7 @@ class _SettingsState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Theme', style: AppTextStyles.titleMedium),
+                    Text('Theme', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                     const SizedBox(height: 12),
                     BlocBuilder<ThemeBloc, ThemeState>(
                       builder: (ctx, state) => Row(children: [
@@ -190,20 +196,16 @@ class _SettingsState extends State<SettingsScreen> {
   void _showChangePassword() {
     final oldCtrl = TextEditingController(), newCtrl = TextEditingController();
     showModalBottomSheet(context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.surfaceOf(context),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (_) => Padding(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        builder: (sheetCtx) => Padding(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Change Password', style: AppTextStyles.headlineLarge),
+              Text('Change Password', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 20),
-              TextField(controller: oldCtrl, obscureText: true,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(hintText: 'Current password', filled: true, fillColor: AppColors.card)),
+              AfosTextField(hint: 'Current password', controller: oldCtrl, obscure: true),
               const SizedBox(height: 12),
-              TextField(controller: newCtrl, obscureText: true,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(hintText: 'New password (min 8 chars)', filled: true, fillColor: AppColors.card)),
+              AfosTextField(hint: 'New password (min 8 chars)', controller: newCtrl, obscure: true),
               const SizedBox(height: 20),
               AfosButton(label: 'Update Password', onTap: () async {
                 if (newCtrl.text.length < 8) return;
@@ -223,16 +225,14 @@ class _SettingsState extends State<SettingsScreen> {
   void _showFeedback() {
     final ctrl = TextEditingController();
     showModalBottomSheet(context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.surfaceOf(context),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (_) => Padding(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        builder: (sheetCtx) => Padding(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Send Feedback', style: AppTextStyles.headlineLarge),
+              Text('Send Feedback', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 20),
-              TextField(controller: ctrl, maxLines: 4,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(hintText: 'Tell us what you think...', filled: true, fillColor: AppColors.card)),
+              AfosTextField(hint: 'Tell us what you think...', controller: ctrl, maxLines: 4),
               const SizedBox(height: 20),
               AfosButton(label: 'Submit Feedback', onTap: () async {
                 if (ctrl.text.trim().isEmpty) return;
@@ -257,9 +257,9 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Text(title.toUpperCase(),
-            style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1.5, color: AppColors.textSecondary))),
-    Container(decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border, width: 0.5)),
+            style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1.5, color: AppColors.textSecondaryOf(context)))),
+    Container(decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
         child: Column(children: children)),
   ]);
 }
@@ -269,9 +269,9 @@ class _InfoTile extends StatelessWidget {
   const _InfoTile(this.label, this.value, this.icon);
   @override
   Widget build(BuildContext context) => ListTile(
-    leading: Icon(icon, color: AppColors.textSecondary, size: 20),
-    title: Text(label, style: AppTextStyles.bodyMedium),
-    trailing: Text(value, style: AppTextStyles.titleMedium),
+    leading: Icon(icon, color: AppColors.textSecondaryOf(context), size: 20),
+    title: Text(label, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+    trailing: Text(value, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
     dense: true,
   );
 }
@@ -284,8 +284,8 @@ class _ActionTile extends StatelessWidget {
     leading: Container(width: 36, height: 36,
         decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(9)),
         child: Icon(icon, color: color, size: 18)),
-    title: Text(label, style: AppTextStyles.titleMedium),
-    trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary, size: 18),
+    title: Text(label, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context), size: 18),
     onTap: onTap, dense: true,
   );
 }
@@ -297,11 +297,11 @@ class _ThemeChip extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(onTap: onTap,
       child: Container(padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-              color: selected ? AppColors.blue.withOpacity(0.12) : AppColors.background,
+              color: selected ? AppColors.blue.withOpacity(0.12) : AppColors.surfaceOf(context),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: selected ? AppColors.blue : AppColors.border)),
+              border: Border.all(color: selected ? AppColors.blue : AppColors.borderOf(context))),
           child: Center(child: Text(label,
-              style: TextStyle(color: selected ? AppColors.blue : AppColors.textSecondary,
+              style: TextStyle(color: selected ? AppColors.blue : AppColors.textSecondaryOf(context),
                   fontSize: 12, fontWeight: selected ? FontWeight.w700 : FontWeight.normal)))));
 }
 
@@ -309,7 +309,7 @@ class _InitialsWidget extends StatelessWidget {
   final String initials;
   const _InitialsWidget(this.initials);
   @override
-  Widget build(BuildContext context) => Container(color: AppColors.card,
+  Widget build(BuildContext context) => Container(color: AppColors.surfaceOf(context),
       child: Center(child: Text(initials,
           style: const TextStyle(color: AppColors.blue, fontSize: 28, fontWeight: FontWeight.bold))));
 }

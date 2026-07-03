@@ -12,6 +12,8 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../core/utils/formatters.dart';
 
@@ -69,11 +71,11 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'VR-ID'),
       body: Column(children: [
-        Container(color: AppColors.surface, child: TabBar(controller: _tab,
-            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondary,
+        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
+            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
             tabs: const [Tab(text: 'My VR-ID'), Tab(text: 'Scan'), Tab(text: 'Access Log')])),
         Expanded(child: TabBarView(controller: _tab, children: [
@@ -93,53 +95,52 @@ class _MyVrIdTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator(color: AppColors.blue));
-    if (user == null) return const Center(child: Text('Could not load profile', style: TextStyle(color: AppColors.textSecondary)));
+    if (user == null) return Center(child: Text('Could not load profile', style: TextStyle(color: AppColors.textSecondaryOf(context))));
     final countdownColor = countdown > 30 ? AppColors.green : countdown > 10 ? AppColors.amber : AppColors.red;
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-            color: AppColors.card, borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.blue.withOpacity(0.3), width: 1.5),
-            boxShadow: [BoxShadow(color: AppColors.blue.withOpacity(0.1), blurRadius: 30, spreadRadius: 2)]),
-        child: Column(children: [
-          const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.school_rounded, color: AppColors.blue, size: 18),
-            SizedBox(width: 8),
-            Text('DIU · AFOS VR-ID', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, letterSpacing: 1)),
+      RepaintBoundary(
+        child: GlassCard(
+          glowColor: AppColors.blue,
+          padding: const EdgeInsets.all(20),
+          child: Column(children: [
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.school_rounded, color: AppColors.blue, size: 18),
+              const SizedBox(width: 8),
+              Text('DIU · AFOS VR-ID', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12, letterSpacing: 1)),
+            ]),
+            const SizedBox(height: 16),
+            Container(width: 64, height: 64, decoration: BoxDecoration(
+                shape: BoxShape.circle, color: AppColors.blue.withOpacity(0.1),
+                border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2)),
+                child: const Icon(Icons.person_rounded, color: AppColors.blue, size: 36)),
+            const SizedBox(height: 10),
+            Text(user!.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+            Text(user!.department, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+            const SizedBox(height: 16),
+            token.isNotEmpty ? AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: QrImageView(key: ValueKey(token), data: token,
+                  version: QrVersions.auto, size: 180,
+                  backgroundColor: Colors.white, padding: const EdgeInsets.all(10)),
+            ) : const CircularProgressIndicator(color: AppColors.blue),
+            const SizedBox(height: 12),
+            Text(user!.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.refresh_rounded, size: 14, color: countdownColor),
+              const SizedBox(width: 6),
+              Text('Refreshes in ${countdown}s', style: TextStyle(color: countdownColor, fontSize: 12, fontWeight: FontWeight.w600)),
+            ]),
+            const SizedBox(height: 12),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _Badge(user!.department, AppColors.blue),
+              const SizedBox(width: 8),
+              _Badge('Sem ${user!.semester}', AppColors.green),
+              const SizedBox(width: 8),
+              _Badge(user!.role, AppColors.gold),
+            ]),
           ]),
-          const SizedBox(height: 16),
-          Container(width: 64, height: 64, decoration: BoxDecoration(
-              shape: BoxShape.circle, color: AppColors.blue.withOpacity(0.1),
-              border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2)),
-              child: const Icon(Icons.person_rounded, color: AppColors.blue, size: 36)),
-          const SizedBox(height: 10),
-          Text(user!.fullName, style: AppTextStyles.headlineLarge),
-          Text(user!.department, style: AppTextStyles.bodyMedium),
-          const SizedBox(height: 16),
-          token.isNotEmpty ? AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: QrImageView(key: ValueKey(token), data: token,
-                version: QrVersions.auto, size: 180,
-                backgroundColor: Colors.white, padding: const EdgeInsets.all(10)),
-          ) : const CircularProgressIndicator(color: AppColors.blue),
-          const SizedBox(height: 12),
-          Text(user!.studentId, style: AppTextStyles.monoMedium),
-          const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.refresh_rounded, size: 14, color: countdownColor),
-            const SizedBox(width: 6),
-            Text('Refreshes in ${countdown}s', style: TextStyle(color: countdownColor, fontSize: 12, fontWeight: FontWeight.w600)),
-          ]),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _Badge(user!.department, AppColors.blue),
-            const SizedBox(width: 8),
-            _Badge('Sem ${user!.semester}', AppColors.green),
-            const SizedBox(width: 8),
-            _Badge(user!.role, AppColors.gold),
-          ]),
-        ]),
+        ),
       ).animate().fadeIn(duration: 600.ms),
     ]));
   }
@@ -215,21 +216,21 @@ class _VerifiedView extends StatelessWidget {
             color: expired ? AppColors.amber : verified ? AppColors.green : AppColors.red)),
     if (verified) ...[
       const SizedBox(height: 20),
-      Text(user.fullName, style: AppTextStyles.headlineLarge),
-      Text(user.studentId, style: AppTextStyles.monoMedium),
-      Text('${user.department} · Sem ${user.semester}', style: AppTextStyles.bodyMedium),
+      Text(user.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+      Text(user.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+      Text('${user.department} · Sem ${user.semester}', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     ],
     const SizedBox(height: 32),
-    ElevatedButton.icon(onPressed: onReset, icon: const Icon(Icons.qr_code_scanner_rounded), label: const Text('Scan Again')),
+    AfosButton(label: 'Scan Again', icon: Icons.qr_code_scanner_rounded, onTap: onReset),
   ]));
 }
 
 class _WebScanPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-    const Icon(Icons.smartphone_rounded, color: AppColors.textMuted, size: 56),
+    Icon(Icons.smartphone_rounded, color: AppColors.textMutedOf(context), size: 56),
     const SizedBox(height: 16),
-    Text('Scanning is supported on mobile only', style: AppTextStyles.bodyMedium, textAlign: TextAlign.center),
+    Text('Scanning is supported on mobile only', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
   ]));
 }
 
@@ -260,9 +261,9 @@ class _AccessLogTabState extends State<_AccessLogTab> {
   Widget build(BuildContext context) {
     if (_loading) return Padding(padding: const EdgeInsets.all(16), child: ShimmerList());
     if (_logs.isEmpty) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.history_rounded, color: AppColors.textMuted, size: 52),
+      Icon(Icons.history_rounded, color: AppColors.textMutedOf(context), size: 52),
       const SizedBox(height: 16),
-      Text('No scans yet', style: AppTextStyles.bodyMedium),
+      Text('No scans yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     ]));
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _logs.length,
         itemBuilder: (ctx, i) {
@@ -270,19 +271,19 @@ class _AccessLogTabState extends State<_AccessLogTab> {
           final scanner = (log['scanned_by'] as Map?)?['full_name'] ?? 'Unknown';
           final time = log['scanned_at'] != null ? DateTime.tryParse(log['scanned_at']) : null;
           return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 36, height: 36, decoration: BoxDecoration(
                     color: AppColors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
                     child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.green, size: 18)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Scanned by $scanner', style: AppTextStyles.titleMedium),
-                  Text(log['location_note'] ?? 'Campus', style: AppTextStyles.bodyMedium),
+                  Text('Scanned by $scanner', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                  Text(log['location_note'] ?? 'Campus', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
                 ])),
                 if (time != null) Text(AppFormatters.relativeTime(time),
-                    style: AppTextStyles.labelSmall),
+                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedOf(context))),
               ]));
         });
   }

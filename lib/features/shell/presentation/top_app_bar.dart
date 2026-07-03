@@ -12,23 +12,39 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override Size get preferredSize => const Size.fromHeight(60);
   @override
   Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
     return AppBar(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.surfaceOf(context),
       elevation: 0,
-      bottom: PreferredSize(preferredSize:const Size.fromHeight(0.5),
-        child:Container(height:0.5,color:AppColors.border)),
+      bottom: PreferredSize(preferredSize:const Size.fromHeight(1),
+        child:Container(
+          height:1,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors:[
+              AppColors.holoBlue.withOpacity(0.35),
+              AppColors.holoviolet.withOpacity(0.25),
+              AppColors.holoTeal.withOpacity(0.35),
+            ]),
+          ),
+        )),
       leading: IconButton(
         icon: BlocBuilder<ShellBloc,ShellState>(
-          builder:(_,state) => AnimatedSwitcher(duration:const Duration(milliseconds:200),
+          builder:(_,state) => AnimatedSwitcher(
+            duration:const Duration(milliseconds:200),
+            switchInCurve: Curves.easeOutCubic,
+            transitionBuilder: (child, anim) => RotationTransition(
+              turns: Tween(begin: 0.75, end: 1.0).animate(anim),
+              child: FadeTransition(opacity: anim, child: child),
+            ),
             child:Icon(state.isOpen?Icons.close:Icons.menu_rounded,
-              key:ValueKey(state.isOpen),color:AppColors.textPrimary))),
+              key:ValueKey(state.isOpen),color:textPrimary))),
         onPressed:()=>context.read<ShellBloc>().add(ToggleMenu()),
       ),
-      title: Text(title, style:AppTextStyles.headlineMed),
+      title: Text(title, style:AppTextStyles.headlineMed.copyWith(color: textPrimary)),
       actions: [
         ...?actions,
         IconButton(
-          icon:const Icon(Icons.notifications_rounded,color:AppColors.textPrimary),
+          icon:Icon(Icons.notifications_rounded,color:textPrimary),
           onPressed:()=>context.go('/notifications'),
         ),
         const SizedBox(width:8),

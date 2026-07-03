@@ -10,8 +10,17 @@ class AppConfig {
   static const String diuPaymentUrl = 'https://studentportal.diu.edu.bd/payment';
   static const String diuLibraryUrl = 'https://library.daffodilvarsity.edu.bd';
   static const double libraryFinePerDay = 5.0;
+  // Fallback only — registration now sources departments from the DB
+  // (`departments` table) so this list is used solely if that query fails.
   static const List<String> departments = [
     'CSE','EEE','BBA','English','Law','Architecture',
     'Pharmacy','Textile','Civil','ICE','MCJ','Mathematics',
+  ];
+  // Mirrors supabase/migrations/20260702_auth_registration_overhaul.sql's
+  // auth_email_domain_allowlist table — bootstrap accounts that bypass the
+  // edu.bd-only email restriction. Client-side check only; the DB trigger
+  // is the authoritative enforcement.
+  static const List<String> emailDomainAllowlist = [
+    'rakibhassan.rh68@gmail.com',
   ];
 }

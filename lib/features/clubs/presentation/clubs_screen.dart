@@ -61,11 +61,11 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Clubs'),
       body: Column(children: [
-        Container(color: AppColors.surface, child: TabBar(controller: _tab,
-            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondary,
+        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
+            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
             tabs: const [Tab(text: 'Discover'), Tab(text: 'My Clubs'), Tab(text: 'Events')])),
         Expanded(child: TabBarView(controller: _tab, children: [
@@ -91,17 +91,17 @@ class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.selected, required this.filters, required this.onSelect});
   @override
   Widget build(BuildContext context) => Container(
-    height: 48, color: AppColors.surface,
+    height: 48, color: AppColors.surfaceOf(context),
     child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: filters.map((f) {
           final sel = selected == f;
           return Padding(padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(onTap: () => onSelect(f),
                   child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(color: sel ? AppColors.pink : AppColors.card,
+                      decoration: BoxDecoration(color: sel ? AppColors.pink : AppColors.surfaceOf(context),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: sel ? AppColors.pink : AppColors.border, width: 0.5)),
-                      child: Text(f, style: TextStyle(color: sel ? Colors.white : AppColors.textSecondary,
+                          border: Border.all(color: sel ? AppColors.pink : AppColors.borderOf(context), width: 0.5)),
+                      child: Text(f, style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
                           fontSize: 12, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)))));
         }).toList()),
   );
@@ -119,8 +119,9 @@ class _ClubList extends StatelessWidget {
           final c = clubs[i];
           final joined = joinedIds.contains(c['id'] as String?);
           return Container(margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(
+                  color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.pink.withOpacity(0.25), width: 0.8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(height: 80, decoration: BoxDecoration(
                     color: AppColors.pink.withOpacity(0.15),
@@ -128,9 +129,9 @@ class _ClubList extends StatelessWidget {
                     child: const Center(child: Icon(Icons.groups_rounded, color: AppColors.pink, size: 36))),
                 Padding(padding: const EdgeInsets.all(14), child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(c['name'] ?? '', style: AppTextStyles.titleLarge),
+                    Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
                     const SizedBox(height: 3),
-                    Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium, maxLines: 2),
+                    Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2),
                     const SizedBox(height: 6),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: AppColors.pink.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
@@ -163,16 +164,16 @@ class _MyClubsTab extends StatelessWidget {
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 44, height: 44, decoration: BoxDecoration(
                     color: AppColors.pink.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
                     child: const Icon(Icons.groups_rounded, color: AppColors.pink, size: 24)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(club['name'] ?? '', style: AppTextStyles.titleMedium),
-                  Text(club['category'] ?? '', style: AppTextStyles.bodyMedium),
+                  Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                  Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
                 ])),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
@@ -196,8 +197,8 @@ class _EventsTab extends StatelessWidget {
           final date = e['event_date'] != null ? DateTime.tryParse(e['event_date']) : null;
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 48, height: 56, decoration: BoxDecoration(
                     color: AppColors.indigo.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
@@ -209,10 +210,10 @@ class _EventsTab extends StatelessWidget {
                     ])),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(e['title'] ?? '', style: AppTextStyles.titleMedium),
-                  Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium),
+                  Text(e['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                  Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
                   if (e['max_seats'] != null) Text('${e['max_seats']} seats',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)),
                 ])),
               ]));
         });

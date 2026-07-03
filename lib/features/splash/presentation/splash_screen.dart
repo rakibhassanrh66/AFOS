@@ -12,6 +12,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
   late AnimationController _particleCtrl;
+  late AnimationController _glowCtrl;
   final List<_Particle> _particles = [];
   bool _showTagline = false, _showSub = false, _showTeam = false;
 
@@ -20,6 +21,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.initState();
     _particleCtrl = AnimationController(vsync:this, duration:const Duration(seconds:10))
       ..repeat();
+    _glowCtrl = AnimationController(vsync:this, duration:const Duration(seconds:3))
+      ..repeat(reverse:true);
     final rng = Random();
     for(int i=0; i<60; i++) {
       _particles.add(_Particle(
@@ -47,41 +50,62 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   @override
-  void dispose() { _particleCtrl.dispose(); super.dispose(); }
+  void dispose() { _particleCtrl.dispose(); _glowCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(children:[
-        AnimatedBuilder(animation:_particleCtrl, builder:(_,__)=>
-          CustomPaint(painter:_ParticlePainter(_particles,_particleCtrl.value),
-            size: Size.infinite)),
+        RepaintBoundary(
+          child: AnimatedBuilder(animation:_particleCtrl, builder:(_,__)=>
+            CustomPaint(painter:_ParticlePainter(_particles,_particleCtrl.value),
+              size: Size.infinite)),
+        ),
+        // Holographic glow pulse behind logo
+        Center(
+          child: AnimatedBuilder(
+            animation: _glowCtrl,
+            builder: (_, __) => Container(
+              width: 260, height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors:[
+                  AppColors.holoBlue.withOpacity(0.10 + _glowCtrl.value*0.10),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
+          ),
+        ),
         Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
           Row(mainAxisSize:MainAxisSize.min, children:[
-            _letter('A', AppColors.blue, 0),
+            _letter('A', AppColors.holoBlue, 0),
             const SizedBox(width:10),
             _letter('F', AppColors.gold, 300),
             const SizedBox(width:10),
-            _letter('O', AppColors.green, 600),
+            _letter('O', AppColors.holoviolet, 600),
             const SizedBox(width:10),
-            _letter('S', AppColors.coral, 900),
+            _letter('S', AppColors.holoTeal, 900),
           ]),
           const SizedBox(height:24),
-          AnimatedOpacity(opacity:_showTagline?1:0, duration:600.ms,
-            child: Text('All Facilities One System',
-              style: const TextStyle(color:Colors.white70, fontSize:16,
-                letterSpacing:1.5, fontWeight:FontWeight.w300))),
+          AnimatedOpacity(opacity:_showTagline?1:0, duration:600.ms, curve: Curves.easeOutCubic,
+            child: ShaderMask(
+              shaderCallback: (rect) => AppColors.holoGradient.createShader(rect),
+              child: const Text('All Facilities One System',
+                style: TextStyle(color:Colors.white, fontSize:16,
+                  letterSpacing:1.5, fontWeight:FontWeight.w300)),
+            )),
           const SizedBox(height:6),
-          AnimatedOpacity(opacity:_showSub?1:0, duration:600.ms,
+          AnimatedOpacity(opacity:_showSub?1:0, duration:600.ms, curve: Curves.easeOutCubic,
             child: const Text('Daffodil International University',
               style: TextStyle(color:AppColors.textSecondary, fontSize:13))),
           const SizedBox(height:32),
-          AnimatedOpacity(opacity:_showTeam?1:0, duration:600.ms,
+          AnimatedOpacity(opacity:_showTeam?1:0, duration:600.ms, curve: Curves.easeOutCubic,
             child: Column(children:[
-              const SizedBox(width:120, child:LinearProgressIndicator(
+              const SizedBox(width:120, height:3, child:LinearProgressIndicator(
                 backgroundColor: AppColors.border,
-                valueColor: AlwaysStoppedAnimation(AppColors.blue),
+                valueColor: AlwaysStoppedAnimation(AppColors.holoBlue),
               )),
               const SizedBox(height:12),
               const Text('AFOS v1.0.0', style:TextStyle(color:AppColors.textMuted,fontSize:11,

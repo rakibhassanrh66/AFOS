@@ -13,7 +13,7 @@ class ErrorView extends StatelessWidget {
       child: Column(mainAxisSize:MainAxisSize.min, children:[
         const Icon(Icons.error_outline, color:AppColors.red, size:48),
         const SizedBox(height:16),
-        Text(message, style:const TextStyle(color:AppColors.textSecondary), textAlign:TextAlign.center),
+        Text(message, style:TextStyle(color:AppColors.textSecondaryOf(context)), textAlign:TextAlign.center),
         if(onRetry!=null) ...[
           const SizedBox(height:20),
           OutlinedButton.icon(

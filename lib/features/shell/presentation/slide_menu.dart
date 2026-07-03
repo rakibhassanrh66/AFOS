@@ -51,11 +51,16 @@ class _SlideMenuState extends State<SlideMenu> {
 
   @override
   Widget build(BuildContext context) {
+    final surface = AppColors.surfaceOf(context);
+    final border = AppColors.borderOf(context);
     return BlocBuilder<ShellBloc,ShellState>(
       builder:(ctx,state) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(right:BorderSide(color:AppColors.border,width:0.5)),
+        decoration: BoxDecoration(
+          color: surface,
+          border: Border(right:BorderSide(color:border,width:0.5)),
+          boxShadow: [
+            BoxShadow(color: AppColors.holoBlue.withOpacity(0.08), blurRadius:24, spreadRadius:-4),
+          ],
         ),
         child: SafeArea(
           child: Column(children:[
@@ -63,10 +68,10 @@ class _SlideMenuState extends State<SlideMenu> {
             Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
               ...List.generate(_items.length, (i) =>
                 _MenuTile(item:_items[i], isActive:state.selectedIndex==i, index:i, delay:i*40)),
-              const Divider(color:AppColors.border, height:24),
+              Divider(color:border, height:24),
               _buildLogout(ctx),
             ])),
-            _buildFooter(),
+            _buildFooter(context),
           ]),
         ),
       ),
@@ -74,24 +79,27 @@ class _SlideMenuState extends State<SlideMenu> {
   }
 
   Widget _buildHeader(BuildContext ctx) {
+    final textPrimary = AppColors.textPrimaryOf(ctx);
+    final textSecondary = AppColors.textSecondaryOf(ctx);
+    final border = AppColors.borderOf(ctx);
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        border: Border(bottom:BorderSide(color:AppColors.border,width:0.5))),
+      decoration: BoxDecoration(
+        border: Border(bottom:BorderSide(color:border,width:0.5))),
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
         Row(children:[
           _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?'),
           const Spacer(),
-          IconButton(icon:const Icon(Icons.close,color:AppColors.textSecondary),
+          IconButton(icon:Icon(Icons.close,color:textSecondary),
             onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
         ]),
         const SizedBox(height:12),
-        Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge),
+        Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge.copyWith(color: textPrimary)),
         const SizedBox(height:2),
-        Text(_user?.studentId??'', style:AppTextStyles.monoSmall),
+        Text(_user?.studentId??'', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
         const SizedBox(height:8),
         Row(children:[
-          _Chip(_user?.department??'', AppColors.blue),
+          _Chip(_user?.department??'', AppColors.holoBlue),
           const SizedBox(width:6),
           _Chip('Sem ${_user?.semester??1}', AppColors.green),
         ]),
@@ -103,6 +111,9 @@ class _SlideMenuState extends State<SlideMenu> {
             decoration:BoxDecoration(
               border:Border.all(color:AppColors.gold.withOpacity(0.5)),
               borderRadius:BorderRadius.circular(8),
+              gradient: LinearGradient(colors:[
+                AppColors.gold.withOpacity(0.08), Colors.transparent,
+              ]),
             ),
             child: Row(mainAxisSize:MainAxisSize.min, children:[
               const Icon(Icons.qr_code_rounded,color:AppColors.gold,size:16),
@@ -122,13 +133,16 @@ class _SlideMenuState extends State<SlideMenu> {
         child:const Icon(Icons.logout_rounded,color:AppColors.red,size:18)),
       title:const Text('Logout',style:TextStyle(color:AppColors.red,fontWeight:FontWeight.w600,fontSize:14)),
       onTap:() async {
+        final surface = AppColors.surfaceOf(ctx);
+        final textPrimary = AppColors.textPrimaryOf(ctx);
+        final textSecondary = AppColors.textSecondaryOf(ctx);
         final confirm = await showDialog<bool>(
           context:ctx,
           builder:(_)=>AlertDialog(
-            backgroundColor:AppColors.card,
-            title:const Text('Log out?',style:TextStyle(color:Colors.white)),
-            content:const Text('Are you sure you want to sign out?',
-              style:TextStyle(color:AppColors.textSecondary)),
+            backgroundColor:surface,
+            title:Text('Log out?',style:TextStyle(color:textPrimary)),
+            content:Text('Are you sure you want to sign out?',
+              style:TextStyle(color:textSecondary)),
             actions:[
               TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
               TextButton(onPressed:()=>Navigator.pop(ctx,true),
@@ -144,13 +158,14 @@ class _SlideMenuState extends State<SlideMenu> {
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(BuildContext context) {
+    final textSecondary = AppColors.textSecondaryOf(context);
     return Container(
       padding:const EdgeInsets.all(16),
       child:Column(children:[
-        Text('AFOS v1.0.0', style:AppTextStyles.monoSmall),
+        Text('AFOS v1.0.0', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
         const SizedBox(height:2),
-        Text('Daffodil International University', style:AppTextStyles.labelSmall),
+        Text('Daffodil International University', style:AppTextStyles.labelSmall.copyWith(color: textSecondary)),
       ]),
     );
   }
@@ -163,6 +178,7 @@ class _MenuTile extends StatelessWidget {
   const _MenuTile({required this.item,required this.isActive,required this.index,required this.delay});
   @override
   Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
     return Padding(
       padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),
       child: Material(
@@ -187,13 +203,13 @@ class _MenuTile extends StatelessWidget {
                 child:Icon(item.icon,color:item.color,size:18)),
               const SizedBox(width:12),
               Text(item.label, style:TextStyle(
-                color:isActive?item.color:AppColors.textPrimary,
+                color:isActive?item.color:textPrimary,
                 fontSize:14, fontWeight:isActive?FontWeight.w600:FontWeight.w400)),
             ]),
           ),
         ),
       ),
-    ).animate(delay:Duration(milliseconds:delay)).fadeIn().slideX(begin:-0.05);
+    ).animate(delay:Duration(milliseconds:delay)).fadeIn(duration:280.ms,curve:Curves.easeOutCubic).slideX(begin:-0.05,curve:Curves.easeOutCubic);
   }
 }
 
@@ -205,15 +221,16 @@ class _Avatar extends StatelessWidget {
     return Container(
       width:52,height:52,
       decoration:BoxDecoration(shape:BoxShape.circle,
-        border:Border.all(color:AppColors.blue.withOpacity(0.4),width:2)),
+        border:Border.all(color:AppColors.holoBlue.withOpacity(0.5),width:2),
+        boxShadow:[BoxShadow(color:AppColors.holoBlue.withOpacity(0.2),blurRadius:12,spreadRadius:-2)]),
       child: ClipOval(child: url!=null && url!.isNotEmpty
         ? CachedNetworkImage(imageUrl:url!,fit:BoxFit.cover,
-            errorWidget:(_,__,___)=>_initials(initials))
-        : _initials(initials)),
+            errorWidget:(_,__,___)=>_initials(context, initials))
+        : _initials(context, initials)),
     );
   }
-  Widget _initials(String i) => Container(color:AppColors.card,
-    child:Center(child:Text(i,style:const TextStyle(color:AppColors.blue,fontSize:18,fontWeight:FontWeight.bold))));
+  Widget _initials(BuildContext context, String i) => Container(color:AppColors.surfaceOf(context),
+    child:Center(child:Text(i,style:const TextStyle(color:AppColors.holoBlue,fontSize:18,fontWeight:FontWeight.bold))));
 }
 
 class _Chip extends StatelessWidget {

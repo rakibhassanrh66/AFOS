@@ -4,7 +4,9 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -36,7 +38,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Exam Seat Plan'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -67,8 +69,8 @@ class _SeatCard extends StatelessWidget {
       onTap: () => _showDetail(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: isRetake ? AppColors.gold : AppColors.border, width: isRetake ? 1.5 : 0.5)),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isRetake ? AppColors.gold : AppColors.borderOf(context), width: isRetake ? 1.5 : 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(height: 4, decoration: BoxDecoration(
               color: isRetake ? AppColors.gold : AppColors.blue,
@@ -76,8 +78,8 @@ class _SeatCard extends StatelessWidget {
           Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(exam['subject'] ?? 'Unknown Subject', style: AppTextStyles.titleLarge),
-                Text(exam['subject_code'] ?? '', style: AppTextStyles.monoSmall),
+                Text(exam['subject'] ?? 'Unknown Subject', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+                Text(exam['subject_code'] ?? '', style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondaryOf(context))),
               ])),
               if (isRetake) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
@@ -85,16 +87,16 @@ class _SeatCard extends StatelessWidget {
             ]),
             const SizedBox(height: 12),
             if (examDate != null) Row(children: [
-              const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.textSecondary),
+              Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.textSecondaryOf(context)),
               const SizedBox(width: 6),
-              Text(AppFormatters.fullDate(examDate), style: AppTextStyles.bodyMedium),
+              Text(AppFormatters.fullDate(examDate), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
             ]),
             const SizedBox(height: 4),
             Row(children: [
-              const Icon(Icons.access_time_rounded, size: 14, color: AppColors.textSecondary),
+              Icon(Icons.access_time_rounded, size: 14, color: AppColors.textSecondaryOf(context)),
               const SizedBox(width: 6),
               Text('${exam['start_time'] ?? '--'} – ${exam['end_time'] ?? '--'}',
-                  style: AppTextStyles.bodyMedium),
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
             ]),
             const SizedBox(height: 12),
             Container(padding: const EdgeInsets.all(12),
@@ -109,9 +111,9 @@ class _SeatCard extends StatelessWidget {
                 ])),
             const SizedBox(height: 8),
             Row(children: [
-              const Icon(Icons.apartment_rounded, size: 14, color: AppColors.textSecondary),
+              Icon(Icons.apartment_rounded, size: 14, color: AppColors.textSecondaryOf(context)),
               const SizedBox(width: 6),
-              Text(assignment['building'] ?? '', style: AppTextStyles.bodyMedium),
+              Text(assignment['building'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
             ]),
           ])),
         ]),
@@ -120,25 +122,29 @@ class _SeatCard extends StatelessWidget {
   }
 
   void _showDetail(BuildContext ctx) {
-    final exam = assignment['exams'] as Map<String, dynamic>? ?? {};
     showModalBottomSheet(
-      context: ctx, backgroundColor: AppColors.surface, isScrollControlled: true,
+      context: ctx, backgroundColor: AppColors.surfaceOf(ctx), isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => Padding(padding: const EdgeInsets.all(24), child: Column(
           mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderOf(ctx), borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 20),
-            Text('Seat Details', style: AppTextStyles.headlineLarge),
+            Text('Seat Details', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(ctx))),
             const SizedBox(height: 20),
-            _SeatMapWidget(rows: 6, cols: 5,
-                studentRow: 2, studentCol: 3,
-                seatLabel: assignment['seat_number'] ?? 'S?'),
+            RepaintBoundary(
+              child: GlassCard(
+                glowColor: AppColors.gold,
+                padding: const EdgeInsets.all(16),
+                child: _SeatMapWidget(rows: 6, cols: 5,
+                    studentRow: 2, studentCol: 3,
+                    seatLabel: assignment['seat_number'] ?? 'S?'),
+              ),
+            ),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () { Navigator.pop(ctx); },
-              icon: const Icon(Icons.download_rounded),
-              label: const Text('Download Admit Card'),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+            AfosButton(
+              label: 'Download Admit Card',
+              icon: Icons.download_rounded,
+              onTap: () { Navigator.pop(ctx); },
             ),
           ])));
   }
@@ -150,7 +156,7 @@ class _SeatInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(children: [
     Text(value, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.gold)),
-    Text(label, style: AppTextStyles.labelSmall),
+    Text(label, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
   ]);
 }
 
@@ -165,8 +171,8 @@ class _SeatMapWidget extends StatelessWidget {
     return Column(children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
           margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.3), borderRadius: BorderRadius.circular(6)),
-          child: const Text('TEACHER', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, letterSpacing: 2))),
+          decoration: BoxDecoration(color: AppColors.textMutedOf(context).withOpacity(0.3), borderRadius: BorderRadius.circular(6)),
+          child: Text('TEACHER', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10, letterSpacing: 2))),
       ...List.generate(rows, (r) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(mainAxisAlignment: MainAxisAlignment.center,
@@ -175,9 +181,9 @@ class _SeatMapWidget extends StatelessWidget {
                 return Container(
                   width: 40, height: 36, margin: const EdgeInsets.symmetric(horizontal: 3),
                   decoration: BoxDecoration(
-                      color: isMe ? AppColors.gold : AppColors.card,
+                      color: isMe ? AppColors.gold : AppColors.surfaceOf(context),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: isMe ? AppColors.gold : AppColors.border, width: isMe ? 2 : 0.5),
+                      border: Border.all(color: isMe ? AppColors.gold : AppColors.borderOf(context), width: isMe ? 2 : 0.5),
                       boxShadow: isMe ? [BoxShadow(color: AppColors.gold.withOpacity(0.4), blurRadius: 8)] : null),
                   child: Center(child: isMe
                       ? Text(seatLabel, style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w800))

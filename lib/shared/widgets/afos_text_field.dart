@@ -33,15 +33,15 @@ class _AfosTextFieldState extends State<AfosTextField> {
       textInputAction: widget.textInputAction,
       onChanged: widget.onChanged,
       maxLines: widget.obscure ? 1 : widget.maxLines,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+      style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 15),
       decoration: InputDecoration(
         hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null
-          ? Icon(widget.prefixIcon, color: AppColors.textSecondary, size: 20) : null,
+          ? Icon(widget.prefixIcon, color: AppColors.textSecondaryOf(context), size: 20) : null,
         suffixIcon: widget.obscure
           ? IconButton(
               icon: Icon(_show?Icons.visibility_off:Icons.visibility,
-                color:AppColors.textSecondary, size:20),
+                color:AppColors.textSecondaryOf(context), size:20),
               onPressed: () => setState(()=>_show=!_show))
           : widget.suffix,
       ),

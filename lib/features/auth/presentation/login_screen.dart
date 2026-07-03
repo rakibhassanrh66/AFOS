@@ -40,107 +40,109 @@ class _LoginBodyState extends State<_LoginBody> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+
     return BlocListener<AuthBloc, AuthState>(
       listener: (ctx, state) {
         if(state is AuthAuthenticated) ctx.go('/home');
         if(state is AuthError) ctx.showSnack(state.message, isError:true);
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.surfaceOf(context),
         body: Stack(children:[
-          // Background gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
+          // Background gradient — holographic hero backdrop, theme-aware
+          RepaintBoundary(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                    ? const [Color(0xFF060D1F), Color(0xFF0D1E3A), Color(0xFF0C1526)]
+                    : const [Color(0xFFF0F4FF), Colors.white, Color(0xFFE8EEFC)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
               ),
             ),
           ),
           // Subtle grid lines
-          CustomPaint(painter:_GridPainter(), size: Size.infinite),
+          RepaintBoundary(child: CustomPaint(painter:_GridPainter(isDark:isDark), size: Size.infinite)),
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal:28, vertical:24),
               child: GlassCard(
+                glowColor: AppColors.holoBlue,
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Form(
                     key: _formKey,
                     child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-                      const SizedBox(height:40),
+                      const SizedBox(height:16),
                       // Logo
                       Center(child: Row(mainAxisSize:MainAxisSize.min, children:[
-                        _logoLetter('A', Colors.white),
+                        _logoLetter('A', AppColors.holoBlue, context),
                         const SizedBox(width:8),
-                        _logoLetter('F', Colors.white),
+                        _logoLetter('F', AppColors.gold, context),
                         const SizedBox(width:8),
-                        _logoLetter('O', Colors.white),
+                        _logoLetter('O', AppColors.holoviolet, context),
                         const SizedBox(width:8),
-                        _logoLetter('S', Colors.white),
-                      ])).animate().fadeIn(duration:600.ms).slideY(begin:-0.3),
-                      const SizedBox(height:40),
-                      Text('Welcome back 👋', style:AppTextStyles.displayMedium.copyWith(color: Colors.white))
-                        .animate(delay:200.ms).fadeIn().slideX(begin:-0.1),
+                        _logoLetter('S', AppColors.holoTeal, context),
+                      ])).animate().fadeIn(duration:500.ms,curve:Curves.easeOutCubic).slideY(begin:-0.3,curve:Curves.easeOutCubic),
+                      const SizedBox(height:32),
+                      Text('Welcome back', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))
+                        .animate(delay:120.ms).fadeIn(duration:350.ms).slideX(begin:-0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:4),
                       Text('Sign in to your AFOS account',
-                        style:AppTextStyles.bodyMedium.copyWith(color: Colors.white70))
-                        .animate(delay:300.ms).fadeIn(),
-                      const SizedBox(height:36),
+                        style:AppTextStyles.bodyMedium.copyWith(color: textSecondary))
+                        .animate(delay:200.ms).fadeIn(duration:350.ms),
+                      const SizedBox(height:32),
                       AfosTextField(
                         hint:'Email address', controller:_emailCtrl,
                         prefixIcon:Icons.email_outlined,
                         keyboardType:TextInputType.emailAddress,
                         validator:AppValidators.email,
-                      ).animate(delay:400.ms).fadeIn().slideY(begin:0.1),
+                      ).animate(delay:280.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:16),
                       AfosTextField(
                         hint:'Password', controller:_passCtrl,
                         prefixIcon:Icons.lock_outline, obscure:true,
                         validator:AppValidators.password,
-                      ).animate(delay:500.ms).fadeIn().slideY(begin:0.1),
-                      const SizedBox(height:12),
+                      ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      const SizedBox(height:8),
                       Align(
                         alignment:Alignment.centerRight,
                         child: TextButton(
                           onPressed:()=>context.push('/auth/forgot-password'),
-                          child:const Text('Forgot password?',
-                            style:TextStyle(color:Colors.white, fontSize:13)),
+                          child:Text('Forgot password?',
+                            style:TextStyle(color:AppColors.holoBlue, fontSize:13, fontWeight:FontWeight.w600)),
                         ),
                       ),
-                      const SizedBox(height:24),
+                      const SizedBox(height:16),
                       BlocBuilder<AuthBloc,AuthState>(
-                        builder:(ctx,state) => Container(
-                          decoration:BoxDecoration(
-                            gradient:LinearGradient(colors: [Colors.blue.shade300, Colors.blue.shade600]),
-                            borderRadius:BorderRadius.circular(12),
-                            boxShadow:[BoxShadow(color:Colors.blue.withOpacity(0.3),blurRadius:20,offset:const Offset(0,8))],
-                          ),
-                          child: AfosButton(
-                            label:'Sign in to AFOS',
-                            loading:state is AuthLoading,
-                            onTap:(){
-                              if(_formKey.currentState!.validate()) {
-                                ctx.read<AuthBloc>().add(
-                                  AuthLoginRequested(_emailCtrl.text.trim(),_passCtrl.text));
-                              }
-                            },
-                          ),
+                        builder:(ctx,state) => AfosButton(
+                          label:'Sign in to AFOS',
+                          loading:state is AuthLoading,
+                          onTap:(){
+                            if(_formKey.currentState!.validate()) {
+                              ctx.read<AuthBloc>().add(
+                                AuthLoginRequested(_emailCtrl.text.trim(),_passCtrl.text));
+                            }
+                          },
                         ),
-                      ).animate(delay:600.ms).fadeIn().slideY(begin:0.1),
-                      const SizedBox(height:32),
+                      ).animate(delay:420.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      const SizedBox(height:28),
                       Row(mainAxisAlignment:MainAxisAlignment.center, children:[
-                        Text("Don't have an account?", style:AppTextStyles.bodyMedium.copyWith(color: Colors.white70)),
+                        Text("Don't have an account?", style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                         TextButton(
                           onPressed:()=>context.push('/auth/register'),
-                          child:const Text('Create account →',
-                            style:TextStyle(color:Colors.white,fontWeight:FontWeight.w600)),
+                          child:Text('Create account →',
+                            style:TextStyle(color:textPrimary,fontWeight:FontWeight.w600)),
                         ),
-                      ]).animate(delay:700.ms).fadeIn(),
-                      const SizedBox(height:24),
+                      ]).animate(delay:480.ms).fadeIn(duration:300.ms),
+                      const SizedBox(height:12),
                       Center(child: Text('Daffodil International University',
-                        style:AppTextStyles.labelSmall.copyWith(color: Colors.white70)))
-                        .animate(delay:800.ms).fadeIn(),
+                        style:AppTextStyles.labelSmall.copyWith(color: textSecondary)))
+                        .animate(delay:540.ms).fadeIn(duration:300.ms),
                     ]),
                   ),
                 ),
@@ -152,12 +154,12 @@ class _LoginBodyState extends State<_LoginBody> {
     );
   }
 
-  Widget _logoLetter(String l, Color c) => Container(
+  Widget _logoLetter(String l, Color c, BuildContext context) => Container(
     width:44, height:44,
     decoration:BoxDecoration(
       borderRadius:BorderRadius.circular(10),
-      border:Border.all(color:c.withOpacity(0.4)),
-      color:c.withOpacity(0.1),
+      border:Border.all(color:c.withOpacity(0.5)),
+      color:c.withOpacity(0.12),
     ),
     alignment:Alignment.center,
     child:Text(l,style:TextStyle(color:c,fontSize:22,fontWeight:FontWeight.w900)),
@@ -165,11 +167,15 @@ class _LoginBodyState extends State<_LoginBody> {
 }
 
 class _GridPainter extends CustomPainter {
+  final bool isDark;
+  _GridPainter({required this.isDark});
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color=const Color(0xFF1A2840)..strokeWidth=0.3;
+    final p = Paint()
+      ..color = (isDark ? const Color(0xFF1A2840) : const Color(0xFF0A1628)).withOpacity(isDark ? 1 : 0.05)
+      ..strokeWidth=0.3;
     for(double x=0;x<size.width;x+=40) canvas.drawLine(Offset(x,0),Offset(x,size.height),p);
     for(double y=0;y<size.height;y+=40) canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
   }
-  @override bool shouldRepaint(_)=>false;
+  @override bool shouldRepaint(covariant _GridPainter old)=>old.isDark!=isDark;
 }
