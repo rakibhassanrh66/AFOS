@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../config/theme/app_colors.dart';
 
-class AfosButton extends StatelessWidget {
+class AfosButton extends StatefulWidget {
   final String label;
   final VoidCallback? onTap;
   final bool loading;
@@ -14,26 +13,52 @@ class AfosButton extends StatelessWidget {
     this.loading=false, this.outlined=false, this.icon, this.color});
 
   @override
+  State<AfosButton> createState() => _AfosButtonState();
+}
+
+class _AfosButtonState extends State<AfosButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (widget.loading || widget.onTap == null) return;
+    setState(() => _pressed = v);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bg = color ?? AppColors.blue;
+    final bg = widget.color ?? AppColors.blue;
     return GestureDetector(
-      onTap: loading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds:200),
-        height: 52,
-        decoration: BoxDecoration(
-          gradient: outlined ? null : LinearGradient(colors:[bg, bg.withOpacity(0.8)],begin:Alignment.topLeft,end:Alignment.bottomRight),
-          border: outlined ? Border.all(color:bg,width:1.5) : null,
-          borderRadius: BorderRadius.circular(12),
-          color: outlined ? Colors.transparent : null,
+      onTap: widget.loading ? null : widget.onTap,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds:220),
+          curve: Curves.easeOutCubic,
+          height: 52,
+          decoration: BoxDecoration(
+            gradient: widget.outlined ? null : LinearGradient(
+              colors:[bg, AppColors.holoviolet.withOpacity(0.85)],
+              begin:Alignment.topLeft,end:Alignment.bottomRight),
+            border: widget.outlined ? Border.all(color:bg,width:1.5) : null,
+            borderRadius: BorderRadius.circular(14),
+            color: widget.outlined ? Colors.transparent : null,
+            boxShadow: widget.outlined ? null : [
+              BoxShadow(color: bg.withOpacity(0.35), blurRadius: 18, spreadRadius: -2, offset: const Offset(0,6)),
+            ],
+          ),
+          child: widget.loading
+            ? const Center(child:SizedBox(width:22,height:22,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)))
+            : Row(mainAxisAlignment:MainAxisAlignment.center, children:[
+                if(widget.icon!=null) ...[Icon(widget.icon,color:widget.outlined?bg:Colors.white,size:18), const SizedBox(width:8)],
+                Text(widget.label, style:TextStyle(color:widget.outlined?bg:Colors.white,fontSize:15,fontWeight:FontWeight.w600)),
+              ]),
         ),
-        child: loading
-          ? const Center(child:SizedBox(width:22,height:22,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)))
-          : Row(mainAxisAlignment:MainAxisAlignment.center, children:[
-              if(icon!=null) ...[Icon(icon,color:outlined?bg:Colors.white,size:18), const SizedBox(width:8)],
-              Text(label, style:TextStyle(color:outlined?bg:Colors.white,fontSize:15,fontWeight:FontWeight.w600)),
-            ]),
       ),
-    ).animate().scale(begin:const Offset(1,1),duration:100.ms,curve:Curves.easeInOut);
+    );
   }
 }

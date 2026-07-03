@@ -38,14 +38,7 @@ class AppRouter {
       if (loc == '/splash') return null;
       if (session == null && !loc.startsWith('/auth')) return '/auth/login';
       if (session != null && loc.startsWith('/auth')) {
-        // Fetch role to redirect correctly
-        final profile = await Supabase.instance.client
-            .from('profiles')
-            .select('*, roles(name)')
-            .eq('id', session.user.id)
-            .single();
-        final role = profile['roles']['name'];
-        if (role == 'super_admin') return '/admin-dashboard';
+        // TODO: route super_admin to a dedicated /admin-dashboard once it exists.
         return '/home';
       }
       return null;

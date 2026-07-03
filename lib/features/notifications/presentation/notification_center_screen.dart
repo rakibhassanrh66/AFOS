@@ -83,7 +83,7 @@ class _NotifState extends State<NotificationCenterScreen> {
   Widget build(BuildContext context) {
     final unread = _notifs.where((n) => !(n['is_read'] as bool? ?? false)).length;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(
         title: 'Notifications',
         actions: [
@@ -133,15 +133,15 @@ class _NotifState extends State<NotificationCenterScreen> {
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: isRead ? AppColors.card : AppColors.card,
+                              color: AppColors.surfaceOf(context),
                               borderRadius: BorderRadius.circular(14),
                               border: Border(
                                 left: BorderSide(
                                     color: isRead ? Colors.transparent : color,
                                     width: 3),
-                                right: const BorderSide(color: AppColors.border, width: 0.5),
-                                top: const BorderSide(color: AppColors.border, width: 0.5),
-                                bottom: const BorderSide(color: AppColors.border, width: 0.5),
+                                right: BorderSide(color: AppColors.borderOf(context), width: 0.5),
+                                top: BorderSide(color: AppColors.borderOf(context), width: 0.5),
+                                bottom: BorderSide(color: AppColors.borderOf(context), width: 0.5),
                               ),
                             ),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -158,18 +158,19 @@ class _NotifState extends State<NotificationCenterScreen> {
                                 Row(children: [
                                   Expanded(child: Text(n['title'] ?? '',
                                       style: AppTextStyles.titleMedium.copyWith(
+                                          color: AppColors.textPrimaryOf(context),
                                           fontWeight: isRead ? FontWeight.w500 : FontWeight.w700))),
                                   if (!isRead) Container(width: 8, height: 8,
                                       decoration: const BoxDecoration(
                                           color: AppColors.blue, shape: BoxShape.circle)),
                                 ]),
                                 const SizedBox(height: 3),
-                                Text(n['body'] ?? '', style: AppTextStyles.bodyMedium,
+                                Text(n['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
                                     maxLines: 2, overflow: TextOverflow.ellipsis),
                                 if (time != null) ...[
                                   const SizedBox(height: 4),
                                   Text(AppFormatters.relativeTime(time),
-                                      style: AppTextStyles.labelSmall.copyWith(fontSize: 10)),
+                                      style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context))),
                                 ],
                               ])),
                             ]),

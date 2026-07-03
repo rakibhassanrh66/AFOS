@@ -8,7 +8,6 @@ import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
-import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -50,13 +49,13 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Lost & Found'),
       body: Column(children: [
-        Container(color: AppColors.surface, child: TabBar(
+        Container(color: AppColors.surfaceOf(context), child: TabBar(
             controller: _tab,
             labelColor: AppColors.blue,
-            unselectedLabelColor: AppColors.textSecondary,
+            unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
             tabs: const [Tab(text: 'Feed'), Tab(text: 'Post'), Tab(text: 'My Posts')])),
         Expanded(child: TabBarView(controller: _tab, children: [
@@ -90,11 +89,11 @@ class _FeedTab extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                              color: sel ? AppColors.blue : AppColors.card,
+                              color: sel ? AppColors.blue : AppColors.surfaceOf(context),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: sel ? AppColors.blue : AppColors.border, width: 0.5)),
+                              border: Border.all(color: sel ? AppColors.blue : AppColors.borderOf(context), width: 0.5)),
                           child: Text(f.substring(0, 1).toUpperCase() + f.substring(1),
-                              style: TextStyle(color: sel ? Colors.white : AppColors.textSecondary,
+                              style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
                                   fontSize: 13, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
                         )));
               }).toList()))),
@@ -124,8 +123,8 @@ class _PostCard extends StatelessWidget {
     final type = post['type'] as String? ?? 'lost';
     final typeColor = type == 'lost' ? AppColors.red : AppColors.green;
     return Container(
-      decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5)),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: typeColor.withOpacity(0.3), width: 0.7)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Stack(children: [
           Container(height: 110, decoration: BoxDecoration(
@@ -146,14 +145,14 @@ class _PostCard extends StatelessWidget {
                   style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)))),
         ]),
         Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(post['title'] ?? '', style: AppTextStyles.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(post['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 3),
-          Text(post['description'] ?? '', style: AppTextStyles.bodyMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(post['description'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
           Row(children: [
-            const Icon(Icons.location_on_outlined, size: 11, color: AppColors.textSecondary),
+            Icon(Icons.location_on_outlined, size: 11, color: AppColors.textSecondaryOf(context)),
             const SizedBox(width: 3),
-            Expanded(child: Text(post['location_text'] ?? '', style: AppTextStyles.labelSmall,
+            Expanded(child: Text(post['location_text'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)),
                 maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
         ])),
@@ -232,15 +231,15 @@ class _PostTabState extends State<_PostTab> {
         const SizedBox(height: 14),
         GestureDetector(onTap: _pickImage, child: Container(
             width: double.infinity, height: 100,
-            decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _image != null ? AppColors.green : AppColors.border)),
+            decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _image != null ? AppColors.green : AppColors.borderOf(context))),
             child: _image != null
                 ? ClipRRect(borderRadius: BorderRadius.circular(12),
                     child: Image.file(File(_image!.path), fit: BoxFit.cover))
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Icon(Icons.add_photo_alternate_outlined, color: AppColors.textSecondary, size: 32),
+                    Icon(Icons.add_photo_alternate_outlined, color: AppColors.textSecondaryOf(context), size: 32),
                     const SizedBox(height: 6),
-                    Text('Add photo (optional)', style: AppTextStyles.bodyMedium),
+                    Text('Add photo (optional)', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
                   ]))),
         const SizedBox(height: 24),
         AfosButton(label: 'Post ${_type == 'lost' ? 'Lost' : 'Found'} Item',
@@ -259,11 +258,11 @@ class _TypeChip extends StatelessWidget {
     final color = value == 'lost' ? AppColors.red : AppColors.green;
     return GestureDetector(onTap: () => onTap(value), child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(color: sel ? color.withOpacity(0.15) : AppColors.card,
+        decoration: BoxDecoration(color: sel ? color.withOpacity(0.15) : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: sel ? color : AppColors.border)),
+            border: Border.all(color: sel ? color : AppColors.borderOf(context))),
         child: Center(child: Text(label,
-            style: TextStyle(color: sel ? color : AppColors.textSecondary, fontSize: 12,
+            style: TextStyle(color: sel ? color : AppColors.textSecondaryOf(context), fontSize: 12,
                 fontWeight: FontWeight.w600), textAlign: TextAlign.center))));
   }
 }
@@ -302,14 +301,14 @@ class _MyPostsTabState extends State<_MyPostsTab> {
           final color = type == 'lost' ? AppColors.red : AppColors.green;
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5)),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 10, height: 50, decoration: BoxDecoration(
                     color: color, borderRadius: BorderRadius.circular(5))),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(p['title'] ?? '', style: AppTextStyles.titleMedium),
+                  Text(p['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                   Text(p['status'] ?? '', style: TextStyle(color: color, fontSize: 12)),
                 ])),
                 if (p['status'] == 'active') TextButton(

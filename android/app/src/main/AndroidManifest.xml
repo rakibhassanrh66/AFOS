@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="afos_v7"
+        android:label="AFOS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

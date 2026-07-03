@@ -92,14 +92,14 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AfosAppBar(title: 'Library'),
       body: Column(children: [
-        Container(color: AppColors.surface, child: TabBar(
+        Container(color: AppColors.surfaceOf(context), child: TabBar(
             controller: _tab,
-            labelColor: AppColors.blue,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.blue,
+            labelColor: AppColors.holoviolet,
+            unselectedLabelColor: AppColors.textSecondaryOf(context),
+            indicatorColor: AppColors.holoviolet,
             tabs: const [Tab(text: 'Borrowed'), Tab(text: 'Search')])),
         Expanded(child: TabBarView(controller: _tab, children: [
           _BorrowedTab(borrowed: _borrowed, fine: _totalFine,
@@ -125,20 +125,22 @@ class _BorrowedTab extends StatelessWidget {
     if (loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
-      color: AppColors.blue,
+      color: AppColors.holoviolet,
       child: ListView(padding: const EdgeInsets.all(16), children: [
-        if (fine > 0) Container(
-          padding: const EdgeInsets.all(14),
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-              color: AppColors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.red.withOpacity(0.3))),
-          child: Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: AppColors.red),
-            const SizedBox(width: 10),
-            Text('Outstanding Fine: ৳${fine.toStringAsFixed(2)}',
-                style: AppTextStyles.titleLarge.copyWith(color: AppColors.red)),
-          ]),
+        if (fine > 0) RepaintBoundary(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+                color: AppColors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.red.withOpacity(0.3))),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: AppColors.red),
+              const SizedBox(width: 10),
+              Text('Outstanding Fine: ৳${fine.toStringAsFixed(2)}',
+                  style: AppTextStyles.titleLarge.copyWith(color: AppColors.red)),
+            ]),
+          ),
         ),
         if (borrowed.isEmpty) ...[
           const SizedBox(height: 40),
@@ -169,55 +171,61 @@ class _BookCard extends StatelessWidget {
     final statusColor = isOverdue ? AppColors.red
         : daysLeft <= 3 ? AppColors.amber : AppColors.green;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: AppColors.card, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border, width: 0.5)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 48, height: 64,
-              decoration: BoxDecoration(
-                  color: AppColors.purple.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.book_rounded, color: AppColors.purple, size: 28)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(book['title'] ?? 'Unknown', style: AppTextStyles.titleMedium, maxLines: 2),
-            Text(book['author'] ?? '', style: AppTextStyles.bodyMedium),
-            const SizedBox(height: 6),
-            Text(isOverdue ? 'OVERDUE ${now.difference(dueDate!).inDays} days'
-                : dueDate != null ? 'Due in $daysLeft days' : 'No due date',
-                style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600)),
-          ])),
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return RepaintBoundary(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 48, height: 64,
+                decoration: BoxDecoration(
+                    color: AppColors.holoviolet.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(book['title'] ?? 'Unknown',
+                  style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
+              Text(book['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+              const SizedBox(height: 6),
+              Text(isOverdue ? 'OVERDUE ${now.difference(dueDate).inDays} days'
+                  : dueDate != null ? 'Due in $daysLeft days' : 'No due date',
+                  style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600)),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          ClipRRect(borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                  value: progress, minHeight: 6,
+                  backgroundColor: AppColors.borderOf(context),
+                  valueColor: AlwaysStoppedAnimation(statusColor))),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: OutlinedButton(
+                onPressed: () => onRenew(borrow['id'], borrow['book_id']),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.holoBlue,
+                    side: BorderSide(color: AppColors.holoBlue),
+                    minimumSize: const Size(0, 40)),
+                child: const Text('Renew'))),
+            if (isOverdue) ...[
+              const SizedBox(width: 10),
+              Expanded(child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.red, minimumSize: const Size(0, 40)),
+                  child: const Text('Pay Fine'))),
+            ],
+          ]),
         ]),
-        const SizedBox(height: 12),
-        ClipRRect(borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-                value: progress, minHeight: 6,
-                backgroundColor: AppColors.border,
-                valueColor: AlwaysStoppedAnimation(statusColor))),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: OutlinedButton(
-              onPressed: () => onRenew(borrow['id'], borrow['book_id']),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.blue,
-                  side: const BorderSide(color: AppColors.blue),
-                  minimumSize: const Size(0, 40)),
-              child: const Text('Renew'))),
-          if (isOverdue) ...[
-            const SizedBox(width: 10),
-            Expanded(child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.red, minimumSize: const Size(0, 40)),
-                child: const Text('Pay Fine'))),
-          ],
-        ]),
-      ]),
-    ).animate(delay: Duration(milliseconds: index * 80)).fadeIn().slideY(begin: 0.05);
+      ),
+    ).animate(delay: Duration(milliseconds: index * 80))
+        .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }
 
@@ -231,23 +239,28 @@ class _SearchTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
     return Column(children: [
       Padding(padding: const EdgeInsets.all(16), child: TextField(
         controller: ctrl, onChanged: onSearch,
-        style: const TextStyle(color: AppColors.textPrimary),
+        style: TextStyle(color: textPrimary),
         decoration: InputDecoration(
             hintText: 'Search by title, author or ISBN',
-            prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
+            prefixIcon: Icon(Icons.search, color: textSecondary, size: 20),
             suffixIcon: ctrl.text.isNotEmpty
-                ? IconButton(icon: const Icon(Icons.clear, size: 18, color: AppColors.textSecondary),
+                ? IconButton(icon: Icon(Icons.clear, size: 18, color: textSecondary),
                     onPressed: () { ctrl.clear(); onSearch(''); }) : null,
-            filled: true, fillColor: AppColors.card,
+            filled: true, fillColor: AppColors.glassFill(context),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.border, width: 0.5)),
+                borderSide: BorderSide(color: AppColors.glassBorder(context), width: 0.5)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.border, width: 0.5))),
+                borderSide: BorderSide(color: AppColors.glassBorder(context), width: 0.5)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppColors.holoviolet, width: 1))),
       )),
-      if (searching) const LinearProgressIndicator(color: AppColors.blue, backgroundColor: AppColors.border),
+      if (searching) LinearProgressIndicator(
+          color: AppColors.holoviolet, backgroundColor: AppColors.borderOf(context)),
       Expanded(child: results.isEmpty && ctrl.text.isNotEmpty && !searching
           ? EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
@@ -257,33 +270,35 @@ class _SearchTab extends StatelessWidget {
               itemBuilder: (ctx, i) {
                 final b = results[i];
                 final avail = (b['available_copies'] as int? ?? 0) > 0;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.card,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border, width: 0.5)),
-                  child: Row(children: [
-                    Container(width: 44, height: 60,
-                        decoration: BoxDecoration(color: AppColors.purple.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.book_rounded, color: AppColors.purple, size: 24)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(b['title'] ?? '', style: AppTextStyles.titleMedium, maxLines: 2),
-                      Text(b['author'] ?? '', style: AppTextStyles.bodyMedium),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                            color: (avail ? AppColors.green : AppColors.red).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Text(avail ? 'Available' : 'Checked Out',
-                            style: TextStyle(color: avail ? AppColors.green : AppColors.red,
-                                fontSize: 10, fontWeight: FontWeight.w600)),
-                      ),
-                    ])),
-                  ]),
+                return RepaintBoundary(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: AppColors.surfaceOf(context),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+                    child: Row(children: [
+                      Container(width: 44, height: 60,
+                          decoration: BoxDecoration(color: AppColors.holoviolet.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8)),
+                          child: Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 24)),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(b['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
+                        Text(b['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: (avail ? AppColors.green : AppColors.red).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Text(avail ? 'Available' : 'Checked Out',
+                              style: TextStyle(color: avail ? AppColors.green : AppColors.red,
+                                  fontSize: 10, fontWeight: FontWeight.w600)),
+                        ),
+                      ])),
+                    ]),
+                  ),
                 );
               })),
     ]);

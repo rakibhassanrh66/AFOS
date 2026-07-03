@@ -51,16 +51,16 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AfosAppBar(title: 'Payment'),
       body: Column(children: [
         Container(
-          color: AppColors.surface,
+          color: AppColors.surfaceOf(context),
           child: TabBar(
             controller: _tab,
-            labelColor: AppColors.blue,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.blue,
+            labelColor: AppColors.holoBlue,
+            unselectedLabelColor: AppColors.textSecondaryOf(context),
+            indicatorColor: AppColors.holoBlue,
             tabs: const [Tab(text: 'Pay Now'), Tab(text: 'History')],
           ),
         ),
@@ -97,30 +97,43 @@ class _PayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
     return GestureDetector(
       onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => PaymentWebViewScreen(category: cat.label))),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(
-            width: 52, height: 52,
-            decoration: BoxDecoration(
-              color: cat.color.withOpacity(0.15), borderRadius: BorderRadius.circular(14)),
-            child: Icon(cat.icon, color: cat.color, size: 26),
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [cat.color.withOpacity(AppColors.isDark(context)?0.32:0.22),
+                       AppColors.holoTeal.withOpacity(0.12)]),
           ),
-          const SizedBox(height: 12),
-          Text(cat.label,
-              style: AppTextStyles.titleMedium, textAlign: TextAlign.center),
-          const SizedBox(height: 4),
-          Text('Check balance →',
-              style: AppTextStyles.bodyMedium.copyWith(color: cat.color, fontSize: 11)),
-        ]),
-      ).animate(delay: Duration(milliseconds: index * 60)).fadeIn().scale(begin: const Offset(0.95, 0.95)),
+          padding: const EdgeInsets.all(1),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceOf(context),
+              borderRadius: BorderRadius.circular(15)),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: cat.color.withOpacity(0.15), borderRadius: BorderRadius.circular(14)),
+                child: Icon(cat.icon, color: cat.color, size: 26),
+              ),
+              const SizedBox(height: 12),
+              Text(cat.label,
+                  style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 4),
+              Text('Check balance →',
+                  style: AppTextStyles.bodyMedium.copyWith(color: cat.color, fontSize: 11)),
+            ]),
+          ),
+        ),
+      ).animate(delay: Duration(milliseconds: index * 60))
+          .fadeIn(curve: Curves.easeOutCubic).scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutCubic),
     );
   }
 }
@@ -134,9 +147,10 @@ class _HistoryTab extends StatelessWidget {
     if (history.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.receipt_long_outlined, color: AppColors.textMuted, size: 56),
+          Icon(Icons.receipt_long_outlined, color: AppColors.textMutedOf(context), size: 56),
           const SizedBox(height: 16),
-          Text('No payment history', style: AppTextStyles.bodyMedium),
+          Text('No payment history',
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
         ]),
       );
     }
@@ -148,38 +162,42 @@ class _HistoryTab extends StatelessWidget {
         final status = p['status'] as String? ?? 'pending';
         final statusColor = status == 'paid' ? AppColors.green
             : status == 'failed' ? AppColors.red : AppColors.amber;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: AppColors.card, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border, width: 0.5)),
-          child: Row(children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                  color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.receipt_outlined, color: AppColors.blue, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(p['category'] ?? '', style: AppTextStyles.titleMedium),
-              Text(p['payment_date'] != null
-                  ? AppFormatters.date(DateTime.parse(p['payment_date']))
-                  : 'Pending', style: AppTextStyles.bodyMedium),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('৳${p['amount'] ?? 0}',
-                  style: AppTextStyles.titleLarge.copyWith(color: AppColors.gold)),
+        return RepaintBoundary(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+                color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+            child: Row(children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                width: 40, height: 40,
                 decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                child: Text(status.toUpperCase(),
-                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
+                    color: AppColors.holoBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
               ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(p['category'] ?? '',
+                    style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                Text(p['payment_date'] != null
+                    ? AppFormatters.date(DateTime.parse(p['payment_date']))
+                    : 'Pending',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('৳${p['amount'] ?? 0}',
+                    style: AppTextStyles.titleLarge.copyWith(color: AppColors.gold)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Text(status.toUpperCase(),
+                      style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
+                ),
+              ]),
             ]),
-          ]),
+          ),
         );
       },
     );

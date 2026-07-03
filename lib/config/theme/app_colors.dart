@@ -50,4 +50,44 @@ class AppColors {
     'exam_seat': Color(0xFFF97316), 'dept_chat': Color(0xFF6366F1),
     'vr_id': Color(0xFF00D084), 'notices': Color(0xFFFF4D6A),
   };
+
+  // --- Holographic accent set (sci-fi glass signature) ---
+  static const Color holoBlue   = Color(0xFF1E6FFF);
+  static const Color holoviolet = Color(0xFF8B5CF6);
+  static const Color holoTeal   = Color(0xFF06B6D4);
+
+  static const LinearGradient holoGradient = LinearGradient(
+    begin: Alignment.topLeft, end: Alignment.bottomRight,
+    colors: [holoBlue, holoviolet, holoTeal],
+  );
+
+  static Color glowBlue(double opacity)   => holoBlue.withOpacity(opacity);
+  static Color glowPurple(double opacity) => holoviolet.withOpacity(opacity);
+  static Color glowTeal(double opacity)   => holoTeal.withOpacity(opacity);
+
+  // --- Theme-aware helpers: use these instead of raw hex so light/dark both read correctly ---
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color textPrimaryOf(BuildContext context) =>
+      isDark(context) ? textPrimary : lightText;
+  static Color textSecondaryOf(BuildContext context) =>
+      isDark(context) ? textSecondary : lightMuted;
+  static Color textMutedOf(BuildContext context) =>
+      isDark(context) ? textMuted : lightMuted.withOpacity(0.7);
+  static Color surfaceOf(BuildContext context) =>
+      isDark(context) ? surface : lightCard;
+  static Color borderOf(BuildContext context) =>
+      isDark(context) ? border : lightBorder;
+
+  /// Frosted glass fill — light, translucent white in dark mode; translucent
+  /// white-on-white reads as near-solid in light mode, so light mode uses a
+  /// darker-tinted translucent fill instead to keep the frosted contrast.
+  static Color glassFill(BuildContext context) => isDark(context)
+      ? Colors.white.withOpacity(0.06)
+      : Colors.white.withOpacity(0.55);
+
+  static Color glassBorder(BuildContext context) => isDark(context)
+      ? Colors.white.withOpacity(0.14)
+      : const Color(0xFF0A1628).withOpacity(0.08);
 }

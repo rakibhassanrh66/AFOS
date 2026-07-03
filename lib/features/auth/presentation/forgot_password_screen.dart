@@ -11,6 +11,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/extensions/context_ext.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
 
 class ForgotPasswordScreen extends StatelessWidget {
@@ -32,47 +33,76 @@ class _ForgotBodyState extends State<_ForgotBody> {
   bool _sent = false;
 
   @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
   Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
     return BlocListener<AuthBloc,AuthState>(
       listener:(ctx,state) {
         if(state is AuthPasswordResetSent) setState(()=>_sent=true);
         if(state is AuthError) ctx.showSnack(state.message,isError:true);
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(leading:IconButton(icon:const Icon(Icons.arrow_back),onPressed:()=>context.pop())),
-        body: Padding(
-          padding: const EdgeInsets.all(28),
-          child: _sent ? _SuccessView() : Form(
-            key:_formKey,
-            child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-              const SizedBox(height:24),
-              const Icon(Icons.lock_reset, color:AppColors.blue, size:48)
-                .animate().scale(duration:600.ms,curve:Curves.easeOutBack),
-              const SizedBox(height:24),
-              Text('Reset Password', style:AppTextStyles.displayMedium)
-                .animate(delay:200.ms).fadeIn(),
-              const SizedBox(height:8),
-              Text('Enter your email. We\'ll send a reset link.',
-                style:AppTextStyles.bodyMedium).animate(delay:300.ms).fadeIn(),
-              const SizedBox(height:32),
-              AfosTextField(hint:'Email address', controller:_ctrl,
-                prefixIcon:Icons.email_outlined, keyboardType:TextInputType.emailAddress,
-                validator:AppValidators.email)
-                .animate(delay:400.ms).fadeIn().slideY(begin:0.1),
-              const SizedBox(height:24),
-              BlocBuilder<AuthBloc,AuthState>(
-                builder:(ctx,state) => AfosButton(
-                  label:'Send Reset Link',
-                  loading:state is AuthLoading,
-                  onTap:(){
-                    if(_formKey.currentState!.validate()) {
-                      ctx.read<AuthBloc>().add(AuthForgotPassword(_ctrl.text.trim()));
-                    }
-                  },
-                ),
-              ).animate(delay:500.ms).fadeIn(),
-            ]),
+        backgroundColor: AppColors.surfaceOf(context),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading:IconButton(
+            icon:Icon(Icons.arrow_back, color: textPrimary),
+            onPressed:()=>context.pop()),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: GlassCard(
+              glowColor: AppColors.holoviolet,
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: _sent
+                  ? _SuccessView(textPrimary: textPrimary, textSecondary: textSecondary)
+                  : Form(
+                      key:_formKey,
+                      child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
+                        Container(
+                          width:56, height:56,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.holoBlue.withOpacity(0.12),
+                            border: Border.all(color: AppColors.holoBlue.withOpacity(0.4)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(Icons.lock_reset, color:AppColors.holoBlue, size:28),
+                        ).animate().scale(duration:450.ms,curve:Curves.easeOutCubic).fadeIn(duration:300.ms),
+                        const SizedBox(height:24),
+                        Text('Reset Password', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))
+                          .animate(delay:120.ms).fadeIn(duration:300.ms).slideX(begin:-0.06,curve:Curves.easeOutCubic),
+                        const SizedBox(height:8),
+                        Text("Enter your email. We'll send a reset link.",
+                          style:AppTextStyles.bodyMedium.copyWith(color: textSecondary))
+                          .animate(delay:180.ms).fadeIn(duration:300.ms),
+                        const SizedBox(height:32),
+                        AfosTextField(hint:'Email address', controller:_ctrl,
+                          prefixIcon:Icons.email_outlined, keyboardType:TextInputType.emailAddress,
+                          validator:AppValidators.email)
+                          .animate(delay:260.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                        const SizedBox(height:24),
+                        BlocBuilder<AuthBloc,AuthState>(
+                          builder:(ctx,state) => AfosButton(
+                            label:'Send Reset Link',
+                            loading:state is AuthLoading,
+                            onTap:(){
+                              if(_formKey.currentState!.validate()) {
+                                ctx.read<AuthBloc>().add(AuthForgotPassword(_ctrl.text.trim()));
+                              }
+                            },
+                          ),
+                        ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      ]),
+                    ),
+              ),
+            ),
           ),
         ),
       ),
@@ -81,18 +111,31 @@ class _ForgotBodyState extends State<_ForgotBody> {
 }
 
 class _SuccessView extends StatelessWidget {
+  final Color textPrimary, textSecondary;
+  const _SuccessView({required this.textPrimary, required this.textSecondary});
   @override
   Widget build(BuildContext context) {
-    return Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
-      const Icon(Icons.mark_email_read_outlined, color:AppColors.green, size:72)
-        .animate().scale(duration:600.ms,curve:Curves.easeOutBack),
+    return Column(mainAxisSize:MainAxisSize.min, children:[
+      Container(
+        width:72, height:72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.green.withOpacity(0.12),
+          border: Border.all(color: AppColors.green.withOpacity(0.4)),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.mark_email_read_outlined, color:AppColors.green, size:36),
+      ).animate().scale(duration:450.ms,curve:Curves.easeOutCubic).fadeIn(duration:300.ms),
       const SizedBox(height:24),
-      Text('Check your inbox!', style:AppTextStyles.displayMedium, textAlign:TextAlign.center),
+      Text('Check your inbox!', style:AppTextStyles.displayMedium.copyWith(color: textPrimary), textAlign:TextAlign.center)
+        .animate(delay:120.ms).fadeIn(duration:300.ms),
       const SizedBox(height:12),
       Text('A password reset link has been sent to your email.',
-        style:AppTextStyles.bodyMedium, textAlign:TextAlign.center),
+        style:AppTextStyles.bodyMedium.copyWith(color: textSecondary), textAlign:TextAlign.center)
+        .animate(delay:180.ms).fadeIn(duration:300.ms),
       const SizedBox(height:32),
-      AfosButton(label:'Back to Login', onTap:()=>GoRouter.of(context).go('/auth/login')),
-    ]));
+      AfosButton(label:'Back to Login', onTap:()=>GoRouter.of(context).go('/auth/login'))
+        .animate(delay:260.ms).fadeIn(duration:300.ms),
+    ]);
   }
 }

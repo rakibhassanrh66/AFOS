@@ -42,7 +42,7 @@ class _DeptChatState extends State<DeptChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: _user != null ? '${_user!.department} Channels' : 'Dept Chat'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -62,11 +62,11 @@ class _EmptyChannels extends StatelessWidget {
   const _EmptyChannels({required this.dept});
   @override
   Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-    const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.textMuted, size: 56),
+    Icon(Icons.chat_bubble_outline_rounded, color: AppColors.textMutedOf(context), size: 56),
     const SizedBox(height: 16),
-    Text('No channels for $dept yet', style: AppTextStyles.bodyMedium),
+    Text('No channels for $dept yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     const SizedBox(height: 8),
-    const Text('Channels are created by department admins', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+    Text('Channels are created by department admins', style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 12)),
   ]));
 }
 
@@ -89,18 +89,18 @@ class _ChannelTile extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border, width: 0.5)),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
         child: Row(children: [
           Container(width: 44, height: 44,
               decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
               child: Center(child: Text('#', style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w800)))),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('#$name', style: AppTextStyles.titleLarge),
-            Text(channel['description'] ?? 'Department channel', style: AppTextStyles.bodyMedium),
+            Text('#$name', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+            Text(channel['description'] ?? 'Department channel', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
           ])),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
         ]),
       ),
     ).animate(delay: Duration(milliseconds: index * 60)).fadeIn().slideX(begin: -0.05);
@@ -178,21 +178,21 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
   Widget build(BuildContext context) {
     final name = widget.channel['channel_name'] as String? ?? 'chat';
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        title: Text('#$name', style: AppTextStyles.headlineMed),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
-        actions: [const Icon(Icons.push_pin_outlined, color: AppColors.textSecondary), const SizedBox(width: 16)],
-        bottom: const PreferredSize(preferredSize: Size.fromHeight(0.5),
-            child: Divider(height: 0.5, color: AppColors.border)),
+        backgroundColor: AppColors.surfaceOf(context),
+        title: Text('#$name', style: AppTextStyles.headlineMed.copyWith(color: AppColors.textPrimaryOf(context))),
+        iconTheme: IconThemeData(color: AppColors.textPrimaryOf(context)),
+        actions: [Icon(Icons.push_pin_outlined, color: AppColors.textSecondaryOf(context)), const SizedBox(width: 16)],
+        bottom: PreferredSize(preferredSize: const Size.fromHeight(0.5),
+            child: Divider(height: 0.5, color: AppColors.borderOf(context))),
       ),
       body: Column(children: [
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
             : _messages.isEmpty
                 ? Center(child: Text('No messages yet. Say hello! 👋',
-                    style: AppTextStyles.bodyMedium))
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.all(16),
@@ -223,7 +223,7 @@ class _MsgBubble extends StatelessWidget {
       child: Column(crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
         if (showAvatar && !isMe) Padding(padding: const EdgeInsets.only(bottom: 4, left: 4),
             child: Row(children: [
-              Text(profile['full_name'] ?? '', style: AppTextStyles.labelSmall),
+              Text(profile['full_name'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
               if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
@@ -233,15 +233,15 @@ class _MsgBubble extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
               gradient: isMe ? AppColors.blueGradient : null,
-              color: isMe ? null : AppColors.card,
+              color: isMe ? null : AppColors.surfaceOf(context),
               borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
                   bottomLeft: Radius.circular(isMe ? 16 : 4), bottomRight: Radius.circular(isMe ? 4 : 16)),
               border: isFaculty && !isMe ? const Border(left: BorderSide(color: AppColors.gold, width: 2)) : null),
-          child: Text(content, style: TextStyle(color: isMe ? Colors.white : AppColors.textPrimary, fontSize: 14)),
+          child: Text(content, style: TextStyle(color: isMe ? Colors.white : AppColors.textPrimaryOf(context), fontSize: 14)),
         ),
         if (time != null) Padding(padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
-            child: Text(AppFormatters.time(time), style: AppTextStyles.labelSmall.copyWith(fontSize: 10))),
+            child: Text(AppFormatters.time(time), style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context)))),
       ]),
     );
   }
@@ -254,21 +254,21 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.surface,
+      color: AppColors.surfaceOf(context),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
       child: Row(children: [
         Expanded(child: TextField(
             controller: ctrl,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 14),
             decoration: InputDecoration(
                 hintText: 'Message...', contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(color: AppColors.border, width: 0.5)),
+                    borderSide: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(color: AppColors.border, width: 0.5)),
+                    borderSide: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
                     borderSide: const BorderSide(color: AppColors.blue, width: 1.5)),
-                filled: true, fillColor: AppColors.card),
+                filled: true, fillColor: AppColors.surfaceOf(context)),
             onSubmitted: (_) => onSend(),
         )),
         const SizedBox(width: 8),

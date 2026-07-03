@@ -25,9 +25,9 @@ class EmptyState extends StatelessWidget {
             child: Icon(icon, color:AppColors.blue, size:36),
           ),
           const SizedBox(height:20),
-          Text(title, style:AppTextStyles.headlineLarge, textAlign:TextAlign.center),
+          Text(title, style:AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context)), textAlign:TextAlign.center),
           const SizedBox(height:8),
-          Text(subtitle, style:AppTextStyles.bodyMedium, textAlign:TextAlign.center),
+          Text(subtitle, style:AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign:TextAlign.center),
           if(actionLabel!=null && onAction!=null) ...[
             const SizedBox(height:24),
             ElevatedButton(onPressed:onAction, child:Text(actionLabel!)),

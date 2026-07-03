@@ -9,7 +9,7 @@ class PlaceholderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(child: Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
         Container(width:80,height:80,
           decoration:BoxDecoration(
@@ -19,9 +19,9 @@ class PlaceholderScreen extends StatelessWidget {
           ),
           child: Icon(icon, color:AppColors.blue, size:36)),
         const SizedBox(height:20),
-        Text(title, style:const TextStyle(color:Colors.white,fontSize:20,fontWeight:FontWeight.bold)),
+        Text(title, style:TextStyle(color:AppColors.textPrimaryOf(context),fontSize:20,fontWeight:FontWeight.bold)),
         const SizedBox(height:8),
-        const Text('Built in next prompt...', style:TextStyle(color:AppColors.textSecondary,fontSize:14)),
+        Text('Built in next prompt...', style:TextStyle(color:AppColors.textSecondaryOf(context),fontSize:14)),
       ]))),
     );
   }
