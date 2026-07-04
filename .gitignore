@@ -43,3 +43,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing / credentials — never commit these
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+*.p12
+*.pem
+ios/Runner/GoogleService-Info.plist
+android/app/google-services.json
+.env
+.env.*
+
+# Supabase CLI local state (per-machine, not project config)
+supabase/.temp/

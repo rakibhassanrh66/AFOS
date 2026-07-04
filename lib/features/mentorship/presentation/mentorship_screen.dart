@@ -3,11 +3,15 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/auth/role_session.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
+
+const _mentorCapableRoles = ['teacher', 'admin', 'dept_admin', 'super_admin'];
 
 class MentorshipScreen extends StatefulWidget {
   const MentorshipScreen({super.key});
@@ -16,8 +20,10 @@ class MentorshipScreen extends StatefulWidget {
 
 class _MentorshipState extends State<MentorshipScreen> with SingleTickerProviderStateMixin {
   late TabController _tab;
-  List<Map<String, dynamic>> _mentors = [], _sessions = [];
+  List<Map<String, dynamic>> _mentors = [], _sessions = [], _incomingRequests = [];
+  Map<String, dynamic>? _myMentorProfile;
   bool _loading = true;
+  bool get _isTeacher => _mentorCapableRoles.contains(RoleSession.role);
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _load(); }
@@ -27,15 +33,46 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final [mentors, sessions] = await Future.wait([
-        SupabaseConfig.client.from('mentors').select('*, profiles(full_name,avatar_url,department)') as Future,
-        SupabaseConfig.client.from('mentorship_bookings').select('*, mentors(*, profiles(full_name))')
-            .eq('student_id', SupabaseConfig.uid ?? '').order('created_at', ascending: false) as Future,
-      ]);
-      if (mounted) setState(() {
-        _mentors = (mentors as List).cast();
-        _sessions = (sessions as List).cast();
-      });
+      if (_isTeacher) {
+        // A mentorship request is only ever visible/actionable by the
+        // specific teacher it was addressed to (mentor_id) — never a
+        // roster of every teacher's requests — matching the RLS policy
+        // on mentorship_bookings which scopes rows the same way.
+        final results = await Future.wait([
+          SupabaseConfig.client.from('mentorship_bookings')
+              .select('*, profiles!student_id(full_name, department, avatar_url)')
+              .eq('mentor_id', SupabaseConfig.uid ?? '').order('created_at', ascending: false) as Future,
+          SupabaseConfig.client.from('mentors').select().eq('id', SupabaseConfig.uid ?? '').maybeSingle() as Future,
+        ]);
+        if (mounted) setState(() {
+          _incomingRequests = (results[0] as List).cast();
+          _myMentorProfile = results[1] as Map<String, dynamic>?;
+        });
+      } else {
+        // Only show mentors relevant to this student — never expose the
+        // whole faculty roster. Matched by department for now (the
+        // mentors/teachers schema doesn't yet record per-semester/course
+        // availability, so that's as fine-grained as this can go today).
+        final myProfile = await SupabaseConfig.client.from('profiles')
+            .select('department').eq('id', SupabaseConfig.uid ?? '').maybeSingle();
+        final myDept = myProfile?['department'] as String?;
+
+        var mentorsQuery = SupabaseConfig.client.from('mentors')
+            .select('*, profiles!inner(full_name,avatar_url,department)');
+        if (myDept != null && myDept.isNotEmpty) {
+          mentorsQuery = mentorsQuery.eq('profiles.department', myDept);
+        }
+
+        final results = await Future.wait([
+          mentorsQuery as Future,
+          SupabaseConfig.client.from('mentorship_bookings').select('*, mentors(*, profiles(full_name))')
+              .eq('student_id', SupabaseConfig.uid ?? '').order('created_at', ascending: false) as Future,
+        ]);
+        if (mounted) setState(() {
+          _mentors = (results[0] as List).cast();
+          _sessions = (results[1] as List).cast();
+        });
+      }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
@@ -49,13 +86,22 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
         Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
             labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
-            tabs: const [Tab(text: 'Find Mentor'), Tab(text: 'My Sessions')])),
-        Expanded(child: TabBarView(controller: _tab, children: [
-          _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4, itemHeight: 130))
-              : _MentorList(mentors: _mentors, onBook: (m) => _showBookingDialog(context, m)),
-          _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-              : _SessionsTab(sessions: _sessions, onRefresh: _load),
-        ])),
+            tabs: _isTeacher
+                ? const [Tab(text: 'Requests'), Tab(text: 'My Mentor Profile')]
+                : const [Tab(text: 'Find Mentor'), Tab(text: 'My Sessions')])),
+        Expanded(child: TabBarView(controller: _tab, children: _isTeacher
+            ? [
+                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+                    : _IncomingRequestsTab(requests: _incomingRequests, onRefresh: _load),
+                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 1, itemHeight: 260))
+                    : _MyMentorProfileTab(profile: _myMentorProfile, onSaved: _load),
+              ]
+            : [
+                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4, itemHeight: 130))
+                    : _MentorList(mentors: _mentors, onBook: (m) => _showBookingDialog(context, m)),
+                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+                    : _SessionsTab(sessions: _sessions, onRefresh: _load),
+              ])),
       ]),
     );
   }
@@ -65,7 +111,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
     showModalBottomSheet(context: ctx, isScrollControlled: true,
         backgroundColor: AppColors.surfaceOf(ctx),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (_) => Padding(
+        builder: (_) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Book Session', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(ctx))),
@@ -85,6 +131,13 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                     'topic': topicCtrl.text.trim(),
                     'status': 'pending',
                   });
+                  NotificationService.sendToUsers(
+                    userIds: [mentor['id']],
+                    title: 'New mentorship request',
+                    message: '${(mentor['profiles'] as Map?)?['full_name'] ?? 'A student'} — new request awaiting your response',
+                    deepLink: '/mentorship',
+                    category: 'mentorship',
+                  );
                   _load();
                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
@@ -122,9 +175,9 @@ class _MentorList extends StatelessWidget {
                     child: const Center(child: Icon(Icons.person_rounded, color: AppColors.blue, size: 28))),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(profile['full_name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-                  Text(m['title'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-                  Text(profile['department'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+                  Text(profile['full_name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(m['title'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(profile['department'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 8),
                   if (specs.isNotEmpty) Wrap(spacing: 6, runSpacing: 4, children: specs.map((s) =>
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -191,5 +244,158 @@ class _SessionsTab extends StatelessWidget {
                         style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
               ]));
         });
+  }
+}
+
+class _IncomingRequestsTab extends StatefulWidget {
+  final List<Map<String, dynamic>> requests; final VoidCallback onRefresh;
+  const _IncomingRequestsTab({required this.requests, required this.onRefresh});
+  @override State<_IncomingRequestsTab> createState() => _IncomingRequestsTabState();
+}
+
+class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
+  bool _busy = false;
+
+  Future<void> _respond(Map<String, dynamic> request, String status) async {
+    setState(() => _busy = true);
+    try {
+      await SupabaseConfig.client.from('mentorship_bookings').update({'status': status}).eq('id', request['id']);
+      final studentId = request['student_id'] as String?;
+      if (studentId != null) {
+        final label = switch (status) {
+          'confirmed' => 'accepted your mentorship request',
+          'rejected' => 'declined your mentorship request',
+          _ => 'marked your mentorship session as completed',
+        };
+        NotificationService.sendToUsers(
+          userIds: [studentId],
+          title: 'Mentorship update',
+          message: 'Your mentor $label',
+          deepLink: '/mentorship',
+          category: 'mentorship',
+        );
+      }
+      widget.onRefresh();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Color _statusColor(String s) => switch (s) {
+    'confirmed' => AppColors.green, 'rejected' => AppColors.red,
+    'completed' => AppColors.textSecondary, _ => AppColors.amber
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.requests.isEmpty) return EmptyState(icon: Icons.inbox_outlined,
+        title: 'No requests yet', subtitle: 'Student mentorship requests addressed to you will appear here');
+    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: widget.requests.length,
+        itemBuilder: (ctx, i) {
+          final r = widget.requests[i];
+          final student = r['profiles'] as Map<String, dynamic>? ?? {};
+          final status = r['status'] as String? ?? 'pending';
+          return Container(margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(student['full_name'] ?? 'Student',
+                      style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      child: Text(status.toUpperCase(), style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                ]),
+                if ((student['department'] as String? ?? '').isNotEmpty)
+                  Text(student['department'], style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+                const SizedBox(height: 6),
+                Text(r['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
+                    maxLines: 3, overflow: TextOverflow.ellipsis),
+                if (status == 'pending') ...[
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    TextButton(onPressed: _busy ? null : () => _respond(r, 'confirmed'),
+                        child: const Text('Accept', style: TextStyle(fontSize: 12, color: AppColors.green))),
+                    TextButton(onPressed: _busy ? null : () => _respond(r, 'rejected'),
+                        child: const Text('Decline', style: TextStyle(fontSize: 12, color: AppColors.red))),
+                  ]),
+                ] else if (status == 'confirmed') ...[
+                  const SizedBox(height: 10),
+                  TextButton(onPressed: _busy ? null : () => _respond(r, 'completed'),
+                      child: const Text('Mark completed', style: TextStyle(fontSize: 12, color: AppColors.blue))),
+                ],
+              ]));
+        });
+  }
+}
+
+class _MyMentorProfileTab extends StatefulWidget {
+  final Map<String, dynamic>? profile; final VoidCallback onSaved;
+  const _MyMentorProfileTab({required this.profile, required this.onSaved});
+  @override State<_MyMentorProfileTab> createState() => _MyMentorProfileTabState();
+}
+
+class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
+  late final _titleCtrl = TextEditingController(text: widget.profile?['title'] ?? '');
+  late final _bioCtrl = TextEditingController(text: widget.profile?['bio'] ?? '');
+  late final _specCtrl = TextEditingController(
+      text: ((widget.profile?['specializations'] as List?)?.cast<String>() ?? []).join(', '));
+  late bool _accepting = widget.profile?['is_accepting_bookings'] as bool? ?? true;
+  bool _saving = false;
+
+  @override
+  void dispose() { _titleCtrl.dispose(); _bioCtrl.dispose(); _specCtrl.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final specs = _specCtrl.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      await SupabaseConfig.client.from('mentors').upsert({
+        'id': SupabaseConfig.uid,
+        'title': _titleCtrl.text.trim(),
+        'bio': _bioCtrl.text.trim(),
+        'specializations': specs,
+        'is_accepting_bookings': _accepting,
+      });
+      widget.onSaved();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mentor profile saved ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (widget.profile == null)
+        Text('Set up your mentor profile so students can find and book you.',
+            style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+      if (widget.profile == null) const SizedBox(height: 16),
+      AfosTextField(hint: 'Title (e.g. Senior Lecturer)', controller: _titleCtrl),
+      const SizedBox(height: 12),
+      AfosTextField(hint: 'Short bio', controller: _bioCtrl, maxLines: 3),
+      const SizedBox(height: 12),
+      AfosTextField(hint: 'Specializations (comma separated)', controller: _specCtrl),
+      const SizedBox(height: 16),
+      Row(children: [
+        Text('Accepting new requests', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
+        const Spacer(),
+        Switch(value: _accepting, activeColor: AppColors.blue,
+            onChanged: (v) => setState(() => _accepting = v)),
+      ]),
+      const SizedBox(height: 16),
+      AfosButton(label: widget.profile == null ? 'Become a Mentor' : 'Save Changes',
+          loading: _saving, onTap: _save),
+    ]));
   }
 }

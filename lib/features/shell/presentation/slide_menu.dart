@@ -33,21 +33,73 @@ class _SlideMenuState extends State<SlideMenu> {
     } catch(_) {}
   }
 
-  static const _items = [
+  // Base items every role gets.
+  static const _commonItems = [
     _MenuItem('Dashboard',      Icons.home_rounded,          '/home',          AppColors.blue),
     _MenuItem('Class Schedule', Icons.calendar_today_rounded,'/schedule',      Color(0xFF1E6FFF)),
-    _MenuItem('Hall Allocation',Icons.apartment_rounded,     '/hall',          AppColors.amber),
     _MenuItem('Transport',      Icons.directions_bus_rounded,'/transport',     AppColors.teal),
-    _MenuItem('Payment',        Icons.payment_rounded,       '/payment',       AppColors.gold),
     _MenuItem('Library',        Icons.menu_book_rounded,     '/library',       AppColors.purple),
     _MenuItem('Lost & Found',   Icons.search_rounded,        '/lost-found',    AppColors.coral),
     _MenuItem('Clubs',          Icons.groups_rounded,        '/clubs',         AppColors.pink),
     _MenuItem('Mentorship',     Icons.school_rounded,        '/mentorship',    Color(0xFF60A5FA)),
     _MenuItem('Dept Chat',      Icons.chat_rounded,          '/dept-chat',     AppColors.indigo),
-    _MenuItem('Exam Seat Plan', Icons.event_seat_rounded,    '/exam-seat',     AppColors.orange),
     _MenuItem('Notifications',  Icons.notifications_rounded, '/notifications', AppColors.red),
     _MenuItem('Settings',       Icons.settings_rounded,      '/settings',      AppColors.textSecondary),
   ];
+
+  // Student-only: hall allocation and exam seating are student-personal
+  // records — a teacher has no hall room or exam seat of their own.
+  static const _studentOnlyItems = [
+    _MenuItem('Hall Allocation',Icons.apartment_rounded,     '/hall',          AppColors.amber),
+    _MenuItem('Payment',        Icons.payment_rounded,       '/payment',       AppColors.gold),
+    _MenuItem('Exam Seat Plan', Icons.event_seat_rounded,    '/exam-seat',     AppColors.orange),
+  ];
+
+  static const _adminItems = [
+    _MenuItem('Upload Routine/Transport', Icons.upload_file_rounded, '/admin/upload', AppColors.holoBlue),
+    _MenuItem('Manage Hall', Icons.apartment_rounded, '/admin/hall', AppColors.amber),
+    _MenuItem('Moderate Dept Chats', Icons.shield_rounded, '/admin/dept-chat', AppColors.indigo),
+    _MenuItem('Manage Faculties', Icons.account_balance_rounded, '/admin/faculties', AppColors.holoviolet),
+    _MenuItem('Manage Departments', Icons.apartment_rounded, '/admin/departments', AppColors.holoTeal),
+    _MenuItem('Notices & Rules', Icons.campaign_rounded, '/manage-notices', AppColors.red),
+  ];
+
+  static const _noticesItem =
+    _MenuItem('Notices & Rules', Icons.campaign_rounded, '/manage-notices', AppColors.red);
+
+  // Semester only means something for a student — a teacher/staff/admin
+  // profile row still carries a leftover default `semester` value, so show
+  // role-appropriate info instead for everyone else.
+  String get _secondaryChipLabel {
+    final role = _user?.role;
+    if (role == null) return '';
+    if (_user!.isStudent) return 'Sem ${_user!.semester}';
+    if (_user!.isTeacher) return _user!.designation ?? 'Faculty';
+    switch (role) {
+      case 'super_admin': return 'Super Admin';
+      case 'dept_admin': return 'Dept Admin';
+      case 'admin': return 'Admin';
+      case 'staff': return 'Staff';
+      case 'exam_controller': return 'Exam Controller';
+      default: return role;
+    }
+  }
+
+  List<_MenuItem> get _effectiveItems {
+    final role = _user?.role;
+    // Admins/super_admin need full oversight of every module (student and
+    // teacher screens alike) plus their own management tools — nothing is
+    // hidden from them, only ordinary users get a pared-down role view.
+    if (const ['admin', 'super_admin', 'dept_admin'].contains(role)) {
+      return [..._commonItems, ..._studentOnlyItems, ..._adminItems];
+    }
+    if (role == 'teacher') {
+      // Teachers can author course notices/rules but don't get the rest
+      // of the admin toolset (routine upload, faculty/department registry).
+      return [..._commonItems, _noticesItem];
+    }
+    return [..._commonItems, ..._studentOnlyItems];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +118,8 @@ class _SlideMenuState extends State<SlideMenu> {
           child: Column(children:[
             _buildHeader(ctx),
             Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
-              ...List.generate(_items.length, (i) =>
-                _MenuTile(item:_items[i], isActive:state.selectedIndex==i, index:i, delay:i*40)),
+              ...List.generate(_effectiveItems.length, (i) =>
+                _MenuTile(item:_effectiveItems[i], isActive:state.selectedIndex==i, index:i, delay:i*40)),
               Divider(color:border, height:24),
               _buildLogout(ctx),
             ])),
@@ -94,14 +146,16 @@ class _SlideMenuState extends State<SlideMenu> {
             onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
         ]),
         const SizedBox(height:12),
-        Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge.copyWith(color: textPrimary)),
+        Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge.copyWith(color: textPrimary),
+          maxLines:1, overflow:TextOverflow.ellipsis),
         const SizedBox(height:2),
-        Text(_user?.studentId??'', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
+        Text(_user?.studentId??'', style:AppTextStyles.monoSmall.copyWith(color: textSecondary),
+          maxLines:1, overflow:TextOverflow.ellipsis),
         const SizedBox(height:8),
         Row(children:[
-          _Chip(_user?.department??'', AppColors.holoBlue),
+          Flexible(child: _Chip(_user?.department??'', AppColors.holoBlue)),
           const SizedBox(width:6),
-          _Chip('Sem ${_user?.semester??1}', AppColors.green),
+          _Chip(_secondaryChipLabel, AppColors.green),
         ]),
         const SizedBox(height:12),
         GestureDetector(
@@ -188,7 +242,7 @@ class _MenuTile extends StatelessWidget {
           borderRadius:BorderRadius.circular(10),
           onTap:(){
             context.read<ShellBloc>().add(SelectItem(index));
-            context.go(item.route);
+            context.push(item.route);
           },
           child: Container(
             padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),
@@ -241,7 +295,8 @@ class _Chip extends StatelessWidget {
     padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
     decoration:BoxDecoration(color:color.withOpacity(0.15),borderRadius:BorderRadius.circular(20),
       border:Border.all(color:color.withOpacity(0.3))),
-    child:Text(label,style:TextStyle(color:color,fontSize:11,fontWeight:FontWeight.w600)),
+    child:Text(label,style:TextStyle(color:color,fontSize:11,fontWeight:FontWeight.w600),
+      maxLines:1,overflow:TextOverflow.ellipsis),
   );
 }
 

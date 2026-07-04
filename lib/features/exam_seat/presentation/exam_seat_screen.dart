@@ -125,7 +125,7 @@ class _SeatCard extends StatelessWidget {
     showModalBottomSheet(
       context: ctx, backgroundColor: AppColors.surfaceOf(ctx), isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(padding: const EdgeInsets.all(24), child: Column(
+      builder: (_) => SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(
           mainAxisSize: MainAxisSize.min, children: [
             Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderOf(ctx), borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 20),

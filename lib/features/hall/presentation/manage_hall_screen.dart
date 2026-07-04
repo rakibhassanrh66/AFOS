@@ -1,0 +1,429 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../config/supabase_config.dart';
+import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_text_styles.dart';
+import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
+import '../../shell/presentation/top_app_bar.dart';
+
+/// Super Admin / admin / staff hall-application review — the student side
+/// (hall_screen.dart) could always apply/cancel, but until this screen there
+/// was nowhere for anyone to actually approve/reject an application (the
+/// admin_hall_all RLS policy already supported it, only the UI was missing).
+class ManageHallScreen extends StatefulWidget {
+  const ManageHallScreen({super.key});
+  @override State<ManageHallScreen> createState() => _ManageHallScreenState();
+}
+
+class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  List<Map<String, dynamic>> _apps = [];
+  bool _loading = true;
+  String _filter = 'pending';
+  RealtimeChannel? _sub;
+
+  List<Map<String, dynamic>> _complaints = [];
+  bool _complaintsLoading = true;
+  String _complaintFilter = 'open';
+  RealtimeChannel? _complaintsSub;
+
+  static const _filters = ['pending', 'reviewing', 'approved', 'rejected', 'cancelled', 'all'];
+  static const _complaintFilters = ['open', 'in_progress', 'resolved', 'dismissed', 'all'];
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    _load();
+    _loadComplaints();
+    // hall_applications.stream() can't embed the student's profile, so we
+    // refetch (like dept_chat's admin-moderation pattern) on any change
+    // instead of relying on the raw realtime row.
+    _sub = SupabaseConfig.client.channel('manage_hall_applications')
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
+            table: 'hall_applications', callback: (_) => _load())
+        .subscribe();
+    _complaintsSub = SupabaseConfig.client.channel('manage_hall_complaints')
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
+            table: 'hall_complaints', callback: (_) => _loadComplaints())
+        .subscribe();
+  }
+
+  @override
+  void dispose() { _tab.dispose(); _sub?.unsubscribe(); _complaintsSub?.unsubscribe(); super.dispose(); }
+
+  Future<void> _loadComplaints() async {
+    try {
+      final res = await SupabaseConfig.client.from('hall_complaints')
+          .select('*, profiles!student_id(full_name,university_id,email,department)')
+          .order('created_at', ascending: false) as List;
+      if (mounted) setState(() { _complaints = res.cast(); _complaintsLoading = false; });
+    } catch (e) {
+      if (mounted) setState(() => _complaintsLoading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _visibleComplaints => _complaintFilter == 'all'
+      ? _complaints : _complaints.where((c) => c['status'] == _complaintFilter).toList();
+
+  Future<void> _resolveComplaint(Map<String, dynamic> complaint, String status) async {
+    final responseCtrl = TextEditingController(text: complaint['resolution'] as String? ?? '');
+    bool saving = false;
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
+          final textPrimary = AppColors.textPrimaryOf(sheetCtx);
+          return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(status == 'resolved' ? 'Resolve Complaint' : 'Dismiss Complaint',
+                    style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+                const SizedBox(height: 8),
+                Text('${complaint['profiles']?['full_name'] ?? 'Student'} · ${complaint['category'] ?? ''}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                const SizedBox(height: 20),
+                AfosTextField(hint: 'Response to student', controller: responseCtrl, maxLines: 3),
+                const SizedBox(height: 24),
+                AfosButton(
+                  label: 'Confirm',
+                  loading: saving,
+                  onTap: () async {
+                    setSheetState(() => saving = true);
+                    try {
+                      await SupabaseConfig.client.from('hall_complaints').update({
+                        'status': status,
+                        'resolution': responseCtrl.text.trim(),
+                        'resolved_by': SupabaseConfig.uid,
+                        'resolved_at': DateTime.now().toIso8601String(),
+                      }).eq('id', complaint['id']);
+                      final studentId = complaint['student_id'] as String?;
+                      if (studentId != null && responseCtrl.text.trim().isNotEmpty) {
+                        await NotificationService.sendToUsers(
+                          userIds: [studentId],
+                          title: status == 'resolved' ? 'Complaint resolved' : 'Complaint update',
+                          message: responseCtrl.text.trim(),
+                          deepLink: '/hall',
+                          category: 'hall',
+                        );
+                      }
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e) {
+                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                      setSheetState(() => saving = false);
+                    }
+                  },
+                ),
+              ]));
+        }));
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await SupabaseConfig.client.from('hall_applications')
+          .select('*, profiles!student_id(full_name,university_id,email,department)')
+          .order('created_at', ascending: false) as List;
+      if (mounted) setState(() { _apps = res.cast(); _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _visible =>
+      _filter == 'all' ? _apps : _apps.where((a) => a['status'] == _filter).toList();
+
+  Future<void> _markReviewing(Map<String, dynamic> app) async {
+    await SupabaseConfig.client.from('hall_applications')
+        .update({'status': 'reviewing', 'reviewed_by': SupabaseConfig.uid, 'reviewed_at': DateTime.now().toIso8601String()})
+        .eq('id', app['id']);
+  }
+
+  Future<void> _approve(Map<String, dynamic> app) async {
+    final roomCtrl = TextEditingController();
+    final floorCtrl = TextEditingController();
+    final buildingCtrl = TextEditingController(text: app['preferred_hall'] as String? ?? '');
+    bool saving = false;
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
+          final textPrimary = AppColors.textPrimaryOf(sheetCtx);
+          return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Approve Application', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+                const SizedBox(height: 8),
+                Text('${app['profiles']?['full_name'] ?? 'Student'} · ${app['preferred_hall'] ?? ''}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                const SizedBox(height: 20),
+                AfosTextField(hint: 'Building', controller: buildingCtrl),
+                const SizedBox(height: 12),
+                AfosTextField(hint: 'Room number', controller: roomCtrl),
+                const SizedBox(height: 12),
+                AfosTextField(hint: 'Floor', controller: floorCtrl, keyboardType: TextInputType.number),
+                const SizedBox(height: 24),
+                AfosButton(
+                  label: 'Confirm Approval',
+                  loading: saving,
+                  onTap: () async {
+                    if (roomCtrl.text.trim().isEmpty) return;
+                    setSheetState(() => saving = true);
+                    try {
+                      await SupabaseConfig.client.from('hall_applications').update({
+                        'status': 'approved',
+                        'assigned_room': roomCtrl.text.trim(),
+                        'assigned_floor': int.tryParse(floorCtrl.text.trim()),
+                        'assigned_building': buildingCtrl.text.trim(),
+                        'reviewed_by': SupabaseConfig.uid,
+                        'reviewed_at': DateTime.now().toIso8601String(),
+                      }).eq('id', app['id']);
+                      final studentId = app['student_id'] as String?;
+                      if (studentId != null) {
+                        await NotificationService.sendToUsers(
+                          userIds: [studentId],
+                          title: 'Hall application approved',
+                          message: 'Room ${roomCtrl.text.trim()}, ${buildingCtrl.text.trim()}',
+                          deepLink: '/hall',
+                          category: 'hall',
+                        );
+                      }
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e) {
+                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                      setSheetState(() => saving = false);
+                    }
+                  },
+                ),
+              ]));
+        }));
+  }
+
+  Future<void> _reject(Map<String, dynamic> app) async {
+    final reasonCtrl = TextEditingController();
+    bool saving = false;
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
+          final textPrimary = AppColors.textPrimaryOf(sheetCtx);
+          return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Reject Application', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+                const SizedBox(height: 8),
+                Text(app['profiles']?['full_name'] ?? 'Student',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                const SizedBox(height: 20),
+                AfosTextField(hint: 'Reason (e.g. no seat available)', controller: reasonCtrl, maxLines: 3),
+                const SizedBox(height: 24),
+                AfosButton(
+                  label: 'Confirm Rejection',
+                  loading: saving,
+                  onTap: () async {
+                    if (reasonCtrl.text.trim().isEmpty) return;
+                    setSheetState(() => saving = true);
+                    try {
+                      await SupabaseConfig.client.from('hall_applications').update({
+                        'status': 'rejected',
+                        'rejection_reason': reasonCtrl.text.trim(),
+                        'reviewed_by': SupabaseConfig.uid,
+                        'reviewed_at': DateTime.now().toIso8601String(),
+                      }).eq('id', app['id']);
+                      final studentId = app['student_id'] as String?;
+                      if (studentId != null) {
+                        await NotificationService.sendToUsers(
+                          userIds: [studentId],
+                          title: 'Hall application rejected',
+                          message: reasonCtrl.text.trim(),
+                          deepLink: '/hall',
+                          category: 'hall',
+                        );
+                      }
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e) {
+                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                      setSheetState(() => saving = false);
+                    }
+                  },
+                ),
+              ]));
+        }));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AfosAppBar(title: 'Manage Hall'),
+      body: Column(children: [
+        Container(color: AppColors.surfaceOf(context), child: TabBar(
+            controller: _tab,
+            labelColor: AppColors.blue,
+            unselectedLabelColor: AppColors.textSecondaryOf(context),
+            indicatorColor: AppColors.blue,
+            tabs: const [Tab(text: 'Applications'), Tab(text: 'Complaints')])),
+        Expanded(child: TabBarView(controller: _tab, children: [
+          _buildApplicationsTab(context),
+          _buildComplaintsTab(context),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _buildApplicationsTab(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Column(children: [
+        SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            children: _filters.map((f) {
+              final sel = f == _filter;
+              return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
+                  label: Text(f[0].toUpperCase() + f.substring(1)),
+                  selected: sel,
+                  onSelected: (_) => setState(() => _filter = f),
+                  selectedColor: AppColors.blue.withValues(alpha: 0.2),
+                  labelStyle: TextStyle(color: sel ? AppColors.blue : textSecondary, fontWeight: FontWeight.w600)));
+            }).toList())),
+        Expanded(child: _loading
+            ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+            : _visible.isEmpty
+                ? EmptyState(icon: Icons.apartment_outlined, title: 'No applications', subtitle: 'Nothing in "$_filter" right now')
+                : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
+                    itemBuilder: (ctx, i) {
+                      final a = _visible[i];
+                      final profile = a['profiles'] as Map<String, dynamic>? ?? {};
+                      final status = a['status'] as String? ?? 'pending';
+                      return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Expanded(child: Text(profile['full_name'] ?? 'Unknown',
+                                  style: AppTextStyles.titleMedium.copyWith(color: textPrimary))),
+                              _StatusPill(status),
+                            ]),
+                            Text('${profile['university_id'] ?? ''} · ${profile['department'] ?? ''}',
+                                style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                            const SizedBox(height: 6),
+                            Text('${a['preferred_hall'] ?? '-'} · ${a['preference'] ?? '-'}',
+                                style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
+                            if ((a['reason'] as String?)?.isNotEmpty ?? false)
+                              Padding(padding: const EdgeInsets.only(top: 4), child: Text(a['reason'],
+                                  style: AppTextStyles.bodyMedium.copyWith(color: textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                            if (status == 'approved')
+                              Padding(padding: const EdgeInsets.only(top: 6), child: Text(
+                                  'Room ${a['assigned_room'] ?? '-'}, ${a['assigned_building'] ?? '-'} (Floor ${a['assigned_floor'] ?? '-'})',
+                                  style: TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.w600))),
+                            if (status == 'rejected')
+                              Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reason: ${a['rejection_reason'] ?? '-'}',
+                                  style: const TextStyle(color: AppColors.red, fontSize: 12))),
+                            if (status == 'pending' || status == 'reviewing') ...[
+                              const SizedBox(height: 10),
+                              Row(children: [
+                                if (status == 'pending')
+                                  TextButton(onPressed: () => _markReviewing(a), child: const Text('Mark Reviewing')),
+                                const Spacer(),
+                                OutlinedButton(onPressed: () => _reject(a),
+                                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                                    child: const Text('Reject')),
+                                const SizedBox(width: 8),
+                                ElevatedButton(onPressed: () => _approve(a),
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
+                                    child: const Text('Approve')),
+                              ]),
+                            ],
+                          ]));
+                    })),
+      ]);
+  }
+
+  Widget _buildComplaintsTab(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Column(children: [
+      SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          children: _complaintFilters.map((f) {
+            final sel = f == _complaintFilter;
+            return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
+                label: Text(f.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ')),
+                selected: sel,
+                onSelected: (_) => setState(() => _complaintFilter = f),
+                selectedColor: AppColors.blue.withValues(alpha: 0.2),
+                labelStyle: TextStyle(color: sel ? AppColors.blue : textSecondary, fontWeight: FontWeight.w600)));
+          }).toList())),
+      Expanded(child: _complaintsLoading
+          ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+          : _visibleComplaints.isEmpty
+              ? EmptyState(icon: Icons.report_problem_outlined, title: 'No complaints', subtitle: 'Nothing in "$_complaintFilter" right now')
+              : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visibleComplaints.length,
+                  itemBuilder: (ctx, i) {
+                    final c = _visibleComplaints[i];
+                    final profile = c['profiles'] as Map<String, dynamic>? ?? {};
+                    final status = c['status'] as String? ?? 'open';
+                    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Expanded(child: Text('${profile['full_name'] ?? 'Unknown'} · ${c['category'] ?? ''}',
+                                style: AppTextStyles.titleMedium.copyWith(color: textPrimary))),
+                            _StatusPill(status),
+                          ]),
+                          Text('${profile['university_id'] ?? ''} · ${profile['department'] ?? ''}',
+                              style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                          const SizedBox(height: 6),
+                          Text(c['description'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
+                          if ((c['resolution'] as String?)?.isNotEmpty ?? false)
+                            Padding(padding: const EdgeInsets.only(top: 6), child: Text('Response: ${c['resolution']}',
+                                style: TextStyle(color: AppColors.green, fontSize: 12))),
+                          if (status == 'open' || status == 'in_progress') ...[
+                            const SizedBox(height: 10),
+                            Row(children: [
+                              if (status == 'open')
+                                TextButton(onPressed: () => SupabaseConfig.client.from('hall_complaints')
+                                    .update({'status': 'in_progress'}).eq('id', c['id']),
+                                    child: const Text('Mark In Progress')),
+                              const Spacer(),
+                              OutlinedButton(onPressed: () => _resolveComplaint(c, 'dismissed'),
+                                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                                  child: const Text('Dismiss')),
+                              const SizedBox(width: 8),
+                              ElevatedButton(onPressed: () => _resolveComplaint(c, 'resolved'),
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
+                                  child: const Text('Resolve')),
+                            ]),
+                          ],
+                        ]));
+                  })),
+    ]);
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String status;
+  const _StatusPill(this.status);
+  Color get _color => switch (status) {
+        'approved' => AppColors.green,
+        'rejected' => AppColors.red,
+        'reviewing' => AppColors.amber,
+        'cancelled' => AppColors.textSecondary,
+        _ => AppColors.blue,
+      };
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: _color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+      child: Text(status.toUpperCase(), style: TextStyle(color: _color, fontSize: 10, fontWeight: FontWeight.w700)));
+}

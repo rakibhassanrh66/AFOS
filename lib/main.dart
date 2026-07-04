@@ -29,6 +29,22 @@ void main() async {
   OneSignal.initialize(AppConfig.oneSignalAppId);
   OneSignal.Notifications.requestPermission(true);
 
+  // Targeted push (routine updates, mentorship, lost&found, approvals) is
+  // sent via OneSignal's external_id, which must be tied to the Supabase
+  // user id for the whole session, not just at sign-in — otherwise a
+  // cold start with an already-valid session never re-associates the
+  // device with that user after an app restart.
+  final currentUid = Supabase.instance.client.auth.currentUser?.id;
+  if (currentUid != null) OneSignal.login(currentUid);
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final uid = data.session?.user.id;
+    if (uid != null) {
+      OneSignal.login(uid);
+    } else if (data.event == AuthChangeEvent.signedOut) {
+      OneSignal.logout();
+    }
+  });
+
   configureDependencies();
   runApp(const AFOSApp());
 }

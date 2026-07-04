@@ -1,18 +1,18 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/network/storage_upload_service.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../core/auth/role_session.dart';
 
 class LostFoundScreen extends StatefulWidget {
   const LostFoundScreen({super.key});
@@ -28,7 +28,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -39,7 +39,15 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
     setState(() => _loading = true);
     try {
       var q = SupabaseConfig.client.from('lost_found_posts').select();
-      if (_filter != 'all') q = q.eq('type', _filter);
+      // Resolved posts drop out of normal browsing automatically once
+      // claimed/returned — 'returned' remains available as its own filter
+      // chip for anyone who wants to look at resolved history.
+      if (_filter == 'returned') {
+        q = q.eq('status', 'returned');
+      } else {
+        q = q.neq('status', 'returned');
+        if (_filter != 'all') q = q.eq('type', _filter);
+      }
       final res = await q.order('created_at', ascending: false) as List;
       if (mounted) setState(() => _posts = res.cast());
     } catch (_) {}
@@ -57,13 +65,15 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
             labelColor: AppColors.blue,
             unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
-            tabs: const [Tab(text: 'Feed'), Tab(text: 'Post'), Tab(text: 'My Posts')])),
+            isScrollable: true,
+            tabs: const [Tab(text: 'Feed'), Tab(text: 'Post'), Tab(text: 'My Posts'), Tab(text: 'My Claims')])),
         Expanded(child: TabBarView(controller: _tab, children: [
           _FeedTab(posts: _posts, loading: _loading, filter: _filter,
               onFilter: (f) { setState(() => _filter = f); _load(); },
               onRefresh: _load),
           _PostTab(onPosted: () { _load(); _tab.animateTo(0); }),
           _MyPostsTab(),
+          const _MyClaimsTab(),
         ])),
       ]),
     );
@@ -107,16 +117,86 @@ class _FeedTab extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12,
-                          childAspectRatio: 0.78),
+                          // A fixed aspect ratio undersized the cell for posts that
+                          // show the "Claim" button (title + 2-line description +
+                          // location row + button routinely needs ~250px, but 0.78
+                          // only yields ~220px on typical phone widths) — a fixed
+                          // pixel extent sized for the worst case avoids that.
+                          mainAxisExtent: 260),
                       itemCount: posts.length,
-                      itemBuilder: (ctx, i) => _PostCard(post: posts[i], index: i)))),
+                      itemBuilder: (ctx, i) => _PostCard(post: posts[i], index: i, onDeleted: onRefresh)))),
     ]);
   }
 }
 
 class _PostCard extends StatelessWidget {
-  final Map<String, dynamic> post; final int index;
-  const _PostCard({required this.post, required this.index});
+  final Map<String, dynamic> post; final int index; final VoidCallback onDeleted;
+  const _PostCard({required this.post, required this.index, required this.onDeleted});
+
+  bool get _isOwnPost => post['poster_id'] == SupabaseConfig.uid;
+
+  Future<void> _superAdminDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+              title: const Text('Delete this post?'),
+              content: const Text('As Super Admin you can remove this post entirely — it will disappear for both the poster and any claimants.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
+                TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Delete', style: TextStyle(color: AppColors.red))),
+              ],
+            ));
+    if (confirmed != true) return;
+    try {
+      await SupabaseConfig.client.from('lost_found_posts').delete().eq('id', post['id']);
+      onDeleted();
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+    }
+  }
+
+  Future<void> _openClaimDialog(BuildContext context) async {
+    final msgCtrl = TextEditingController();
+    final sent = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+              title: const Text('Claim this item'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('Describe matching details (color, marks, contents, receipt, etc.) so the poster can verify it\'s yours.',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(dctx))),
+                const SizedBox(height: 12),
+                TextField(controller: msgCtrl, maxLines: 3,
+                    decoration: const InputDecoration(hintText: 'Matching details...', border: OutlineInputBorder())),
+              ]),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
+                TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Send claim')),
+              ],
+            ));
+    if (sent != true || msgCtrl.text.trim().isEmpty) return;
+    try {
+      await SupabaseConfig.client.from('lost_found_claims').insert({
+        'post_id': post['id'], 'claimant_id': SupabaseConfig.uid,
+        'message': msgCtrl.text.trim(),
+      });
+      final posterId = post['poster_id'] as String?;
+      if (posterId != null) {
+        NotificationService.sendToUsers(
+          userIds: [posterId],
+          title: 'New claim on your post',
+          message: 'Someone claimed "${post['title'] ?? 'your item'}" — review it in Lost & Found.',
+          deepLink: '/lost-found',
+          category: 'lost_found',
+        );
+      }
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Claim sent to poster for review')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +223,11 @@ class _PostCard extends StatelessWidget {
               decoration: BoxDecoration(color: typeColor, borderRadius: BorderRadius.circular(10)),
               child: Text(type.toUpperCase(),
                   style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)))),
+          if (RoleSession.role == 'super_admin') Positioned(top: 6, left: 6, child: GestureDetector(
+              onTap: () => _superAdminDelete(context),
+              child: Container(padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
+                  child: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 16)))),
         ]),
         Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(post['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -152,14 +237,22 @@ class _PostCard extends StatelessWidget {
           Row(children: [
             Icon(Icons.location_on_outlined, size: 11, color: AppColors.textSecondaryOf(context)),
             const SizedBox(width: 3),
-            Expanded(child: Text(post['location_text'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)),
-                maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(post['location_text'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
+          if (!_isOwnPost && post['status'] == 'active') ...[
+            const SizedBox(height: 8),
+            SizedBox(width: double.infinity, height: 30, child: OutlinedButton(
+                onPressed: () => _openClaimDialog(context),
+                style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
+                    side: BorderSide(color: typeColor.withOpacity(0.5))),
+                child: Text('Claim', style: TextStyle(color: typeColor, fontSize: 11, fontWeight: FontWeight.w700)))),
+          ],
         ])),
       ]),
     ).animate(delay: Duration(milliseconds: index * 60)).fadeIn().scale(begin: const Offset(0.95, 0.95));
   }
 }
+
 
 class _PostTab extends StatefulWidget {
   final VoidCallback onPosted;
@@ -181,26 +274,25 @@ class _PostTabState extends State<_PostTab> {
     if (img != null) setState(() => _image = img);
   }
 
-  Future<String?> _uploadToImgBB(XFile img) async {
-    final bytes = await img.readAsBytes();
-    final b64 = base64Encode(bytes);
-    final res = await Dio().post(AppConfig.imgBBUrl,
-        data: FormData.fromMap({'key': AppConfig.imgBBApiKey, 'image': b64}));
-    return res.data['data']['url'] as String?;
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
       String? photoUrl;
-      if (_image != null) photoUrl = await _uploadToImgBB(_image!);
+      if (_image != null) {
+        photoUrl = await StorageUploadService.uploadImage(bucket: 'lost-found', image: _image!);
+      }
       await SupabaseConfig.client.from('lost_found_posts').insert({
         'poster_id': SupabaseConfig.uid, 'type': _type,
         'title': _titleCtrl.text.trim(), 'description': _descCtrl.text.trim(),
         'category': _category, 'location_text': _locCtrl.text.trim(),
         'photo_url': photoUrl, 'status': 'active',
       });
+      _formKey.currentState!.reset();
+      _titleCtrl.clear();
+      _descCtrl.clear();
+      _locCtrl.clear();
+      if (mounted) setState(() { _type = 'lost'; _category = 'Electronics'; _image = null; });
       widget.onPosted();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -303,7 +395,8 @@ class _MyPostsTabState extends State<_MyPostsTab> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-              child: Row(children: [
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
                 Container(width: 10, height: 50, decoration: BoxDecoration(
                     color: color, borderRadius: BorderRadius.circular(5))),
                 const SizedBox(width: 12),
@@ -317,7 +410,207 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                           .update({'status': 'returned'}).eq('id', p['id']);
                       _load();
                     },
-                    child: const Text('Mark Returned', style: TextStyle(fontSize: 11))),
+                    child: Text(type == 'lost' ? 'Mark Found' : 'Mark Claimed', style: const TextStyle(fontSize: 11))),
+                IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20),
+                    tooltip: 'Delete post',
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dctx) => AlertDialog(
+                                title: const Text('Delete post?'),
+                                content: const Text('This removes it permanently for everyone.'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
+                                  TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Delete')),
+                                ],
+                              ));
+                      if (confirmed == true) {
+                        await SupabaseConfig.client.from('lost_found_posts').delete().eq('id', p['id']);
+                        _load();
+                      }
+                    }),
+              ]),
+              _ClaimsPanel(postId: p['id'], onResolved: _load),
+              ]));
+        });
+  }
+}
+
+class _ClaimsPanel extends StatefulWidget {
+  final dynamic postId; final VoidCallback onResolved;
+  const _ClaimsPanel({required this.postId, required this.onResolved});
+  @override State<_ClaimsPanel> createState() => _ClaimsPanelState();
+}
+
+class _ClaimsPanelState extends State<_ClaimsPanel> {
+  List<Map<String, dynamic>> _claims = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      // Fetch every non-rejected claim (not just pending) so an accepted
+      // claim stays visible after the post moves to 'returned' — the poster
+      // needs to keep seeing who they matched with to arrange handover and
+      // to clean the record up afterward.
+      final res = await SupabaseConfig.client.from('lost_found_claims').select()
+          .eq('post_id', widget.postId).neq('status', 'rejected')
+          .order('created_at', ascending: false) as List;
+      if (mounted) setState(() { _claims = res.cast(); _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _respond(Map<String, dynamic> claim, String status) async {
+    await SupabaseConfig.client.from('lost_found_claims').update({'status': status}).eq('id', claim['id']);
+    final claimantId = claim['claimant_id'] as String?;
+    if (claimantId != null) {
+      NotificationService.sendToUsers(
+        userIds: [claimantId],
+        title: 'Lost & Found update',
+        message: status == 'accepted'
+            ? 'Your claim was accepted! Check the item\'s details to arrange handover.'
+            : 'Your claim was declined by the poster.',
+        deepLink: '/lost-found',
+        category: 'lost_found',
+      );
+    }
+    if (status == 'accepted') widget.onResolved();
+    _load();
+  }
+
+  Future<void> _deleteClaim(String claimId) async {
+    await SupabaseConfig.client.from('lost_found_claims').delete().eq('id', claimId);
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading || _claims.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(top: 10), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Claims (${_claims.length})', style: AppTextStyles.labelSmall.copyWith(
+          color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      ..._claims.map((c) {
+        final accepted = c['status'] == 'accepted';
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(c['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context)))),
+              if (accepted) const Padding(padding: EdgeInsets.only(left: 6),
+                  child: Icon(Icons.check_circle_rounded, color: AppColors.green, size: 16)),
+            ]),
+            const SizedBox(height: 6),
+            Row(children: [
+              if (!accepted) ...[
+                TextButton(onPressed: () => _respond(c, 'accepted'),
+                    child: const Text('Accept', style: TextStyle(fontSize: 11, color: AppColors.green))),
+                TextButton(onPressed: () => _respond(c, 'rejected'),
+                    child: const Text('Reject', style: TextStyle(fontSize: 11, color: AppColors.red))),
+              ] else
+                TextButton(onPressed: () => _deleteClaim(c['id']),
+                    child: const Text('Clear record', style: TextStyle(fontSize: 11, color: AppColors.textMuted))),
+            ]),
+          ]));
+      }),
+    ]));
+  }
+}
+
+class _MyClaimsTab extends StatefulWidget {
+  const _MyClaimsTab();
+  @override State<_MyClaimsTab> createState() => _MyClaimsTabState();
+}
+
+class _MyClaimsTabState extends State<_MyClaimsTab> {
+  List<Map<String, dynamic>> _claims = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) { setState(() => _loading = false); return; }
+    try {
+      final res = await SupabaseConfig.client.from('lost_found_claims')
+          .select('*, lost_found_posts(title, type, status, poster_id)')
+          .eq('claimant_id', uid).order('created_at', ascending: false) as List;
+      if (mounted) setState(() { _claims = res.cast(); _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _withdraw(String claimId) async {
+    await SupabaseConfig.client.from('lost_found_claims').delete().eq('id', claimId);
+    _load();
+  }
+
+  Future<void> _showContact(BuildContext context, String posterId) async {
+    try {
+      final poster = await SupabaseConfig.client.from('profiles')
+          .select('full_name, phone, email').eq('id', posterId).single();
+      if (!context.mounted) return;
+      showDialog(context: context, builder: (dctx) => AlertDialog(
+          title: const Text('Contact the poster'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(poster['full_name'] ?? '', style: AppTextStyles.titleMedium),
+            if ((poster['phone'] as String? ?? '').isNotEmpty) Text('Phone: ${poster['phone']}'),
+            Text('Email: ${poster['email'] ?? ''}'),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Close'))]));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
+    if (_claims.isEmpty) return EmptyState(icon: Icons.inbox_outlined,
+        title: 'No claims filed', subtitle: 'Claims you send from the Feed tab will appear here');
+    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _claims.length,
+        itemBuilder: (ctx, i) {
+          final c = _claims[i];
+          final post = c['lost_found_posts'] as Map<String, dynamic>? ?? {};
+          final status = c['status'] as String? ?? 'pending';
+          final statusColor = status == 'accepted' ? AppColors.green
+              : status == 'rejected' ? AppColors.red : AppColors.amber;
+          return Container(margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(post['title'] ?? 'Post removed',
+                      style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      child: Text(status.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700))),
+                ]),
+                const SizedBox(height: 4),
+                Text(c['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+                Row(children: [
+                  if (status == 'accepted' && post['poster_id'] != null) TextButton(
+                      onPressed: () => _showContact(context, post['poster_id']),
+                      child: const Text('Contact poster', style: TextStyle(fontSize: 11, color: AppColors.blue))),
+                  TextButton(onPressed: () => _withdraw(c['id']),
+                      child: Text(status == 'pending' ? 'Withdraw' : 'Clear record',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted))),
+                ]),
               ]));
         });
   }
