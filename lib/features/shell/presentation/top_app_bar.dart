@@ -45,7 +45,7 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
         ...?actions,
         IconButton(
           icon:Icon(Icons.notifications_rounded,color:textPrimary),
-          onPressed:()=>context.go('/notifications'),
+          onPressed:()=>context.push('/notifications'),
         ),
         const SizedBox(width:8),
       ],

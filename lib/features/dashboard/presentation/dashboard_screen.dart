@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -19,9 +20,13 @@ class _DashboardState extends State<DashboardScreen> {
   UserModel? _user;
   List<Map<String,dynamic>> _notices = [];
   bool _loading = true;
+  StreamSubscription? _noticesSub;
 
   @override
   void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() { _noticesSub?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
@@ -29,20 +34,21 @@ class _DashboardState extends State<DashboardScreen> {
     try {
       final profileRaw = await SupabaseConfig.client
           .from('profiles').select().eq('id', uid).single();
-      final noticesRaw = await SupabaseConfig.client
-          .from('notices').select()
-          .order('created_at', ascending: false).limit(3);
-      if (mounted) setState(() {
-        _user    = UserModel.fromJson(profileRaw);
-        _notices = noticesRaw.cast<Map<String,dynamic>>();
-        _loading = false;
+      if (mounted) setState(() => _user = UserModel.fromJson(profileRaw));
+      // A super_admin posting a notice should reach open dashboards
+      // immediately, not on next manual refresh — subscribe instead of
+      // fetching once.
+      _noticesSub?.cancel();
+      _noticesSub = SupabaseConfig.client.from('notices').stream(primaryKey: ['id'])
+          .order('created_at', ascending: false).limit(3).listen((rows) {
+        if (mounted) setState(() { _notices = rows; _loading = false; });
       });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  static const _modules = [
+  static const _allModules = [
     _Module('Schedule',    Icons.calendar_today_rounded,   AppColors.blue,   '/schedule',  'Today\'s classes'),
     _Module('Hall',        Icons.apartment_rounded,         AppColors.amber,  '/hall',      'Application status'),
     _Module('Transport',   Icons.directions_bus_rounded,    AppColors.teal,   '/transport', 'Next departure'),
@@ -56,6 +62,15 @@ class _DashboardState extends State<DashboardScreen> {
     _Module('VR-ID',       Icons.qr_code_rounded,           AppColors.green,  '/vr-id',     'Active ✓'),
     _Module('Notices',     Icons.campaign_rounded,          AppColors.red,    '/notifications','Latest notices'),
   ];
+
+  // Hall/Payment/Exam Seats are personal student records — a teacher has
+  // none of their own, matching the same role-based hiding as the side
+  // menu and router guards.
+  static const _teacherHiddenModules = {'Hall', 'Payment', 'Exam Seats'};
+
+  List<_Module> get _modules => _user?.role == 'teacher'
+      ? _allModules.where((m) => !_teacherHiddenModules.contains(m.title)).toList()
+      : _allModules;
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +124,7 @@ class _DashboardState extends State<DashboardScreen> {
                 Text('📢 Latest Notices', style: AppTextStyles.headlineLarge
                     .copyWith(color: AppColors.textPrimaryOf(context))),
                 TextButton(
-                  onPressed: () => context.go('/notifications'),
+                  onPressed: () => context.push('/notifications'),
                   child: Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
               ]),
               const SizedBox(height: 12),
@@ -209,7 +224,7 @@ class _ModuleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.go(m.route),
+      onTap: () => context.push(m.route),
       child: _LiteCard(
         accent: m.color,
         child: Padding(

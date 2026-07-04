@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../shared/widgets/supernova_loader.dart';
 
 // Generic registry provider
 final registryDataProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, tableName) async {
@@ -42,16 +43,18 @@ class RegistryListScreen extends ConsumerWidget {
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: ListTile(
                 title: Text(item[displayFields[0]] ?? 'No Name',
-                    style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                    style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: displayFields.length > 1
                     ? Text(item[displayFields[1]] ?? '',
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))
+                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
+                        maxLines: 1, overflow: TextOverflow.ellipsis)
                     : null,
               ),
             );
           },
         ),
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.blue)),
+        loading: () => const Center(child: SupernovaLoader(size: 40, color: AppColors.blue)),
         error: (err, stack) => Center(
             child: Text('Error: $err', style: TextStyle(color: AppColors.textSecondaryOf(context)))),
       ),

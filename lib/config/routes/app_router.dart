@@ -2,27 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/auth/presentation/complete_profile_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/dept_chat/presentation/dept_chat_screen.dart';
+import '../../features/dept_chat/presentation/manage_dept_chat_screen.dart';
 import '../../features/exam_seat/presentation/exam_seat_screen.dart';
 import '../../features/hall/presentation/hall_screen.dart';
+import '../../features/hall/presentation/manage_hall_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
 import '../../features/lost_found/presentation/lost_found_screen.dart';
 import '../../features/mentorship/presentation/mentorship_screen.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
 import '../../features/payment/presentation/payment_screen.dart';
+import '../../features/registry/presentation/manage_notices_screen.dart';
 import '../../features/registry/presentation/registry_list_screen.dart';
 import '../../features/schedule/presentation/schedule_screen.dart';
+import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/shell/presentation/app_shell.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/transport/presentation/transport_screen.dart';
 import '../../features/vr_id/presentation/vr_id_screen.dart';
 import '../../shared/animations/page_transitions.dart';
+import '../../core/auth/role_session.dart';
+
+const _adminRoles = ['admin', 'super_admin', 'dept_admin'];
 
 class AppRouter {
   AppRouter._();
@@ -36,10 +44,37 @@ class AppRouter {
       final session = Supabase.instance.client.auth.currentSession;
       final loc = state.matchedLocation;
       if (loc == '/splash') return null;
-      if (session == null && !loc.startsWith('/auth')) return '/auth/login';
-      if (session != null && loc.startsWith('/auth')) {
-        // TODO: route super_admin to a dedicated /admin-dashboard once it exists.
-        return '/home';
+      if (session == null) {
+        RoleSession.clear();
+        return loc.startsWith('/auth') ? null : '/auth/login';
+      }
+      if (loc.startsWith('/auth')) return '/home';
+      if (loc == '/complete-profile') return null;
+      // Mandatory fields were skippable on an older signup path (or an
+      // admin-created account) — force completion before anything else,
+      // rather than letting the app run with a half-filled profile.
+      final completed = await RoleSession.ensureProfileCompletedLoaded();
+      if (!completed) return '/complete-profile';
+      if (loc.startsWith('/admin')) {
+        final role = await RoleSession.ensureLoaded();
+        if (!_adminRoles.contains(role)) return '/home';
+      }
+      // Notices/rules can be authored by teachers too (course notices),
+      // not just admin roles — kept outside the /admin prefix so it isn't
+      // caught by the admin-only guard above.
+      if (loc == '/manage-notices') {
+        final role = await RoleSession.ensureLoaded();
+        if (!_adminRoles.contains(role) && role != 'teacher') return '/home';
+      }
+      // Hall allocation, exam seating, and payment are personal student
+      // records — a teacher has none of their own, so hide these routes
+      // for them at the navigation layer too (defense in depth beyond the
+      // menu simply not showing the entries; RLS is still the real gate
+      // on the underlying data either way).
+      const teacherHiddenRoutes = ['/hall', '/exam-seat', '/payment'];
+      if (teacherHiddenRoutes.any(loc.startsWith)) {
+        final role = await RoleSession.ensureLoaded();
+        if (role == 'teacher') return '/home';
       }
       return null;
     },
@@ -52,6 +87,8 @@ class AppRouter {
         pageBuilder: (c, s) => slideUpPage(const RegisterScreen(), s)),
       GoRoute(path: '/auth/forgot-password',
         pageBuilder: (c, s) => slideUpPage(const ForgotPasswordScreen(), s)),
+      GoRoute(path: '/complete-profile',
+        pageBuilder: (c, s) => fadeScalePage(const CompleteProfileScreen(), s)),
       ShellRoute(
         navigatorKey: _shell,
         builder: (c, s, child) => AppShell(child: child),
@@ -70,6 +107,10 @@ class AppRouter {
           GoRoute(path: '/vr-id',         pageBuilder: (c,s) => slideRightPage(const VrIdScreen(), s)),
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
+          GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
+          GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
+          GoRoute(path: '/admin/dept-chat', pageBuilder: (c,s) => slideRightPage(const ManageDeptChatScreen(), s)),
+          GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
           // Registry Module Routes
           GoRoute(path: '/admin/faculties', builder: (c, s) => const RegistryListScreen(tableName: 'faculties', title: 'Faculties')),
           GoRoute(path: '/admin/departments', builder: (c, s) => const RegistryListScreen(tableName: 'departments', title: 'Departments', displayFields: ['name', 'code'])),

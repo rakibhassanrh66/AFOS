@@ -104,12 +104,8 @@ class _RegisterBodyState extends State<_RegisterBody> {
     final textPrimary = AppColors.textPrimaryOf(context);
     return BlocListener<AuthBloc, AuthState>(
       listener:(ctx,state) {
-        if(state is AuthAuthenticated) {
-          ctx.showSnack('Account created! Welcome to AFOS.');
-          ctx.go('/home');
-        }
-        if(state is AuthEmailVerificationSent) {
-          ctx.showSnack('Account created! Check your email to verify.');
+        if(state is AuthRegistrationSuccess) {
+          ctx.showSnack('Account created! Please sign in to continue.');
           ctx.go('/auth/login');
         }
         if(state is AuthError) ctx.showSnack(state.message, isError:true);
@@ -126,6 +122,9 @@ class _RegisterBodyState extends State<_RegisterBody> {
             padding:const EdgeInsets.symmetric(horizontal:20, vertical:8),
             child: Column(children:[
               const SizedBox(height:8),
+              Center(child: Image.asset('assets/images/diu_logo.png', height:52,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink())),
+              const SizedBox(height:12),
               _StepIndicator(step:_step)
                 .animate().fadeIn(duration:300.ms).slideY(begin:-0.1,curve:Curves.easeOutCubic),
               const SizedBox(height:20),
@@ -138,6 +137,15 @@ class _RegisterBodyState extends State<_RegisterBody> {
                       duration: const Duration(milliseconds:320),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
+                      // Default layoutBuilder stacks the outgoing and incoming
+                      // step widgets on top of each other at their full
+                      // heights during the crossfade — since each step has a
+                      // different height (Step 2's dropdowns/slider are much
+                      // taller than Step 1), that transient stack can exceed
+                      // the available height by a few pixels and trigger a
+                      // RenderFlex overflow banner. Only laying out the
+                      // current child avoids the double-height stack.
+                      layoutBuilder: (currentChild, previousChildren) => currentChild ?? const SizedBox.shrink(),
                       transitionBuilder: (child, anim) => FadeTransition(
                         opacity: anim,
                         child: SlideTransition(
