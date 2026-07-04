@@ -1,9 +1,6 @@
-import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/theme_bloc.dart';
 import '../../../config/app_config.dart';
@@ -13,6 +10,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -25,34 +23,40 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsState extends State<SettingsScreen> {
   UserModel? _user;
   bool _loading = true, _saving = false;
+  final _batchCtrl = TextEditingController();
+  final _sectionCtrl = TextEditingController();
+  final _teacherInitialCtrl = TextEditingController();
 
   @override
   void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() { _batchCtrl.dispose(); _sectionCtrl.dispose(); _teacherInitialCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
       final p = await SupabaseConfig.client.from('profiles').select().eq('id', uid).single();
+      _batchCtrl.text = p['batch'] as String? ?? '';
+      _sectionCtrl.text = p['section'] as String? ?? '';
+      _teacherInitialCtrl.text = p['teacher_initial'] as String? ?? '';
       if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
-  Future<void> _pickAndUploadAvatar() async {
-    final img = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (img == null) return;
+  bool get _isFacultyRole => ['teacher', 'admin', 'dept_admin', 'super_admin'].contains(_user?.role);
+
+  Future<void> _saveRoutineInfo() async {
     setState(() => _saving = true);
     try {
-      final bytes = await img.readAsBytes();
-      final b64 = base64Encode(bytes);
-      final res = await Dio().post(AppConfig.imgBBUrl,
-          data: FormData.fromMap({'key': AppConfig.imgBBApiKey, 'image': b64}));
-      final url = res.data['data']['url'] as String;
-      await SupabaseConfig.client.from('profiles')
-          .update({'avatar_url': url}).eq('id', SupabaseConfig.uid!);
-      _load();
+      await SupabaseConfig.client.from('profiles').update({
+        'batch': _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim(),
+        'section': _sectionCtrl.text.trim().isEmpty ? null : _sectionCtrl.text.trim(),
+        'teacher_initial': _teacherInitialCtrl.text.trim().isEmpty ? null : _teacherInitialCtrl.text.trim(),
+      }).eq('id', SupabaseConfig.uid!);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo updated ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Routine info saved ✓'), backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
@@ -96,38 +100,50 @@ class _SettingsState extends State<SettingsScreen> {
                   glowColor: AppColors.blue,
                   padding: const EdgeInsets.all(16),
                   child: Column(children: [
-                Center(child: Stack(children: [
-                  GestureDetector(
-                    onTap: _pickAndUploadAvatar,
-                    child: Container(
-                      width: 88, height: 88,
-                      decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2),
-                          color: AppColors.surfaceOf(context)),
-                      child: ClipOval(child: _user?.avatarUrl != null
-                          ? Image.network(_user!.avatarUrl!, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _InitialsWidget(_user!.initials))
-                          : _InitialsWidget(_user?.initials ?? '?')),
-                    ),
-                  ),
-                  Positioned(bottom: 0, right: 0,
-                      child: Container(width: 28, height: 28,
-                          decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
-                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15))),
-                ])),
-                if (_saving) const Padding(padding: EdgeInsets.only(top: 8),
-                    child: Center(child: LinearProgressIndicator(color: AppColors.blue))),
+                Center(child: AvatarPicker(
+                    avatarUrl: _user?.avatarUrl,
+                    initials: _user?.initials ?? '?',
+                    onChanged: (url) => _load())),
                 const SizedBox(height: 16),
                 _InfoTile('Name', _user?.fullName ?? '', Icons.person_outline_rounded),
                 _InfoTile('Student ID', _user?.studentId ?? '', Icons.badge_outlined),
                 _InfoTile('Email', _user?.email ?? '', Icons.email_outlined),
                 _InfoTile('Department', _user?.department ?? '', Icons.school_outlined),
-                _InfoTile('Semester', 'Semester ${_user?.semester ?? 1}', Icons.calendar_today_outlined),
+                if (_user?.isStudent == true)
+                  _InfoTile('Semester', 'Semester ${_user?.semester ?? 1}', Icons.calendar_today_outlined)
+                else if (_user?.designation != null)
+                  _InfoTile('Designation', _user!.designation!, Icons.work_outline_rounded),
                 _InfoTile('Role', _user?.role ?? '', Icons.admin_panel_settings_outlined),
+                const SizedBox(height: 12),
+                SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                    onPressed: () async { await context.push('/complete-profile'); _load(); },
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Edit Profile'))),
                   ]),
                 ),
               ),
+
+              const SizedBox(height: 16),
+
+              // ── Class / Exam Routine Info ─────────────────────────────────
+              _Section(title: 'Routine Info', children: [
+                Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_isFacultyRole
+                      ? 'Set your teacher initials (as used in the class routine PDF) to see only your own classes.'
+                      : 'Set your batch and section (as used in the class routine PDF) to see only your own classes.',
+                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+                  const SizedBox(height: 12),
+                  if (_isFacultyRole)
+                    AfosTextField(hint: 'Teacher initials e.g. AS, FNN', controller: _teacherInitialCtrl)
+                  else Row(children: [
+                    Expanded(child: AfosTextField(hint: 'Batch e.g. 66', controller: _batchCtrl)),
+                    const SizedBox(width: 10),
+                    Expanded(child: AfosTextField(hint: 'Section e.g. A', controller: _sectionCtrl)),
+                  ]),
+                  const SizedBox(height: 14),
+                  AfosButton(label: 'Save Routine Info', loading: _saving, onTap: _saveRoutineInfo),
+                ])),
+              ]),
 
               const SizedBox(height: 16),
 
@@ -198,7 +214,7 @@ class _SettingsState extends State<SettingsScreen> {
     showModalBottomSheet(context: context, isScrollControlled: true,
         backgroundColor: AppColors.surfaceOf(context),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (sheetCtx) => Padding(
+        builder: (sheetCtx) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Change Password', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
@@ -227,7 +243,7 @@ class _SettingsState extends State<SettingsScreen> {
     showModalBottomSheet(context: context, isScrollControlled: true,
         backgroundColor: AppColors.surfaceOf(context),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (sheetCtx) => Padding(
+        builder: (sheetCtx) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Send Feedback', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
@@ -303,13 +319,4 @@ class _ThemeChip extends StatelessWidget {
           child: Center(child: Text(label,
               style: TextStyle(color: selected ? AppColors.blue : AppColors.textSecondaryOf(context),
                   fontSize: 12, fontWeight: selected ? FontWeight.w700 : FontWeight.normal)))));
-}
-
-class _InitialsWidget extends StatelessWidget {
-  final String initials;
-  const _InitialsWidget(this.initials);
-  @override
-  Widget build(BuildContext context) => Container(color: AppColors.surfaceOf(context),
-      child: Center(child: Text(initials,
-          style: const TextStyle(color: AppColors.blue, fontSize: 28, fontWeight: FontWeight.bold))));
 }

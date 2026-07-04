@@ -125,7 +125,7 @@ class _PayCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(cat.label,
                   style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
-                  textAlign: TextAlign.center),
+                  textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
               Text('Check balance →',
                   style: AppTextStyles.bodyMedium.copyWith(color: cat.color, fontSize: 11)),

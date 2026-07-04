@@ -42,6 +42,8 @@ dependencies:
   crypto: ^3.0.5
   file_picker: ^8.1.2
   json_annotation: ^4.9.0
+  syncfusion_flutter_pdf: ^27.2.5
+  geolocator: ^13.0.2
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
@@ -50,6 +52,25 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   build_runner: ^2.4.13
   json_serializable: ^6.8.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon_source.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/images/app_icon_source.png"
+    background_color: "#060D1F"
+    theme_color: "#060D1F"
+  windows:
+    generate: true
+    image_path: "assets/images/app_icon_source.png"
+  macos:
+    generate: true
+    image_path: "assets/images/app_icon_source.png"
 
 flutter:
   uses-material-design: true

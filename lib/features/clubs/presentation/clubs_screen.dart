@@ -129,7 +129,7 @@ class _ClubList extends StatelessWidget {
                     child: const Center(child: Icon(Icons.groups_rounded, color: AppColors.pink, size: 36))),
                 Padding(padding: const EdgeInsets.all(14), child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+                    Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 3),
                     Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2),
                     const SizedBox(height: 6),
@@ -172,8 +172,8 @@ class _MyClubsTab extends StatelessWidget {
                     child: const Icon(Icons.groups_rounded, color: AppColors.pink, size: 24)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                  Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+                  Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ])),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
@@ -210,8 +210,8 @@ class _EventsTab extends StatelessWidget {
                     ])),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(e['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                  Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+                  Text(e['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   if (e['max_seats'] != null) Text('${e['max_seats']} seats',
                       style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)),
                 ])),

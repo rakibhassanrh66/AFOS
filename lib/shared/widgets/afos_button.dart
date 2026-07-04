@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
+import 'supernova_loader.dart';
 
 class AfosButton extends StatefulWidget {
   final String label;
@@ -52,7 +53,7 @@ class _AfosButtonState extends State<AfosButton> {
             ],
           ),
           child: widget.loading
-            ? const Center(child:SizedBox(width:22,height:22,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)))
+            ? Center(child: SupernovaLoader(size: 24, color: widget.outlined ? bg : Colors.white))
             : Row(mainAxisAlignment:MainAxisAlignment.center, children:[
                 if(widget.icon!=null) ...[Icon(widget.icon,color:widget.outlined?bg:Colors.white,size:18), const SizedBox(width:8)],
                 Text(widget.label, style:TextStyle(color:widget.outlined?bg:Colors.white,fontSize:15,fontWeight:FontWeight.w600)),

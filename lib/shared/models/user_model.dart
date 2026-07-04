@@ -1,7 +1,8 @@
 class UserModel {
   final String id, email, fullName;
   final String role;
-  final String? avatarUrl, phone;
+  final String? avatarUrl, phone, emergencyContact;
+  final bool profileCompleted;
   final Map<String, dynamic>? studentData;
   final Map<String, dynamic>? teacherData;
   // Flat profiles-column fallbacks (populated even when v8 joins are null)
@@ -11,7 +12,8 @@ class UserModel {
 
   const UserModel({
     required this.id, required this.email, required this.fullName,
-    required this.role, this.avatarUrl, this.phone,
+    required this.role, this.avatarUrl, this.phone, this.emergencyContact,
+    this.profileCompleted = true,
     this.studentData, this.teacherData,
     String? rawStudentId, String? rawDepartment, int? rawSemester,
   })  : _rawStudentId = rawStudentId,
@@ -50,8 +52,10 @@ class UserModel {
       fullName: j['full_name'] as String? ?? '',
       // Use joined roles.name first; fall back to flat profiles.role column.
       role: roleName ?? j['role'] as String? ?? 'student',
-      avatarUrl: j['photo_url'] as String? ?? j['avatar_url'] as String?,
+      avatarUrl: j['avatar_url'] as String?,
       phone: j['phone'] as String?,
+      emergencyContact: j['emergency_contact'] as String?,
+      profileCompleted: j['profile_completed'] as bool? ?? true,
       studentData: studentData,
       teacherData: teacherData,
       // university_id is the v8 profiles column; fall back to flat student_id
@@ -63,10 +67,10 @@ class UserModel {
 
   String get studentId =>
       studentData?['university_id'] as String? ?? _rawStudentId ?? '';
-  String get department =>
-      studentData?['department_id'] as String? ??
-      teacherData?['department_id'] as String? ??
-      _rawDepartment ?? '';
+  // _rawDepartment (profiles.department, e.g. "CSE") is the human-readable
+  // code — students/teachers.department_id is a UUID foreign key and must
+  // never be shown directly in the UI.
+  String get department => _rawDepartment ?? '';
   int get semester =>
       studentData?['current_semester_no'] as int? ?? _rawSemester ?? 1;
 
@@ -78,7 +82,8 @@ class UserModel {
         : fullName.isNotEmpty ? fullName[0].toUpperCase() : 'U';
   }
 
-  bool get isAdmin => role == 'super_admin';
+  bool get isAdmin => const ['admin', 'super_admin', 'dept_admin'].contains(role);
+  bool get isSuperAdmin => role == 'super_admin';
   bool get isStudent => role == 'student';
   bool get isTeacher => role == 'teacher';
 

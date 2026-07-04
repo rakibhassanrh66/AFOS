@@ -13,9 +13,11 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../core/utils/formatters.dart';
+import '../data/vr_id_pdf_generator.dart';
 
 class VrIdScreen extends StatefulWidget {
   const VrIdScreen({super.key});
@@ -88,13 +90,28 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
   }
 }
 
+// Semester only applies to students — other roles show role-appropriate info
+// instead of a leftover default semester value from their profile row.
+String _secondaryLabel(UserModel user) {
+  if (user.isStudent) return 'Sem ${user.semester}';
+  if (user.isTeacher) return user.designation ?? 'Faculty';
+  switch (user.role) {
+    case 'super_admin': return 'Super Admin';
+    case 'dept_admin': return 'Dept Admin';
+    case 'admin': return 'Admin';
+    case 'staff': return 'Staff';
+    case 'exam_controller': return 'Exam Controller';
+    default: return user.role;
+  }
+}
+
 class _MyVrIdTab extends StatelessWidget {
   final UserModel? user; final String token; final int countdown; final bool loading;
   const _MyVrIdTab({this.user, required this.token, required this.countdown, required this.loading});
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator(color: AppColors.blue));
+    if (loading) return const Center(child: SupernovaLoader(size: 40, color: AppColors.blue));
     if (user == null) return Center(child: Text('Could not load profile', style: TextStyle(color: AppColors.textSecondaryOf(context))));
     final countdownColor = countdown > 30 ? AppColors.green : countdown > 10 ? AppColors.amber : AppColors.red;
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
@@ -112,7 +129,10 @@ class _MyVrIdTab extends StatelessWidget {
             Container(width: 64, height: 64, decoration: BoxDecoration(
                 shape: BoxShape.circle, color: AppColors.blue.withOpacity(0.1),
                 border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2)),
-                child: const Icon(Icons.person_rounded, color: AppColors.blue, size: 36)),
+                child: ClipOval(child: (user!.avatarUrl?.isNotEmpty ?? false)
+                    ? Image.network(user!.avatarUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))
+                    : const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))),
             const SizedBox(height: 10),
             Text(user!.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
             Text(user!.department, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
@@ -122,7 +142,7 @@ class _MyVrIdTab extends StatelessWidget {
               child: QrImageView(key: ValueKey(token), data: token,
                   version: QrVersions.auto, size: 180,
                   backgroundColor: Colors.white, padding: const EdgeInsets.all(10)),
-            ) : const CircularProgressIndicator(color: AppColors.blue),
+            ) : const SupernovaLoader(size: 40, color: AppColors.blue),
             const SizedBox(height: 12),
             Text(user!.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textPrimaryOf(context))),
             const SizedBox(height: 8),
@@ -135,7 +155,7 @@ class _MyVrIdTab extends StatelessWidget {
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               _Badge(user!.department, AppColors.blue),
               const SizedBox(width: 8),
-              _Badge('Sem ${user!.semester}', AppColors.green),
+              _Badge(_secondaryLabel(user!), AppColors.green),
               const SizedBox(width: 8),
               _Badge(user!.role, AppColors.gold),
             ]),
@@ -178,12 +198,22 @@ class _ScanTabState extends State<_ScanTab> {
         setState(() => _expired = true); return;
       }
       final uid = decoded['uid'] as String?;
-      if (uid == null) return;
-      final p = await SupabaseConfig.client.from('profiles').select().eq('id', uid).single();
-      await SupabaseConfig.client.from('vr_access_log').insert(
-          {'scanned_user_id': uid, 'scanned_by_id': SupabaseConfig.uid, 'location_note': 'DIU Campus'});
+      final vrid = decoded['vrid'] as String?;
+      if (uid == null || vrid == null) return;
+      // Server-side re-validation (HMAC + expiry) and the access-log insert
+      // both happen inside this RPC — see verify_vr_id_scan migration.
+      // A blanket "read any profile" RLS policy would be a real security
+      // regression, so this narrow SECURITY DEFINER function is the only
+      // path that can resolve a scanned user's profile.
+      final rows = await SupabaseConfig.client.rpc('verify_vr_id_scan',
+          params: {'p_uid': uid, 'p_vrid': vrid, 'p_exp': exp}) as List;
+      final p = rows.firstOrNull as Map<String, dynamic>?;
+      if (p == null) { if (mounted) setState(() => _verified = false); return; }
       if (mounted) setState(() { _scannedUser = p; _verified = true; });
-    } catch (_) { if (mounted) setState(() => _verified = false); }
+    } catch (e) {
+      debugPrint('[VrIdScan] verify failed: $e');
+      if (mounted) setState(() => _verified = false);
+    }
   }
 
   @override
@@ -216,11 +246,22 @@ class _VerifiedView extends StatelessWidget {
             color: expired ? AppColors.amber : verified ? AppColors.green : AppColors.red)),
     if (verified) ...[
       const SizedBox(height: 20),
+      Container(width: 84, height: 84, decoration: BoxDecoration(
+          shape: BoxShape.circle, color: AppColors.green.withOpacity(0.1),
+          border: Border.all(color: AppColors.green.withOpacity(0.4), width: 2)),
+          child: ClipOval(child: (user.avatarUrl?.isNotEmpty ?? false)
+              ? Image.network(user.avatarUrl!, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.green, size: 44))
+              : const Icon(Icons.person_rounded, color: AppColors.green, size: 44))),
+      const SizedBox(height: 16),
       Text(user.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
       Text(user.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-      Text('${user.department} · Sem ${user.semester}', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+      Text('${user.department} · ${_secondaryLabel(user)}', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+      const SizedBox(height: 16),
+      AfosButton(label: 'Download PDF', icon: Icons.picture_as_pdf_rounded,
+          onTap: () => VrIdPdfGenerator.generateVerification(user, DateTime.now())),
     ],
-    const SizedBox(height: 32),
+    const SizedBox(height: 16),
     AfosButton(label: 'Scan Again', icon: Icons.qr_code_scanner_rounded, onTap: onReset),
   ]));
 }

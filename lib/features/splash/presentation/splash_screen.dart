@@ -13,6 +13,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
   late AnimationController _particleCtrl;
   late AnimationController _glowCtrl;
+  late AnimationController _scanCtrl;
   final List<_Particle> _particles = [];
   bool _showTagline = false, _showSub = false, _showTeam = false;
 
@@ -23,6 +24,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       ..repeat();
     _glowCtrl = AnimationController(vsync:this, duration:const Duration(seconds:3))
       ..repeat(reverse:true);
+    _scanCtrl = AnimationController(vsync:this, duration:const Duration(milliseconds:1400))
+      ..repeat();
     final rng = Random();
     for(int i=0; i<60; i++) {
       _particles.add(_Particle(
@@ -50,7 +53,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   @override
-  void dispose() { _particleCtrl.dispose(); _glowCtrl.dispose(); super.dispose(); }
+  void dispose() { _particleCtrl.dispose(); _glowCtrl.dispose(); _scanCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -103,9 +106,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           const SizedBox(height:32),
           AnimatedOpacity(opacity:_showTeam?1:0, duration:600.ms, curve: Curves.easeOutCubic,
             child: Column(children:[
-              const SizedBox(width:120, height:3, child:LinearProgressIndicator(
-                backgroundColor: AppColors.border,
-                valueColor: AlwaysStoppedAnimation(AppColors.holoBlue),
+              SizedBox(width:120, height:3, child: AnimatedBuilder(
+                animation: _scanCtrl,
+                builder: (_, __) => CustomPaint(painter: _ScanBarPainter(t: _scanCtrl.value)),
               )),
               const SizedBox(height:12),
               const Text('AFOS v1.0.0', style:TextStyle(color:AppColors.textMuted,fontSize:11,
@@ -153,4 +156,37 @@ class _ParticlePainter extends CustomPainter {
     }
   }
   @override bool shouldRepaint(_) => true;
+}
+
+/// A sweeping highlight scanning back and forth across the track, replacing
+/// a plain static progress line under the version label.
+class _ScanBarPainter extends CustomPainter {
+  final double t;
+  _ScanBarPainter({required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final trackPaint = Paint()..color = AppColors.border;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(size.height / 2)),
+      trackPaint,
+    );
+    // Bounce 0->1->0 across the track rather than a hard reset each loop.
+    final pos = t < 0.5 ? t * 2 : (1 - t) * 2;
+    final sweepWidth = size.width * 0.32;
+    final center = pos * size.width;
+    final rect = Rect.fromCenter(center: Offset(center, size.height / 2), width: sweepWidth, height: size.height);
+    final gradient = LinearGradient(colors: [
+      AppColors.holoBlue.withOpacity(0),
+      AppColors.holoBlue,
+      AppColors.holoBlue.withOpacity(0),
+    ]).createShader(rect);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(size.height / 2)),
+      Paint()..shader = gradient,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScanBarPainter oldDelegate) => oldDelegate.t != t;
 }

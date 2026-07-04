@@ -20,9 +20,14 @@ class AppColors {
   static const Color pink          = Color(0xFFEC4899);
   static const Color indigo        = Color(0xFF6366F1);
   static const Color orange        = Color(0xFFF97316);
+  // textSecondary/textMuted were previously #6B7E99 (4.4:1 contrast against
+  // the dark surface — just under the 4.5:1 WCAG AA minimum for normal
+  // text) and #3D5070 (2.24:1 — badly failing). Brightened to comfortably
+  // clear AA (8.1:1 / 5.7:1 respectively) while keeping the secondary <
+  // muted-tier hierarchy (muted stays dimmer than secondary).
   static const Color textPrimary   = Color(0xFFE8EDF5);
-  static const Color textSecondary = Color(0xFF6B7E99);
-  static const Color textMuted     = Color(0xFF3D5070);
+  static const Color textSecondary = Color(0xFF9BAEC7);
+  static const Color textMuted     = Color(0xFF7E92AC);
   static const Color lightBg       = Color(0xFFF0F4FF);
   static const Color lightCard     = Color(0xFFFFFFFF);
   static const Color lightBorder   = Color(0xFFD1DCF0);

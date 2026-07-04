@@ -13,6 +13,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/utils/pending_credentials_store.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -34,6 +35,21 @@ class _LoginBodyState extends State<_LoginBody> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passCtrl  = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillFromRegistration();
+  }
+
+  Future<void> _prefillFromRegistration() async {
+    final pending = await PendingCredentialsStore.consume();
+    if (pending == null || !mounted) return;
+    setState(() {
+      _emailCtrl.text = pending.$1;
+      _passCtrl.text = pending.$2;
+    });
+  }
 
   @override
   void dispose() { _emailCtrl.dispose(); _passCtrl.dispose(); super.dispose(); }
@@ -68,9 +84,12 @@ class _LoginBodyState extends State<_LoginBody> {
           // Subtle grid lines
           RepaintBoundary(child: CustomPaint(painter:_GridPainter(isDark:isDark), size: Size.infinite)),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal:28, vertical:24),
-              child: GlassCard(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal:28, vertical:24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(child: GlassCard(
                 glowColor: AppColors.holoBlue,
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
@@ -79,15 +98,17 @@ class _LoginBodyState extends State<_LoginBody> {
                     child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
                       const SizedBox(height:16),
                       // Logo
-                      Center(child: Row(mainAxisSize:MainAxisSize.min, children:[
-                        _logoLetter('A', AppColors.holoBlue, context),
-                        const SizedBox(width:8),
-                        _logoLetter('F', AppColors.gold, context),
-                        const SizedBox(width:8),
-                        _logoLetter('O', AppColors.holoviolet, context),
-                        const SizedBox(width:8),
-                        _logoLetter('S', AppColors.holoTeal, context),
-                      ])).animate().fadeIn(duration:500.ms,curve:Curves.easeOutCubic).slideY(begin:-0.3,curve:Curves.easeOutCubic),
+                      Center(child: Image.asset('assets/images/diu_logo.png', height:88,
+                          errorBuilder: (_, __, ___) => Row(mainAxisSize:MainAxisSize.min, children:[
+                            _logoLetter('A', AppColors.holoBlue, context),
+                            const SizedBox(width:8),
+                            _logoLetter('F', AppColors.gold, context),
+                            const SizedBox(width:8),
+                            _logoLetter('O', AppColors.holoviolet, context),
+                            const SizedBox(width:8),
+                            _logoLetter('S', AppColors.holoTeal, context),
+                          ])))
+                        .animate().fadeIn(duration:500.ms,curve:Curves.easeOutCubic).slideY(begin:-0.3,curve:Curves.easeOutCubic),
                       const SizedBox(height:32),
                       Text('Welcome back', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))
                         .animate(delay:120.ms).fadeIn(duration:350.ms).slideX(begin:-0.08,curve:Curves.easeOutCubic),
@@ -145,6 +166,8 @@ class _LoginBodyState extends State<_LoginBody> {
                         .animate(delay:540.ms).fadeIn(duration:300.ms),
                     ]),
                   ),
+                ),
+              )),
                 ),
               ),
             ),
