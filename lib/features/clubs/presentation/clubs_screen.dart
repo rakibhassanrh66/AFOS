@@ -98,10 +98,35 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     if (mounted) setState(() => _loading = false);
   }
 
+  /// Neither the president self-serve approval flow nor these requests
+  /// themselves ever notified the president — they only found out about a
+  /// pending request by manually opening the My Clubs tab.
+  String? _presidentIdFor(String clubId) {
+    final club = _clubs.firstWhere((c) => c['id'] == clubId, orElse: () => {});
+    return club['president_id'] as String?;
+  }
+
+  /// The requesting student isn't a member yet, so _clubNameFor's _myClubs
+  /// lookup (built for the president's own perspective) won't have it —
+  /// look up from the full discover list instead, which is always loaded.
+  String _anyClubNameFor(String clubId) {
+    final club = _clubs.firstWhere((c) => c['id'] == clubId, orElse: () => {});
+    return club['name'] as String? ?? 'the club';
+  }
+
   Future<void> _requestJoin(String clubId) async {
     try {
       await SupabaseConfig.client.from('club_membership_requests').insert(
           {'club_id': clubId, 'student_id': SupabaseConfig.uid});
+      final presidentId = _presidentIdFor(clubId);
+      if (presidentId != null) {
+        NotificationService.sendToUsers(
+          userIds: [presidentId],
+          title: 'New membership request',
+          message: 'A student wants to join ${_anyClubNameFor(clubId)}.',
+          category: 'club', deepLink: '/clubs',
+        );
+      }
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Membership requested ✓'), backgroundColor: AppColors.green));
@@ -115,6 +140,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     try {
       await SupabaseConfig.client.from('club_post_requests').insert(
           {'club_id': clubId, 'member_id': SupabaseConfig.uid, 'requested_role': role});
+      final presidentId = _presidentIdFor(clubId);
+      if (presidentId != null) {
+        NotificationService.sendToUsers(
+          userIds: [presidentId],
+          title: 'New post application',
+          message: 'A member applied for ${role.replaceAll('_', ' ')} in ${_anyClubNameFor(clubId)}.',
+          category: 'club', deepLink: '/clubs',
+        );
+      }
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post application submitted ✓'), backgroundColor: AppColors.green));
@@ -126,11 +160,32 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
 
   final Set<String> _processingRequestIds = {};
 
+  /// approve_club_membership_request/reject_club_membership_request are
+  /// plain SQL functions — they can't call OneSignal themselves, so the
+  /// notification has to happen here after the RPC succeeds. This was
+  /// missing entirely before (the admin-side approval in
+  /// manage_clubs_screen.dart already notified; this president self-serve
+  /// path silently didn't).
+  String _clubNameFor(String clubId) {
+    final match = _myClubs.firstWhere((m) => m['club_id'] == clubId, orElse: () => {});
+    return (match['clubs'] as Map?)?['name'] as String? ?? 'the club';
+  }
+
   Future<void> _approvePresidingRequest(String requestId) async {
     if (_processingRequestIds.contains(requestId)) return;
     setState(() => _processingRequestIds.add(requestId));
     try {
+      final req = _presidingRequests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
       await SupabaseConfig.client.rpc('approve_club_membership_request', params: {'p_request_id': requestId});
+      final studentId = req['student_id'] as String?;
+      if (studentId != null) {
+        await NotificationService.sendToUsers(
+          userIds: [studentId],
+          title: 'Club membership approved',
+          message: 'You are now a member of ${_clubNameFor(req['club_id'] as String? ?? '')}.',
+          category: 'club', deepLink: '/clubs',
+        );
+      }
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Member approved ✓'), backgroundColor: AppColors.green));
@@ -145,7 +200,17 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     if (_processingRequestIds.contains(requestId)) return;
     setState(() => _processingRequestIds.add(requestId));
     try {
+      final req = _presidingRequests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
       await SupabaseConfig.client.rpc('reject_club_membership_request', params: {'p_request_id': requestId});
+      final studentId = req['student_id'] as String?;
+      if (studentId != null) {
+        await NotificationService.sendToUsers(
+          userIds: [studentId],
+          title: 'Club membership declined',
+          message: 'Your request to join ${_clubNameFor(req['club_id'] as String? ?? '')} was not approved.',
+          category: 'club',
+        );
+      }
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Request rejected'), backgroundColor: AppColors.green));

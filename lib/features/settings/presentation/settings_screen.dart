@@ -15,6 +15,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -123,6 +124,12 @@ class _SettingsState extends State<SettingsScreen> {
         'batch_label': student['batch_label'],
         'section': student['section'],
       });
+      NotificationService.notifyRoles(
+        roles: const ['super_admin'],
+        title: 'New CR request',
+        message: 'A student requested to become Class Representative.',
+        category: 'general', deepLink: '/admin/users',
+      );
       await _loadCrStatus(SupabaseConfig.uid!);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('CR request submitted ✓'), backgroundColor: AppColors.green));

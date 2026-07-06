@@ -150,6 +150,15 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   Future<void> _approve(Map<String, dynamic> user) async {
     try {
       await SupabaseConfig.client.from('profiles').update({'is_verified': true}).eq('id', user['id']);
+      // pending_approval_screen.dart only reflects this live via realtime
+      // while the app is actually open — a push is the only way someone
+      // who's closed the app finds out their account is now active.
+      await NotificationService.sendToUsers(
+        userIds: [user['id'] as String],
+        title: 'Account approved',
+        message: 'Your AFOS account has been approved — welcome!',
+        category: 'general',
+      );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));

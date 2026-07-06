@@ -7,6 +7,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 /// Teacher/staff-facing conference room booking — request purpose/date/
@@ -146,6 +147,12 @@ class _NewRequestFormState extends State<_NewRequestForm> {
         'start_time': '${_start!.hour.toString().padLeft(2, '0')}:${_start!.minute.toString().padLeft(2, '0')}',
         'end_time': '${_end!.hour.toString().padLeft(2, '0')}:${_end!.minute.toString().padLeft(2, '0')}',
       });
+      NotificationService.notifyRoles(
+        roles: const ['super_admin'],
+        title: 'New conference room request',
+        message: _purposeCtrl.text.trim(),
+        category: 'general', deepLink: '/admin/conference-rooms',
+      );
       _purposeCtrl.clear();
       setState(() { _date = null; _start = null; _end = null; });
       widget.onSubmitted();

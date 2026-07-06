@@ -7,6 +7,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class HallScreen extends StatefulWidget {
@@ -345,6 +346,11 @@ class _ApplyTabState extends State<_ApplyTab> {
     }
   }
 
+  List<String> get _selectedHallAmenities {
+    final match = _halls.firstWhere((h) => h['name'] == _hall, orElse: () => {});
+    return (match['amenities'] as List?)?.cast<String>() ?? [];
+  }
+
   Future<void> _submit() async {
     if (_hall == null) return;
     if (!_formKey.currentState!.validate()) return;
@@ -370,6 +376,14 @@ class _ApplyTabState extends State<_ApplyTab> {
         'student_id': SupabaseConfig.uid, 'preferred_hall': _hall,
         'preference': _pref, 'reason': _reasonCtrl.text.trim(), 'status': 'pending',
       });
+      // Admins previously only found out about a new application by
+      // manually checking Manage Hall — no submission ever notified them.
+      NotificationService.notifyRoles(
+        roles: const ['admin', 'staff', 'super_admin'],
+        title: 'New hall application',
+        message: 'A student applied for $_hall.',
+        category: 'hall', deepLink: '/admin/hall',
+      );
       _formKey.currentState!.reset();
       _reasonCtrl.clear();
       if (mounted) setState(() { _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null; _pref = 'Shared'; });
@@ -414,6 +428,13 @@ class _ApplyTabState extends State<_ApplyTab> {
               }).toList(),
               onChanged: (v) => setState(() => _hall = v),
             ),
+          if (_selectedHallAmenities.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 6, runSpacing: 6, children: _selectedHallAmenities.map((a) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(8)),
+                child: Text(a, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)))).toList()),
+          ],
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: _PrefChip('Single', _pref, (v) => setState(() => _pref = v))),
@@ -496,6 +517,12 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
         'description': _descCtrl.text.trim(),
         'status': 'open',
       });
+      NotificationService.notifyRoles(
+        roles: const ['admin', 'staff', 'super_admin'],
+        title: 'New hall complaint',
+        message: 'A student filed a $_category complaint.',
+        category: 'hall', deepLink: '/admin/hall',
+      );
       _descCtrl.clear();
       _formKey.currentState!.reset();
       if (mounted) setState(() => _category = 'Food');

@@ -49,6 +49,37 @@ class NotificationService {
     });
   }
 
+  /// Notifies every user holding any of the given roles — for a student/
+  /// teacher submission (hall application, complaint, CR request,
+  /// conference room request) that needs an admin-tier role's attention.
+  /// Those callers can't use [broadcast] (its roleFilter path is
+  /// restricted server-side to admin/super_admin/dept_admin/teacher
+  /// callers), so this resolves recipients via the list_role_holders RPC
+  /// and sends direct notifications instead, chunked under the 20-per-call
+  /// cap. Best-effort: a resolution or send failure never throws, since a
+  /// failed notification shouldn't undo the submission that triggered it.
+  static Future<void> notifyRoles({
+    required List<String> roles,
+    required String title,
+    required String message,
+    String? deepLink,
+    String? category,
+  }) async {
+    try {
+      final res = await SupabaseConfig.client
+          .rpc('list_role_holders', params: {'p_roles': roles}) as List;
+      final ids = res.map((r) => (r as Map)['profile_id'] as String).toList();
+      for (var i = 0; i < ids.length; i += 20) {
+        await sendToUsers(
+          userIds: ids.sublist(i, i + 20 > ids.length ? ids.length : i + 20),
+          title: title, message: message, deepLink: deepLink, category: category,
+        );
+      }
+    } catch (e) {
+      debugPrint('[NotificationService] notifyRoles failed: $e');
+    }
+  }
+
   /// A club president notifying only their own club's members — verified
   /// server-side against clubs.president_id, not just trusted from the client.
   /// Returns how many members were actually reached (the edge function

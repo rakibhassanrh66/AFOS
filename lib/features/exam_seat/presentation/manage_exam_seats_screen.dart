@@ -8,6 +8,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/surface_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/exam_room_pdf_parser.dart';
 
@@ -64,6 +65,32 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
       }
       await SupabaseConfig.client.from('exam_room_allocations').insert(
           _parsedRows.map((r) => r.toRow()).toList());
+
+      // Notify every affected student — exam_controller has no direct
+      // `students` read access (see list_students_by_batch_section), and
+      // direct-userIds sends are capped at 20 recipients per call, so
+      // resolve+chunk per distinct batch+section rather than one send.
+      final sections = _parsedRows.map((r) => '${r.batch}_${r.section}').toSet();
+      for (final key in sections) {
+        final parts = key.split('_');
+        final batch = parts[0], section = parts.sublist(1).join('_');
+        try {
+          final res = await SupabaseConfig.client.rpc('list_students_by_batch_section',
+              params: {'p_batch': batch, 'p_section': section}) as List;
+          final ids = res.map((r) => (r as Map)['profile_id'] as String).toList();
+          for (var i = 0; i < ids.length; i += 20) {
+            await NotificationService.sendToUsers(
+              userIds: ids.sublist(i, i + 20 > ids.length ? ids.length : i + 20),
+              title: 'Exam seat plan published',
+              message: 'Your exam room allocation is now available — check Exam Seat Plan.',
+              category: 'exam', deepLink: '/exam-seat',
+            );
+          }
+        } catch (_) {
+          // Best-effort — a notification failure shouldn't undo the upload.
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('${_parsedRows.length} room allocations uploaded across ${dates.length} exam date(s) ✓'),
