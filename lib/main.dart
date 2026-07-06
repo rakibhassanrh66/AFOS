@@ -46,12 +46,23 @@ void main() async {
   // AuthChangeEvent.signedOut, which an abrupt session drop (e.g. a
   // failed token refresh) doesn't reliably emit — so switching accounts
   // that way silently left the subscription stuck on the old identity.
-  // Tracking the uid ourselves and forcing logout-before-login on any
-  // actual change closes that gap regardless of which auth event fired.
+  //
+  // A first attempt at this fix skipped the logout() call on this
+  // process's very first sync (no in-memory previous uid to compare
+  // against yet), which looked right for "no change happened" but doesn't
+  // hold: a cold start with an already-persisted session never fires
+  // onAuthStateChange at all, so if the device's OneSignal subscription
+  // was already wrongly bound to a *different* account from before this
+  // process even started, that first sync would just call login() again
+  // for the same uid and never force the rebind — confirmed live, this
+  // exact case left it stuck. Unconditionally logging out before logging
+  // in whenever a sync actually needs to run (regardless of whether this
+  // process has ever synced before) closes that gap too; logout() is a
+  // safe no-op when nothing was bound yet.
   String? oneSignalUid;
   void syncOneSignalIdentity(String? uid) {
     if (uid == oneSignalUid) return;
-    if (oneSignalUid != null) OneSignal.logout();
+    OneSignal.logout();
     if (uid != null) OneSignal.login(uid);
     oneSignalUid = uid;
   }
