@@ -67,6 +67,14 @@ class ExamRoomPdfParser {
         final words = <_Word>[];
         for (final line in lines) {
           for (final w in line.wordCollection) {
+            // Confirmed against a real PDF (not just the pre-converted
+            // JSON sample, which had apparently already filtered these
+            // out): Syncfusion's wordCollection includes literal blank/
+            // whitespace-only "words" interspersed between real ones —
+            // e.g. "Machine" and "Learning" in a course title have a
+            // blank word between them. Left in, these shift every
+            // index-based lookup below and silently drop every row.
+            if (w.text.trim().isEmpty) continue;
             words.add(_Word(w.text, w.bounds.left, w.bounds.top));
           }
         }
@@ -87,7 +95,23 @@ class ExamRoomPdfParser {
     for (final w in words) {
       rowsByTop.putIfAbsent(w.top.round(), () => []).add(w);
     }
-    final tops = rowsByTop.keys.toList()..sort((a, b) => b.compareTo(a)); // top-to-bottom on page
+    final tops = rowsByTop.keys.toList();
+
+    // Which direction is "top of page" isn't consistent — confirmed
+    // against two real sample documents where one increases top going
+    // down the page and the other decreases. Rather than assume either,
+    // calibrate per page: the "Examination" title row always visually
+    // precedes the "Date:" row, so whichever sort direction puts the
+    // Examination row's top before the Date row's top is the correct
+    // reading order for this specific page.
+    int? examTop, dateTop;
+    for (final t in tops) {
+      final joined = rowsByTop[t]!.map((w) => w.text).join(' ');
+      if (examTop == null && joined.contains('Examination')) examTop = t;
+      if (dateTop == null && joined.startsWith('Date:')) dateTop = t;
+    }
+    final descending = examTop == null || dateTop == null || examTop > dateTop;
+    tops.sort((a, b) => descending ? b.compareTo(a) : a.compareTo(b));
     final textRows = <List<_Word>>[
       for (final t in tops) (rowsByTop[t]!..sort((a, b) => a.left.compareTo(b.left)))
     ];
