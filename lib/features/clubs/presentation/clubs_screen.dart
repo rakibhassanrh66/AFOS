@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -14,6 +15,16 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+IconData categoryIcon(String? category) => switch (category) {
+      'Tech' => Icons.memory_rounded,
+      'Sports' => Icons.sports_soccer_rounded,
+      'Cultural' => Icons.theater_comedy_rounded,
+      'Volunteer' => Icons.volunteer_activism_rounded,
+      'Business' => Icons.business_center_rounded,
+      'Academic' => Icons.menu_book_rounded,
+      _ => AppIcons.clubs,
+    };
+
 class ClubsScreen extends StatefulWidget {
   const ClubsScreen({super.key});
   @override State<ClubsScreen> createState() => _ClubsState();
@@ -26,12 +37,26 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   List<Map<String, dynamic>> _presidingRequests = [];
   bool _loading = true;
   String _filter = 'All';
+  String _search = '';
   static const _filters = ['All', 'Tech', 'Sports', 'Cultural', 'Volunteer', 'Business', 'Academic'];
+  RealtimeChannel? _clubsSub, _membersSub;
 
   @override
-  void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); _load(); }
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+    _load();
+    _clubsSub = SupabaseConfig.client.channel('clubs_screen_clubs')
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'clubs',
+            callback: (_) => _load())
+        .subscribe();
+    _membersSub = SupabaseConfig.client.channel('clubs_screen_members')
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_members',
+            callback: (_) => _load())
+        .subscribe();
+  }
   @override
-  void dispose() { _tab.dispose(); super.dispose(); }
+  void dispose() { _tab.dispose(); _clubsSub?.unsubscribe(); _membersSub?.unsubscribe(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -179,6 +204,12 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         ])));
   }
 
+  List<Map<String, dynamic>> get _searchFiltered {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return _clubs;
+    return _clubs.where((c) => (c['name'] as String? ?? '').toLowerCase().contains(q)).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final pendingClubIds = _myMembershipRequests.map((r) => r['club_id'] as String).toSet();
@@ -193,11 +224,17 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
             tabs: const [Tab(text: 'Discover'), Tab(text: 'My Clubs'), Tab(text: 'Events')])),
         Expanded(child: TabBarView(controller: _tab, children: [
           Column(children: [
+            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: TextField(
+                onChanged: (v) => setState(() => _search = v),
+                style: TextStyle(color: AppColors.textPrimaryOf(context)),
+                decoration: InputDecoration(hintText: 'Search clubs', prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true, fillColor: AppColors.glassFill(context),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))),
             _FilterBar(selected: _filter, filters: _filters,
                 onSelect: (f) { setState(() => _filter = f); _load(); }),
             Expanded(child: _loading
                 ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5, itemHeight: 120))
-                : _ClubList(clubs: _clubs, myClubs: _myClubs, pendingClubIds: pendingClubIds, onJoin: _requestJoin)),
+                : _ClubList(clubs: _searchFiltered, myClubs: _myClubs, pendingClubIds: pendingClubIds, onJoin: _requestJoin)),
           ]),
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _MyClubsTab(myClubs: _myClubs, pendingPostClubIds: pendingPostClubIds,
@@ -258,7 +295,7 @@ class _ClubList extends StatelessWidget {
                 Container(height: 80, decoration: BoxDecoration(
                     color: AppColors.pink.withValues(alpha: 0.15),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
-                    child: const Center(child: Icon(AppIcons.clubs, color: AppColors.pink, size: 36))),
+                    child: Center(child: Icon(categoryIcon(c['category'] as String?), color: AppColors.pink, size: 36))),
                 Padding(padding: const EdgeInsets.all(14), child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -319,7 +356,7 @@ class _MyClubsTab extends StatelessWidget {
                 Row(children: [
                   Container(width: 44, height: 44, decoration: BoxDecoration(
                       color: AppColors.pink.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(AppIcons.clubs, color: AppColors.pink, size: 24)),
+                      child: Icon(categoryIcon(club['category'] as String?), color: AppColors.pink, size: 24)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
