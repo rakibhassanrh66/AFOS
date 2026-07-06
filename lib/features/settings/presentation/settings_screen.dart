@@ -63,7 +63,7 @@ class _SettingsState extends State<SettingsScreen> {
       _sectionCtrl.text = p['section'] as String? ?? '';
       _teacherInitialCtrl.text = p['teacher_initial'] as String? ?? '';
       if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
-      if (!_isFacultyRole) await _loadCrStatus(uid);
+      if (_isStudentRole) await _loadCrStatus(uid);
       await _loadUserSettings(uid);
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
@@ -133,7 +133,16 @@ class _SettingsState extends State<SettingsScreen> {
     if (mounted) setState(() => _crBusy = false);
   }
 
-  bool get _isFacultyRole => ['teacher', 'admin', 'dept_admin', 'super_admin'].contains(_user?.role);
+  // Routine Info (batch/section vs teacher initials) and CR only mean
+  // anything for these two roles — schedule_screen.dart's own
+  // _scheduleNotApplicable already treats every other role (admin/
+  // dept_admin/super_admin/staff/exam_controller) as having no personal
+  // routine at all, so Settings now matches that instead of asking those
+  // roles to "set teacher initials" or "set batch and section" for a
+  // schedule view they can never actually use.
+  bool get _isFacultyRole => _user?.role == 'teacher';
+  bool get _isStudentRole => _user?.role == 'student';
+  bool get _routineApplicable => _isFacultyRole || _isStudentRole;
 
   Future<void> _saveRoutineInfo() async {
     setState(() => _saving = true);
@@ -145,7 +154,7 @@ class _SettingsState extends State<SettingsScreen> {
         'section': section,
         'teacher_initial': _teacherInitialCtrl.text.trim().isEmpty ? null : _teacherInitialCtrl.text.trim(),
       }).eq('id', SupabaseConfig.uid!);
-      if (!_isFacultyRole) {
+      if (_isStudentRole) {
         // The Class Representative section below reads students.batch_label/
         // section — a different table than the write above — so without
         // mirroring it here, a student who just saved this would still be
@@ -229,26 +238,28 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 16),
 
               // ── Class / Exam Routine Info ─────────────────────────────────
-              _Section(title: 'Routine Info', children: [
-                Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_isFacultyRole
-                      ? 'Set your teacher initials (as used in the class routine PDF) to see only your own classes.'
-                      : 'Set your batch and section (as used in the class routine PDF) to see only your own classes.',
-                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-                  const SizedBox(height: 12),
-                  if (_isFacultyRole)
-                    AfosTextField(hint: 'Teacher initials e.g. AS, FNN', controller: _teacherInitialCtrl)
-                  else Row(children: [
-                    Expanded(child: AfosTextField(hint: 'Batch e.g. 66', controller: _batchCtrl)),
-                    const SizedBox(width: 10),
-                    Expanded(child: AfosTextField(hint: 'Section e.g. A', controller: _sectionCtrl)),
-                  ]),
-                  const SizedBox(height: 14),
-                  AfosButton(label: 'Save Routine Info', loading: _saving, onTap: _saveRoutineInfo),
-                ])),
-              ]),
+              if (_routineApplicable) ...[
+                _Section(title: 'Routine Info', children: [
+                  Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_isFacultyRole
+                        ? 'Set your teacher initials (as used in the class routine PDF) to see only your own classes.'
+                        : 'Set your batch and section (as used in the class routine PDF) to see only your own classes.',
+                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+                    const SizedBox(height: 12),
+                    if (_isFacultyRole)
+                      AfosTextField(hint: 'Teacher initials e.g. AS, FNN', controller: _teacherInitialCtrl)
+                    else Row(children: [
+                      Expanded(child: AfosTextField(hint: 'Batch e.g. 66', controller: _batchCtrl)),
+                      const SizedBox(width: 10),
+                      Expanded(child: AfosTextField(hint: 'Section e.g. A', controller: _sectionCtrl)),
+                    ]),
+                    const SizedBox(height: 14),
+                    AfosButton(label: 'Save Routine Info', loading: _saving, onTap: _saveRoutineInfo),
+                  ])),
+                ]),
+              ],
 
-              if (!_isFacultyRole) ...[
+              if (_isStudentRole) ...[
                 const SizedBox(height: 16),
                 _Section(title: 'Class Representative', children: [
                   Padding(padding: const EdgeInsets.all(12), child: _buildCrSection(context)),

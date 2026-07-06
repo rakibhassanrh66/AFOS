@@ -28,6 +28,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   // read-only oversight view (every pairing across the system) plus the
   // power to ban a mentor, never a participant role like everyone else.
   bool get _isSuperAdmin => RoleSession.role == 'super_admin';
+  bool get _isStudent => RoleSession.role == 'student';
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _load(); }
@@ -95,6 +96,18 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
         body: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _OversightTab(bookings: _allBookings, onRefresh: _load),
+      );
+    }
+    if (!_isTeacher && !_isStudent) {
+      // admin/dept_admin/staff/exam_controller previously fell through to
+      // the student "Find Mentor"/"My Sessions" view (always empty) —
+      // mentorship is only ever relevant to students/teachers/super_admin
+      // (oversight), matching schedule_screen.dart's not-applicable pattern.
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AfosAppBar(title: 'Mentorship'),
+        body: EmptyState(icon: AppIcons.mentorship, title: 'Not applicable for your role',
+            subtitle: 'Mentorship is for students and teachers only'),
       );
     }
     return Scaffold(

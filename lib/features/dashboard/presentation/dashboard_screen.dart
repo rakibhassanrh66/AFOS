@@ -64,14 +64,18 @@ class _DashboardState extends State<DashboardScreen> {
     _Module('Notices',     AppIcons.notices,     AppColors.red,    '/notifications','Latest notices'),
   ];
 
-  // Hall/Payment/Exam Seats are personal student records — a teacher has
-  // none of their own, matching the same role-based hiding as the side
-  // menu and router guards.
-  static const _teacherHiddenModules = {'Hall', 'Payment', 'Exam Seats'};
+  // Hall/Payment/Exam Seats/Library are personal student records — matches
+  // slide_menu.dart's _studentOnlyItems exactly. This used to only hide
+  // them for 'teacher' (and never included Library at all), so every other
+  // non-student role (admin/dept_admin/super_admin/staff/exam_controller)
+  // still saw these as dashboard tiles even though the slide menu, router
+  // guards, and the screens' own internal role checks already treat them
+  // as not-applicable for those roles — inconsistent, not just redundant.
+  static const _studentOnlyModules = {'Hall', 'Payment', 'Exam Seats', 'Library'};
 
-  List<_Module> get _modules => _user?.role == 'teacher'
-      ? _allModules.where((m) => !_teacherHiddenModules.contains(m.title)).toList()
-      : _allModules;
+  List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
+      ? _allModules
+      : _allModules.where((m) => !_studentOnlyModules.contains(m.title)).toList();
 
   @override
   Widget build(BuildContext context) {

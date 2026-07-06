@@ -17,6 +17,7 @@ import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/dept_chat/presentation/dept_chat_screen.dart';
 import '../../features/dept_chat/presentation/manage_dept_chat_screen.dart';
 import '../../features/exam_seat/presentation/exam_seat_screen.dart';
+import '../../features/exam_seat/presentation/manage_exam_seats_screen.dart';
 import '../../features/grades/presentation/grades_screen.dart';
 import '../../features/hall/presentation/hall_screen.dart';
 import '../../features/hall/presentation/manage_hall_screen.dart';
@@ -87,6 +88,12 @@ class AppRouter {
         final role = await RoleSession.ensureLoaded();
         if (!_adminRoles.contains(role) && role != 'teacher') return '/home';
       }
+      // Exam seat assignment is done by exam_controller too, which isn't
+      // in _adminRoles and isn't under /admin — same reasoning as notices.
+      if (loc == '/manage-exam-seats') {
+        final role = await RoleSession.ensureLoaded();
+        if (!_adminRoles.contains(role) && role != 'exam_controller') return '/home';
+      }
       // Hall allocation, exam seating, and payment are personal student
       // records — a teacher has none of their own, so hide these routes
       // for them at the navigation layer too (defense in depth beyond the
@@ -140,6 +147,7 @@ class AppRouter {
           GoRoute(path: '/conference-room', pageBuilder: (c,s) => slideRightPage(const ConferenceRoomScreen(), s)),
           GoRoute(path: '/admin/dept-chat', pageBuilder: (c,s) => slideRightPage(const ManageDeptChatScreen(), s)),
           GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
+          GoRoute(path: '/manage-exam-seats', pageBuilder: (c,s) => slideRightPage(const ManageExamSeatsScreen(), s)),
           // Registry Module Routes
           GoRoute(path: '/admin/faculties', builder: (c, s) => const RegistryListScreen(tableName: 'faculties', title: 'Faculties')),
           GoRoute(path: '/admin/departments', builder: (c, s) => const RegistryListScreen(tableName: 'departments', title: 'Departments', displayFields: ['name', 'code'])),

@@ -72,10 +72,14 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Manage Faculties', AppIcons.faculties, '/admin/faculties', AppColors.holoviolet),
     _MenuItem('Manage Departments', AppIcons.hall, '/admin/departments', AppColors.holoTeal),
     _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red),
+    _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange),
   ];
 
   static const _noticesItem =
     _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red);
+
+  static const _examSeatsItem =
+    _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange);
 
   // super_admin only — not even ordinary admin/dept_admin get this (see the
   // dedicated /admin/users redirect guard in app_router.dart).
@@ -122,6 +126,13 @@ class _SlideMenuState extends State<SlideMenu> {
     }
     if (role == 'staff') {
       return [..._commonItems, _conferenceRoomItem];
+    }
+    if (role == 'exam_controller') {
+      // Was previously falling through to the student branch below,
+      // showing personal-record items (Hall/Payment/Library) that make no
+      // sense for this role — same class of bug as the admin-tier fix
+      // above, just never caught for this specific role until now.
+      return [..._commonItems, _examSeatsItem];
     }
     return [..._commonItems, ..._studentOnlyItems];
   }
