@@ -23,6 +23,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   final _repo = AssignmentsRepository();
   bool get _isTeacher => RoleSession.role == 'teacher';
   bool get _isSuperAdmin => RoleSession.role == 'super_admin';
+  bool get _isStudent => RoleSession.role == 'student';
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +36,14 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           ? _TeacherAssignmentsTab(repo: _repo)
           : _isSuperAdmin
               ? _ObserveTab()
-              : _StudentAssignmentsTab(repo: _repo),
+              : _isStudent
+                  ? _StudentAssignmentsTab(repo: _repo)
+                  // admin/dept_admin/staff/exam_controller previously fell
+                  // through to the student tab (always empty, confusing) —
+                  // assignments are only ever relevant to students/teachers,
+                  // matching schedule_screen.dart's not-applicable pattern.
+                  : EmptyState(icon: AppIcons.assignments, title: 'Not applicable for your role',
+                      subtitle: 'Assignments are for students and teachers only'),
     );
   }
 
