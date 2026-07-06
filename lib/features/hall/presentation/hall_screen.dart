@@ -310,14 +310,43 @@ class _ApplyTab extends StatefulWidget {
 class _ApplyTabState extends State<_ApplyTab> {
   final _formKey   = GlobalKey<FormState>();
   final _reasonCtrl = TextEditingController();
-  String _hall = 'Ahsanullah Hall';
+  String? _hall;
   String _pref = 'Shared';
   bool   _loading = false;
+  List<Map<String, dynamic>> _halls = [];
+  bool _hallsLoading = true;
+
+  @override
+  void initState() { super.initState(); _loadHalls(); }
 
   @override
   void dispose() { _reasonCtrl.dispose(); super.dispose(); }
 
+  Future<void> _loadHalls() async {
+    try {
+      final uid = SupabaseConfig.uid;
+      String? gender;
+      if (uid != null) {
+        final p = await SupabaseConfig.client.from('profiles').select('gender').eq('id', uid).maybeSingle();
+        gender = p?['gender'] as String?;
+      }
+      // hall_availability computes live seats-left per hall (capacity minus
+      // everyone currently holding/awaiting release of a seat there) —
+      // replaces what used to be 4 hardcoded, non-DIU hall names.
+      var query = SupabaseConfig.client.from('hall_availability').select();
+      final res = (gender != null ? await query.eq('gender', gender) : await query) as List;
+      if (mounted) setState(() {
+        _halls = res.cast();
+        _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null;
+        _hallsLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _hallsLoading = false);
+    }
+  }
+
   Future<void> _submit() async {
+    if (_hall == null) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
@@ -343,7 +372,7 @@ class _ApplyTabState extends State<_ApplyTab> {
       });
       _formKey.currentState!.reset();
       _reasonCtrl.clear();
-      if (mounted) setState(() { _hall = 'Ahsanullah Hall'; _pref = 'Shared'; });
+      if (mounted) setState(() { _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null; _pref = 'Shared'; });
       widget.onApplied();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -361,18 +390,30 @@ class _ApplyTabState extends State<_ApplyTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Apply for Hall Seat', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
           const SizedBox(height: 20),
-          DropdownButtonFormField<String>(
-            value: _hall,
-            decoration: InputDecoration(
-                labelText: 'Preferred Hall', filled: true, fillColor: AppColors.surfaceOf(context),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.borderOf(context)))),
-            dropdownColor: AppColors.surfaceOf(context),
-            style: TextStyle(color: AppColors.textPrimaryOf(context)),
-            items: ['Ahsanullah Hall', 'Bangabandhu Hall', 'Pritilata Hall', 'Sheikh Hasina Hall']
-                .map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
-            onChanged: (v) => setState(() => _hall = v!),
-          ),
+          if (_hallsLoading)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: ShimmerCard(height: 56))
+          else if (_halls.isEmpty)
+            Text('No halls available right now.', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))
+          else
+            DropdownButtonFormField<String>(
+              initialValue: _hall,
+              isExpanded: true,
+              decoration: InputDecoration(
+                  labelText: 'Preferred Hall', filled: true, fillColor: AppColors.surfaceOf(context),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.borderOf(context)))),
+              dropdownColor: AppColors.surfaceOf(context),
+              style: TextStyle(color: AppColors.textPrimaryOf(context)),
+              items: _halls.map((h) {
+                final available = h['available'] as int? ?? 0;
+                final name = h['name'] as String;
+                return DropdownMenuItem(
+                    value: name,
+                    child: Text('$name  ·  ${available > 0 ? '$available seats left' : 'Full'}',
+                        overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: (v) => setState(() => _hall = v),
+            ),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: _PrefChip('Single', _pref, (v) => setState(() => _pref = v))),

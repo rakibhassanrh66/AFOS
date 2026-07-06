@@ -73,9 +73,17 @@ class _DashboardState extends State<DashboardScreen> {
   // as not-applicable for those roles — inconsistent, not just redundant.
   static const _studentOnlyModules = {'Hall', 'Payment', 'Exam Seats', 'Library'};
 
+  String _search = '';
+
   List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
       ? _allModules
       : _allModules.where((m) => !_studentOnlyModules.contains(m.title)).toList();
+
+  List<_Module> get _visibleModules {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return _modules;
+    return _modules.where((m) => m.title.toLowerCase().contains(q)).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,8 +112,21 @@ class _DashboardState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text('Modules', style: AppTextStyles.headlineLarge
-                  .copyWith(color: AppColors.textPrimaryOf(context))),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Modules', style: AppTextStyles.headlineLarge
+                    .copyWith(color: AppColors.textPrimaryOf(context))),
+                if (_search.trim().isNotEmpty)
+                  Text('${_visibleModules.length} found',
+                      style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+              ]),
+              const SizedBox(height: 12),
+              TextField(
+                  onChanged: (v) => setState(() => _search = v),
+                  style: TextStyle(color: AppColors.textPrimaryOf(context)),
+                  decoration: InputDecoration(hintText: 'Search facilities (Hall, Transport, Library...)',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true, fillColor: AppColors.glassFill(context),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
               const SizedBox(height: 12),
             ]),
           )),
@@ -113,13 +134,18 @@ class _DashboardState extends State<DashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: _loading
                 ? SliverToBoxAdapter(child: ShimmerGrid(count: 12))
-                : SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2, crossAxisSpacing: 12,
-                        mainAxisSpacing: 12, childAspectRatio: 1.1),
-                    delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => _ModuleCard(m: _modules[i], index: i),
-                        childCount: _modules.length)),
+                : _visibleModules.isEmpty
+                    ? SliverToBoxAdapter(child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(child: Text('No facilities match "$_search"',
+                            style: TextStyle(color: AppColors.textSecondaryOf(context))))))
+                    : SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2, crossAxisSpacing: 12,
+                            mainAxisSpacing: 12, childAspectRatio: 1.1),
+                        delegate: SliverChildBuilderDelegate(
+                            (ctx, i) => _ModuleCard(m: _visibleModules[i], index: i),
+                            childCount: _visibleModules.length)),
           ),
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.all(20),
