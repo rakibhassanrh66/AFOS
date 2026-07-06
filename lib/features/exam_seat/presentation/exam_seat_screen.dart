@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -43,7 +44,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _assignments.isEmpty
-              ? EmptyState(icon: Icons.event_seat_rounded,
+              ? EmptyState(icon: AppIcons.examSeat,
                   title: 'No seat assignments', subtitle: 'Seat plans will appear here before exams')
               : RefreshIndicator(
                   onRefresh: _load, color: AppColors.blue,

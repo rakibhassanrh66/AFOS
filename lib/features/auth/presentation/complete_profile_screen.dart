@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
@@ -31,6 +32,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _designationCtrl = TextEditingController();
 
   bool _isTeacher = false;
+  String? _gender;
   double _sem = 1;
   bool _loading = true, _saving = false;
   List<DepartmentOption> _departments = [];
@@ -61,6 +63,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           _isTeacher = const ['teacher', 'admin', 'dept_admin', 'super_admin'].contains(p['role']);
           _sem = ((p['semester'] as int?) ?? 1).toDouble();
           _avatarUrl = p['avatar_url'] as String?;
+          _gender = p['gender'] as String?;
           _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? '';
           _email = p['email'] as String? ?? '';
           final deptCode = p['department'] as String?;
@@ -90,6 +93,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'department_id': _selectedDept!.id,
         'semester': _sem.toInt(),
         'profile_completed': true,
+        if (_gender != null) 'gender': _gender,
         // Also mirrored onto students.batch_label/section below — the
         // schedule screen's "only my batch+section" routine filter reads
         // profiles.batch/section specifically (it matches the routine PDF's
@@ -118,7 +122,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -160,6 +164,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     const SizedBox(height: 16),
                     AfosTextField(hint: 'Emergency contact (name + phone)', controller: _emergencyCtrl),
                     const SizedBox(height: 16),
+                    Text('Gender', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: _GenderChip(label: 'Male', selected: _gender == 'male',
+                          onTap: () => setState(() => _gender = 'male'))),
+                      const SizedBox(width: 12),
+                      Expanded(child: _GenderChip(label: 'Female', selected: _gender == 'female',
+                          onTap: () => setState(() => _gender = 'female'))),
+                    ]),
+                    const SizedBox(height: 16),
                     DropdownButtonFormField<DepartmentOption>(
                       value: _selectedDept,
                       isExpanded: true,
@@ -199,6 +213,23 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             )),
     );
   }
+}
+
+class _GenderChip extends StatelessWidget {
+  final String label; final bool selected; final VoidCallback onTap;
+  const _GenderChip({required this.label, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+      onTap: onTap,
+      child: Container(padding: const EdgeInsets.symmetric(vertical: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+              color: selected ? AppColors.holoBlue : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: selected ? AppColors.holoBlue : AppColors.borderOf(context), width: 0.8)),
+          child: Text(label, style: TextStyle(
+              color: selected ? Colors.white : AppColors.textSecondaryOf(context),
+              fontWeight: FontWeight.w600, fontSize: 13))));
 }
 
 class _ReadOnlyRow extends StatelessWidget {

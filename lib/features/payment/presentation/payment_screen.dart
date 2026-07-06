@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -41,8 +42,8 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
 
   static const _categories = [
     _PayCat('Tuition Fee',   Icons.school_rounded,         AppColors.blue,   'tuition'),
-    _PayCat('Hall Fee',      Icons.apartment_rounded,       AppColors.amber,  'hall'),
-    _PayCat('Library Fine',  Icons.menu_book_rounded,       AppColors.purple, 'library'),
+    _PayCat('Hall Fee',      AppIcons.hall,                  AppColors.amber,  'hall'),
+    _PayCat('Library Fine',  AppIcons.library,               AppColors.purple, 'library'),
     _PayCat('Exam Fee',      Icons.assignment_rounded,      AppColors.orange, 'exam'),
     _PayCat('Admission Fee', Icons.badge_rounded,           AppColors.green,  'admission'),
     _PayCat('Other',         Icons.more_horiz_rounded,      AppColors.textSecondary, 'other'),

@@ -7,6 +7,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
@@ -81,7 +82,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       setState(()=>_result='✅ ${res.data["slotsInserted"]} $noun loaded successfully!$removedNote Students/teachers will see it live.');
     } catch(e) {
       final data = e is DioException ? e.response?.data : null;
-      setState(()=>_error = data is Map && data['error']!=null ? data['error'].toString() : e.toString());
+      setState(()=>_error = data is Map && data['error']!=null ? data['error'].toString() : friendlyError(e));
     } finally {
       if(mounted) setState(()=>_uploading=false);
     }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -130,8 +131,8 @@ class _MyVrIdTab extends StatelessWidget {
                 shape: BoxShape.circle, color: AppColors.blue.withOpacity(0.1),
                 border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2)),
                 child: ClipOval(child: (user!.avatarUrl?.isNotEmpty ?? false)
-                    ? Image.network(user!.avatarUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))
+                    ? CachedNetworkImage(imageUrl: user!.avatarUrl!, fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))
                     : const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))),
             const SizedBox(height: 10),
             Text(user!.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -250,8 +251,8 @@ class _VerifiedView extends StatelessWidget {
           shape: BoxShape.circle, color: AppColors.green.withOpacity(0.1),
           border: Border.all(color: AppColors.green.withOpacity(0.4), width: 2)),
           child: ClipOval(child: (user.avatarUrl?.isNotEmpty ?? false)
-              ? Image.network(user.avatarUrl!, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.green, size: 44))
+              ? CachedNetworkImage(imageUrl: user.avatarUrl!, fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.green, size: 44))
               : const Icon(Icons.person_rounded, color: AppColors.green, size: 44))),
       const SizedBox(height: 16),
       Text(user.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),

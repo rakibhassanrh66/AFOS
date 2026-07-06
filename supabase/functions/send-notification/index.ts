@@ -46,14 +46,25 @@ serve(async (req) => {
     const callerId = authData.user.id
 
     const body = await req.json()
-    const { title, message, deepLink, category, userIds, roleFilter, departmentFilter, broadcastAll } = body
+    const { title, message, deepLink, category, userIds, roleFilter, departmentFilter, broadcastAll, clubId } = body
     if (!title || !message) {
       return new Response(JSON.stringify({ error: "title and message are required." }), { status: 400, headers: corsHeaders })
     }
 
     let targetUserIds: string[] = []
 
-    if (Array.isArray(userIds) && userIds.length > 0) {
+    if (clubId) {
+      // A club president broadcasting to their own club's members only —
+      // verified against clubs.president_id server-side so a regular
+      // member can't spoof this by just passing a clubId they don't lead.
+      const { data: club } = await supabase.from("clubs").select("president_id").eq("id", clubId).maybeSingle()
+      if (!club || club.president_id !== callerId) {
+        return new Response(JSON.stringify({ error: "Only that club's president can notify its members." }), { status: 403, headers: corsHeaders })
+      }
+      const { data: members, error } = await supabase.from("club_members").select("member_id").eq("club_id", clubId)
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders })
+      targetUserIds = (members ?? []).map((m: { member_id: string }) => m.member_id).filter((id: string) => id !== callerId)
+    } else if (Array.isArray(userIds) && userIds.length > 0) {
       if (userIds.length > 20) {
         return new Response(JSON.stringify({ error: "Too many direct recipients (max 20)." }), { status: 400, headers: corsHeaders })
       }
@@ -71,7 +82,7 @@ serve(async (req) => {
       if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders })
       targetUserIds = (rows ?? []).map((r: { id: string }) => r.id)
     } else {
-      return new Response(JSON.stringify({ error: "Provide userIds, roleFilter/departmentFilter, or broadcastAll." }), { status: 400, headers: corsHeaders })
+      return new Response(JSON.stringify({ error: "Provide userIds, roleFilter/departmentFilter, broadcastAll, or clubId." }), { status: 400, headers: corsHeaders })
     }
 
     if (targetUserIds.length === 0) {

@@ -1,11 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/models/class_slot.dart';
 import '../data/repositories/schedule_repository.dart';
@@ -16,16 +19,29 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStateMixin {
-  int _day = DateTime.now().weekday - 1; // Mon=0
+  // schedule_slots.day_of_week is stored Sat=0..Thu=5 (Fri=6, DIU's weekly
+  // holiday, matching parse-routine's dayMap/DAY_NAMES) — NOT the ISO
+  // Mon=1..Sun=7 that DateTime.weekday uses, so this remaps rather than
+  // just subtracting 1 (which both pointed at the wrong day's classes and
+  // overflowed the 6-entry label list on a Sunday: weekday=7 → index 6).
+  int _day = (DateTime.now().weekday + 1) % 7;
   UserModel? _user;
   String? _myBatch, _mySection, _myTeacherInitial;
   bool _loading = true;
   late TabController _tab;
   final _repo = ScheduleRepository();
   Map<String, ({String fullName, String? avatarUrl})> _teacherDirectory = const {};
-  static const _days = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+  static const _days = ['Sat','Sun','Mon','Tue','Wed','Thu','Fri'];
 
-  bool get _isFacultyRole => ['faculty','admin','dept_head','teacher'].contains(_user?.role);
+  bool get _isFacultyRole => _user?.role == 'teacher';
+  // Class schedule only ever meant anything for a student's own
+  // batch+section or a teacher's own taught classes — admin/staff/
+  // super_admin/dept_admin/exam_controller have neither, so the old
+  // fallback to `watchSchedule(department, semester, day)` was showing
+  // that role a semi-arbitrary department-wide list using their profile's
+  // leftover default department/semester values, which reads as "fake/mock
+  // data" to someone who has no personal schedule to begin with.
+  bool get _scheduleNotApplicable => _user != null && !_isFacultyRole && _user!.role != 'student';
 
   @override
   void initState() {
@@ -67,6 +83,15 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
         ? (_myTeacherInitial?.isNotEmpty ?? false)
         : ((_myBatch?.isNotEmpty ?? false) && (_mySection?.isNotEmpty ?? false));
 
+    if (_scheduleNotApplicable) {
+      return Scaffold(
+        backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
+        appBar: AfosAppBar(title:'Class Schedule'),
+        body: EmptyState(icon: Icons.calendar_today_outlined, title: 'Not applicable for your role',
+            subtitle: 'Class schedules are personal to students and teachers only.'),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AfosAppBar(title:'Class Schedule'),
@@ -99,13 +124,21 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                         return const Padding(padding:EdgeInsets.all(16),child:ShimmerList());
                       final slots = snap.data??[];
                       if(slots.isEmpty) return EmptyState(
-                        icon:Icons.calendar_today_rounded,
+                        icon:AppIcons.schedule,
                         title:'No classes ${_days[_day]}',
                         subtitle:'Enjoy your free day!');
-                      return ListView.builder(
-                        padding:const EdgeInsets.all(16),
-                        itemCount:slots.length,
-                        itemBuilder:(ctx,i)=>_ClassCard(slot:slots[i],index:i,teacherDirectory:_teacherDirectory));
+                      return Column(children: [
+                        if (_isFacultyRole) Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                          child: Text('${slots.length} class${slots.length == 1 ? '' : 'es'} on ${_days[_day]}',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w600))),
+                        Expanded(child: ListView.builder(
+                          padding:const EdgeInsets.all(16),
+                          itemCount:slots.length,
+                          itemBuilder:(ctx,i)=>_ClassCard(slot:slots[i],index:i,teacherDirectory:_teacherDirectory,
+                            isTeacher:_isFacultyRole, repo:_repo))),
+                      ]);
                     })),
           ]),
           _loading || _user == null
@@ -143,8 +176,16 @@ class _ExamRoutineTabState extends State<_ExamRoutineTab> {
     if (_exams.isEmpty) return EmptyState(icon: Icons.assignment_outlined,
         title: 'No exam routine yet', subtitle: 'Mid/final term exams will appear here once published');
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _exams.length,
-            itemBuilder: (ctx, i) => _ExamCard(exam: _exams[i], index: i)));
+        child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _exams.length + 1,
+            itemBuilder: (ctx, i) {
+              if (i == 0) return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: AppColors.textSecondaryOf(context)),
+                const SizedBox(width: 6),
+                Expanded(child: Text('This exam routine stays valid until the next one is uploaded by admin.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondaryOf(context)))),
+              ]));
+              return _ExamCard(exam: _exams[i - 1], index: i - 1);
+            }));
   }
 }
 
@@ -193,7 +234,7 @@ class _ExamCard extends StatelessWidget {
 class _DaySelector extends StatelessWidget {
   final int selected; final ValueChanged<int> onTap;
   const _DaySelector({required this.selected, required this.onTap});
-  static const _days = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+  static const _days = ['Sat','Sun','Mon','Tue','Wed','Thu','Fri'];
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -225,7 +266,51 @@ class _DaySelector extends StatelessWidget {
 class _ClassCard extends StatelessWidget {
   final ClassSlot slot; final int index;
   final Map<String, ({String fullName, String? avatarUrl})> teacherDirectory;
-  const _ClassCard({required this.slot,required this.index, this.teacherDirectory = const {}});
+  final bool isTeacher;
+  final ScheduleRepository? repo;
+  const _ClassCard({required this.slot,required this.index, this.teacherDirectory = const {},
+    this.isTeacher = false, this.repo});
+
+  Future<void> _messageCr(BuildContext context) async {
+    if (repo == null || slot.batch == null || slot.section == null) return;
+    final cr = await repo!.findSectionCr(slot.department, slot.batch!, slot.section!);
+    if (!context.mounted) return;
+    if (cr == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No CR set for this section yet'), backgroundColor: AppColors.amber));
+      return;
+    }
+    final msgCtrl = TextEditingController();
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Message ${cr['full_name']}', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+              const SizedBox(height: 6),
+              Text('CR · ${slot.subject} · Batch ${slot.batch} · Section ${slot.section}',
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+              const SizedBox(height: 16),
+              TextField(controller: msgCtrl, maxLines: 3, style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx)),
+                  decoration: const InputDecoration(hintText: 'Message for the class...')),
+              const SizedBox(height: 20),
+              SizedBox(width: double.infinity, child: ElevatedButton(
+                  onPressed: () async {
+                    if (msgCtrl.text.trim().isEmpty) return;
+                    Navigator.pop(sheetCtx);
+                    await NotificationService.sendToUsers(
+                      userIds: [cr['id'] as String],
+                      title: '${slot.subject} — message from your teacher',
+                      message: msgCtrl.text.trim(),
+                      category: 'general',
+                    );
+                  },
+                  child: const Text('Send'))),
+            ])));
+  }
+
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
@@ -269,7 +354,7 @@ class _ClassCard extends StatelessWidget {
                   const SizedBox(height:5),
                   Row(children:[
                     CircleAvatar(radius:9, backgroundColor:AppColors.holoBlue.withOpacity(0.15),
-                      backgroundImage: teacherAvatar!=null ? NetworkImage(teacherAvatar) : null,
+                      backgroundImage: teacherAvatar!=null ? CachedNetworkImageProvider(teacherAvatar) : null,
                       child: teacherAvatar==null
                         ? Icon(Icons.person_outline, size:11, color:AppColors.holoBlue)
                         : null),
@@ -282,6 +367,9 @@ class _ClassCard extends StatelessWidget {
                   padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),
                   decoration:BoxDecoration(color:AppColors.holoBlue.withOpacity(0.12),borderRadius:BorderRadius.circular(6)),
                   child:Text('${slot.creditHours}cr',style:const TextStyle(color:AppColors.holoBlue,fontSize:11,fontWeight:FontWeight.w600))),
+                if (isTeacher && slot.batch != null && slot.section != null)
+                  IconButton(icon: const Icon(Icons.forum_outlined, size: 18, color: AppColors.holoTeal),
+                      tooltip: 'Message Section CR', onPressed: () => _messageCr(context)),
               ]),
             ),
             if(slot.isCancelled) Positioned.fill(

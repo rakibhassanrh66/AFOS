@@ -45,6 +45,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
   final _designationCtrl = TextEditingController();
 
   AccountType _accountType = AccountType.student;
+  String? _gender;
   double _sem = 1;
 
   bool _loadingDepts = true;
@@ -160,6 +161,8 @@ class _RegisterBodyState extends State<_RegisterBody> {
                               nameCtrl:_nameCtrl, idCtrl:_idCtrl,
                               accountType:_accountType,
                               onAccountType:(t){ setState(()=>_accountType=t); },
+                              gender:_gender,
+                              onGender:(g){ setState(()=>_gender=g); },
                             ))
                           : _step == 1
                             ? Form(key:_formKeys[1], child:_Step2(
@@ -196,6 +199,10 @@ class _RegisterBodyState extends State<_RegisterBody> {
                     label: _step==2?'Create Account':'Next →',
                     loading: state is AuthLoading,
                     onTap:(){
+                      if(_step==0 && _gender==null) {
+                        ctx.showSnack('Select your gender', isError:true);
+                        return;
+                      }
                       if(_step==1 && _isStudent && _selectedDept==null) {
                         ctx.showSnack('Select a department', isError:true);
                         return;
@@ -211,6 +218,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
                             department:_selectedDept?.code ?? '',
                             semester:_isStudent ? _sem.toInt() : 1,
                             accountType: _isStudent ? 'student' : 'teacher',
+                            gender: _gender!,
                             programId: _isStudent ? _selectedProgram?.id : null,
                             batch: _isStudent && _batchCtrl.text.trim().isNotEmpty ? _batchCtrl.text.trim() : null,
                             section: _isStudent && _sectionCtrl.text.trim().isNotEmpty ? _sectionCtrl.text.trim() : null,
@@ -305,8 +313,11 @@ class _Step1 extends StatelessWidget {
   final TextEditingController nameCtrl, idCtrl;
   final AccountType accountType;
   final ValueChanged<AccountType> onAccountType;
+  final String? gender;
+  final ValueChanged<String?> onGender;
   const _Step1({required this.nameCtrl, required this.idCtrl,
-    required this.accountType, required this.onAccountType});
+    required this.accountType, required this.onAccountType,
+    required this.gender, required this.onGender});
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
@@ -327,6 +338,44 @@ class _Step1 extends StatelessWidget {
         prefixIcon:Icons.badge_outlined,
         validator:(v)=>AppValidators.studentId(v, type:accountType),
         keyboardType: accountType==AccountType.student ? TextInputType.number : TextInputType.text),
+      const SizedBox(height:16),
+      _GenderToggle(value:gender, onChanged:onGender),
+    ]);
+  }
+}
+
+class _GenderToggle extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+  const _GenderToggle({required this.value, required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final border = AppColors.borderOf(context);
+    Widget option(String label, String v) {
+      final selected = value == v;
+      return Expanded(child: GestureDetector(
+        onTap: () => onChanged(v),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds:220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical:12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.holoBlue : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? AppColors.holoBlue : border, width:0.8),
+          ),
+          child: Text(label, style: TextStyle(
+            color: selected ? Colors.white : textSecondary,
+            fontWeight: FontWeight.w600, fontSize: 13)),
+        ),
+      ));
+    }
+    return Row(children: [
+      option('Male', 'male'),
+      const SizedBox(width:12),
+      option('Female', 'female'),
     ]);
   }
 }

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -24,14 +25,16 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
   List<Map<String, dynamic>> _apps = [];
   bool _loading = true;
   String _filter = 'pending';
+  String? _appsError;
   RealtimeChannel? _sub;
 
   List<Map<String, dynamic>> _complaints = [];
   bool _complaintsLoading = true;
   String _complaintFilter = 'open';
+  String? _complaintsError;
   RealtimeChannel? _complaintsSub;
 
-  static const _filters = ['pending', 'reviewing', 'approved', 'rejected', 'cancelled', 'all'];
+  static const _filters = ['pending', 'reviewing', 'cancel_requested', 'approved', 'rejected', 'cancelled', 'all'];
   static const _complaintFilters = ['open', 'in_progress', 'resolved', 'dismissed', 'all'];
 
   @override
@@ -61,9 +64,12 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
       final res = await SupabaseConfig.client.from('hall_complaints')
           .select('*, profiles!student_id(full_name,university_id,email,department)')
           .order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _complaints = res.cast(); _complaintsLoading = false; });
+      if (mounted) setState(() { _complaints = res.cast(); _complaintsLoading = false; _complaintsError = null; });
     } catch (e) {
-      if (mounted) setState(() => _complaintsLoading = false);
+      // Previously swallowed silently, which meant a real load failure
+      // looked identical to "no complaints yet" — surfacing it so a genuine
+      // problem doesn't hide behind a misleading empty state.
+      if (mounted) setState(() { _complaintsLoading = false; _complaintsError = friendlyError(e); });
     }
   }
 
@@ -115,7 +121,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
                       if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                       setSheetState(() => saving = false);
                     }
                   },
@@ -129,9 +135,9 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
       final res = await SupabaseConfig.client.from('hall_applications')
           .select('*, profiles!student_id(full_name,university_id,email,department)')
           .order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _apps = res.cast(); _loading = false; });
+      if (mounted) setState(() { _apps = res.cast(); _loading = false; _appsError = null; });
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _appsError = friendlyError(e); });
     }
   }
 
@@ -197,7 +203,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
                       if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                       setSheetState(() => saving = false);
                     }
                   },
@@ -251,13 +257,79 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
                       if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                       setSheetState(() => saving = false);
                     }
                   },
                 ),
               ]));
         }));
+  }
+
+  Future<void> _approveCancellation(Map<String, dynamic> app) async {
+    try {
+      await SupabaseConfig.client.from('hall_applications').update({
+        'status': 'cancelled',
+        'reviewed_by': SupabaseConfig.uid,
+        'reviewed_at': DateTime.now().toIso8601String(),
+      }).eq('id', app['id']);
+      final studentId = app['student_id'] as String?;
+      if (studentId != null) {
+        await NotificationService.sendToUsers(
+          userIds: [studentId],
+          title: 'Hall cancellation approved',
+          message: 'Your seat has been released as requested.',
+          deepLink: '/hall',
+          category: 'hall',
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  Future<void> _denyCancellation(Map<String, dynamic> app) async {
+    try {
+      await SupabaseConfig.client.from('hall_applications').update({
+        'status': 'approved',
+      }).eq('id', app['id']);
+      final studentId = app['student_id'] as String?;
+      if (studentId != null) {
+        await NotificationService.sendToUsers(
+          userIds: [studentId],
+          title: 'Cancellation request denied',
+          message: 'Your hall seat stays allocated — contact administration if you still need to cancel.',
+          deepLink: '/hall',
+          category: 'hall',
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  Future<void> _deleteApplication(Map<String, dynamic> app) async {
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dCtx) => AlertDialog(
+              backgroundColor: AppColors.surfaceOf(dCtx),
+              title: Text('Delete this application?', style: TextStyle(color: AppColors.textPrimaryOf(dCtx))),
+              content: Text('Removes it permanently — the student can submit a new one afterward.',
+                  style: TextStyle(color: AppColors.textSecondaryOf(dCtx))),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                TextButton(onPressed: () => Navigator.pop(dCtx, true), child: const Text('Delete', style: TextStyle(color: AppColors.red))),
+              ],
+            ));
+    if (confirm != true) return;
+    try {
+      await SupabaseConfig.client.from('hall_applications').delete().eq('id', app['id']);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
   }
 
   @override
@@ -297,7 +369,15 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
             }).toList())),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-            : _visible.isEmpty
+            : _appsError != null
+                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                    const SizedBox(height: 12),
+                    Text('Couldn\'t load applications: $_appsError', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
+                    const SizedBox(height: 12),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ])))
+                : _visible.isEmpty
                 ? EmptyState(icon: Icons.apartment_outlined, title: 'No applications', subtitle: 'Nothing in "$_filter" right now')
                 : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
                     itemBuilder: (ctx, i) {
@@ -312,6 +392,8 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                               Expanded(child: Text(profile['full_name'] ?? 'Unknown',
                                   style: AppTextStyles.titleMedium.copyWith(color: textPrimary))),
                               _StatusPill(status),
+                              IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                                  onPressed: () => _deleteApplication(a)),
                             ]),
                             Text('${profile['university_id'] ?? ''} · ${profile['department'] ?? ''}',
                                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
@@ -321,13 +403,16 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                             if ((a['reason'] as String?)?.isNotEmpty ?? false)
                               Padding(padding: const EdgeInsets.only(top: 4), child: Text(a['reason'],
                                   style: AppTextStyles.bodyMedium.copyWith(color: textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                            if (status == 'approved')
+                            if (status == 'approved' || status == 'cancel_requested')
                               Padding(padding: const EdgeInsets.only(top: 6), child: Text(
                                   'Room ${a['assigned_room'] ?? '-'}, ${a['assigned_building'] ?? '-'} (Floor ${a['assigned_floor'] ?? '-'})',
                                   style: TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.w600))),
                             if (status == 'rejected')
                               Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reason: ${a['rejection_reason'] ?? '-'}',
                                   style: const TextStyle(color: AppColors.red, fontSize: 12))),
+                            if (status == 'cancel_requested')
+                              Padding(padding: const EdgeInsets.only(top: 6), child: Text('Cancellation reason: ${a['cancellation_reason'] ?? '-'}',
+                                  style: const TextStyle(color: AppColors.amber, fontSize: 12))),
                             if (status == 'pending' || status == 'reviewing') ...[
                               const SizedBox(height: 10),
                               Row(children: [
@@ -341,6 +426,19 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                                 ElevatedButton(onPressed: () => _approve(a),
                                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
                                     child: const Text('Approve')),
+                              ]),
+                            ],
+                            if (status == 'cancel_requested') ...[
+                              const SizedBox(height: 10),
+                              Row(children: [
+                                const Spacer(),
+                                OutlinedButton(onPressed: () => _denyCancellation(a),
+                                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                                    child: const Text('Deny')),
+                                const SizedBox(width: 8),
+                                ElevatedButton(onPressed: () => _approveCancellation(a),
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
+                                    child: const Text('Approve Cancellation')),
                               ]),
                             ],
                           ]));
@@ -365,7 +463,15 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
           }).toList())),
       Expanded(child: _complaintsLoading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-          : _visibleComplaints.isEmpty
+          : _complaintsError != null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                  const SizedBox(height: 12),
+                  Text('Couldn\'t load complaints: $_complaintsError', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: _loadComplaints, child: const Text('Retry')),
+                ])))
+              : _visibleComplaints.isEmpty
               ? EmptyState(icon: Icons.report_problem_outlined, title: 'No complaints', subtitle: 'Nothing in "$_complaintFilter" right now')
               : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visibleComplaints.length,
                   itemBuilder: (ctx, i) {
@@ -418,6 +524,7 @@ class _StatusPill extends StatelessWidget {
         'approved' => AppColors.green,
         'rejected' => AppColors.red,
         'reviewing' => AppColors.amber,
+        'cancel_requested' => AppColors.amber,
         'cancelled' => AppColors.textSecondary,
         _ => AppColors.blue,
       };

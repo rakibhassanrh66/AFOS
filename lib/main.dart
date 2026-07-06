@@ -59,8 +59,8 @@ class AFOSApp extends StatelessWidget {
         builder: (context, state) => MaterialApp.router(
           title: AppConfig.appName,
           debugShowCheckedModeBanner: false,
-          theme: buildLightTheme(),
-          darkTheme: buildDarkTheme(),
+          theme: buildLightTheme(accent: state.accentColor),
+          darkTheme: buildDarkTheme(accent: state.accentColor),
           themeMode: state.mode,
           routerConfig: AppRouter.router,
         ),

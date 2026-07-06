@@ -49,7 +49,28 @@ class NotificationService {
     });
   }
 
-  static Future<void> _invoke(Map<String, dynamic> payload) async {
+  /// A club president notifying only their own club's members — verified
+  /// server-side against clubs.president_id, not just trusted from the client.
+  /// Returns how many members were actually reached (the edge function
+  /// resolves club_members server-side and excludes the caller) so the
+  /// caller can tell a real send apart from "the club has no other members".
+  static Future<int> notifyClub({
+    required String clubId,
+    required String title,
+    required String message,
+    String? deepLink,
+  }) async {
+    final result = await _invoke({
+      'clubId': clubId,
+      'title': title,
+      'message': message,
+      if (deepLink != null) 'deepLink': deepLink,
+      'category': 'club',
+    });
+    return (result?['inAppInserted'] as num?)?.toInt() ?? 0;
+  }
+
+  static Future<Map<String, dynamic>?> _invoke(Map<String, dynamic> payload) async {
     try {
       final res = await SupabaseConfig.client.functions.invoke('send-notification', body: payload);
       // The edge function returns 200 even when the OneSignal call itself
@@ -65,6 +86,7 @@ class NotificationService {
         if (data['pushError'] != null) {
           debugPrint('[NotificationService] OneSignal push failed: ${data['pushError']}');
         }
+        return data.cast<String, dynamic>();
       }
     } catch (e) {
       debugPrint('[NotificationService] invoke failed: $e');
@@ -72,5 +94,6 @@ class NotificationService {
       // block the action that triggered it (booking, claim acceptance,
       // etc) — but it's no longer silent, so failures show up in logs.
     }
+    return null;
   }
 }

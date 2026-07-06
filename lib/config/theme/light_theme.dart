@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
-ThemeData buildLightTheme() {
+ThemeData buildLightTheme({Color? accent}) {
+  final primary = accent ?? AppColors.blue;
   return ThemeData(
     brightness: Brightness.light,
     scaffoldBackgroundColor: AppColors.lightBg,
-    primaryColor: AppColors.blue,
-    colorScheme: const ColorScheme.light(
-      primary: AppColors.blue,
+    primaryColor: primary,
+    colorScheme: ColorScheme.light(
+      primary: primary,
       secondary: AppColors.gold,
       surface: AppColors.lightCard,
       error: AppColors.red,
@@ -43,12 +44,12 @@ ThemeData buildLightTheme() {
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.lightBorder, width: 0.5)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.blue, width: 1.5)),
+        borderSide: BorderSide(color: primary, width: 1.5)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.blue, foregroundColor: Colors.white,
+        backgroundColor: primary, foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 0,

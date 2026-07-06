@@ -6,7 +6,9 @@ import '../bloc/theme_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -27,6 +29,25 @@ class _SettingsState extends State<SettingsScreen> {
   final _sectionCtrl = TextEditingController();
   final _teacherInitialCtrl = TextEditingController();
 
+  Map<String, dynamic>? _studentRow;
+  Map<String, dynamic>? _latestCrRequest;
+  bool _crBusy = false;
+
+  String _notificationSound = 'default';
+  String _chatBackground = 'default';
+
+  static const _accentSwatches = [
+    Color(0xFF1E6FFF), Color(0xFF8B5CF6), Color(0xFF06B6D4), Color(0xFF22C55E),
+    Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFFEC4899),
+  ];
+
+  static const _chatBackgrounds = {
+    'default': Colors.transparent,
+    'midnight': Color(0xFF0B1220),
+    'forest': Color(0xFF0E1F16),
+    'plum': Color(0xFF1F0E1B),
+  };
+
   @override
   void initState() { super.initState(); _load(); }
 
@@ -42,7 +63,74 @@ class _SettingsState extends State<SettingsScreen> {
       _sectionCtrl.text = p['section'] as String? ?? '';
       _teacherInitialCtrl.text = p['teacher_initial'] as String? ?? '';
       if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
+      if (!_isFacultyRole) await _loadCrStatus(uid);
+      await _loadUserSettings(uid);
     } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
+
+  Future<void> _loadUserSettings(String uid) async {
+    try {
+      final row = await SupabaseConfig.client.from('user_settings')
+          .select('notification_sound, chat_background').eq('profile_id', uid).maybeSingle();
+      if (mounted) setState(() {
+        _notificationSound = row?['notification_sound'] as String? ?? 'default';
+        _chatBackground = row?['chat_background'] as String? ?? 'default';
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _updateSound(String sound) async {
+    setState(() => _notificationSound = sound);
+    try {
+      await SupabaseConfig.client.from('user_settings').upsert({
+        'profile_id': SupabaseConfig.uid, 'notification_sound': sound,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _updateChatBackground(String bg) async {
+    setState(() => _chatBackground = bg);
+    try {
+      await SupabaseConfig.client.from('user_settings').upsert({
+        'profile_id': SupabaseConfig.uid, 'chat_background': bg,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadCrStatus(String uid) async {
+    try {
+      final student = await SupabaseConfig.client.from('students')
+          .select('department_id, batch_label, section, is_cr').eq('profile_id', uid).maybeSingle();
+      final requests = await SupabaseConfig.client.from('cr_requests')
+          .select().eq('student_id', uid).order('created_at', ascending: false).limit(1) as List;
+      if (mounted) setState(() {
+        _studentRow = student;
+        _latestCrRequest = requests.isNotEmpty ? requests.first as Map<String, dynamic> : null;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _applyForCr() async {
+    final student = _studentRow;
+    if (student == null || student['batch_label'] == null || student['section'] == null) return;
+    setState(() => _crBusy = true);
+    try {
+      await SupabaseConfig.client.from('cr_requests').insert({
+        'student_id': SupabaseConfig.uid,
+        'department_id': student['department_id'],
+        'batch_label': student['batch_label'],
+        'section': student['section'],
+      });
+      await _loadCrStatus(SupabaseConfig.uid!);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CR request submitted ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+    if (mounted) setState(() => _crBusy = false);
   }
 
   bool get _isFacultyRole => ['teacher', 'admin', 'dept_admin', 'super_admin'].contains(_user?.role);
@@ -50,16 +138,31 @@ class _SettingsState extends State<SettingsScreen> {
   Future<void> _saveRoutineInfo() async {
     setState(() => _saving = true);
     try {
+      final batch = _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim();
+      final section = _sectionCtrl.text.trim().isEmpty ? null : _sectionCtrl.text.trim();
       await SupabaseConfig.client.from('profiles').update({
-        'batch': _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim(),
-        'section': _sectionCtrl.text.trim().isEmpty ? null : _sectionCtrl.text.trim(),
+        'batch': batch,
+        'section': section,
         'teacher_initial': _teacherInitialCtrl.text.trim().isEmpty ? null : _teacherInitialCtrl.text.trim(),
       }).eq('id', SupabaseConfig.uid!);
+      if (!_isFacultyRole) {
+        // The Class Representative section below reads students.batch_label/
+        // section — a different table than the write above — so without
+        // mirroring it here, a student who just saved this would still be
+        // told "set your batch and section above first" right underneath.
+        await SupabaseConfig.client.from('students').update({
+          'batch_label': batch, 'section': section,
+        }).eq('profile_id', SupabaseConfig.uid!);
+        await _loadCrStatus(SupabaseConfig.uid!);
+      }
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Routine info saved ✓'), backgroundColor: AppColors.green));
     } catch (e) {
+      final msg = e.toString().contains('profiles_teacher_initial_unique')
+          ? 'That initial is already taken by another teacher — try a longer one (e.g. "MR" → "MAR").'
+          : friendlyError(e);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(msg), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -73,8 +176,8 @@ class _SettingsState extends State<SettingsScreen> {
         content: Text('Are you sure you want to sign out of AFOS?',
             style: TextStyle(color: AppColors.textSecondaryOf(dialogCtx))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, true),
               child: const Text('Log out', style: TextStyle(color: AppColors.red))),
         ],
       ),
@@ -107,8 +210,8 @@ class _SettingsState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 _InfoTile('Name', _user?.fullName ?? '', Icons.person_outline_rounded),
                 _InfoTile('Student ID', _user?.studentId ?? '', Icons.badge_outlined),
-                _InfoTile('Email', _user?.email ?? '', Icons.email_outlined),
-                _InfoTile('Department', _user?.department ?? '', Icons.school_outlined),
+                _InfoTile('Email', _user?.email ?? '', AppIcons.emailOutline),
+                _InfoTile('Department', _user?.department ?? '', AppIcons.schoolOutline),
                 if (_user?.isStudent == true)
                   _InfoTile('Semester', 'Semester ${_user?.semester ?? 1}', Icons.calendar_today_outlined)
                 else if (_user?.designation != null)
@@ -145,6 +248,13 @@ class _SettingsState extends State<SettingsScreen> {
                 ])),
               ]),
 
+              if (!_isFacultyRole) ...[
+                const SizedBox(height: 16),
+                _Section(title: 'Class Representative', children: [
+                  Padding(padding: const EdgeInsets.all(12), child: _buildCrSection(context)),
+                ]),
+              ],
+
               const SizedBox(height: 16),
 
               // ── Appearance ──────────────────────────────────────────────
@@ -169,8 +279,56 @@ class _SettingsState extends State<SettingsScreen> {
                             onTap: () => ctx.read<ThemeBloc>().add(ToggleSystem()))),
                       ]),
                     ),
+                    const SizedBox(height: 20),
+                    Text('Accent Color', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                    const SizedBox(height: 12),
+                    BlocBuilder<ThemeBloc, ThemeState>(
+                      builder: (ctx, state) => Wrap(spacing: 10, runSpacing: 10, children: _accentSwatches.map((c) {
+                        final selected = state.accentColor.toARGB32() == c.toARGB32();
+                        return GestureDetector(
+                          onTap: () => ctx.read<ThemeBloc>().add(SetAccentColor(c)),
+                          child: Container(width: 36, height: 36,
+                              decoration: BoxDecoration(color: c, shape: BoxShape.circle,
+                                  border: Border.all(color: selected ? Colors.white : Colors.transparent, width: 2),
+                                  boxShadow: selected ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null)),
+                        );
+                      }).toList()),
+                    ),
                   ]),
                 ),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // ── Notification Sound ───────────────────────────────────────
+              _Section(title: 'Notification Sound', children: [
+                Padding(padding: const EdgeInsets.all(12), child: Wrap(spacing: 8, runSpacing: 8, children:
+                    ['default', 'chime', 'bell', 'none'].map((s) {
+                  final selected = _notificationSound == s;
+                  return ChoiceChip(
+                      label: Text(s[0].toUpperCase() + s.substring(1)),
+                      selected: selected,
+                      onSelected: (_) => _updateSound(s),
+                      selectedColor: AppColors.blue.withValues(alpha: 0.2),
+                      labelStyle: TextStyle(color: selected ? AppColors.blue : AppColors.textSecondaryOf(context)));
+                }).toList())),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // ── Chat Background ──────────────────────────────────────────
+              _Section(title: 'Chat Background', children: [
+                Padding(padding: const EdgeInsets.all(12), child: Wrap(spacing: 10, runSpacing: 10,
+                    children: _chatBackgrounds.entries.map((entry) {
+                  final selected = _chatBackground == entry.key;
+                  return GestureDetector(
+                    onTap: () => _updateChatBackground(entry.key),
+                    child: Container(width: 48, height: 48,
+                        decoration: BoxDecoration(color: entry.value, borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: selected ? AppColors.blue : AppColors.borderOf(context), width: selected ? 2 : 0.5)),
+                        child: entry.key == 'default' ? const Icon(Icons.chat_bubble_outline, size: 18) : null),
+                  );
+                }).toList())),
               ]),
 
               const SizedBox(height: 16),
@@ -188,7 +346,7 @@ class _SettingsState extends State<SettingsScreen> {
               // ── App Info ─────────────────────────────────────────────────
               _Section(title: 'App Info', children: [
                 _InfoTile('Version', 'AFOS v${AppConfig.appVersion}', Icons.info_outline_rounded),
-                _InfoTile('University', AppConfig.university, Icons.school_outlined),
+                _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
               ]),
 
               const SizedBox(height: 24),
@@ -199,7 +357,7 @@ class _SettingsState extends State<SettingsScreen> {
                     color: AppColors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.red.withOpacity(0.25))),
                 child: ListTile(
-                  leading: const Icon(Icons.logout_rounded, color: AppColors.red),
+                  leading: const Icon(AppIcons.logout, color: AppColors.red),
                   title: const Text('Log Out', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
                   onTap: _logout,
                 ),
@@ -207,6 +365,45 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 40),
             ]),
     );
+  }
+
+  Widget _buildCrSection(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final isCr = _studentRow?['is_cr'] as bool? ?? false;
+    final hasBatchSection = _studentRow?['batch_label'] != null && _studentRow?['section'] != null;
+    final requestStatus = _latestCrRequest?['status'] as String?;
+
+    if (isCr) {
+      return Row(children: [
+        const Icon(Icons.verified_user_rounded, color: AppColors.gold, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text('You are the Class Representative for this section',
+            style: AppTextStyles.bodyMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w600))),
+      ]);
+    }
+    if (!hasBatchSection) {
+      return Text('Set your batch and section above first, then you can apply to be CR.',
+          style: AppTextStyles.bodyMedium.copyWith(color: textSecondary));
+    }
+    if (requestStatus == 'pending') {
+      return Row(children: [
+        const Icon(Icons.hourglass_top_rounded, color: AppColors.amber, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text('Your CR request is awaiting super admin approval',
+            style: AppTextStyles.bodyMedium.copyWith(color: textSecondary))),
+      ]);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (requestStatus == 'rejected')
+        Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(
+            'Your last request was declined${(_latestCrRequest?['rejection_reason'] as String?)?.isNotEmpty == true ? ': ${_latestCrRequest!['rejection_reason']}' : '.'}',
+            style: const TextStyle(color: AppColors.red, fontSize: 12))),
+      Text('Be the point of contact between your section and teachers.',
+          style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+      const SizedBox(height: 12),
+      AfosButton(label: 'Apply to be CR', loading: _crBusy, onTap: _applyForCr),
+    ]);
   }
 
   void _showChangePassword() {
@@ -232,7 +429,7 @@ class _SettingsState extends State<SettingsScreen> {
                       const SnackBar(content: Text('Password updated ✓'), backgroundColor: AppColors.green));
                 } catch (e) {
                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                 }
               }),
             ])));

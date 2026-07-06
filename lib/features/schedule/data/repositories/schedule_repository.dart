@@ -90,4 +90,17 @@ class ScheduleRepository {
     }
     return map;
   }
+
+  /// Resolves the Class Representative for a specific department+batch+
+  /// section — lets a teacher message the CR directly from a class card
+  /// ("if course match teacher can directly communicate ... by CR of that
+  /// section and batch"), without needing the still-empty courses/
+  /// course_offerings tables (schedule_slots already has real batch/
+  /// section/department data, which is what this reuses).
+  Future<Map<String, dynamic>?> findSectionCr(String departmentCode, String batch, String section) async {
+    final res = await _client.rpc('find_section_cr', params: {
+      'p_department_code': departmentCode, 'p_batch': batch, 'p_section': section,
+    }) as List;
+    return res.isNotEmpty ? res.first as Map<String, dynamic> : null;
+  }
 }

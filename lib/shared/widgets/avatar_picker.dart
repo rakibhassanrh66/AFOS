@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../config/supabase_config.dart';
 import '../../config/theme/app_colors.dart';
 import '../../core/network/storage_upload_service.dart';
+import '../../core/utils/error_formatter.dart';
 import 'supernova_loader.dart';
 
 /// Shared avatar upload/display widget — pulled out of Settings so the
@@ -33,7 +35,7 @@ class _AvatarPickerState extends State<AvatarPicker> {
           const SnackBar(content: Text('Photo updated ✓'), backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -48,7 +50,7 @@ class _AvatarPickerState extends State<AvatarPicker> {
           const SnackBar(content: Text('Photo removed'), backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -81,8 +83,8 @@ class _AvatarPickerState extends State<AvatarPicker> {
                 border: Border.all(color: AppColors.blue.withValues(alpha: 0.4), width: 2),
                 color: AppColors.surfaceOf(context)),
             child: ClipOval(child: widget.avatarUrl != null
-                ? Image.network(widget.avatarUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _initials(context))
+                ? CachedNetworkImage(imageUrl: widget.avatarUrl!, fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _initials(context))
                 : _initials(context)),
           ),
         ),

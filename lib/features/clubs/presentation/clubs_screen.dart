@@ -1,10 +1,17 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/auth/role_session.dart';
+import '../../../core/utils/error_formatter.dart';
+import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class ClubsScreen extends StatefulWidget {
@@ -15,9 +22,11 @@ class ClubsScreen extends StatefulWidget {
 class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin {
   late TabController _tab;
   List<Map<String, dynamic>> _clubs = [], _myClubs = [], _events = [];
+  List<Map<String, dynamic>> _myMembershipRequests = [], _myPostRequests = [];
+  List<Map<String, dynamic>> _presidingRequests = [];
   bool _loading = true;
   String _filter = 'All';
-  static const _filters = ['All', 'Tech', 'Sports', 'Cultural', 'Volunteer', 'Academic'];
+  static const _filters = ['All', 'Tech', 'Sports', 'Cultural', 'Volunteer', 'Business', 'Academic'];
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); _load(); }
@@ -34,32 +43,146 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         q.order('name') as Future,
         SupabaseConfig.client.from('club_events').select().order('event_date') as Future,
       ]);
-      List myClubs = [];
+      List myClubs = [], myMembershipRequests = [], myPostRequests = [], presidingRequests = [];
       if (uid != null) {
-        myClubs = await SupabaseConfig.client.from('club_members')
-            .select('*, clubs(*)').eq('member_id', uid) as List;
+        final results = await Future.wait([
+          SupabaseConfig.client.from('club_members').select('*, clubs(*)').eq('member_id', uid) as Future,
+          SupabaseConfig.client.from('club_membership_requests').select().eq('student_id', uid).eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('club_post_requests').select().eq('member_id', uid).eq('status', 'pending') as Future,
+        ]);
+        myClubs = results[0] as List;
+        myMembershipRequests = results[1] as List;
+        myPostRequests = results[2] as List;
+        final presidentClubIds = myClubs.cast<Map<String, dynamic>>()
+            .where((m) => m['role'] == 'president').map((m) => m['club_id'] as String).toList();
+        if (presidentClubIds.isNotEmpty) {
+          presidingRequests = await SupabaseConfig.client.from('club_membership_requests')
+              .select('*, profiles!student_id(full_name, university_id, avatar_url)')
+              .inFilter('club_id', presidentClubIds).eq('status', 'pending') as List;
+        }
       }
       if (mounted) setState(() {
         _clubs = (clubs as List).cast();
         _events = (events as List).cast();
         _myClubs = myClubs.cast();
+        _myMembershipRequests = myMembershipRequests.cast();
+        _myPostRequests = myPostRequests.cast();
+        _presidingRequests = presidingRequests.cast();
       });
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _join(String clubId) async {
+  Future<void> _requestJoin(String clubId) async {
     try {
-      await SupabaseConfig.client.from('club_members').insert(
-          {'club_id': clubId, 'member_id': SupabaseConfig.uid, 'role': 'member'});
+      await SupabaseConfig.client.from('club_membership_requests').insert(
+          {'club_id': clubId, 'student_id': SupabaseConfig.uid});
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined club ✓'), backgroundColor: AppColors.green));
-    } catch (_) {}
+          const SnackBar(content: Text('Membership requested ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  Future<void> _requestPost(String clubId, String role) async {
+    try {
+      await SupabaseConfig.client.from('club_post_requests').insert(
+          {'club_id': clubId, 'member_id': SupabaseConfig.uid, 'requested_role': role});
+      _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post application submitted ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  final Set<String> _processingRequestIds = {};
+
+  Future<void> _approvePresidingRequest(String requestId) async {
+    if (_processingRequestIds.contains(requestId)) return;
+    setState(() => _processingRequestIds.add(requestId));
+    try {
+      await SupabaseConfig.client.rpc('approve_club_membership_request', params: {'p_request_id': requestId});
+      _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Member approved ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+    if (mounted) setState(() => _processingRequestIds.remove(requestId));
+  }
+
+  Future<void> _rejectPresidingRequest(String requestId) async {
+    if (_processingRequestIds.contains(requestId)) return;
+    setState(() => _processingRequestIds.add(requestId));
+    try {
+      await SupabaseConfig.client.rpc('reject_club_membership_request', params: {'p_request_id': requestId});
+      _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request rejected'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+    if (mounted) setState(() => _processingRequestIds.remove(requestId));
+  }
+
+  Future<void> _sendClubNotice(String clubId, String clubName) async {
+    final titleCtrl = TextEditingController();
+    final msgCtrl = TextEditingController();
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Notice for $clubName', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+              const SizedBox(height: 16),
+              AfosTextField(hint: 'Title', controller: titleCtrl),
+              const SizedBox(height: 12),
+              AfosTextField(hint: 'Message', controller: msgCtrl, maxLines: 3),
+              const SizedBox(height: 20),
+              AfosButton(label: 'Send to All Members', onTap: () async {
+                if (titleCtrl.text.trim().isEmpty || msgCtrl.text.trim().isEmpty) return;
+                Navigator.pop(sheetCtx);
+                final reached = await NotificationService.notifyClub(
+                    clubId: clubId, title: titleCtrl.text.trim(), message: msgCtrl.text.trim());
+                if (!context.mounted) return;
+                if (reached == 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No other members to notify yet — nobody has joined this club besides you.'),
+                          backgroundColor: AppColors.amber));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Notice sent to $reached member${reached == 1 ? '' : 's'} ✓'), backgroundColor: AppColors.green));
+                }
+              }),
+            ])));
+  }
+
+  void _showPostDialog(BuildContext ctx, String clubId, String currentRole) {
+    final options = ['secretary', 'vice_president', 'president'].where((r) => r != currentRole).toList();
+    showModalBottomSheet(context: ctx, backgroundColor: AppColors.surfaceOf(ctx),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.all(16), child: Text('Apply for a post',
+              style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
+          ...options.map((r) => ListTile(
+              title: Text(r.replaceAll('_', ' ').toUpperCase()),
+              onTap: () { Navigator.pop(sheetCtx); _requestPost(clubId, r); })),
+          const SizedBox(height: 8),
+        ])));
   }
 
   @override
   Widget build(BuildContext context) {
+    final pendingClubIds = _myMembershipRequests.map((r) => r['club_id'] as String).toSet();
+    final pendingPostClubIds = _myPostRequests.map((r) => r['club_id'] as String).toSet();
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Clubs'),
@@ -74,10 +197,14 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
                 onSelect: (f) { setState(() => _filter = f); _load(); }),
             Expanded(child: _loading
                 ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5, itemHeight: 120))
-                : _ClubList(clubs: _clubs, myClubs: _myClubs, onJoin: _join)),
+                : _ClubList(clubs: _clubs, myClubs: _myClubs, pendingClubIds: pendingClubIds, onJoin: _requestJoin)),
           ]),
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-              : _MyClubsTab(myClubs: _myClubs),
+              : _MyClubsTab(myClubs: _myClubs, pendingPostClubIds: pendingPostClubIds,
+                  presidingRequests: _presidingRequests, processingRequestIds: _processingRequestIds,
+                  onApplyPost: (clubId, role) => _showPostDialog(context, clubId, role),
+                  onSendNotice: _sendClubNotice,
+                  onApproveRequest: _approvePresidingRequest, onRejectRequest: _rejectPresidingRequest),
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _EventsTab(events: _events),
         ])),
@@ -108,25 +235,30 @@ class _FilterBar extends StatelessWidget {
 }
 
 class _ClubList extends StatelessWidget {
-  final List<Map<String, dynamic>> clubs, myClubs; final ValueChanged<String> onJoin;
-  const _ClubList({required this.clubs, required this.myClubs, required this.onJoin});
+  final List<Map<String, dynamic>> clubs, myClubs;
+  final Set<String> pendingClubIds;
+  final ValueChanged<String> onJoin;
+  const _ClubList({required this.clubs, required this.myClubs, required this.pendingClubIds, required this.onJoin});
   @override
   Widget build(BuildContext context) {
-    if (clubs.isEmpty) return EmptyState(icon: Icons.groups_rounded, title: 'No clubs found', subtitle: 'Check back later');
+    if (clubs.isEmpty) return EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
+    final canJoin = RoleSession.role == 'student';
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: clubs.length,
         itemBuilder: (ctx, i) {
           final c = clubs[i];
-          final joined = joinedIds.contains(c['id'] as String?);
+          final clubId = c['id'] as String?;
+          final joined = joinedIds.contains(clubId);
+          final pending = pendingClubIds.contains(clubId);
           return Container(margin: const EdgeInsets.only(bottom: 14),
               decoration: BoxDecoration(
                   color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.pink.withOpacity(0.25), width: 0.8)),
+                  border: Border.all(color: AppColors.pink.withValues(alpha: 0.25), width: 0.8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(height: 80, decoration: BoxDecoration(
-                    color: AppColors.pink.withOpacity(0.15),
+                    color: AppColors.pink.withValues(alpha: 0.15),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
-                    child: const Center(child: Icon(Icons.groups_rounded, color: AppColors.pink, size: 36))),
+                    child: const Center(child: Icon(AppIcons.clubs, color: AppColors.pink, size: 36))),
                 Padding(padding: const EdgeInsets.all(14), child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -134,17 +266,19 @@ class _ClubList extends StatelessWidget {
                     Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2),
                     const SizedBox(height: 6),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: AppColors.pink.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                         child: Text(c['category'] ?? '', style: const TextStyle(color: AppColors.pink, fontSize: 11, fontWeight: FontWeight.w600))),
                   ])),
                   const SizedBox(width: 12),
-                  GestureDetector(onTap: joined ? null : () => onJoin(c['id']),
-                      child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(color: joined ? AppColors.green.withOpacity(0.1) : AppColors.pink,
-                              borderRadius: BorderRadius.circular(20)),
-                          child: Text(joined ? 'Joined ✓' : 'Join',
-                              style: TextStyle(color: joined ? AppColors.green : Colors.white,
-                                  fontSize: 13, fontWeight: FontWeight.w600)))),
+                  if (canJoin || joined)
+                    GestureDetector(onTap: (joined || pending || clubId == null) ? null : () => onJoin(clubId),
+                        child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(color: joined ? AppColors.green.withValues(alpha: 0.1)
+                                : pending ? AppColors.amber.withValues(alpha: 0.1) : AppColors.pink,
+                                borderRadius: BorderRadius.circular(20)),
+                            child: Text(joined ? 'Joined ✓' : pending ? 'Pending' : 'Join',
+                                style: TextStyle(color: joined ? AppColors.green : pending ? AppColors.amber : Colors.white,
+                                    fontSize: 13, fontWeight: FontWeight.w600)))),
                 ])),
               ])).animate(delay: Duration(milliseconds: i * 60)).fadeIn().slideY(begin: 0.05);
         });
@@ -153,32 +287,97 @@ class _ClubList extends StatelessWidget {
 
 class _MyClubsTab extends StatelessWidget {
   final List<Map<String, dynamic>> myClubs;
-  const _MyClubsTab({required this.myClubs});
+  final Set<String> pendingPostClubIds;
+  final List<Map<String, dynamic>> presidingRequests;
+  final Set<String> processingRequestIds;
+  final void Function(String clubId, String currentRole) onApplyPost;
+  final void Function(String clubId, String clubName) onSendNotice;
+  final ValueChanged<String> onApproveRequest;
+  final ValueChanged<String> onRejectRequest;
+  const _MyClubsTab({required this.myClubs, required this.pendingPostClubIds,
+      required this.presidingRequests, required this.processingRequestIds,
+      required this.onApplyPost, required this.onSendNotice,
+      required this.onApproveRequest, required this.onRejectRequest});
   @override
   Widget build(BuildContext context) {
     if (myClubs.isEmpty) return EmptyState(icon: Icons.group_add_rounded,
-        title: 'No clubs joined', subtitle: 'Discover and join clubs from the Discover tab');
+        title: 'No clubs joined', subtitle: 'Discover and request to join clubs from the Discover tab');
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: myClubs.length,
         itemBuilder: (ctx, i) {
           final m = myClubs[i];
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
+          final clubId = m['club_id'] as String? ?? '';
+          final role = m['role'] as String? ?? 'member';
+          final isPresident = role == 'president';
+          final hasPendingPost = pendingPostClubIds.contains(clubId);
+          final myPendingRequests = presidingRequests.where((r) => r['club_id'] == clubId).toList();
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-              child: Row(children: [
-                Container(width: 44, height: 44, decoration: BoxDecoration(
-                    color: AppColors.pink.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.groups_rounded, color: AppColors.pink, size: 24)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                    child: Text((m['role'] as String? ?? 'member').toUpperCase(),
-                        style: const TextStyle(color: AppColors.blue, fontSize: 10, fontWeight: FontWeight.w700))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(width: 44, height: 44, decoration: BoxDecoration(
+                      color: AppColors.pink.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(AppIcons.clubs, color: AppColors.pink, size: 24)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ])),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                      child: Text(role.replaceAll('_', ' ').toUpperCase(),
+                          style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, fontWeight: FontWeight.w700))),
+                ]),
+                const SizedBox(height: 10),
+                if (isPresident)
+                  SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                      onPressed: () => onSendNotice(clubId, club['name'] ?? 'Club'),
+                      icon: const Icon(Icons.campaign_outlined, size: 16),
+                      label: const Text('Send Club Notice')))
+                else if (hasPendingPost)
+                  Text('Post application pending approval', style: TextStyle(color: AppColors.amber, fontSize: 12))
+                else
+                  SizedBox(width: double.infinity, child: OutlinedButton(
+                      onPressed: () => onApplyPost(clubId, role),
+                      child: const Text('Apply for a Post'))),
+                if (isPresident && myPendingRequests.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text('Pending Membership Requests (${myPendingRequests.length})',
+                      style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  ...myPendingRequests.map((r) {
+                    final requestId = r['id'] as String;
+                    final student = r['profiles'] as Map<String, dynamic>? ?? {};
+                    final busy = processingRequestIds.contains(requestId);
+                    return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(10)),
+                        child: Row(children: [
+                          CircleAvatar(radius: 16, backgroundColor: AppColors.pink.withValues(alpha: 0.15),
+                              backgroundImage: (student['avatar_url'] as String?)?.isNotEmpty == true
+                                  ? CachedNetworkImageProvider(student['avatar_url']) : null,
+                              child: (student['avatar_url'] as String?)?.isNotEmpty != true
+                                  ? Text(((student['full_name'] as String?)?.isNotEmpty == true ? (student['full_name'] as String)[0] : '?').toUpperCase(),
+                                      style: const TextStyle(color: AppColors.pink, fontWeight: FontWeight.bold, fontSize: 12))
+                                  : null),
+                          const SizedBox(width: 10),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(student['full_name'] ?? 'Unknown', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            if ((student['university_id'] as String?)?.isNotEmpty == true)
+                              Text(student['university_id'], style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)),
+                          ])),
+                          if (busy)
+                            const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                          else ...[
+                            IconButton(icon: const Icon(Icons.check_circle_outline, color: AppColors.green, size: 22),
+                                onPressed: () => onApproveRequest(requestId)),
+                            IconButton(icon: const Icon(Icons.cancel_outlined, color: AppColors.red, size: 22),
+                                onPressed: () => onRejectRequest(requestId)),
+                          ],
+                        ]));
+                  }),
+                ],
               ]));
         });
   }
@@ -201,7 +400,7 @@ class _EventsTab extends StatelessWidget {
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 48, height: 56, decoration: BoxDecoration(
-                    color: AppColors.indigo.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                    color: AppColors.indigo.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Text(date != null ? '${date.day}' : '?',
                           style: const TextStyle(color: AppColors.indigo, fontSize: 18, fontWeight: FontWeight.w800)),

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -85,7 +87,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
               backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
   }
 
@@ -144,7 +146,7 @@ class _BorrowedTab extends StatelessWidget {
         ),
         if (borrowed.isEmpty) ...[
           const SizedBox(height: 40),
-          EmptyState(icon: Icons.menu_book_rounded,
+          EmptyState(icon: AppIcons.library,
               title: 'No books borrowed', subtitle: 'Search the catalogue to borrow'),
         ] else
           ...borrowed.asMap().entries.map((e) => _BookCard(

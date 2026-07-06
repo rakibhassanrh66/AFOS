@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
@@ -49,18 +50,18 @@ class _DashboardState extends State<DashboardScreen> {
   }
 
   static const _allModules = [
-    _Module('Schedule',    Icons.calendar_today_rounded,   AppColors.blue,   '/schedule',  'Today\'s classes'),
-    _Module('Hall',        Icons.apartment_rounded,         AppColors.amber,  '/hall',      'Application status'),
-    _Module('Transport',   Icons.directions_bus_rounded,    AppColors.teal,   '/transport', 'Next departure'),
-    _Module('Payment',     Icons.payment_rounded,           AppColors.gold,   '/payment',   'Check dues'),
-    _Module('Library',     Icons.menu_book_rounded,         AppColors.purple, '/library',   'Borrowed books'),
-    _Module('Lost & Found',Icons.search_rounded,            AppColors.coral,  '/lost-found','New found items'),
-    _Module('Clubs',       Icons.groups_rounded,            AppColors.pink,   '/clubs',     'Upcoming events'),
-    _Module('Mentorship',  Icons.school_rounded,            Color(0xFF60A5FA),'/mentorship','Book a session'),
-    _Module('Exam Seats',  Icons.event_seat_rounded,        AppColors.orange, '/exam-seat', 'View seat plan'),
-    _Module('Dept Chat',   Icons.chat_rounded,              AppColors.indigo, '/dept-chat', 'Department channel'),
-    _Module('VR-ID',       Icons.qr_code_rounded,           AppColors.green,  '/vr-id',     'Active ✓'),
-    _Module('Notices',     Icons.campaign_rounded,          AppColors.red,    '/notifications','Latest notices'),
+    _Module('Schedule',    AppIcons.schedule,    AppColors.blue,   '/schedule',  'Today\'s classes'),
+    _Module('Hall',        AppIcons.hall,        AppColors.amber,  '/hall',      'Application status'),
+    _Module('Transport',   AppIcons.transport,   AppColors.teal,   '/transport', 'Next departure'),
+    _Module('Payment',     AppIcons.payment,     AppColors.gold,   '/payment',   'Check dues'),
+    _Module('Library',     AppIcons.library,     AppColors.purple, '/library',   'Borrowed books'),
+    _Module('Lost & Found',AppIcons.lostFound,   AppColors.coral,  '/lost-found','New found items'),
+    _Module('Clubs',       AppIcons.clubs,       AppColors.pink,   '/clubs',     'Upcoming events'),
+    _Module('Mentorship',  AppIcons.mentorship,  Color(0xFF60A5FA),'/mentorship','Book a session'),
+    _Module('Exam Seats',  AppIcons.examSeat,    AppColors.orange, '/exam-seat', 'View seat plan'),
+    _Module('Dept Chat',   AppIcons.deptChat,    AppColors.indigo, '/dept-chat', 'Department channel'),
+    _Module('VR-ID',       AppIcons.vrId,        AppColors.green,  '/vr-id',     'Active ✓'),
+    _Module('Notices',     AppIcons.notices,     AppColors.red,    '/notifications','Latest notices'),
   ];
 
   // Hall/Payment/Exam Seats are personal student records — a teacher has

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 
@@ -33,39 +34,56 @@ class _SlideMenuState extends State<SlideMenu> {
     } catch(_) {}
   }
 
-  // Base items every role gets.
+  // Base items every role gets. Everyone can browse Clubs (read-only for
+  // non-students — the Join/Apply actions inside are gated to role==student
+  // both client-side and at the RLS layer). Library stays student-only
+  // (see _studentOnlyItems) since it's a personal borrowing record, not
+  // something to just "view".
   static const _commonItems = [
-    _MenuItem('Dashboard',      Icons.home_rounded,          '/home',          AppColors.blue),
-    _MenuItem('Class Schedule', Icons.calendar_today_rounded,'/schedule',      Color(0xFF1E6FFF)),
-    _MenuItem('Transport',      Icons.directions_bus_rounded,'/transport',     AppColors.teal),
-    _MenuItem('Library',        Icons.menu_book_rounded,     '/library',       AppColors.purple),
-    _MenuItem('Lost & Found',   Icons.search_rounded,        '/lost-found',    AppColors.coral),
-    _MenuItem('Clubs',          Icons.groups_rounded,        '/clubs',         AppColors.pink),
-    _MenuItem('Mentorship',     Icons.school_rounded,        '/mentorship',    Color(0xFF60A5FA)),
-    _MenuItem('Dept Chat',      Icons.chat_rounded,          '/dept-chat',     AppColors.indigo),
-    _MenuItem('Notifications',  Icons.notifications_rounded, '/notifications', AppColors.red),
-    _MenuItem('Settings',       Icons.settings_rounded,      '/settings',      AppColors.textSecondary),
+    _MenuItem('Dashboard',      AppIcons.dashboard,   '/home',          AppColors.blue),
+    _MenuItem('Class Schedule', AppIcons.schedule,    '/schedule',      Color(0xFF1E6FFF)),
+    _MenuItem('Transport',      AppIcons.transport,   '/transport',     AppColors.teal),
+    _MenuItem('Lost & Found',   AppIcons.lostFound,   '/lost-found',    AppColors.coral),
+    _MenuItem('Clubs',          AppIcons.clubs,       '/clubs',         AppColors.pink),
+    _MenuItem('Results',        AppIcons.results,     '/grades',        AppColors.gold),
+    _MenuItem('Assignments',    AppIcons.assignments, '/assignments',   AppColors.holoTeal),
+    _MenuItem('Mentorship',     AppIcons.mentorship,  '/mentorship',    Color(0xFF60A5FA)),
+    _MenuItem('Dept Chat',      AppIcons.deptChat,    '/dept-chat',     AppColors.indigo),
+    _MenuItem('Notifications',  AppIcons.notifications, '/notifications', AppColors.red),
+    _MenuItem('Settings',       AppIcons.settings,    '/settings',      AppColors.textSecondary),
   ];
 
-  // Student-only: hall allocation and exam seating are student-personal
-  // records — a teacher has no hall room or exam seat of their own.
+  // Student-only: hall allocation, payment, exam seating, and library are
+  // student-personal records — a teacher/staff member has none of their own.
   static const _studentOnlyItems = [
-    _MenuItem('Hall Allocation',Icons.apartment_rounded,     '/hall',          AppColors.amber),
-    _MenuItem('Payment',        Icons.payment_rounded,       '/payment',       AppColors.gold),
-    _MenuItem('Exam Seat Plan', Icons.event_seat_rounded,    '/exam-seat',     AppColors.orange),
+    _MenuItem('Library',        AppIcons.library,     '/library',       AppColors.purple),
+    _MenuItem('Hall Allocation',AppIcons.hall,         '/hall',          AppColors.amber),
+    _MenuItem('Payment',        AppIcons.payment,      '/payment',       AppColors.gold),
+    _MenuItem('Exam Seat Plan', AppIcons.examSeat,     '/exam-seat',     AppColors.orange),
   ];
+
+  static const _conferenceRoomItem =
+    _MenuItem('Conference Room', AppIcons.conferenceRoom, '/conference-room', AppColors.holoTeal);
 
   static const _adminItems = [
-    _MenuItem('Upload Routine/Transport', Icons.upload_file_rounded, '/admin/upload', AppColors.holoBlue),
-    _MenuItem('Manage Hall', Icons.apartment_rounded, '/admin/hall', AppColors.amber),
-    _MenuItem('Moderate Dept Chats', Icons.shield_rounded, '/admin/dept-chat', AppColors.indigo),
-    _MenuItem('Manage Faculties', Icons.account_balance_rounded, '/admin/faculties', AppColors.holoviolet),
-    _MenuItem('Manage Departments', Icons.apartment_rounded, '/admin/departments', AppColors.holoTeal),
-    _MenuItem('Notices & Rules', Icons.campaign_rounded, '/manage-notices', AppColors.red),
+    _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue),
+    _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber),
+    _MenuItem('Moderate Dept Chats', AppIcons.moderateChat, '/admin/dept-chat', AppColors.indigo),
+    _MenuItem('Manage Faculties', AppIcons.faculties, '/admin/faculties', AppColors.holoviolet),
+    _MenuItem('Manage Departments', AppIcons.hall, '/admin/departments', AppColors.holoTeal),
+    _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red),
   ];
 
   static const _noticesItem =
-    _MenuItem('Notices & Rules', Icons.campaign_rounded, '/manage-notices', AppColors.red);
+    _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red);
+
+  // super_admin only — not even ordinary admin/dept_admin get this (see the
+  // dedicated /admin/users redirect guard in app_router.dart).
+  static const _superAdminItems = [
+    _MenuItem('Manage Users', AppIcons.manageUsers, '/admin/users', AppColors.holoviolet),
+    _MenuItem('Manage Clubs', AppIcons.manageClubs, '/admin/clubs', AppColors.holoviolet),
+    _MenuItem('Conference Rooms', AppIcons.conferenceRoom, '/admin/conference-rooms', AppColors.holoviolet),
+  ];
 
   // Semester only means something for a student — a teacher/staff/admin
   // profile row still carries a leftover default `semester` value, so show
@@ -87,16 +105,23 @@ class _SlideMenuState extends State<SlideMenu> {
 
   List<_MenuItem> get _effectiveItems {
     final role = _user?.role;
-    // Admins/super_admin need full oversight of every module (student and
-    // teacher screens alike) plus their own management tools — nothing is
-    // hidden from them, only ordinary users get a pared-down role view.
-    if (const ['admin', 'super_admin', 'dept_admin'].contains(role)) {
-      return [..._commonItems, ..._studentOnlyItems, ..._adminItems];
+    // Admin-tier roles get oversight tools (Manage Hall, etc.), not the
+    // student-personal-record screens themselves — an admin has no hall
+    // room, exam seat, or payment of their own to apply for, so showing
+    // those would be nonsensical, not just redundant.
+    if (role == 'super_admin') {
+      return [..._commonItems, ..._adminItems, ..._superAdminItems];
+    }
+    if (const ['admin', 'dept_admin'].contains(role)) {
+      return [..._commonItems, ..._adminItems];
     }
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _noticesItem];
+      return [..._commonItems, _noticesItem, _conferenceRoomItem];
+    }
+    if (role == 'staff') {
+      return [..._commonItems, _conferenceRoomItem];
     }
     return [..._commonItems, ..._studentOnlyItems];
   }
@@ -140,9 +165,11 @@ class _SlideMenuState extends State<SlideMenu> {
         border: Border(bottom:BorderSide(color:border,width:0.5))),
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
         Row(children:[
-          _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?'),
+          GestureDetector(
+            onTap: () { ctx.read<ShellBloc>().add(CloseMenu()); ctx.push('/complete-profile'); },
+            child: _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?', isSuperAdmin: _user?.role == 'super_admin')),
           const Spacer(),
-          IconButton(icon:Icon(Icons.close,color:textSecondary),
+          IconButton(icon:Icon(AppIcons.close,color:textSecondary),
             onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
         ]),
         const SizedBox(height:12),
@@ -170,7 +197,7 @@ class _SlideMenuState extends State<SlideMenu> {
               ]),
             ),
             child: Row(mainAxisSize:MainAxisSize.min, children:[
-              const Icon(Icons.qr_code_rounded,color:AppColors.gold,size:16),
+              const Icon(AppIcons.vrId,color:AppColors.gold,size:16),
               const SizedBox(width:8),
               Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:AppColors.gold)),
             ]),
@@ -184,7 +211,7 @@ class _SlideMenuState extends State<SlideMenu> {
     return ListTile(
       leading:Container(width:36,height:36,
         decoration:BoxDecoration(color:AppColors.red.withOpacity(0.1),borderRadius:BorderRadius.circular(10)),
-        child:const Icon(Icons.logout_rounded,color:AppColors.red,size:18)),
+        child:const Icon(AppIcons.logout,color:AppColors.red,size:18)),
       title:const Text('Logout',style:TextStyle(color:AppColors.red,fontWeight:FontWeight.w600,fontSize:14)),
       onTap:() async {
         final surface = AppColors.surfaceOf(ctx);
@@ -268,15 +295,16 @@ class _MenuTile extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  final String? url; final String initials;
-  const _Avatar({this.url, required this.initials});
+  final String? url; final String initials; final bool isSuperAdmin;
+  const _Avatar({this.url, required this.initials, this.isSuperAdmin = false});
   @override
   Widget build(BuildContext context) {
+    final ringColor = isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue;
     return Container(
       width:52,height:52,
       decoration:BoxDecoration(shape:BoxShape.circle,
-        border:Border.all(color:AppColors.holoBlue.withOpacity(0.5),width:2),
-        boxShadow:[BoxShadow(color:AppColors.holoBlue.withOpacity(0.2),blurRadius:12,spreadRadius:-2)]),
+        border:Border.all(color:ringColor.withOpacity(0.6),width: isSuperAdmin ? 3 : 2),
+        boxShadow:[BoxShadow(color:ringColor.withOpacity(0.25),blurRadius:12,spreadRadius:-2)]),
       child: ClipOval(child: url!=null && url!.isNotEmpty
         ? CachedNetworkImage(imageUrl:url!,fit:BoxFit.cover,
             errorWidget:(_,__,___)=>_initials(context, initials))
