@@ -45,6 +45,7 @@ dependencies:
   syncfusion_flutter_pdf: ^27.2.5
   geolocator: ^13.0.2
   cupertino_icons: ^1.0.8
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

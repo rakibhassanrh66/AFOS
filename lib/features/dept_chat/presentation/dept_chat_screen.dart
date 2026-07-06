@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -122,6 +123,13 @@ class _ChatRoomScreen extends StatefulWidget {
   final Map<String, dynamic> channel; final UserModel user;
   const _ChatRoomScreen({required this.channel, required this.user});
   @override State<_ChatRoomScreen> createState() => _ChatRoomState();
+
+  static const _chatBackgrounds = {
+    'default': Colors.transparent,
+    'midnight': Color(0xFF0B1220),
+    'forest': Color(0xFF0E1F16),
+    'plum': Color(0xFF1F0E1B),
+  };
 }
 
 class _ChatRoomState extends State<_ChatRoomScreen> {
@@ -130,9 +138,20 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
   List<Map<String, dynamic>> _messages = [];
   bool _loading = true;
   RealtimeChannel? _realtimeChannel;
+  Color _chatBg = Colors.transparent;
 
   @override
-  void initState() { super.initState(); _loadMessages(); _subscribeRealtime(); }
+  void initState() { super.initState(); _loadMessages(); _subscribeRealtime(); _loadChatBackground(); }
+
+  Future<void> _loadChatBackground() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    try {
+      final row = await SupabaseConfig.client.from('user_settings').select('chat_background').eq('profile_id', uid).maybeSingle();
+      final key = row?['chat_background'] as String? ?? 'default';
+      if (mounted) setState(() => _chatBg = _ChatRoomScreen._chatBackgrounds[key] ?? Colors.transparent);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -237,7 +256,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
   Widget build(BuildContext context) {
     final name = widget.channel['channel_name'] as String? ?? 'chat';
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: _chatBg == Colors.transparent ? Theme.of(context).scaffoldBackgroundColor : _chatBg,
       appBar: AppBar(
         backgroundColor: AppColors.surfaceOf(context),
         title: Text('#$name', style: AppTextStyles.headlineMed.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -323,7 +342,7 @@ class _MsgBubble extends StatelessWidget {
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (showAvatar) Padding(padding: const EdgeInsets.only(right: 8, bottom: 20),
             child: CircleAvatar(radius: 14, backgroundColor: AppColors.blue.withOpacity(0.15),
-                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
                 child: avatarUrl == null
                     ? Text(((profile['full_name'] as String?)?.isNotEmpty == true
                             ? (profile['full_name'] as String)[0] : '?').toUpperCase(),

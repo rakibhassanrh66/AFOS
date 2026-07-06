@@ -5,7 +5,7 @@ class AppFormatters {
   static String dateTime(DateTime d) => DateFormat('dd MMM yyyy, hh:mm a').format(d);
   static String time(DateTime d) => DateFormat('hh:mm a').format(d);
   static String currency(double amount,{String symbol='\u09F3'}) =>
-    '\$symbol\${amount.toStringAsFixed(2)}';
+    '$symbol${amount.toStringAsFixed(2)}';
   static String greeting() {
     final h = DateTime.now().hour;
     if(h<12) return 'Good morning';
@@ -23,9 +23,9 @@ class AppFormatters {
   static String relativeTime(DateTime d) {
     final diff = DateTime.now().difference(d);
     if(diff.inMinutes<1) return 'Just now';
-    if(diff.inMinutes<60) return '\${diff.inMinutes}m ago';
-    if(diff.inHours<24) return '\${diff.inHours}h ago';
-    if(diff.inDays<7) return '\${diff.inDays}d ago';
+    if(diff.inMinutes<60) return '${diff.inMinutes}m ago';
+    if(diff.inHours<24) return '${diff.inHours}h ago';
+    if(diff.inDays<7) return '${diff.inDays}d ago';
     return date(d);
   }
 }

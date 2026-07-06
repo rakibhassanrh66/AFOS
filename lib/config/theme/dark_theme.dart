@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
-ThemeData buildDarkTheme() {
+ThemeData buildDarkTheme({Color? accent}) {
+  final primary = accent ?? AppColors.blue;
   return ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.background,
-    primaryColor: AppColors.blue,
-    colorScheme: const ColorScheme.dark(
-      primary: AppColors.blue,
+    primaryColor: primary,
+    colorScheme: ColorScheme.dark(
+      primary: primary,
       secondary: AppColors.gold,
       surface: AppColors.surface,
       error: AppColors.red,
@@ -50,7 +51,7 @@ ThemeData buildDarkTheme() {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.blue, width: 1.5),
+        borderSide: BorderSide(color: primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -65,7 +66,7 @@ ThemeData buildDarkTheme() {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.blue,
+        backgroundColor: primary,
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -75,8 +76,8 @@ ThemeData buildDarkTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.blue,
-        side: const BorderSide(color: AppColors.blue),
+        foregroundColor: primary,
+        side: BorderSide(color: primary),
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),

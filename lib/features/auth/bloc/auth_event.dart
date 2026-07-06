@@ -4,13 +4,13 @@ class AuthLoginRequested extends AuthEvent {
   AuthLoginRequested(this.email, this.password);
 }
 class AuthRegisterRequested extends AuthEvent {
-  final String email, password, studentId, fullName, department, accountType;
+  final String email, password, studentId, fullName, department, accountType, gender;
   final int semester;
   final String? programId, batch, section, designation;
   AuthRegisterRequested({required this.email, required this.password,
     required this.studentId, required this.fullName,
     required this.department, required this.semester,
-    required this.accountType,
+    required this.accountType, required this.gender,
     this.programId, this.batch, this.section, this.designation});
 }
 class AuthLogoutRequested    extends AuthEvent {}

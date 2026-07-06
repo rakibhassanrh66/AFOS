@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/admin/presentation/manage_clubs_screen.dart';
+import '../../features/admin/presentation/manage_conference_rooms_screen.dart';
+import '../../features/admin/presentation/manage_users_screen.dart';
+import '../../features/assignments/presentation/assignments_screen.dart';
 import '../../features/auth/presentation/complete_profile_screen.dart';
+import '../../features/auth/presentation/pending_approval_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
+import '../../features/conference_room/presentation/conference_room_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/dept_chat/presentation/dept_chat_screen.dart';
 import '../../features/dept_chat/presentation/manage_dept_chat_screen.dart';
 import '../../features/exam_seat/presentation/exam_seat_screen.dart';
+import '../../features/grades/presentation/grades_screen.dart';
 import '../../features/hall/presentation/hall_screen.dart';
 import '../../features/hall/presentation/manage_hall_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
@@ -55,9 +62,23 @@ class AppRouter {
       // rather than letting the app run with a half-filled profile.
       final completed = await RoleSession.ensureProfileCompletedLoaded();
       if (!completed) return '/complete-profile';
+      // New signups need super_admin approval before "full active mode" —
+      // accounts that existed before this gate was introduced were
+      // grandfathered to verified=true, so this only ever blocks brand new
+      // accounts, never anyone already using the app.
+      if (loc == '/pending-approval') return null;
+      final verified = await RoleSession.ensureVerifiedLoaded();
+      if (!verified) return '/pending-approval';
       if (loc.startsWith('/admin')) {
         final role = await RoleSession.ensureLoaded();
         if (!_adminRoles.contains(role)) return '/home';
+      }
+      // User management (approve/reject signups, delete accounts entirely)
+      // is the single most destructive tool in the app — super_admin only,
+      // not the broader admin/dept_admin set the rest of /admin allows.
+      if (loc == '/admin/users' || loc == '/admin/clubs' || loc == '/admin/conference-rooms') {
+        final role = await RoleSession.ensureLoaded();
+        if (role != 'super_admin') return '/home';
       }
       // Notices/rules can be authored by teachers too (course notices),
       // not just admin roles — kept outside the /admin prefix so it isn't
@@ -89,6 +110,8 @@ class AppRouter {
         pageBuilder: (c, s) => slideUpPage(const ForgotPasswordScreen(), s)),
       GoRoute(path: '/complete-profile',
         pageBuilder: (c, s) => fadeScalePage(const CompleteProfileScreen(), s)),
+      GoRoute(path: '/pending-approval',
+        pageBuilder: (c, s) => fadeScalePage(const PendingApprovalScreen(), s)),
       ShellRoute(
         navigatorKey: _shell,
         builder: (c, s, child) => AppShell(child: child),
@@ -103,12 +126,18 @@ class AppRouter {
           GoRoute(path: '/clubs',         pageBuilder: (c,s) => slideRightPage(const ClubsScreen(), s)),
           GoRoute(path: '/mentorship',    pageBuilder: (c,s) => slideRightPage(const MentorshipScreen(), s)),
           GoRoute(path: '/exam-seat',     pageBuilder: (c,s) => slideRightPage(const ExamSeatScreen(), s)),
+          GoRoute(path: '/grades',        pageBuilder: (c,s) => slideRightPage(const GradesScreen(), s)),
+          GoRoute(path: '/assignments',   pageBuilder: (c,s) => slideRightPage(const AssignmentsScreen(), s)),
           GoRoute(path: '/dept-chat',     pageBuilder: (c,s) => slideRightPage(const DeptChatScreen(), s)),
           GoRoute(path: '/vr-id',         pageBuilder: (c,s) => slideRightPage(const VrIdScreen(), s)),
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
+          GoRoute(path: '/admin/users',   pageBuilder: (c,s) => slideRightPage(const ManageUsersScreen(), s)),
+          GoRoute(path: '/admin/clubs',   pageBuilder: (c,s) => slideRightPage(const ManageClubsScreen(), s)),
+          GoRoute(path: '/admin/conference-rooms', pageBuilder: (c,s) => slideRightPage(const ManageConferenceRoomsScreen(), s)),
+          GoRoute(path: '/conference-room', pageBuilder: (c,s) => slideRightPage(const ConferenceRoomScreen(), s)),
           GoRoute(path: '/admin/dept-chat', pageBuilder: (c,s) => slideRightPage(const ManageDeptChatScreen(), s)),
           GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
           // Registry Module Routes

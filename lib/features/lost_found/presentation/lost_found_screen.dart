@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +14,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/utils/error_formatter.dart';
 
 class LostFoundScreen extends StatefulWidget {
   const LostFoundScreen({super.key});
@@ -152,7 +154,7 @@ class _PostCard extends StatelessWidget {
       onDeleted();
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
   }
 
@@ -194,7 +196,7 @@ class _PostCard extends StatelessWidget {
           const SnackBar(content: Text('Claim sent to poster for review')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
   }
 
@@ -212,9 +214,9 @@ class _PostCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
               child: post['photo_url'] != null
                   ? ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      child: Image.network(post['photo_url'], fit: BoxFit.cover,
+                      child: CachedNetworkImage(imageUrl: post['photo_url'], fit: BoxFit.cover,
                           width: double.infinity,
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorWidget: (_, __, ___) => const Center(
                               child: Icon(Icons.image_not_supported_outlined,
                                   color: AppColors.textMuted, size: 32))))
                   : Center(child: Icon(Icons.search, color: typeColor, size: 36))),
@@ -296,7 +298,7 @@ class _PostTabState extends State<_PostTab> {
       widget.onPosted();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -570,7 +572,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
           actions: [TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Close'))]));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
   }
 

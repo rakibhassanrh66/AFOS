@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -32,9 +33,14 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
+      // A student can end up with more than one row here (e.g. an older
+      // rejected/cancelled application plus a new one) — take the most
+      // recent instead of .maybeSingle(), which throws (PGRST116) the
+      // moment more than one row matches.
       final res = await SupabaseConfig.client
-          .from('hall_applications').select().eq('student_id', uid).maybeSingle();
-      if (mounted) setState(() => _application = res);
+          .from('hall_applications').select().eq('student_id', uid)
+          .order('created_at', ascending: false).limit(1) as List;
+      if (mounted) setState(() => _application = res.isNotEmpty ? res.first as Map<String, dynamic> : null);
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
@@ -162,6 +168,30 @@ class _MyApplicationTab extends StatelessWidget {
               ]),
             ),
           ),
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+            onPressed: () => _requestCancellation(context),
+            icon: const Icon(Icons.cancel_outlined, size: 18),
+            label: const Text('Request Cancellation'))),
+        ],
+
+        if (status == 'cancel_requested') ...[
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.amber.withValues(alpha: 0.3))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Cancellation requested — waiting for admin review',
+                  style: TextStyle(color: AppColors.amber, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Text('Reason: ${app!['cancellation_reason'] ?? '-'}',
+                  style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12)),
+            ]),
+          ),
         ],
 
         if (status == 'rejected') ...[
@@ -210,8 +240,51 @@ class _MyApplicationTab extends StatelessWidget {
       onRefresh();
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
+  }
+
+  Future<void> _requestCancellation(BuildContext context) async {
+    final reasonCtrl = TextEditingController();
+    bool saving = false;
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
+          final textPrimary = AppColors.textPrimaryOf(sheetCtx);
+          return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Request Cancellation', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+                const SizedBox(height: 8),
+                Text('This needs admin approval since your seat is already allocated — explain why you need to cancel.',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                const SizedBox(height: 16),
+                AfosTextField(hint: 'Reason for cancellation', controller: reasonCtrl, maxLines: 3),
+                const SizedBox(height: 20),
+                AfosButton(
+                  label: 'Submit Request',
+                  loading: saving,
+                  onTap: () async {
+                    if (reasonCtrl.text.trim().isEmpty) return;
+                    setSheetState(() => saving = true);
+                    try {
+                      await SupabaseConfig.client.from('hall_applications').update({
+                        'status': 'cancel_requested',
+                        'cancellation_reason': reasonCtrl.text.trim(),
+                      }).eq('id', app!['id']);
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                      onRefresh();
+                    } catch (e) {
+                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      setSheetState(() => saving = false);
+                    }
+                  },
+                ),
+              ]));
+        }));
   }
 }
 
@@ -248,6 +321,22 @@ class _ApplyTabState extends State<_ApplyTab> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      // Block a second active application client-side (a DB-level partial
+      // unique index enforces this as the real boundary — see migration
+      // 20260706090000) so the student gets a clear message instead of a
+      // raw constraint-violation error.
+      final existing = await SupabaseConfig.client.from('hall_applications')
+          .select('id').eq('student_id', SupabaseConfig.uid as Object)
+          .neq('status', 'rejected').neq('status', 'cancelled').limit(1) as List;
+      if (existing.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('You already have an active application — check the My Application tab.'),
+              backgroundColor: AppColors.amber));
+        }
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
       await SupabaseConfig.client.from('hall_applications').insert({
         'student_id': SupabaseConfig.uid, 'preferred_hall': _hall,
         'preference': _pref, 'reason': _reasonCtrl.text.trim(), 'status': 'pending',
@@ -258,7 +347,7 @@ class _ApplyTabState extends State<_ApplyTab> {
       widget.onApplied();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -372,7 +461,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
       await _loadMine();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _loading = false);
   }

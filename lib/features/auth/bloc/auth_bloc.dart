@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/pending_credentials_store.dart';
 import '../data/repositories/auth_repository.dart';
 import 'auth_event.dart';
@@ -22,7 +23,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       RoleSession.set(user.role, profileCompleted: user.profileCompleted);
       emit(AuthAuthenticated(user));
     } catch(err) {
-      emit(AuthError(err.toString().replaceAll('Exception: ','')));
+      emit(AuthError(friendlyError(err)));
     }
   }
 
@@ -37,6 +38,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         department: e.department,
         semester: e.semester,
         accountType: e.accountType,
+        gender: e.gender,
         programId: e.programId,
         batch: e.batch,
         section: e.section,
@@ -53,7 +55,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
       emit(AuthRegistrationSuccess());
     } catch(err) {
-      emit(AuthError(err.toString().replaceAll('Exception: ','')));
+      emit(AuthError(friendlyError(err)));
     }
   }
 
@@ -80,7 +82,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _repo.forgotPassword(e.email);
       emit(AuthPasswordResetSent());
     } catch(err) {
-      emit(AuthError(err.toString()));
+      emit(AuthError(friendlyError(err)));
     }
   }
 }

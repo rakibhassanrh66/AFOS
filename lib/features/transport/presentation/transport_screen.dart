@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -9,6 +10,21 @@ import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/transport_repository.dart';
+
+// Uses stop *names* for origin/destination/waypoints rather than lat/long
+// — the source routine sheet never has GPS coordinates for stops (only
+// names), so this works even when the in-app map has no path to draw,
+// which is most routes today.
+Future<void> _openInGoogleMaps(List<String> stopNames) async {
+  final origin = Uri.encodeComponent('${stopNames.first}, Dhaka, Bangladesh');
+  final destination = Uri.encodeComponent('${stopNames.last}, Dhaka, Bangladesh');
+  final middle = stopNames.length > 2 ? stopNames.sublist(1, stopNames.length - 1) : const <String>[];
+  final waypoints = middle.map((s) => Uri.encodeComponent('$s, Dhaka, Bangladesh')).join('|');
+  final url = Uri.parse('https://www.google.com/maps/dir/?api=1'
+      '&origin=$origin&destination=$destination'
+      '${waypoints.isNotEmpty ? '&waypoints=$waypoints' : ''}&travelmode=driving');
+  await launchUrl(url, mode: LaunchMode.externalApplication);
+}
 
 class TransportScreen extends StatefulWidget {
   const TransportScreen({super.key});
@@ -281,6 +297,11 @@ class _MyRouteTabState extends State<_MyRouteTab> {
               Text('Route Path', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Text(stops.join('  →  '), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                  onPressed: () => _openInGoogleMaps(stops),
+                  icon: const Icon(Icons.directions_rounded, size: 18),
+                  label: const Text('Open in Google Maps'))),
             ])),
         const SizedBox(height: 16),
         if (toDsc.isNotEmpty) _ScheduleCard(title: 'Departure Times (To DSC)', times: toDsc),
@@ -355,6 +376,13 @@ class _AllRoutesTab extends StatelessWidget {
                       onPressed: () { Navigator.pop(sheetCtx); onViewOnMap(route['id'] as String); },
                       icon: const Icon(Icons.map_rounded, size: 18),
                       label: const Text('View on Map'))),
+                  if (stopNames.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                        onPressed: () => _openInGoogleMaps(stopNames),
+                        icon: const Icon(Icons.directions_rounded, size: 18),
+                        label: const Text('Open in Google Maps'))),
+                  ],
                 ]))));
   }
 

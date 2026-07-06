@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
-
-const _mentorCapableRoles = ['teacher', 'admin', 'dept_admin', 'super_admin'];
 
 class MentorshipScreen extends StatefulWidget {
   const MentorshipScreen({super.key});
@@ -20,10 +20,14 @@ class MentorshipScreen extends StatefulWidget {
 
 class _MentorshipState extends State<MentorshipScreen> with SingleTickerProviderStateMixin {
   late TabController _tab;
-  List<Map<String, dynamic>> _mentors = [], _sessions = [], _incomingRequests = [];
+  List<Map<String, dynamic>> _mentors = [], _sessions = [], _incomingRequests = [], _allBookings = [];
   Map<String, dynamic>? _myMentorProfile;
   bool _loading = true;
-  bool get _isTeacher => _mentorCapableRoles.contains(RoleSession.role);
+  bool get _isTeacher => RoleSession.role == 'teacher';
+  // Super admin never mentors or books sessions themselves — they get a
+  // read-only oversight view (every pairing across the system) plus the
+  // power to ban a mentor, never a participant role like everyone else.
+  bool get _isSuperAdmin => RoleSession.role == 'super_admin';
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _load(); }
@@ -33,7 +37,12 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      if (_isTeacher) {
+      if (_isSuperAdmin) {
+        final res = await SupabaseConfig.client.from('mentorship_bookings')
+            .select('*, profiles!student_id(full_name, department), mentors(*, profiles(full_name, department))')
+            .order('created_at', ascending: false) as List;
+        if (mounted) setState(() => _allBookings = res.cast());
+      } else if (_isTeacher) {
         // A mentorship request is only ever visible/actionable by the
         // specific teacher it was addressed to (mentor_id) — never a
         // roster of every teacher's requests — matching the RLS policy
@@ -79,6 +88,15 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    if (_isSuperAdmin) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AfosAppBar(title: 'Mentorship Oversight'),
+        body: _loading
+            ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+            : _OversightTab(bookings: _allBookings, onRefresh: _load),
+      );
+    }
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Mentorship'),
@@ -143,7 +161,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                       const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
                 } catch (e) {
                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                 }
               }),
             ])));
@@ -157,7 +175,7 @@ class _MentorList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (mentors.isEmpty) return EmptyState(icon: Icons.school_rounded,
+    if (mentors.isEmpty) return EmptyState(icon: AppIcons.mentorship,
         title: 'No mentors available', subtitle: 'Mentors will appear here once faculty register');
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: mentors.length,
         itemBuilder: (ctx, i) {
@@ -232,7 +250,7 @@ class _SessionsTab extends StatelessWidget {
                 Container(width: 44, height: 44, decoration: BoxDecoration(
                     color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
                     shape: BoxShape.rectangle),
-                    child: const Icon(Icons.school_rounded, color: AppColors.blue, size: 22)),
+                    child: const Icon(AppIcons.mentorship, color: AppColors.blue, size: 22)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(mentor['full_name'] ?? 'Faculty', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -278,7 +296,7 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
       widget.onRefresh();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -366,7 +384,7 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
           const SnackBar(content: Text('Mentor profile saved ✓'), backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -397,5 +415,78 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
       AfosButton(label: widget.profile == null ? 'Become a Mentor' : 'Save Changes',
           loading: _saving, onTap: _save),
     ]));
+  }
+}
+
+class _OversightTab extends StatelessWidget {
+  final List<Map<String, dynamic>> bookings; final VoidCallback onRefresh;
+  const _OversightTab({required this.bookings, required this.onRefresh});
+
+  Color _statusColor(String s) => switch (s) {
+    'confirmed' => AppColors.green, 'rejected' => AppColors.red,
+    'completed' => AppColors.textSecondary, _ => AppColors.amber,
+  };
+
+  Future<void> _banMentor(BuildContext context, String mentorId, String mentorName) async {
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dCtx) => AlertDialog(
+              backgroundColor: AppColors.surfaceOf(dCtx),
+              title: Text('Ban $mentorName as a mentor?', style: TextStyle(color: AppColors.textPrimaryOf(dCtx))),
+              content: Text('Stops them accepting new mentorship requests and removes their mentor profile. They keep their teacher account.',
+                  style: TextStyle(color: AppColors.textSecondaryOf(dCtx))),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                TextButton(onPressed: () => Navigator.pop(dCtx, true), child: const Text('Ban', style: TextStyle(color: AppColors.red))),
+              ],
+            ));
+    if (confirm != true) return;
+    try {
+      await SupabaseConfig.client.from('mentors').delete().eq('id', mentorId);
+      onRefresh();
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    if (bookings.isEmpty) return EmptyState(icon: Icons.school_outlined,
+        title: 'No mentorship activity yet', subtitle: 'Every booking across the system will show up here');
+    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: bookings.length,
+        itemBuilder: (ctx, i) {
+          final b = bookings[i];
+          final student = b['profiles'] as Map<String, dynamic>? ?? {};
+          final mentorRow = b['mentors'] as Map<String, dynamic>? ?? {};
+          final mentorProfile = mentorRow['profiles'] as Map<String, dynamic>? ?? {};
+          final mentorId = b['mentor_id'] as String?;
+          final status = b['status'] as String? ?? 'pending';
+          return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text('${student['full_name'] ?? 'Student'} → ${mentorProfile['full_name'] ?? 'Mentor'}',
+                      style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      child: Text(status.toUpperCase(), style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                ]),
+                Text('${student['department'] ?? ''} · ${mentorProfile['department'] ?? ''}',
+                    style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                const SizedBox(height: 6),
+                Text(b['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (mentorId != null) ...[
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: TextButton.icon(
+                      onPressed: () => _banMentor(context, mentorId, mentorProfile['full_name'] ?? 'this mentor'),
+                      icon: const Icon(Icons.block, size: 16, color: AppColors.red),
+                      label: const Text('Ban Mentor', style: TextStyle(color: AppColors.red, fontSize: 12)))),
+                ],
+              ]));
+        });
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -56,15 +57,15 @@ class _NotifState extends State<NotificationCenterScreen> {
   }
 
   static IconData _catIcon(String? cat) => switch (cat) {
-    'schedule'    => Icons.calendar_today_rounded,
-    'transport'   => Icons.directions_bus_rounded,
-    'payment'     => Icons.payment_rounded,
-    'library'     => Icons.menu_book_rounded,
-    'lost_found'  => Icons.search_rounded,
-    'club'        => Icons.groups_rounded,
-    'message'     => Icons.chat_rounded,
-    'exam'        => Icons.event_seat_rounded,
-    _             => Icons.notifications_rounded,
+    'schedule'    => AppIcons.schedule,
+    'transport'   => AppIcons.transport,
+    'payment'     => AppIcons.payment,
+    'library'     => AppIcons.library,
+    'lost_found'  => AppIcons.lostFound,
+    'club'        => AppIcons.clubs,
+    'message'     => AppIcons.deptChat,
+    'exam'        => AppIcons.examSeat,
+    _             => AppIcons.notifications,
   };
 
   static Color _catColor(String? cat) => switch (cat) {

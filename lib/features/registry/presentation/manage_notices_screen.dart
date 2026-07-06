@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -152,7 +153,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
                       if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+                          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                       setSheetState(() => saving = false);
                     }
                   },
