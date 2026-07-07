@@ -131,21 +131,18 @@ class _NotifState extends State<NotificationCenterScreen> {
                         child: GestureDetector(
                           onTap: () => _markRead(n['id'] as String),
                           child: Container(
+                            clipBehavior: Clip.antiAlias,
                             margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceOf(context),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border(
-                                left: BorderSide(
-                                    color: isRead ? Colors.transparent : color,
-                                    width: 3),
-                                right: BorderSide(color: AppColors.borderOf(context), width: 0.5),
-                                top: BorderSide(color: AppColors.borderOf(context), width: 0.5),
-                                bottom: BorderSide(color: AppColors.borderOf(context), width: 0.5),
-                              ),
+                              border: Border.all(color: AppColors.borderOf(context), width: 0.5),
                             ),
-                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                              Container(width: 3, color: isRead ? Colors.transparent : color),
+                              Expanded(child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Container(
                                 width: 40, height: 40,
                                 decoration: BoxDecoration(
@@ -175,6 +172,8 @@ class _NotifState extends State<NotificationCenterScreen> {
                                 ],
                               ])),
                             ]),
+                          )),
+                            ])),
                           ),
                         ).animate(delay: Duration(milliseconds: i * 40)).fadeIn().slideX(begin: 0.03),
                       );

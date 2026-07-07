@@ -252,7 +252,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     ? EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _pending.length,
-                        itemBuilder: (ctx, i) => _UserCard(user: _pending[i], pending: true,
+                        itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
                             onReject: () => _rejectAndDelete(_pending[i]),
                             onDelete: () => _confirmDelete(_pending[i]))),
@@ -265,6 +265,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
                           final dept = r['departments'] as Map<String, dynamic>? ?? {};
                           return SurfaceCard(
+                              key: ValueKey(r['id']),
                               margin: const EdgeInsets.only(bottom: 10),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(student['full_name'] ?? 'Unknown', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -303,7 +304,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                   Expanded(child: _filtered.isEmpty
                       ? EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
                       : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _filtered.length,
-                          itemBuilder: (ctx, i) => _UserCard(user: _filtered[i], pending: false,
+                          itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
                               onDelete: () => _confirmDelete(_filtered[i])))),
                 ]),
               ])),
@@ -334,7 +335,7 @@ class _StatDivider extends StatelessWidget {
 class _UserCard extends StatelessWidget {
   final Map<String, dynamic> user; final bool pending;
   final VoidCallback? onApprove, onReject, onDelete;
-  const _UserCard({required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete});
+  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete});
 
   static const _roleColors = {
     'super_admin': AppColors.holoviolet, 'admin': AppColors.holoBlue, 'dept_admin': AppColors.holoTeal,
@@ -431,7 +432,8 @@ class _UserCard extends StatelessWidget {
               child: Text(role, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
           const SizedBox(width: 8),
           if ((user['department'] as String?)?.isNotEmpty == true)
-            Text(user['department'], style: TextStyle(color: textSecondary, fontSize: 11)),
+            Flexible(child: Text(user['department'], style: TextStyle(color: textSecondary, fontSize: 11),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
           const Spacer(),
           if (createdAt != null) Text('Joined ${AppFormatters.relativeTime(createdAt)}',
               style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 10)),

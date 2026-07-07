@@ -43,6 +43,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         batch: e.batch,
         section: e.section,
         designation: e.designation,
+        staffCategory: e.staffCategory,
       );
       // Regardless of whether Supabase returned a session immediately,
       // route the user through a real login step: stash the credentials

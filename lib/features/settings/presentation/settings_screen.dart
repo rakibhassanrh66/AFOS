@@ -1,6 +1,9 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/theme_bloc.dart';
 import '../../../config/app_config.dart';
@@ -59,7 +62,8 @@ class _SettingsState extends State<SettingsScreen> {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
-      final p = await SupabaseConfig.client.from('profiles').select().eq('id', uid).single();
+      final p = await SupabaseConfig.client.from('profiles')
+          .select('*, teachers(*), staff(*)').eq('id', uid).single();
       _batchCtrl.text = p['batch'] as String? ?? '';
       _sectionCtrl.text = p['section'] as String? ?? '';
       _teacherInitialCtrl.text = p['teacher_initial'] as String? ?? '';
@@ -357,6 +361,8 @@ class _SettingsState extends State<SettingsScreen> {
                     () => _showChangePassword()),
                 _ActionTile('Send Feedback', Icons.feedback_outlined, AppColors.green,
                     () => _showFeedback()),
+                _ActionTile('Fix Push Notifications', Icons.notifications_active_outlined, AppColors.amber,
+                    () => _fixPushNotifications()),
               ]),
 
               const SizedBox(height: 16),
@@ -370,14 +376,27 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 24),
 
               // ── Logout ───────────────────────────────────────────────────
-              Container(
-                decoration: BoxDecoration(
-                    color: AppColors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.red.withOpacity(0.25))),
-                child: ListTile(
-                  leading: const Icon(AppIcons.logout, color: AppColors.red),
-                  title: const Text('Log Out', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
                   onTap: _logout,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(colors: [AppColors.red.withOpacity(0.14), AppColors.red.withOpacity(0.05)]),
+                        border: Border.all(color: AppColors.red.withOpacity(0.25))),
+                    child: Row(children: [
+                      Container(width: 38, height: 38,
+                          decoration: BoxDecoration(color: AppColors.red.withOpacity(0.16), shape: BoxShape.circle),
+                          child: const Icon(AppIcons.logout, color: AppColors.red, size: 19)),
+                      const SizedBox(width: 14),
+                      const Text('Log Out', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700, fontSize: 15)),
+                      const Spacer(),
+                      Icon(Icons.chevron_right_rounded, color: AppColors.red.withOpacity(0.6), size: 20),
+                    ]),
+                  ),
                 ),
               ),
               const SizedBox(height: 40),
@@ -453,31 +472,86 @@ class _SettingsState extends State<SettingsScreen> {
             ])));
   }
 
+  Future<void> _fixPushNotifications() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fixing notification subscription...')));
+    try {
+      await SupabaseConfig.client.functions.invoke('check-push-status',
+          body: {'resetIdentity': true});
+      await OneSignal.logout();
+      await OneSignal.login(uid);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Done — try sending yourself a test notice.'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
   void _showFeedback() {
+    final titleCtrl = TextEditingController();
     final ctrl = TextEditingController();
+    PlatformFile? attachment;
+    bool saving = false;
     showModalBottomSheet(context: context, isScrollControlled: true,
         backgroundColor: AppColors.surfaceOf(context),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (sheetCtx) => SingleChildScrollView(
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Send Feedback', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 20),
+              Text('Feedback & Contribution Ideas', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+              const SizedBox(height: 6),
+              Text('Have an idea to make the app better, or a plan you want to contribute? Share it here — attach a document if you have one.',
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+              const SizedBox(height: 16),
+              AfosTextField(hint: 'Title (optional)', controller: titleCtrl),
+              const SizedBox(height: 12),
               AfosTextField(hint: 'Tell us what you think...', controller: ctrl, maxLines: 4),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final res = await FilePicker.platform.pickFiles(
+                      type: FileType.custom, allowedExtensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'zip', 'txt']);
+                  if (res != null) setSheetState(() => attachment = res.files.first);
+                },
+                icon: const Icon(Icons.attach_file_rounded, size: 16),
+                label: Text(attachment == null ? 'Attach a file (optional)' : attachment!.name,
+                    overflow: TextOverflow.ellipsis),
+              ),
               const SizedBox(height: 20),
-              AfosButton(label: 'Submit Feedback', onTap: () async {
+              AfosButton(label: 'Submit', loading: saving, onTap: () async {
                 if (ctrl.text.trim().isEmpty) return;
-                Navigator.pop(context);
+                setSheetState(() => saving = true);
                 try {
+                  String? fileUrl, fileName;
+                  final file = attachment;
+                  if (file != null && file.path != null) {
+                    final uid = SupabaseConfig.uid;
+                    final path = '$uid/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+                    await SupabaseConfig.client.storage.from('feedback-attachments')
+                        .uploadBinary(path, await File(file.path!).readAsBytes());
+                    fileUrl = path; // private bucket — a signed URL is generated on demand when viewed, not stored.
+                    fileName = file.name;
+                  }
                   await SupabaseConfig.client.from('feedback').insert({
-                    'user_id': SupabaseConfig.uid, 'message': ctrl.text.trim(),
+                    'user_id': SupabaseConfig.uid,
+                    'title': titleCtrl.text.trim().isEmpty ? null : titleCtrl.text.trim(),
+                    'message': ctrl.text.trim(),
+                    'file_url': fileUrl, 'file_name': fileName,
                     'app_version': AppConfig.appVersion,
                   });
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Feedback sent ✓'), backgroundColor: AppColors.green));
-                } catch (_) {}
+                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Thanks — sent ✓'), backgroundColor: AppColors.green));
+                } catch (e) {
+                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  setSheetState(() => saving = false);
+                }
               }),
-            ])));
+            ]))));
   }
 }
 
@@ -502,7 +576,10 @@ class _InfoTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     leading: Icon(icon, color: AppColors.textSecondaryOf(context), size: 20),
     title: Text(label, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-    trailing: Text(value, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+    trailing: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 160),
+        child: Text(value, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
+            maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end)),
     dense: true,
   );
 }

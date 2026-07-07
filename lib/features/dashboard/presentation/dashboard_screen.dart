@@ -23,6 +23,22 @@ class _DashboardState extends State<DashboardScreen> {
   bool _loading = true;
   StreamSubscription? _noticesSub;
 
+  // Real per-user quick stats — replaces what used to be 4 hardcoded
+  // strings ('Today: 4 classes', 'Route 5: On time', ...) shown to every
+  // user regardless of role or actual data.
+  int? _classesToday;
+  int? _booksDueSoon;
+  String? _hallStatus;
+  Map<String, dynamic>? _hallApp;
+  bool _statsLoading = true;
+
+  // Super_admin gets its own oversight stats instead — the tally of every
+  // pending-action queue across the app (new signups, hall, clubs,
+  // conference rooms, CR requests, feedback) that used to have literally
+  // nothing shown here for this role once the old fake student chips were
+  // removed, reading as "half the dashboard is missing".
+  Map<String, int> _adminPending = {};
+
   @override
   void initState() { super.initState(); _load(); }
 
@@ -31,10 +47,10 @@ class _DashboardState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
-    if (uid == null) { setState(() => _loading = false); return; }
+    if (uid == null) { setState(() { _loading = false; _statsLoading = false; }); return; }
     try {
       final profileRaw = await SupabaseConfig.client
-          .from('profiles').select().eq('id', uid).single();
+          .from('profiles').select('*, students(batch_label,section)').eq('id', uid).single();
       if (mounted) setState(() => _user = UserModel.fromJson(profileRaw));
       // A super_admin posting a notice should reach open dashboards
       // immediately, not on next manual refresh — subscribe instead of
@@ -44,10 +60,156 @@ class _DashboardState extends State<DashboardScreen> {
           .order('created_at', ascending: false).limit(3).listen((rows) {
         if (mounted) setState(() { _notices = rows; _loading = false; });
       });
+      unawaited(_loadQuickStats(profileRaw, uid));
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _statsLoading = false; });
     }
   }
+
+  Future<void> _loadQuickStats(Map<String,dynamic> p, String uid) async {
+    final role = p['role'] as String? ?? 'student';
+    final dept = p['department'] as String?;
+    final today = (DateTime.now().weekday + 1) % 7;
+
+    if (role == 'student') {
+      final students = p['students'];
+      final sd = students is List && students.isNotEmpty
+          ? students.first as Map<String, dynamic>?
+          : (students is Map<String, dynamic> ? students : null);
+      final batch = sd?['batch_label'] as String?;
+      final section = sd?['section'] as String?;
+
+      if (dept != null && batch != null && section != null) {
+        try {
+          final rows = await SupabaseConfig.client.from('schedule_slots')
+              .select('day_of_week,batch,section,is_cancelled').eq('department', dept) as List;
+          final count = rows.where((s) =>
+              s['day_of_week'] == today && s['is_cancelled'] != true &&
+              (s['batch'] as String?)?.toLowerCase() == batch.toLowerCase() &&
+              (s['section'] as String?)?.toLowerCase() == section.toLowerCase()).length;
+          if (mounted) setState(() => _classesToday = count);
+        } catch (_) {}
+      }
+
+      try {
+        final rows = await SupabaseConfig.client.from('borrowed_books')
+            .select('due_date').eq('student_id', uid).eq('status', 'borrowed') as List;
+        final now = DateTime.now();
+        final dueSoon = rows.where((b) {
+          final due = DateTime.tryParse(b['due_date'] as String? ?? '');
+          return due != null && due.difference(now).inDays <= 3;
+        }).length;
+        if (mounted) setState(() => _booksDueSoon = dueSoon);
+      } catch (_) {}
+
+      try {
+        final rows = await SupabaseConfig.client.from('hall_applications')
+            .select('status,assigned_room,assigned_building,assigned_floor').eq('student_id', uid)
+            .order('created_at', ascending: false).limit(1) as List;
+        if (mounted) setState(() {
+          _hallStatus = rows.isNotEmpty ? rows.first['status'] as String? : null;
+          _hallApp = rows.isNotEmpty ? rows.first as Map<String, dynamic> : null;
+        });
+      } catch (_) {}
+    } else if (role == 'teacher') {
+      final initial = p['teacher_initial'] as String?;
+      if (initial != null) {
+        try {
+          final rows = await SupabaseConfig.client.from('schedule_slots')
+              .select('day_of_week,is_cancelled').eq('teacher_initial', initial) as List;
+          final count = rows.where((s) => s['day_of_week'] == today && s['is_cancelled'] != true).length;
+          if (mounted) setState(() => _classesToday = count);
+        } catch (_) {}
+      }
+    } else if (role == 'super_admin') {
+      try {
+        final results = await Future.wait([
+          SupabaseConfig.client.from('profiles').select('id').eq('is_verified', false) as Future,
+          SupabaseConfig.client.from('hall_applications').select('id')
+              .inFilter('status', ['pending', 'reviewing', 'cancel_requested']) as Future,
+          SupabaseConfig.client.from('club_membership_requests').select('id').eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('club_post_requests').select('id').eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('conference_room_requests').select('id').eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('cr_requests').select('id').eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('feedback').select('id').eq('status', 'new') as Future,
+        ]);
+        if (mounted) setState(() => _adminPending = {
+          'users': (results[0] as List).length,
+          'hall': (results[1] as List).length,
+          'clubs': (results[2] as List).length + (results[3] as List).length,
+          'conference': (results[4] as List).length,
+          'cr': (results[5] as List).length,
+          'feedback': (results[6] as List).length,
+        });
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _statsLoading = false);
+  }
+
+  List<String> get _quickChips {
+    final chips = <String>[];
+    if (_classesToday != null) {
+      chips.add(_classesToday == 0 ? '📅 No classes today' : '📅 Today: $_classesToday ${_classesToday == 1 ? 'class' : 'classes'}');
+    }
+    if (_hallStatus == 'approved' && _hallApp?['assigned_room'] != null) {
+      chips.add('🏠 Room ${_hallApp!['assigned_room']}');
+    } else if (_hallStatus != null) {
+      chips.add('🏠 Hall: ${_hallStatusLabel(_hallStatus!)}');
+    }
+    if (_booksDueSoon != null) {
+      chips.add(_booksDueSoon! > 0 ? '📚 $_booksDueSoon book${_booksDueSoon == 1 ? '' : 's'} due soon' : '📚 No books due soon');
+    }
+    return chips;
+  }
+
+  /// The single most contextually relevant module + reason to surface as a
+  /// banner, so the landing page leads with what actually matters to this
+  /// user right now instead of a flat uniform grid every time.
+  (_Module, String)? get _featured {
+    if (_hallStatus == 'pending' || _hallStatus == 'reviewing') {
+      return (_allModules.firstWhere((m) => m.title == 'Hall'),
+          'Your hall application is ${_hallStatusLabel(_hallStatus!).toLowerCase()}');
+    }
+    if ((_booksDueSoon ?? 0) > 0) {
+      return (_allModules.firstWhere((m) => m.title == 'Library'),
+          '$_booksDueSoon book${_booksDueSoon == 1 ? '' : 's'} due soon — renew now');
+    }
+    if ((_classesToday ?? 0) > 0) {
+      return (_allModules.firstWhere((m) => m.title == 'Schedule'),
+          '$_classesToday ${_classesToday == 1 ? 'class' : 'classes'} today — view your schedule');
+    }
+    return null;
+  }
+
+  static const _adminCategories = {
+    'users':      ('New Signups',       Icons.how_to_reg_rounded, AppColors.holoviolet, '/admin/users'),
+    'hall':       ('Hall Requests',      AppIcons.hall,            AppColors.amber,      '/admin/hall'),
+    'clubs':      ('Club Requests',      AppIcons.manageClubs,     AppColors.pink,       '/admin/clubs'),
+    'conference': ('Conference Rooms',   AppIcons.conferenceRoom,  AppColors.holoTeal,   '/admin/conference-rooms'),
+    'cr':         ('CR Requests',        Icons.badge_rounded,      AppColors.gold,       '/admin/users'),
+    'feedback':   ('Feedback',           Icons.feedback_rounded,   AppColors.red,        '/admin/feedback'),
+  };
+
+  /// Highest-count pending category, surfaced the same way student/teacher
+  /// get a "recommended for you" banner — the single thing most needing
+  /// super_admin's attention right now, not a flat unprioritized list.
+  (_Module, String)? get _adminFeatured {
+    if (_adminPending.isEmpty || _adminPending.values.every((v) => v == 0)) return null;
+    final top = _adminPending.entries.where((e) => e.value > 0).reduce((a, b) => a.value >= b.value ? a : b);
+    final cat = _adminCategories[top.key]!;
+    return (_Module(cat.$1, cat.$2, cat.$3, cat.$4, ''),
+        '${top.value} ${cat.$1.toLowerCase()} need${top.value == 1 ? 's' : ''} your review');
+  }
+
+  String _hallStatusLabel(String s) => switch (s) {
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
+    'cancelled' => 'Cancelled',
+    'cancel_requested' => 'Cancel pending',
+    'reviewing' => 'Reviewing',
+    _ => 'Pending',
+  };
 
   static const _allModules = [
     _Module('Schedule',    AppIcons.schedule,    AppColors.blue,   '/schedule',  'Today\'s classes'),
@@ -106,11 +268,22 @@ class _DashboardState extends State<DashboardScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       _Greeting(user: _user, loading: _loading),
                       const SizedBox(height: 16),
-                      _QuickChips(),
+                      _user?.role == 'super_admin'
+                          ? _AdminPendingGrid(pending: _adminPending, categories: _adminCategories, loading: _statsLoading)
+                          : _QuickChips(chips: _quickChips, loading: _statsLoading),
                     ]),
                   ),
                 ),
               ),
+              if (!_loading && !_statsLoading && _search.trim().isEmpty) ...[
+                if (_user?.role == 'super_admin' && _adminFeatured != null) ...[
+                  const SizedBox(height: 16),
+                  _FeaturedCard(module: _adminFeatured!.$1, reason: _adminFeatured!.$2),
+                ] else if (_user?.role != 'super_admin' && _featured != null) ...[
+                  const SizedBox(height: 16),
+                  _FeaturedCard(module: _featured!.$1, reason: _featured!.$2),
+                ],
+              ],
               const SizedBox(height: 24),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('Modules', style: AppTextStyles.headlineLarge
@@ -152,8 +325,12 @@ class _DashboardState extends State<DashboardScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('📢 Latest Notices', style: AppTextStyles.headlineLarge
-                    .copyWith(color: AppColors.textPrimaryOf(context))),
+                Row(children: [
+                  Icon(AppIcons.notices, size: 18, color: AppColors.red),
+                  const SizedBox(width: 8),
+                  Text('Latest Notices', style: AppTextStyles.headlineLarge
+                      .copyWith(color: AppColors.textPrimaryOf(context))),
+                ]),
                 TextButton(
                   onPressed: () => context.push('/notifications'),
                   child: Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
@@ -198,13 +375,63 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-class _QuickChips extends StatelessWidget {
+class _FeaturedCard extends StatelessWidget {
+  final _Module module; final String reason;
+  const _FeaturedCard({required this.module, required this.reason});
+
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push(module.route),
+      child: RepaintBoundary(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [module.color.withValues(alpha: 0.9), module.color.withValues(alpha: 0.6)]),
+          ),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                child: Icon(module.icon, color: Colors.white, size: 22)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('RECOMMENDED FOR YOU', style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              const SizedBox(height: 3),
+              Text(reason, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ])),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+          ]),
+        ),
+      ),
+    ).animate().fadeIn(duration: const Duration(milliseconds: 400)).slideY(begin: 0.08, curve: Curves.easeOutCubic);
+  }
+}
+
+/// Real per-user status chips (today's class count, hall status, books due) —
+/// previously 4 hardcoded strings shown identically to every user regardless
+/// of role or actual data. Rendered empty (nothing) once loaded if a role
+/// has no scoped chip to show, rather than fabricating one.
+class _QuickChips extends StatelessWidget {
+  final List<String> chips; final bool loading;
+  const _QuickChips({required this.chips, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return SizedBox(height: 44, child: Row(children: List.generate(3, (i) =>
+          Padding(padding: const EdgeInsets.only(right: 8),
+              child: ShimmerCard(width: 120, height: 36, radius: 22)))));
+    }
+    if (chips.isEmpty) return const SizedBox.shrink();
     return SizedBox(height: 44, child: ListView(
       scrollDirection: Axis.horizontal,
-      children: ['📅 Today: 4 classes', '🚌 Route 5: On time',
-                 '📚 2 books due soon', '🏠 Hall: Pending']
+      children: chips
           .map((t) => Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Container(
@@ -216,6 +443,58 @@ class _QuickChips extends StatelessWidget {
                   child: Text(t, style: TextStyle(
                       color: AppColors.textPrimaryOf(context), fontSize: 12)))))
           .toList()));
+  }
+}
+
+/// Super_admin's own oversight strip — tappable, colored stat tiles for
+/// every pending-action queue in the app, replacing what used to render
+/// nothing at all for this role once the fake student chips were removed.
+class _AdminPendingGrid extends StatelessWidget {
+  final Map<String, int> pending;
+  final Map<String, (String, IconData, Color, String)> categories;
+  final bool loading;
+  const _AdminPendingGrid({required this.pending, required this.categories, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return SizedBox(height: 72, child: Row(children: List.generate(4, (i) =>
+          Padding(padding: const EdgeInsets.only(right: 10), child: ShimmerCard(width: 100, height: 72, radius: 14)))));
+    }
+    return SizedBox(height: 72, child: ListView(
+      scrollDirection: Axis.horizontal,
+      children: categories.entries.map((e) {
+        final count = pending[e.key] ?? 0;
+        final (label, icon, color, route) = e.value;
+        final active = count > 0;
+        return Padding(padding: const EdgeInsets.only(right: 10), child: GestureDetector(
+          onTap: () => context.push(route),
+          child: Container(
+            width: 104,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+                color: active ? color.withValues(alpha: 0.14) : AppColors.glassFill(context),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: active ? color.withValues(alpha: 0.4) : AppColors.glassBorder(context),
+                    width: active ? 1 : 0.5)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(icon, size: 16, color: active ? color : AppColors.textSecondaryOf(context)),
+                const Spacer(),
+                Text('$count', style: TextStyle(
+                    color: active ? color : AppColors.textSecondaryOf(context),
+                    fontWeight: FontWeight.w800, fontSize: 16)),
+              ]),
+              const SizedBox(height: 6),
+              Text(label, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+        ).animate().fadeIn(duration: const Duration(milliseconds: 350))
+            .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutCubic));
+      }).toList(),
+    ));
   }
 }
 

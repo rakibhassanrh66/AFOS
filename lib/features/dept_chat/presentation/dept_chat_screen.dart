@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/chat_naming.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -19,6 +21,7 @@ class _DeptChatState extends State<DeptChatScreen> {
   UserModel? _user;
   List<Map<String, dynamic>> _channels = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -26,8 +29,10 @@ class _DeptChatState extends State<DeptChatScreen> {
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    setState(() => _error = null);
     try {
-      final p = await SupabaseConfig.client.from('profiles').select().eq('id', uid).single();
+      final p = await SupabaseConfig.client.from('profiles')
+          .select('*, students(batch_label,section)').eq('id', uid).single();
       final user = UserModel.fromJson(p);
       final channels = await SupabaseConfig.client.from('dept_channels')
           .select().eq('department', user.department)
@@ -36,7 +41,12 @@ class _DeptChatState extends State<DeptChatScreen> {
         _user = user;
         _channels = channels.cast();
       });
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently — a real load failure rendered
+      // identically to "no channels for your department", same class of
+      // bug found and fixed elsewhere this session.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -47,7 +57,16 @@ class _DeptChatState extends State<DeptChatScreen> {
       appBar: AfosAppBar(title: _user != null ? '${_user!.department} Channels' : 'Dept Chat'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-          : _channels.isEmpty
+          : _error != null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                  const SizedBox(height: 12),
+                  Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondaryOf(context))),
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ])))
+              : _channels.isEmpty
               ? _EmptyChannels(dept: _user?.department ?? '')
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
@@ -163,7 +182,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
   Future<void> _loadMessages() async {
     try {
       final res = await SupabaseConfig.client.from('dept_messages')
-          .select('*, profiles(full_name,avatar_url,role)')
+          .select('*, profiles(full_name,avatar_url,role,university_id,department,students(batch_label,section))')
           .eq('channel_id', widget.channel['id'])
           .order('created_at') as List;
       if (mounted) setState(() { _messages = res.cast(); _loading = false; });
@@ -206,6 +225,10 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         'full_name': widget.user.fullName,
         'avatar_url': widget.user.avatarUrl,
         'role': widget.user.role,
+        'university_id': widget.user.studentId,
+        'department': widget.user.department,
+        'students': widget.user.batch != null || widget.user.section != null
+            ? {'batch_label': widget.user.batch, 'section': widget.user.section} : null,
       },
     };
     setState(() => _messages = [..._messages, optimistic]);
@@ -215,7 +238,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
       final row = await SupabaseConfig.client.from('dept_messages').insert({
         'channel_id': widget.channel['id'], 'sender_id': SupabaseConfig.uid,
         'content': text, 'message_type': 'text',
-      }).select('*, profiles(full_name,avatar_url,role)').single();
+      }).select('*, profiles(full_name,avatar_url,role,university_id,department,students(batch_label,section))').single();
       if (mounted) setState(() {
         final idx = _messages.indexWhere((m) => m['id'] == tempId);
         if (idx != -1) _messages[idx] = row;
@@ -304,25 +327,38 @@ class _MsgBubble extends StatelessWidget {
     final avatarUrl = profile['avatar_url'] as String?;
     final time = msg['created_at'] != null ? DateTime.tryParse(msg['created_at']) : null;
 
+    // A non-uniform Border (single left side, for the faculty accent
+    // stripe) combined with borderRadius throws "A borderRadius can only
+    // be given on borders with uniform colors" — this crashed every
+    // faculty message bubble's render (confirmed the same root cause as
+    // the notification-panel crash fixed earlier). The stripe is now a
+    // separate Container instead of a Border side; IntrinsicHeight gives
+    // it a real height to match the text, since the Row's own height is
+    // otherwise unbounded inside a ListView item.
     final bubble = GestureDetector(
       onLongPress: isMe && onDelete != null ? onDelete : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
             gradient: isMe ? AppColors.blueGradient : null,
             color: isMe ? null : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMe ? 16 : 4), bottomRight: Radius.circular(isMe ? 4 : 16)),
-            border: isFaculty && !isMe ? const Border(left: BorderSide(color: AppColors.gold, width: 2)) : null),
-        child: Text(content, style: TextStyle(color: isMe ? Colors.white : AppColors.textPrimaryOf(context), fontSize: 14)),
+                bottomLeft: Radius.circular(isMe ? 16 : 4), bottomRight: Radius.circular(isMe ? 4 : 16))),
+        child: IntrinsicHeight(child: Row(children: [
+          if (isFaculty && !isMe) Container(width: 2, color: AppColors.gold),
+          Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Text(content, style: TextStyle(color: isMe ? Colors.white : AppColors.textPrimaryOf(context), fontSize: 14)))),
+        ])),
       ),
     );
 
     final bubbleColumn = Column(crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
       if (showAvatar && !isMe) Padding(padding: const EdgeInsets.only(bottom: 4, left: 4),
           child: Row(children: [
-            Text(profile['full_name'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+            Flexible(child: Text(anonymizedChatName(profile), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
             if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),

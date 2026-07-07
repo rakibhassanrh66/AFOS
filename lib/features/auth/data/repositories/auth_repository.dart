@@ -10,7 +10,7 @@ class AuthRepository {
     
     // Fetch profile, role, and potential student/teacher extensions
     final profile = await _client.from('profiles')
-        .select('*, roles!role_id(name), students(*), teachers(*)')
+        .select('*, roles!role_id(name), students(*), teachers(*), staff(*)')
         .eq('id', res.user!.id)
         .single();
         
@@ -33,6 +33,7 @@ class AuthRepository {
     String? batch,
     String? section,
     String? designation,
+    String? staffCategory,
   }) async {
     final res = await _client.auth.signUp(
       email: email,
@@ -48,13 +49,14 @@ class AuthRepository {
         if(batch != null) 'batch': batch,
         if(section != null) 'section': section,
         if(designation != null) 'designation': designation,
+        if(staffCategory != null) 'staff_category': staffCategory,
       },
     );
     if(res.user==null) throw Exception('Sign up failed');
     if(res.session==null) return null;
 
     final profile = await _client.from('profiles')
-        .select('*, roles!role_id(name), students(*), teachers(*)')
+        .select('*, roles!role_id(name), students(*), teachers(*), staff(*)')
         .eq('id', res.user!.id)
         .single();
     return UserModel.fromJson(profile);
@@ -70,7 +72,7 @@ class AuthRepository {
     final user = _client.auth.currentUser;
     if(user==null) return null;
     final profile = await _client.from('profiles')
-        .select('*, roles!role_id(name), students(*), teachers(*)')
+        .select('*, roles!role_id(name), students(*), teachers(*), staff(*)')
         .eq('id', user.id)
         .maybeSingle();
     if(profile==null) return null;

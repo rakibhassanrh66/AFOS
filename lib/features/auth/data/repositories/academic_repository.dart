@@ -23,6 +23,13 @@ class ProgramOption {
   int get semesterRange => totalSemesters ?? 12;
 }
 
+class StaffDesignationOption {
+  final String id, category, title;
+  const StaffDesignationOption({required this.id, required this.category, required this.title});
+  factory StaffDesignationOption.fromJson(Map<String, dynamic> j) => StaffDesignationOption(
+      id: j['id'] as String, category: j['category'] as String, title: j['title'] as String);
+}
+
 class AcademicRepository {
   final _client = SupabaseConfig.client;
 
@@ -38,5 +45,14 @@ class AcademicRepository {
         .eq('department_id', departmentId)
         .order('name');
     return (res as List).map((e) => ProgramOption.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Real DIU administrative job titles (Executive Leadership, Department-
+  /// Level, Project & Research, Campus Support) — publicly readable so this
+  /// works from the pre-auth registration screen, same as departments.
+  Future<List<StaffDesignationOption>> fetchStaffDesignations() async {
+    final res = await _client.from('staff_designations')
+        .select('id,category,title').eq('is_active', true).order('sort_order');
+    return (res as List).map((e) => StaffDesignationOption.fromJson(e as Map<String, dynamic>)).toList();
   }
 }

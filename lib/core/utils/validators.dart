@@ -1,6 +1,6 @@
 import '../../config/app_config.dart';
 
-enum AccountType { student, teacher }
+enum AccountType { student, teacher, staff }
 
 class AppValidators {
   AppValidators._();
@@ -26,7 +26,7 @@ class AppValidators {
       return type==AccountType.student ? 'Student ID required' : 'Employee ID required';
     }
     final s = v.trim();
-    if(type==AccountType.teacher) {
+    if(type==AccountType.teacher || type==AccountType.staff) {
       // Employee/staff IDs have no fixed university format — just a sanity bound.
       final ok = RegExp(r'^[A-Za-z0-9-]{4,25}$').hasMatch(s);
       if(!ok) return 'Invalid ID format';

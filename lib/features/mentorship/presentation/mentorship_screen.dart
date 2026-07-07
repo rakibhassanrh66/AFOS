@@ -23,6 +23,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   List<Map<String, dynamic>> _mentors = [], _sessions = [], _incomingRequests = [], _allBookings = [];
   Map<String, dynamic>? _myMentorProfile;
   bool _loading = true;
+  String? _error;
   bool get _isTeacher => RoleSession.role == 'teacher';
   // Super admin never mentors or books sessions themselves — they get a
   // read-only oversight view (every pairing across the system) plus the
@@ -36,7 +37,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   void dispose() { _tab.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       if (_isSuperAdmin) {
         final res = await SupabaseConfig.client.from('mentorship_bookings')
@@ -83,9 +84,28 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
           _sessions = (results[1] as List).cast();
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently — a load failure (network blip, a
+      // stale session, a real RLS gap) rendered identically to "no mentor
+      // profile"/"no mentors yet", which is very likely what was actually
+      // behind the long-standing "mentorship profile missing" report:
+      // there was never any signal to tell a genuine failure apart from a
+      // truthful empty state.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
+
+  Widget _errorView(BuildContext context) => Center(child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+        const SizedBox(height: 12),
+        Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 12),
+        TextButton(onPressed: _load, child: const Text('Retry')),
+      ])));
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +115,9 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
         appBar: AfosAppBar(title: 'Mentorship Oversight'),
         body: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-            : _OversightTab(bookings: _allBookings, onRefresh: _load),
+            : _error != null
+                ? _errorView(context)
+                : _OversightTab(bookings: _allBookings, onRefresh: _load),
       );
     }
     if (!_isTeacher && !_isStudent) {
@@ -120,19 +142,21 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
             tabs: _isTeacher
                 ? const [Tab(text: 'Requests'), Tab(text: 'My Mentor Profile')]
                 : const [Tab(text: 'Find Mentor'), Tab(text: 'My Sessions')])),
-        Expanded(child: TabBarView(controller: _tab, children: _isTeacher
-            ? [
-                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-                    : _IncomingRequestsTab(requests: _incomingRequests, onRefresh: _load),
-                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 1, itemHeight: 260))
-                    : _MyMentorProfileTab(profile: _myMentorProfile, onSaved: _load),
-              ]
-            : [
-                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4, itemHeight: 130))
-                    : _MentorList(mentors: _mentors, onBook: (m) => _showBookingDialog(context, m)),
-                _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-                    : _SessionsTab(sessions: _sessions, onRefresh: _load),
-              ])),
+        Expanded(child: _error != null
+            ? _errorView(context)
+            : TabBarView(controller: _tab, children: _isTeacher
+                ? [
+                    _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+                        : _IncomingRequestsTab(requests: _incomingRequests, onRefresh: _load),
+                    _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 1, itemHeight: 260))
+                        : _MyMentorProfileTab(profile: _myMentorProfile, onSaved: _load),
+                  ]
+                : [
+                    _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4, itemHeight: 130))
+                        : _MentorList(mentors: _mentors, onBook: (m) => _showBookingDialog(context, m)),
+                    _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+                        : _SessionsTab(sessions: _sessions, onRefresh: _load),
+                  ])),
       ]),
     );
   }

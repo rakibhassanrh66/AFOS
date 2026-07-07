@@ -26,6 +26,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
   List<Map<String, dynamic>> _posts = [];
   bool _loading = true;
   String _filter = 'all';
+  String? _error;
 
   @override
   void initState() {
@@ -38,7 +39,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
   void dispose() { _tab.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       var q = SupabaseConfig.client.from('lost_found_posts').select();
       // Resolved posts drop out of normal browsing automatically once
@@ -52,7 +53,12 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
       }
       final res = await q.order('created_at', ascending: false) as List;
       if (mounted) setState(() => _posts = res.cast());
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently — a real load failure rendered
+      // identically to "nothing posted", same class of bug already found
+      // and fixed once in Manage Hall.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -70,7 +76,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
             isScrollable: true,
             tabs: const [Tab(text: 'Feed'), Tab(text: 'Post'), Tab(text: 'My Posts'), Tab(text: 'My Claims')])),
         Expanded(child: TabBarView(controller: _tab, children: [
-          _FeedTab(posts: _posts, loading: _loading, filter: _filter,
+          _FeedTab(posts: _posts, loading: _loading, error: _error, filter: _filter,
               onFilter: (f) { setState(() => _filter = f); _load(); },
               onRefresh: _load),
           _PostTab(onPosted: () { _load(); _tab.animateTo(0); }),
@@ -84,9 +90,9 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
 
 class _FeedTab extends StatelessWidget {
   final List<Map<String, dynamic>> posts;
-  final bool loading; final String filter;
+  final bool loading; final String? error; final String filter;
   final ValueChanged<String> onFilter; final VoidCallback onRefresh;
-  const _FeedTab({required this.posts, required this.loading,
+  const _FeedTab({required this.posts, required this.loading, required this.error,
       required this.filter, required this.onFilter, required this.onRefresh});
 
   @override
@@ -111,7 +117,16 @@ class _FeedTab extends StatelessWidget {
               }).toList()))),
       Expanded(child: loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerGrid())
-          : posts.isEmpty
+          : error != null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                  const SizedBox(height: 12),
+                  Text('Couldn\'t load: $error', textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondaryOf(context))),
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: onRefresh, child: const Text('Retry')),
+                ])))
+              : posts.isEmpty
               ? EmptyState(icon: Icons.search_off_rounded, title: 'No posts yet',
                   subtitle: 'Be the first to report a lost or found item')
               : RefreshIndicator(onRefresh: () async => onRefresh(), color: AppColors.blue,

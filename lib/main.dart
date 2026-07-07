@@ -11,6 +11,7 @@ import 'config/supabase_config.dart';
 import 'config/theme/dark_theme.dart';
 import 'config/theme/light_theme.dart';
 import 'core/di/injection.dart';
+import 'core/services/badge_service.dart';
 import 'features/settings/bloc/theme_bloc.dart';
 
 void main() async {
@@ -47,29 +48,44 @@ void main() async {
   // failed token refresh) doesn't reliably emit — so switching accounts
   // that way silently left the subscription stuck on the old identity.
   //
-  // A first attempt at this fix skipped the logout() call on this
-  // process's very first sync (no in-memory previous uid to compare
-  // against yet), which looked right for "no change happened" but doesn't
-  // hold: a cold start with an already-persisted session never fires
-  // onAuthStateChange at all, so if the device's OneSignal subscription
-  // was already wrongly bound to a *different* account from before this
-  // process even started, that first sync would just call login() again
-  // for the same uid and never force the rebind — confirmed live, this
-  // exact case left it stuck. Unconditionally logging out before logging
-  // in whenever a sync actually needs to run (regardless of whether this
-  // process has ever synced before) closes that gap too; logout() is a
-  // safe no-op when nothing was bound yet.
+  // A second attempt at this fix unconditionally called logout() before
+  // every login(), on the theory that a cold start with an already-persisted
+  // session never fires onAuthStateChange, so the in-memory oneSignalUid
+  // (reset to null on every process start) could never be trusted alone.
+  // That overcorrected: OneSignal's own SDK-side identity already survives
+  // an app restart (it's persisted device-side, not just in this Dart
+  // variable), so calling logout() on every single cold start — even when
+  // the device was ALREADY correctly bound to this exact uid from last
+  // time — orphans that binding and mints a brand new OneSignal User each
+  // launch. Confirmed live: this is exactly what produced the recurring
+  // "One or more Aliases claimed by another User" 409 on every subsequent
+  // launch, since the external_id was now claimed by multiple competing
+  // OneSignal User records and the SDK doesn't auto-merge them — this is
+  // the real root cause of "push worked once, never again." Querying
+  // OneSignal's own getExternalId() (its actual current state, not our
+  // in-memory guess) before deciding whether to rebind avoids both bugs:
+  // skip entirely when it's already correct, only logout()-then-login()
+  // when it's genuinely a different account.
   String? oneSignalUid;
-  void syncOneSignalIdentity(String? uid) {
+  Future<void> syncOneSignalIdentity(String? uid) async {
     if (uid == oneSignalUid) return;
-    OneSignal.logout();
-    if (uid != null) OneSignal.login(uid);
+    final current = await OneSignal.User.getExternalId();
+    if (current != uid) {
+      if (current != null) OneSignal.logout();
+      if (uid != null) OneSignal.login(uid);
+    }
     oneSignalUid = uid;
   }
 
   syncOneSignalIdentity(Supabase.instance.client.auth.currentUser?.id);
+  if (Supabase.instance.client.auth.currentUser != null) BadgeService.start();
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     syncOneSignalIdentity(data.session?.user.id);
+    if (data.session?.user.id != null) {
+      BadgeService.start();
+    } else {
+      BadgeService.stop();
+    }
   });
 
   configureDependencies();

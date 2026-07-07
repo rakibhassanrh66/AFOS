@@ -37,6 +37,9 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
   static const _filters = ['pending', 'reviewing', 'cancel_requested', 'approved', 'rejected', 'cancelled', 'all'];
   static const _complaintFilters = ['open', 'in_progress', 'resolved', 'dismissed', 'all'];
 
+  static String _filterLabel(String f) => f.replaceAll('_', ' ').split(' ')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +78,17 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
 
   List<Map<String, dynamic>> get _visibleComplaints => _complaintFilter == 'all'
       ? _complaints : _complaints.where((c) => c['status'] == _complaintFilter).toList();
+
+  Future<void> _markInProgress(Map<String, dynamic> complaint) async {
+    try {
+      await SupabaseConfig.client.from('hall_complaints')
+          .update({'status': 'in_progress'}).eq('id', complaint['id']);
+      if (mounted) setState(() => complaint['status'] = 'in_progress');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
 
   Future<void> _resolveComplaint(Map<String, dynamic> complaint, String status) async {
     final responseCtrl = TextEditingController(text: complaint['resolution'] as String? ?? '');
@@ -361,7 +375,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
             children: _filters.map((f) {
               final sel = f == _filter;
               return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                  label: Text(f[0].toUpperCase() + f.substring(1)),
+                  label: Text(_filterLabel(f)),
                   selected: sel,
                   onSelected: (_) => setState(() => _filter = f),
                   selectedColor: AppColors.blue.withValues(alpha: 0.2),
@@ -384,7 +398,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       final a = _visible[i];
                       final profile = a['profiles'] as Map<String, dynamic>? ?? {};
                       final status = a['status'] as String? ?? 'pending';
-                      return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+                      return Container(key: ValueKey(a['id']), margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -420,11 +434,11 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                                   TextButton(onPressed: () => _markReviewing(a), child: const Text('Mark Reviewing')),
                                 const Spacer(),
                                 OutlinedButton(onPressed: () => _reject(a),
-                                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red), minimumSize: const Size(64, 36)),
                                     child: const Text('Reject')),
                                 const SizedBox(width: 8),
                                 ElevatedButton(onPressed: () => _approve(a),
-                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white, minimumSize: const Size(64, 36)),
                                     child: const Text('Approve')),
                               ]),
                             ],
@@ -433,11 +447,11 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                               Row(children: [
                                 const Spacer(),
                                 OutlinedButton(onPressed: () => _denyCancellation(a),
-                                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red), minimumSize: const Size(64, 36)),
                                     child: const Text('Deny')),
                                 const SizedBox(width: 8),
                                 ElevatedButton(onPressed: () => _approveCancellation(a),
-                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white, minimumSize: const Size(64, 36)),
                                     child: const Text('Approve Cancellation')),
                               ]),
                             ],
@@ -478,7 +492,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                     final c = _visibleComplaints[i];
                     final profile = c['profiles'] as Map<String, dynamic>? ?? {};
                     final status = c['status'] as String? ?? 'open';
-                    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+                    return Container(key: ValueKey(c['id']), margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -498,16 +512,15 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                             const SizedBox(height: 10),
                             Row(children: [
                               if (status == 'open')
-                                TextButton(onPressed: () => SupabaseConfig.client.from('hall_complaints')
-                                    .update({'status': 'in_progress'}).eq('id', c['id']),
+                                TextButton(onPressed: () => _markInProgress(c),
                                     child: const Text('Mark In Progress')),
                               const Spacer(),
                               OutlinedButton(onPressed: () => _resolveComplaint(c, 'dismissed'),
-                                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red), minimumSize: const Size(64, 36)),
                                   child: const Text('Dismiss')),
                               const SizedBox(width: 8),
                               ElevatedButton(onPressed: () => _resolveComplaint(c, 'resolved'),
-                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white, minimumSize: const Size(64, 36)),
                                   child: const Text('Resolve')),
                             ]),
                           ],

@@ -17,6 +17,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../data/vr_id_pdf_generator.dart';
 
@@ -44,7 +45,8 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
-      final p = await SupabaseConfig.client.from('profiles').select().eq('id', uid).single();
+      final p = await SupabaseConfig.client.from('profiles')
+          .select('*, teachers(designation), staff(designation)').eq('id', uid).single();
       if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
       _generateToken();
       _startTimer();
@@ -96,11 +98,11 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
 String _secondaryLabel(UserModel user) {
   if (user.isStudent) return 'Sem ${user.semester}';
   if (user.isTeacher) return user.designation ?? 'Faculty';
+  if (user.isStaff) return user.designation ?? 'Staff';
   switch (user.role) {
     case 'super_admin': return 'Super Admin';
     case 'dept_admin': return 'Dept Admin';
     case 'admin': return 'Admin';
-    case 'staff': return 'Staff';
     case 'exam_controller': return 'Exam Controller';
     default: return user.role;
   }
@@ -154,11 +156,11 @@ class _MyVrIdTab extends StatelessWidget {
             ]),
             const SizedBox(height: 12),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _Badge(user!.department, AppColors.blue),
+              Flexible(child: _Badge(user!.department, AppColors.blue)),
               const SizedBox(width: 8),
-              _Badge(_secondaryLabel(user!), AppColors.green),
+              Flexible(child: _Badge(_secondaryLabel(user!), AppColors.green)),
               const SizedBox(width: 8),
-              _Badge(user!.role, AppColors.gold),
+              Flexible(child: _Badge(user!.role, AppColors.gold)),
             ]),
           ]),
         ),
@@ -175,7 +177,8 @@ class _Badge extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.3))),
-    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)));
+    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        maxLines: 1, overflow: TextOverflow.ellipsis));
 }
 
 class _ScanTab extends StatefulWidget {
@@ -220,7 +223,8 @@ class _ScanTabState extends State<_ScanTab> {
   @override
   Widget build(BuildContext context) {
     if (_scannedUser != null) {
-      return _VerifiedView(user: UserModel.fromJson(_scannedUser!), verified: _verified, expired: _expired,
+      return _VerifiedView(user: UserModel.fromJson(_scannedUser!), rawUser: _scannedUser!,
+          verified: _verified, expired: _expired,
           onReset: () => setState(() { _scannedUser = null; _verified = false; _expired = false; _scanning = true; }));
     }
     return Stack(children: [
@@ -234,8 +238,9 @@ class _ScanTabState extends State<_ScanTab> {
 }
 
 class _VerifiedView extends StatelessWidget {
-  final UserModel user; final bool verified, expired; final VoidCallback onReset;
-  const _VerifiedView({required this.user, required this.verified, required this.expired, required this.onReset});
+  final UserModel user; final Map<String, dynamic> rawUser;
+  final bool verified, expired; final VoidCallback onReset;
+  const _VerifiedView({required this.user, required this.rawUser, required this.verified, required this.expired, required this.onReset});
   @override
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
     Icon(expired ? Icons.timer_off_rounded : verified ? Icons.verified_rounded : Icons.cancel_rounded,
@@ -259,8 +264,8 @@ class _VerifiedView extends StatelessWidget {
       Text(user.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textSecondaryOf(context))),
       Text('${user.department} · ${_secondaryLabel(user)}', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
       const SizedBox(height: 16),
-      AfosButton(label: 'Download PDF', icon: Icons.picture_as_pdf_rounded,
-          onTap: () => VrIdPdfGenerator.generateVerification(user, DateTime.now())),
+      AfosButton(label: 'Open Verification PDF', icon: Icons.picture_as_pdf_rounded,
+          onTap: () => VrIdPdfGenerator.generateAndOpen(rawUser)),
     ],
     const SizedBox(height: 16),
     AfosButton(label: 'Scan Again', icon: Icons.qr_code_scanner_rounded, onTap: onReset),
@@ -283,6 +288,7 @@ class _AccessLogTab extends StatefulWidget {
 class _AccessLogTabState extends State<_AccessLogTab> {
   List<Map<String, dynamic>> _logs = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -290,18 +296,28 @@ class _AccessLogTabState extends State<_AccessLogTab> {
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    setState(() => _error = null);
     try {
       final res = await SupabaseConfig.client.from('vr_access_log')
           .select('*, scanned_by:profiles!scanned_by_id(full_name)')
           .eq('scanned_user_id', uid).order('scanned_at', ascending: false) as List;
       if (mounted) setState(() => _logs = res.cast());
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return Padding(padding: const EdgeInsets.all(16), child: ShimmerList());
+    if (_error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+      const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+      const SizedBox(height: 12),
+      Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondaryOf(context))),
+      const SizedBox(height: 12),
+      TextButton(onPressed: _load, child: const Text('Retry')),
+    ])));
     if (_logs.isEmpty) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.history_rounded, color: AppColors.textMutedOf(context), size: 52),
       const SizedBox(height: 16),

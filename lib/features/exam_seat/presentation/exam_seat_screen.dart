@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -22,6 +23,7 @@ class ExamSeatScreen extends StatefulWidget {
 class _ExamSeatState extends State<ExamSeatScreen> {
   List<Map<String, dynamic>> _allocations = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -29,6 +31,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    setState(() => _error = null);
     try {
       final student = await SupabaseConfig.client.from('students')
           .select('batch_label, section').eq('profile_id', uid).maybeSingle();
@@ -42,7 +45,13 @@ class _ExamSeatState extends State<ExamSeatScreen> {
           .select().eq('batch', batch).eq('section', section)
           .order('exam_date').order('room_no') as List;
       if (mounted) setState(() => _allocations = res.cast());
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently, so a real load failure (network
+      // blip, expired session) rendered identically to "seat plan not
+      // published yet" — high-stakes to get wrong for something students
+      // check right before an exam.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -71,7 +80,16 @@ class _ExamSeatState extends State<ExamSeatScreen> {
       appBar: AfosAppBar(title: 'Exam Seat Plan'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-          : sessions.isEmpty
+          : _error != null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                  const SizedBox(height: 12),
+                  Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondaryOf(context))),
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ])))
+              : sessions.isEmpty
               ? EmptyState(icon: AppIcons.examSeat,
                   title: 'No seat plan yet', subtitle: 'Room allocations will appear here once published')
               : RefreshIndicator(

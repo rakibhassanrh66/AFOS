@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../core/utils/last_route.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -49,7 +50,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     await Future.delayed(const Duration(milliseconds:1500));
     if(!mounted) return;
     final session = Supabase.instance.client.auth.currentSession;
-    context.go(session!=null ? '/home' : '/auth/login');
+    if (session == null) { context.go('/auth/login'); return; }
+    // Resume where the user actually left off (a force-close, not a real
+    // logout, shouldn't drop them back to the dashboard every time) — the
+    // router's own redirect gates (profile completion, approval, role)
+    // still run normally against this target, so an invalid/stale saved
+    // route just falls through to its normal guard behavior.
+    final lastRoute = await loadLastRoute();
+    if (!mounted) return;
+    context.go(lastRoute ?? '/home');
   }
 
   @override
