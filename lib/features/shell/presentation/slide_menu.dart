@@ -29,7 +29,8 @@ class _SlideMenuState extends State<SlideMenu> {
     final uid = SupabaseConfig.uid;
     if(uid==null) return;
     try {
-      final p = await SupabaseConfig.client.from('profiles').select().eq('id',uid).single();
+      final p = await SupabaseConfig.client.from('profiles')
+          .select('*, teachers(designation), staff(designation)').eq('id',uid).single();
       if(mounted) setState(()=>_user=UserModel.fromJson(p));
     } catch(_) {}
   }
@@ -68,12 +69,16 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _adminItems = [
     _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue),
     _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber),
+    _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple),
     _MenuItem('Moderate Dept Chats', AppIcons.moderateChat, '/admin/dept-chat', AppColors.indigo),
     _MenuItem('Manage Faculties', AppIcons.faculties, '/admin/faculties', AppColors.holoviolet),
     _MenuItem('Manage Departments', AppIcons.hall, '/admin/departments', AppColors.holoTeal),
     _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red),
     _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange),
   ];
+
+  static const _libraryAdminItem =
+    _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple);
 
   static const _noticesItem =
     _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red);
@@ -87,6 +92,7 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Manage Users', AppIcons.manageUsers, '/admin/users', AppColors.holoviolet),
     _MenuItem('Manage Clubs', AppIcons.manageClubs, '/admin/clubs', AppColors.holoviolet),
     _MenuItem('Conference Rooms', AppIcons.conferenceRoom, '/admin/conference-rooms', AppColors.holoviolet),
+    _MenuItem('Feedback & Contributions', Icons.feedback_outlined, '/admin/feedback', AppColors.holoviolet),
   ];
 
   // Semester only means something for a student — a teacher/staff/admin
@@ -97,11 +103,11 @@ class _SlideMenuState extends State<SlideMenu> {
     if (role == null) return '';
     if (_user!.isStudent) return 'Sem ${_user!.semester}';
     if (_user!.isTeacher) return _user!.designation ?? 'Faculty';
+    if (_user!.isStaff) return _user!.designation ?? 'Staff';
     switch (role) {
       case 'super_admin': return 'Super Admin';
       case 'dept_admin': return 'Dept Admin';
       case 'admin': return 'Admin';
-      case 'staff': return 'Staff';
       case 'exam_controller': return 'Exam Controller';
       default: return role;
     }
@@ -125,7 +131,7 @@ class _SlideMenuState extends State<SlideMenu> {
       return [..._commonItems, _noticesItem, _conferenceRoomItem];
     }
     if (role == 'staff') {
-      return [..._commonItems, _conferenceRoomItem];
+      return [..._commonItems, _conferenceRoomItem, _libraryAdminItem];
     }
     if (role == 'exam_controller') {
       // Was previously falling through to the student branch below,
@@ -219,35 +225,58 @@ class _SlideMenuState extends State<SlideMenu> {
   }
 
   Widget _buildLogout(BuildContext ctx) {
-    return ListTile(
-      leading:Container(width:36,height:36,
-        decoration:BoxDecoration(color:AppColors.red.withOpacity(0.1),borderRadius:BorderRadius.circular(10)),
-        child:const Icon(AppIcons.logout,color:AppColors.red,size:18)),
-      title:const Text('Logout',style:TextStyle(color:AppColors.red,fontWeight:FontWeight.w600,fontSize:14)),
-      onTap:() async {
-        final surface = AppColors.surfaceOf(ctx);
-        final textPrimary = AppColors.textPrimaryOf(ctx);
-        final textSecondary = AppColors.textSecondaryOf(ctx);
-        final confirm = await showDialog<bool>(
-          context:ctx,
-          builder:(_)=>AlertDialog(
-            backgroundColor:surface,
-            title:Text('Log out?',style:TextStyle(color:textPrimary)),
-            content:Text('Are you sure you want to sign out?',
-              style:TextStyle(color:textSecondary)),
-            actions:[
-              TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
-              TextButton(onPressed:()=>Navigator.pop(ctx,true),
-                child:const Text('Logout',style:TextStyle(color:AppColors.red))),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _confirmLogout(ctx),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                gradient: LinearGradient(colors: [
+                  AppColors.red.withOpacity(0.14),
+                  AppColors.red.withOpacity(0.05),
+                ]),
+                border: Border.all(color: AppColors.red.withOpacity(0.25))),
+            child: Row(children: [
+              Container(width: 36, height: 36,
+                  decoration: BoxDecoration(color: AppColors.red.withOpacity(0.16), shape: BoxShape.circle),
+                  child: const Icon(AppIcons.logout, color: AppColors.red, size: 18)),
+              const SizedBox(width: 12),
+              const Text('Logout', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.chevron_right_rounded, color: AppColors.red.withOpacity(0.6), size: 20),
+            ]),
           ),
-        );
-        if(confirm==true) {
-          await Supabase.instance.client.auth.signOut();
-          if(ctx.mounted) ctx.go('/auth/login');
-        }
-      },
+        ),
+      ),
     );
+  }
+
+  Future<void> _confirmLogout(BuildContext ctx) async {
+    final surface = AppColors.surfaceOf(ctx);
+    final textPrimary = AppColors.textPrimaryOf(ctx);
+    final textSecondary = AppColors.textSecondaryOf(ctx);
+    final confirm = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        backgroundColor: surface,
+        title: Text('Log out?', style: TextStyle(color: textPrimary)),
+        content: Text('Are you sure you want to sign out?', style: TextStyle(color: textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Logout', style: TextStyle(color: AppColors.red))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await Supabase.instance.client.auth.signOut();
+      if (ctx.mounted) ctx.go('/auth/login');
+    }
   }
 
   Widget _buildFooter(BuildContext context) {

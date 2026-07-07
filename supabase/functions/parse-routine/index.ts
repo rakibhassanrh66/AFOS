@@ -340,10 +340,18 @@ const ROOM_START = /\b(?:KT|ANX\d{0,2}|G\d+|SH|CTBA|EMBEDLAB-KT|IOT LAB-KT)-?\d+
 // extracted room/teacher/course/stop string so the UI shows clean,
 // human-readable values instead of raw scrape noise.
 function cleanName(s: string): string {
-  return s
-    .replace(/\s+/g, " ")
-    .replace(/^[\s\-_,.;:()<>]+|[\s\-_,.;:()<>]+$/g, "")
-    .trim()
+  let out = s.replace(/\s+/g, " ").trim()
+  // Parens are excluded from the generic strip below and handled separately —
+  // blindly stripping them there ate the real closing paren off identifiers
+  // like room "KT-318(A)" or a retake section code "A(3C)" (confirmed against
+  // a real routine PDF: every lettered sub-room and every retake section lost
+  // its trailing ")"), since both legitimately end in one.
+  out = out.replace(/^[\s\-_,.;:<>]+/, "").replace(/[\s\-_,.;:<>]+$/, "")
+  const opens = (out.match(/\(/g) || []).length
+  const closes = (out.match(/\)/g) || []).length
+  if (closes > opens) out = out.replace(/\)+$/, "")
+  if (opens > closes) out = out.replace(/^\(+/, "")
+  return out.trim()
 }
 
 function parseClassRoutineLines(lines: string[]): any[] {
@@ -353,28 +361,23 @@ function parseClassRoutineLines(lines: string[]): any[] {
   const timeHeaderRegex = /(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/g
   const courseRegex = /\b([A-Z]{2,6}\d{3})\(([A-Za-z0-9]+)_([A-Za-z0-9().]+?)\)\s+([A-Za-z_]{1,10})\b/g
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-    if (!line) continue
+  // Most rooms print their whole row (room repeated once per slot column,
+  // with each occupied slot's course/teacher inline) on one physical PDF
+  // line. Lab rooms (confirmed against a real routine PDF: KT-501(A/B),
+  // KT-503/504/510/513, G1-001..G1-0NN — roughly two-thirds of the whole
+  // routine by line count) instead print "<Room>" / "(COM LAB)" / optional
+  // "<Course>(<batch>_<section>) <Teacher>" as 2-3 SEPARATE lines per slot,
+  // so the single-line-per-row assumption silently dropped every one of
+  // them. Buffer contiguous lines that share the same leading room token
+  // and parse the joined result the same way a normal single-line row would
+  // have been parsed — a normal row is just a buffer of length 1.
+  let bufferLines: string[] = []
+  let bufferToken: string | null = null
 
-    const dayMatch = Object.keys(DAY_NAMES).find((d) => new RegExp(`^${d}\\b`, "i").test(line))
-    if (dayMatch) { currentDay = DAY_NAMES[dayMatch]; slotTimes = []; continue }
-
-    if (/^room\s+course\s+teacher/i.test(line)) continue
-
-    const timeMatches = [...line.matchAll(timeHeaderRegex)]
-    if (timeMatches.length >= 4 && /^\d/.test(line)) {
-      slotTimes = timeMatches.map((m) => ({ start: m[1], end: m[2] }))
-      continue
-    }
-
-    if (currentDay === null || slotTimes.length === 0) continue
-    if (!ROOM_START.test(line)) continue
-
-    // Split into per-slot-column chunks on every recurrence of a room token.
+  function processRow(line: string) {
     const chunks = line.split(new RegExp(`(?=${ROOM_START.source})`))
       .map((c) => c.trim()).filter(Boolean)
-    if (chunks.length === 0) continue
+    if (chunks.length === 0) return
 
     const roomMatch = chunks[0].match(ROOM_START)
     const room = cleanName(roomMatch ? roomMatch[0] : chunks[0].split(/\s+/)[0])
@@ -407,6 +410,48 @@ function parseClassRoutineLines(lines: string[]): any[] {
       }
     })
   }
+
+  function flush() {
+    if (bufferLines.length === 0) return
+    processRow(bufferLines.join(" "))
+    bufferLines = []
+    bufferToken = null
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+
+    const dayMatch = Object.keys(DAY_NAMES).find((d) => new RegExp(`^${d}\\b`, "i").test(line))
+    if (dayMatch) { flush(); currentDay = DAY_NAMES[dayMatch]; slotTimes = []; continue }
+
+    if (/^room\s+course\s+teacher/i.test(line)) { flush(); continue }
+
+    const timeMatches = [...line.matchAll(timeHeaderRegex)]
+    if (timeMatches.length >= 4 && /^\d/.test(line)) {
+      flush()
+      slotTimes = timeMatches.map((m) => ({ start: m[1], end: m[2] }))
+      continue
+    }
+
+    if (currentDay === null || slotTimes.length === 0) continue
+
+    const roomMatch = line.match(ROOM_START)
+    const startsWithRoom = roomMatch !== null && roomMatch.index === 0
+
+    if (startsWithRoom) {
+      const token = roomMatch![0]
+      if (bufferToken === null) { bufferToken = token; bufferLines = [line] }
+      else if (token === bufferToken) { bufferLines.push(line) }
+      else { flush(); bufferToken = token; bufferLines = [line] }
+    } else if (bufferToken !== null) {
+      // Continuation text for the room currently being buffered — e.g. the
+      // "(COM LAB)" label or a bare "<Course>(<batch>_<section>) <Teacher>"
+      // line that had no room token of its own.
+      bufferLines.push(line)
+    }
+  }
+  flush()
   return slots
 }
 
@@ -429,7 +474,10 @@ function parseExamRoutineLines(lines: string[]): any[] {
   const exams: any[] = []
   const dateRegex = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g
   const slotTimeRegex = /(\d{1,2}:\d{2})\s*(?:am|pm)?\s*[-–]\s*(\d{1,2}:\d{2})\s*(am|pm)/gi
-  const courseRegex = /\b([A-Z]{2,4}\d{3}):?\s*([\s\S]{0,80}?)\[(\d+)\][\s\S]{0,20}?Batch-(\w+)/g
+  // Deliberately doesn't require "Batch-" nearby anymore (see below) — only
+  // the course code, optional title, and its own capacity bracket.
+  const courseCapRegex = /\b([A-Z]{2,4}\d{3}):?\s*([\s\S]{0,80}?)\[(\d+)\]/g
+  const batchRegex = /Batch-(\w+)/g
   const examType = /midterm|mid[\s-]?term/i.test(fullText) ? "mid" : "final"
 
   const dateMarkers = [...fullText.matchAll(dateRegex)].map((m) => ({
@@ -437,28 +485,57 @@ function parseExamRoutineLines(lines: string[]): any[] {
     date: `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`,
   }))
   const slotMarkers = [...fullText.matchAll(slotTimeRegex)].map((m) => ({ index: m.index!, start: m[1] }))
+  const batchMarkers = [...fullText.matchAll(batchRegex)].map((m) => ({ index: m.index!, end: m.index! + m[0].length, batch: m[1] }))
 
   const nearestBefore = <T extends { index: number }>(markers: T[], idx: number): T | null => {
     let best: T | null = null
     for (const m of markers) { if (m.index <= idx) best = m; else break }
     return best
   }
+  const nearestAfter = <T extends { index: number }>(markers: T[], idx: number): T | null =>
+    markers.find((m) => m.index >= idx) ?? null
 
-  let lastDateIdx = -1
-  let seenSinceDate = 0
-  // How many slot-time markers precede this date block — used to offset
-  // the per-course cycling counter so it lines up with that day's own
-  // Slot A/B/C times rather than always starting from slot index 0.
-  for (const m of fullText.matchAll(courseRegex)) {
+  const seenSinceDate = new Map<number, number>()
+  // The real source (confirmed against an actual mid-term routine PDF)
+  // prints each day's own "Slot A/B/C: <time>" header BEFORE that day's
+  // date line, not after — a slot-time header only ever changes between
+  // days (a Saturday makeup session had different times than the regular
+  // weekdays), so getting the direction backwards silently gave one day's
+  // courses the WRONG following day's slot times, and left the final day's
+  // courses with no time at all (no header follows the last date). Slot
+  // markers for a date are therefore the ones between the PREVIOUS date and
+  // this one; if none exist (a date repeated to spill onto a second table
+  // block with no header of its own), fall back to the last real header
+  // seen rather than leaving start_time null.
+  let lastKnownSlots: { index: number; start: string }[] = []
+  for (const m of fullText.matchAll(courseCapRegex)) {
     const idx = m.index!
-    const [, code, title, , batch] = m
+    const endIdx = idx + m[0].length
+    const [, code, title] = m
+
     const dateMarker = nearestBefore(dateMarkers, idx)
     if (!dateMarker) continue
-    if (dateMarker.index !== lastDateIdx) { lastDateIdx = dateMarker.index; seenSinceDate = 0 }
 
-    const slotsForDay = slotMarkers.filter((s) => s.index >= dateMarker.index &&
-      (dateMarkers.find((d) => d.index > dateMarker.index)?.index ?? Infinity) > s.index)
-    const slot = slotsForDay.length > 0 ? slotsForDay[seenSinceDate % slotsForDay.length] : null
+    // A course's batch is whichever "Batch-XX" marker comes next after its
+    // own capacity bracket — several elective courses commonly share ONE
+    // trailing Batch- marker (e.g. 4 electives offered to the same batch in
+    // one slot), and requiring Batch- to sit immediately after each course's
+    // own bracket (the old approach) meant only the LAST of those courses
+    // ever matched at all; the other 3 silently vanished.
+    const batchMarker = nearestAfter(batchMarkers, endIdx)
+    if (!batchMarker) continue
+    const nextDate = dateMarkers.find((d) => d.index > dateMarker.index)
+    if (nextDate && batchMarker.index > nextDate.index) continue // batch marker belongs to a later day — reject rather than mis-assign
+
+    const dIdx = dateMarkers.findIndex((d) => d.index === dateMarker.index)
+    const prevBound = dIdx > 0 ? dateMarkers[dIdx - 1].index : -1
+    let slotsForDay = slotMarkers.filter((s) => s.index > prevBound && s.index < dateMarker.index)
+    if (slotsForDay.length === 0) slotsForDay = lastKnownSlots
+    else lastKnownSlots = slotsForDay
+
+    const seen = seenSinceDate.get(dateMarker.index) ?? 0
+    const slot = slotsForDay.length > 0 ? slotsForDay[seen % slotsForDay.length] : null
+    seenSinceDate.set(dateMarker.index, seen + 1)
 
     exams.push({
       subject: cleanName(title) || code,
@@ -467,11 +544,10 @@ function parseExamRoutineLines(lines: string[]): any[] {
       start_time: slot ? slot.start + ":00" : null,
       end_time: null,
       exam_type: examType,
-      batch: cleanName(batch),
+      batch: cleanName(batchMarker.batch),
       department: "CSE",
-      is_retake: /\bRE\b/.test(m[0]),
+      is_retake: /^RE/i.test(batchMarker.batch),
     })
-    seenSinceDate++
   }
   return exams
 }
@@ -487,6 +563,21 @@ const findCol = (header: string[], patterns: RegExp[]): number => {
 }
 
 function parseTransportRows(rows: string[][]): any[] {
+  // A PDF export of the transport sheet (confirmed against a real "Transport
+  // Schedule ... .xlsx exported to PDF" file) lands every table cell on its
+  // own physical text line — route number, start time, route name, the full
+  // stop list, and each departure time are all separate single-cell rows.
+  // Neither Shape A below (needs real multi-column rows) nor the old
+  // same-line blob scrape (needed a whole route packed onto one line, and
+  // only recognized plain-digit route numbers, never this sheet's "R1"/"F4"
+  // style) can ever match that shape — hand off to a parser built for it
+  // before falling through to logic that structurally cannot apply.
+  if (rows.length > 0 && rows.every((r) => r.length <= 1)) {
+    const flatLines = rows.map((r) => r[0] ?? "").filter((l) => l.trim())
+    const flattenedRoutes = parseTransportLinesFlattened(flatLines)
+    if (flattenedRoutes.length > 0) return flattenedRoutes
+  }
+
   // Shape A — the real DIU transport sheet: Route No | Start Time (To DSC)
   // | Route Name | Route Details (free text, stops separated by "<>" or
   // ">") | Departure Time (From DSC), with each route spanning several
@@ -625,6 +716,115 @@ function parseTransportRows(rows: string[][]): any[] {
   }
 
   routes.push(...byRouteNumber.values())
+  return routes.filter(isRealRoute)
+}
+
+// Line-flattened transport PDF (see the comment at the top of
+// parseTransportRows): route boundaries are found by looking for a line
+// that STARTS with a route token ("R1".."R15", "F1".."F4" in the real
+// sheet), then every line up to the next such token is one route's block,
+// however many lines its fields happened to spread across.
+const TRANSPORT_BOILERPLATE = [
+  /^Daffodil International University$/i, /^Transport Schedule for/i,
+  /^Route$/i, /^No$/i, /^Start Time$/i, /^\(To DSC\)$/i, /^Route Name Route Details$/i,
+  /^Departure Time$/i, /^\(From DSC\)$/i, /^Shuttle service$/i, /^Friday Schedule @ DSC$/i,
+]
+const ROUTE_TOKEN = /^([RF]\d{0,2})\b/
+
+function normalizeTransportTime(raw: string): string | null {
+  // The source uses both "10:50 AM" and "10.50 AM" (a period instead of a
+  // colon) and both "1:30 PM" and "1:30:00 PM" — normalize to one form so
+  // dedup and display are consistent.
+  const m = raw.match(/(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM|am|pm)/)
+  if (!m) return null
+  return `${parseInt(m[1], 10)}:${m[2]} ${m[3].toUpperCase()}`
+}
+
+function parseTransportLinesFlattened(lines: string[]): any[] {
+  const clean = lines.filter((l) => !TRANSPORT_BOILERPLATE.some((p) => p.test(l.trim())))
+  const blocks: { token: string; lines: string[] }[] = []
+  let current: { token: string; lines: string[] } | null = null
+  for (const raw of clean) {
+    const line = raw.trim()
+    if (!line) continue
+    const m = line.match(ROUTE_TOKEN)
+    if (m) {
+      if (current) blocks.push(current)
+      current = { token: m[1], lines: [line] }
+    } else if (current) {
+      current.lines.push(line)
+    }
+  }
+  if (current) blocks.push(current)
+
+  const routes: any[] = []
+  const lastNumeric: Record<string, number> = { R: 0, F: 0 }
+  for (const block of blocks) {
+    let routeNumber = block.token
+    const prefix = routeNumber[0]
+    const numMatch = routeNumber.match(/\d+/)
+    if (numMatch) {
+      lastNumeric[prefix] = parseInt(numMatch[0], 10)
+    } else {
+      // A bare "R"/"F" with no digit is a real extraction glitch seen in the
+      // live document (one route printed as just "R") — infer the next
+      // sequential number for that prefix rather than dropping the route.
+      lastNumeric[prefix] = (lastNumeric[prefix] ?? 0) + 1
+      routeNumber = `${prefix}${lastNumeric[prefix]}`
+    }
+
+    const blob = block.lines.join(" ")
+    const timeMatches = [...blob.matchAll(/\d{1,2}[:.]\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)/g)]
+      .map((m) => normalizeTransportTime(m[0])).filter((t): t is string => t !== null)
+    const uniqTimes = [...new Set(timeMatches)]
+    const toDscTimes = uniqTimes.slice(0, 1)
+    const fromDscTimes = uniqTimes.slice(1)
+
+    // Every "<>"/">"-delimited segment is a candidate stop list; the source
+    // always prints the full stop-by-stop route_details as the LONGEST such
+    // segment and a short route_name summary as a shorter one. "&" is
+    // included since real stop names use it ("C&B"); a trailing run of
+    // digits/AM-PM is stripped since with no separator after the last stop
+    // the match otherwise keeps eating into the adjacent departure-time text
+    // that follows it in the blob (confirmed against the real sheet: "...
+    // Daffodil Smart City 10.50 AM 9" swallowing the next line's "9:40 AM").
+    const segRegex = /[A-Za-z][A-Za-z0-9 .'&\-]*(?:\s*[<>]+\s*[A-Za-z][A-Za-z0-9 .'&\-]*)+/g
+    const segments = [...blob.matchAll(segRegex)]
+      .map((m) => m[0].replace(/\s+\d{1,2}[:.]\d{1,2}.*$/, ""))
+    const toStops = (seg: string) => seg.split(/<>|>|</).map((s) => cleanName(s)).filter(Boolean)
+      .filter((name, i, arr) => i === 0 || name !== arr[i - 1])
+      // A stray "AM"/"PM" or bare 1-2 digit number is leftover from a time
+      // string the segment regex brushed up against (e.g. it resumes right
+      // after "7:00 " on one side of a colon, or stops right before "10:50"
+      // on the other) — never a real stop name on its own.
+      .filter((name) => !/^(AM|PM)$/i.test(name) && !/^\d{1,2}$/.test(name))
+    const segStops = segments.map(toStops).filter((s) => s.length >= 2)
+    segStops.sort((a, b) => b.length - a.length)
+    // The short "route name" summary line and the long stop-by-stop route
+    // details usually merge into one contiguous match anyway (nothing but a
+    // space separates them in the blob), so deriving the name from the
+    // resolved stop list's own endpoints is more reliable than trying to
+    // separately pick out a second, shorter segment as "the name".
+    const stops: string[] = segStops[0] ?? []
+    if (stops.length > 0) {
+      // The route's start time ("7:00 AM") immediately precedes the first
+      // stop with nothing but a space between them, so the leading "AM"/"PM"
+      // merges into that first stop's own text instead of being its own
+      // splittable token; likewise the arrival time's leading digits ("10"
+      // of "10:50 AM") stick onto the last stop, the campus itself.
+      stops[0] = stops[0].replace(/^(AM|PM)\s+/i, "").trim()
+      stops[stops.length - 1] = stops[stops.length - 1].replace(/\.?\s*\d{1,2}$/, "").trim()
+    }
+    const routeName = stops.length ? `${stops[0]} - ${stops[stops.length - 1]}` : routeNumber
+
+    routes.push({
+      route_number: routeNumber, route_name: cleanName(routeName),
+      to_dsc_times: toDscTimes, from_dsc_times: fromDscTimes,
+      departure_times: fromDscTimes.length ? fromDscTimes : toDscTimes,
+      stops: stops.map((name) => ({ name, time: null })),
+      is_active: true,
+    })
+  }
   return routes.filter(isRealRoute)
 }
 

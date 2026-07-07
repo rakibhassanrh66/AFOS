@@ -2,9 +2,21 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 
-/// Premium holographic glass surface: frosted blur + animated gradient edge
-/// + soft glow bloom. This is the app's signature surface — reused
-/// everywhere instead of plain Containers/Cards.
+/// Premium holographic glass surface: frosted blur + gradient edge + soft
+/// glow bloom. This is the app's signature surface — reused everywhere
+/// instead of plain Containers/Cards.
+///
+/// [animated] defaults to false: BackdropFilter's blur is re-sampled and
+/// re-composited on every repaint of anything in its subtree (this is
+/// documented, unavoidable Flutter engine behavior, not a bug we can tune
+/// away), so a perpetually-repeating rotation here means every screen with
+/// a GlassCard pays a full Gaussian blur recompute 60 times a second,
+/// forever, even while completely idle. None of the 14 call sites across
+/// the app opted into the animation explicitly — they all inherited it
+/// silently from this default — so turning it off by default removes a
+/// continuous, unbounded GPU cost (a likely contributor to reported app-wide
+/// jank) while any screen that actually wants the shimmer can still pass
+/// `animated: true`.
 class GlassCard extends StatefulWidget {
   final Widget child;
   final double borderRadius;
@@ -17,7 +29,7 @@ class GlassCard extends StatefulWidget {
     required this.child,
     this.borderRadius = 20,
     this.glowColor,
-    this.animated = true,
+    this.animated = false,
     this.padding,
   });
 

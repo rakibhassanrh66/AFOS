@@ -32,6 +32,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _designationCtrl = TextEditingController();
 
   bool _isTeacher = false;
+  bool _isStaff = false;
   String? _gender;
   double _sem = 1;
   bool _loading = true, _saving = false;
@@ -40,6 +41,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   String? _avatarUrl;
   String _studentId = '';
   String _email = '';
+
+  bool _loadingStaffDesignations = true;
+  List<StaffDesignationOption> _staffDesignations = [];
+  StaffDesignationOption? _selectedStaffDesignation;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -55,17 +60,27 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     final uid = SupabaseConfig.uid;
     try {
       final depts = await _academicRepo.fetchDepartments();
+      final staffDesignations = await _academicRepo.fetchStaffDesignations();
+      if (mounted) setState(() { _staffDesignations = staffDesignations; _loadingStaffDesignations = false; });
       if (uid != null) {
-        final p = await SupabaseConfig.client.from('profiles').select().eq('id', uid).maybeSingle();
+        final p = await SupabaseConfig.client.from('profiles')
+            .select('*, teachers(designation), staff(designation,category)').eq('id', uid).maybeSingle();
         if (p != null) {
           _nameCtrl.text = (p['full_name'] as String? ?? '') == 'New User' ? '' : (p['full_name'] as String? ?? '');
           _phoneCtrl.text = p['phone'] as String? ?? '';
           _isTeacher = const ['teacher', 'admin', 'dept_admin', 'super_admin'].contains(p['role']);
+          _isStaff = p['role'] == 'staff';
           _sem = ((p['semester'] as int?) ?? 1).toDouble();
           _avatarUrl = p['avatar_url'] as String?;
           _gender = p['gender'] as String?;
           _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? '';
           _email = p['email'] as String? ?? '';
+          final teacherRow = (p['teachers'] as List?)?.firstOrNull as Map<String, dynamic>?;
+          if (teacherRow?['designation'] != null) _designationCtrl.text = teacherRow!['designation'] as String;
+          final staffRow = (p['staff'] as List?)?.firstOrNull as Map<String, dynamic>?;
+          if (staffRow?['designation'] != null) {
+            _selectedStaffDesignation = staffDesignations.where((d) => d.title == staffRow!['designation']).firstOrNull;
+          }
           final deptCode = p['department'] as String?;
           if (deptCode != null) {
             _selectedDept = depts.where((d) => d.code == deptCode).firstOrNull;
@@ -81,6 +96,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDept == null) return;
+    if (_isStaff && _selectedStaffDesignation == null) return;
     final uid = SupabaseConfig.uid;
     if (uid == null) return;
     setState(() => _saving = true);
@@ -100,14 +116,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         // raw text), so without this a student could complete the required
         // onboarding batch/section fields and still never see their
         // personalized class schedule.
-        if (!_isTeacher) 'batch': _batchCtrl.text.trim(),
-        if (!_isTeacher) 'section': _sectionCtrl.text.trim(),
+        if (!_isTeacher && !_isStaff) 'batch': _batchCtrl.text.trim(),
+        if (!_isTeacher && !_isStaff) 'section': _sectionCtrl.text.trim(),
       }).eq('id', uid);
 
       if (_isTeacher) {
         await SupabaseConfig.client.from('teachers').update({
           'department_id': _selectedDept!.id,
           if (_designationCtrl.text.trim().isNotEmpty) 'designation': _designationCtrl.text.trim(),
+        }).eq('profile_id', uid);
+      } else if (_isStaff) {
+        await SupabaseConfig.client.from('staff').update({
+          'department_id': _selectedDept!.id,
+          if (_selectedStaffDesignation != null) 'designation': _selectedStaffDesignation!.title,
+          if (_selectedStaffDesignation != null) 'category': _selectedStaffDesignation!.category,
         }).eq('profile_id', uid);
       } else {
         await SupabaseConfig.client.from('students').update({
@@ -191,6 +213,22 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     if (_isTeacher)
                       AfosTextField(hint: 'Designation (e.g. Lecturer)', controller: _designationCtrl,
                           validator: (v) => AppValidators.required(v, f: 'Designation'))
+                    else if (_isStaff)
+                      _loadingStaffDesignations
+                          ? const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
+                          : DropdownButtonFormField<StaffDesignationOption>(
+                              value: _selectedStaffDesignation,
+                              isExpanded: true,
+                              decoration: InputDecoration(hintText: 'Designation / Job Title', filled: true,
+                                  fillColor: AppColors.glassFill(context),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: AppColors.borderOf(context)))),
+                              dropdownColor: AppColors.surfaceOf(context),
+                              style: TextStyle(color: textPrimary),
+                              validator: (v) => v == null ? 'Select a designation' : null,
+                              items: _groupedStaffItems(_staffDesignations, AppColors.textSecondaryOf(context)),
+                              onChanged: (v) => setState(() => _selectedStaffDesignation = v),
+                            )
                     else ...[
                       Row(children: [
                         Expanded(child: AfosTextField(hint: 'Batch (e.g. 61)', controller: _batchCtrl,
@@ -212,6 +250,28 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               ),
             )),
     );
+  }
+
+  /// Same grouped-dropdown workaround as register_screen.dart's _Step2 —
+  /// DropdownButtonFormField has no native optgroup support.
+  List<DropdownMenuItem<StaffDesignationOption>> _groupedStaffItems(
+      List<StaffDesignationOption> options, Color headerColor) {
+    final items = <DropdownMenuItem<StaffDesignationOption>>[];
+    String? lastCategory;
+    for (final o in options) {
+      if (o.category != lastCategory) {
+        items.add(DropdownMenuItem(
+            enabled: false,
+            value: StaffDesignationOption(id: '__header_${o.category}', category: o.category, title: o.category),
+            child: Text(o.category.toUpperCase(),
+                style: TextStyle(color: headerColor, fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 0.4))));
+        lastCategory = o.category;
+      }
+      items.add(DropdownMenuItem(value: o,
+          child: Padding(padding: const EdgeInsets.only(left: 8),
+              child: Text(o.title, overflow: TextOverflow.ellipsis))));
+    }
+    return items;
   }
 }
 

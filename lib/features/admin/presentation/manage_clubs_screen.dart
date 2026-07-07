@@ -230,6 +230,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
                           final club = r['clubs'] as Map<String, dynamic>? ?? {};
                           return _RequestCard(
+                            key: ValueKey(r['id']),
                             name: student['full_name'] ?? 'Unknown',
                             subtitle: '${student['university_id'] ?? ''} → ${club['name'] ?? ''}',
                             onApprove: () => _approveMembership(r),
@@ -246,6 +247,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
                           final club = r['clubs'] as Map<String, dynamic>? ?? {};
                           final role = (r['requested_role'] as String? ?? '').replaceAll('_', ' ');
                           return _RequestCard(
+                            key: ValueKey(r['id']),
                             name: member['full_name'] ?? 'Unknown',
                             subtitle: '${club['name'] ?? ''} · applying for $role',
                             onApprove: () => _approvePost(r),
@@ -263,7 +265,7 @@ class _RequestCard extends StatelessWidget {
   final String name, subtitle;
   final VoidCallback onApprove, onReject;
   final bool isBusy;
-  const _RequestCard({required this.name, required this.subtitle, required this.onApprove, required this.onReject, this.isBusy = false});
+  const _RequestCard({super.key, required this.name, required this.subtitle, required this.onApprove, required this.onReject, this.isBusy = false});
   @override
   Widget build(BuildContext context) => SurfaceCard(
       margin: const EdgeInsets.only(bottom: 10),

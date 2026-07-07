@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -424,7 +425,8 @@ class _AllRoutesTab extends StatelessWidget {
                 ])),
             ),
           ),
-        ));
+        )).animate(delay: Duration(milliseconds: i * 50))
+            .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
       });
   }
 }

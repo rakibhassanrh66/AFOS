@@ -170,6 +170,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                       final requester = r['profiles'] as Map<String, dynamic>? ?? {};
                       final status = r['status'] as String? ?? 'pending';
                       return SurfaceCard(
+                          key: ValueKey(r['id']),
                           margin: const EdgeInsets.only(bottom: 10),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${requester['full_name'] ?? 'Unknown'} (${requester['role'] ?? ''})',

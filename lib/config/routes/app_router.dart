@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/admin/presentation/manage_clubs_screen.dart';
 import '../../features/admin/presentation/manage_conference_rooms_screen.dart';
+import '../../features/admin/presentation/manage_feedback_screen.dart';
 import '../../features/admin/presentation/manage_users_screen.dart';
 import '../../features/assignments/presentation/assignments_screen.dart';
 import '../../features/auth/presentation/complete_profile_screen.dart';
@@ -22,6 +23,7 @@ import '../../features/grades/presentation/grades_screen.dart';
 import '../../features/hall/presentation/hall_screen.dart';
 import '../../features/hall/presentation/manage_hall_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
+import '../../features/library/presentation/manage_library_screen.dart';
 import '../../features/lost_found/presentation/lost_found_screen.dart';
 import '../../features/mentorship/presentation/mentorship_screen.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
@@ -37,6 +39,7 @@ import '../../features/transport/presentation/transport_screen.dart';
 import '../../features/vr_id/presentation/vr_id_screen.dart';
 import '../../shared/animations/page_transitions.dart';
 import '../../core/auth/role_session.dart';
+import '../../core/utils/last_route.dart';
 
 const _adminRoles = ['admin', 'super_admin', 'dept_admin'];
 
@@ -72,12 +75,15 @@ class AppRouter {
       if (!verified) return '/pending-approval';
       if (loc.startsWith('/admin')) {
         final role = await RoleSession.ensureLoaded();
-        if (!_adminRoles.contains(role)) return '/home';
+        // Library checkout is a real front-desk task, not admin-tier
+        // oversight — staff need it same as they need Conference Room.
+        final allowed = _adminRoles.contains(role) || (loc == '/admin/library' && role == 'staff');
+        if (!allowed) return '/home';
       }
       // User management (approve/reject signups, delete accounts entirely)
       // is the single most destructive tool in the app — super_admin only,
       // not the broader admin/dept_admin set the rest of /admin allows.
-      if (loc == '/admin/users' || loc == '/admin/clubs' || loc == '/admin/conference-rooms') {
+      if (loc == '/admin/users' || loc == '/admin/clubs' || loc == '/admin/conference-rooms' || loc == '/admin/feedback') {
         final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin') return '/home';
       }
@@ -104,6 +110,10 @@ class AppRouter {
         final role = await RoleSession.ensureLoaded();
         if (role == 'teacher') return '/home';
       }
+      // Fire-and-forget: remembers where the user actually is so a force-
+      // close (not a real logout) resumes here instead of always dropping
+      // back to the dashboard — see splash_screen.dart's cold-start read.
+      saveLastRoute(loc);
       return null;
     },
 
@@ -141,7 +151,9 @@ class AppRouter {
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
+          GoRoute(path: '/admin/library', pageBuilder: (c,s) => slideRightPage(const ManageLibraryScreen(), s)),
           GoRoute(path: '/admin/users',   pageBuilder: (c,s) => slideRightPage(const ManageUsersScreen(), s)),
+          GoRoute(path: '/admin/feedback', pageBuilder: (c,s) => slideRightPage(const ManageFeedbackScreen(), s)),
           GoRoute(path: '/admin/clubs',   pageBuilder: (c,s) => slideRightPage(const ManageClubsScreen(), s)),
           GoRoute(path: '/admin/conference-rooms', pageBuilder: (c,s) => slideRightPage(const ManageConferenceRoomsScreen(), s)),
           GoRoute(path: '/conference-room', pageBuilder: (c,s) => slideRightPage(const ConferenceRoomScreen(), s)),

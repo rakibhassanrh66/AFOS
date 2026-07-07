@@ -5,6 +5,7 @@ class UserModel {
   final bool profileCompleted;
   final Map<String, dynamic>? studentData;
   final Map<String, dynamic>? teacherData;
+  final Map<String, dynamic>? staffData;
   // Flat profiles-column fallbacks (populated even when v8 joins are null)
   final String? _rawStudentId;
   final String? _rawDepartment;
@@ -14,7 +15,7 @@ class UserModel {
     required this.id, required this.email, required this.fullName,
     required this.role, this.avatarUrl, this.phone, this.emergencyContact,
     this.profileCompleted = true,
-    this.studentData, this.teacherData,
+    this.studentData, this.teacherData, this.staffData,
     String? rawStudentId, String? rawDepartment, int? rawSemester,
   })  : _rawStudentId = rawStudentId,
         _rawDepartment = rawDepartment,
@@ -38,6 +39,14 @@ class UserModel {
       teacherData = rawTeachers;
     }
 
+    Map<String, dynamic>? staffData;
+    final rawStaff = j['staff'];
+    if (rawStaff is List && rawStaff.isNotEmpty) {
+      staffData = rawStaff.first as Map<String, dynamic>?;
+    } else if (rawStaff is Map<String, dynamic>) {
+      staffData = rawStaff;
+    }
+
     String? roleName;
     final rawRoles = j['roles'];
     if (rawRoles is List && rawRoles.isNotEmpty) {
@@ -58,6 +67,7 @@ class UserModel {
       profileCompleted: j['profile_completed'] as bool? ?? true,
       studentData: studentData,
       teacherData: teacherData,
+      staffData: staffData,
       // university_id is the v8 profiles column; fall back to flat student_id
       rawStudentId: j['university_id'] as String? ?? j['student_id'] as String?,
       rawDepartment: j['department'] as String?,
@@ -86,8 +96,10 @@ class UserModel {
   bool get isSuperAdmin => role == 'super_admin';
   bool get isStudent => role == 'student';
   bool get isTeacher => role == 'teacher';
+  bool get isStaff => role == 'staff';
 
   String? get batch => studentData?['batch_label'] as String?;
   String? get section => studentData?['section'] as String?;
-  String? get designation => teacherData?['designation'] as String?;
+  String? get designation => teacherData?['designation'] as String? ?? staffData?['designation'] as String?;
+  String? get staffCategory => staffData?['category'] as String?;
 }

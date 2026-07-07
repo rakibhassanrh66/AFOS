@@ -32,6 +32,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Impeller (Vulkan) hit a real device-level driver incompatibility on
+             this hardware (Mali GPU: "fbcNotifySbeRescue... undefined symbol",
+             "mali_gralloc: ERROR: Unrecognized and/or unsupported format" on
+             every single launch), which coincided with a transient
+             "BoxConstraints forces an infinite width" layout crash the moment
+             Manage Hall tried to render real list items — falling back to the
+             older Skia renderer avoids that driver-level instability. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

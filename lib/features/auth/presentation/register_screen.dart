@@ -55,10 +55,15 @@ class _RegisterBodyState extends State<_RegisterBody> {
   ProgramOption? _selectedProgram;
   bool _loadingPrograms = false;
 
+  bool _loadingStaffDesignations = true;
+  List<StaffDesignationOption> _staffDesignations = [];
+  StaffDesignationOption? _selectedStaffDesignation;
+
   @override
   void initState() {
     super.initState();
     _loadDepartments();
+    _loadStaffDesignations();
   }
 
   Future<void> _loadDepartments() async {
@@ -69,6 +74,17 @@ class _RegisterBodyState extends State<_RegisterBody> {
     } catch(_) {
       if(!mounted) return;
       setState(() => _loadingDepts = false);
+    }
+  }
+
+  Future<void> _loadStaffDesignations() async {
+    try {
+      final designations = await _academicRepo.fetchStaffDesignations();
+      if(!mounted) return;
+      setState(() { _staffDesignations = designations; _loadingStaffDesignations = false; });
+    } catch(_) {
+      if(!mounted) return;
+      setState(() => _loadingStaffDesignations = false);
     }
   }
 
@@ -99,6 +115,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
   }
 
   bool get _isStudent => _accountType == AccountType.student;
+  bool get _isStaff => _accountType == AccountType.staff;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +197,10 @@ class _RegisterBodyState extends State<_RegisterBody> {
                                 designationCtrl:_designationCtrl,
                                 sem:_sem,
                                 onSem:(v){ setState(()=>_sem=v); },
+                                loadingStaffDesignations:_loadingStaffDesignations,
+                                staffDesignations:_staffDesignations,
+                                selectedStaffDesignation:_selectedStaffDesignation,
+                                onStaffDesignation:(d){ setState(()=>_selectedStaffDesignation=d); },
                               ))
                             : Form(key:_formKeys[2], child:_Step3(emailCtrl:_emailCtrl,
                                 passCtrl:_passCtrl, confCtrl:_confCtrl)),
@@ -203,8 +224,12 @@ class _RegisterBodyState extends State<_RegisterBody> {
                         ctx.showSnack('Select your gender', isError:true);
                         return;
                       }
-                      if(_step==1 && _isStudent && _selectedDept==null) {
+                      if(_step==1 && _selectedDept==null) {
                         ctx.showSnack('Select a department', isError:true);
+                        return;
+                      }
+                      if(_step==1 && _isStaff && _selectedStaffDesignation==null) {
+                        ctx.showSnack('Select a designation', isError:true);
                         return;
                       }
                       if(_formKeys[_step].currentState!.validate()) {
@@ -217,12 +242,15 @@ class _RegisterBodyState extends State<_RegisterBody> {
                             fullName:_nameCtrl.text.trim(),
                             department:_selectedDept?.code ?? '',
                             semester:_isStudent ? _sem.toInt() : 1,
-                            accountType: _isStudent ? 'student' : 'teacher',
+                            accountType: _isStudent ? 'student' : (_isStaff ? 'staff' : 'teacher'),
                             gender: _gender!,
                             programId: _isStudent ? _selectedProgram?.id : null,
                             batch: _isStudent && _batchCtrl.text.trim().isNotEmpty ? _batchCtrl.text.trim() : null,
                             section: _isStudent && _sectionCtrl.text.trim().isNotEmpty ? _sectionCtrl.text.trim() : null,
-                            designation: !_isStudent && _designationCtrl.text.trim().isNotEmpty ? _designationCtrl.text.trim() : null,
+                            designation: _isStaff
+                                ? _selectedStaffDesignation?.title
+                                : (!_isStudent && _designationCtrl.text.trim().isNotEmpty ? _designationCtrl.text.trim() : null),
+                            staffCategory: _isStaff ? _selectedStaffDesignation?.category : null,
                           ));
                         }
                       }
@@ -303,8 +331,10 @@ class _AccountTypeToggle extends StatelessWidget {
     }
     return Row(children: [
       option('Student', AccountType.student),
-      const SizedBox(width:12),
-      option('Teacher / Staff', AccountType.teacher),
+      const SizedBox(width:10),
+      option('Teacher', AccountType.teacher),
+      const SizedBox(width:10),
+      option('Staff', AccountType.staff),
     ]);
   }
 }
@@ -393,6 +423,10 @@ class _Step2 extends StatelessWidget {
   final TextEditingController batchCtrl, sectionCtrl, designationCtrl;
   final double sem;
   final ValueChanged<double> onSem;
+  final bool loadingStaffDesignations;
+  final List<StaffDesignationOption> staffDesignations;
+  final StaffDesignationOption? selectedStaffDesignation;
+  final ValueChanged<StaffDesignationOption?> onStaffDesignation;
   const _Step2({
     required this.accountType, required this.loadingDepts, required this.departments,
     required this.selectedDept, required this.onDept,
@@ -400,6 +434,8 @@ class _Step2 extends StatelessWidget {
     required this.selectedProgram, required this.onProgram,
     required this.batchCtrl, required this.sectionCtrl, required this.designationCtrl,
     required this.sem, required this.onSem,
+    required this.loadingStaffDesignations, required this.staffDesignations,
+    required this.selectedStaffDesignation, required this.onStaffDesignation,
   });
 
   InputDecoration _decoration(BuildContext context, String hint, IconData icon) => InputDecoration(
@@ -420,11 +456,13 @@ class _Step2 extends StatelessWidget {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     final isStudent = accountType == AccountType.student;
+    final isStaff = accountType == AccountType.staff;
     final semRange = selectedProgram?.semesterRange ?? 12;
     return Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
       Text('Academic Info', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height:6),
-      Text(isStudent ? 'Your department and program' : 'Your department', style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+      Text(isStudent ? 'Your department and program' : isStaff ? 'Your department and designation' : 'Your department',
+          style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
       const SizedBox(height:24),
       if(loadingDepts)
         const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
@@ -470,11 +508,50 @@ class _Step2 extends StatelessWidget {
           divisions: semRange>1 ? semRange-1 : 1,
           activeColor:AppColors.holoBlue, inactiveColor:AppColors.borderOf(context),
           label:'${sem.toInt()}', onChanged:onSem),
+      ] else if(isStaff) ...[
+        if(loadingStaffDesignations)
+          const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
+        else
+          DropdownButtonFormField<StaffDesignationOption>(
+            value: selectedStaffDesignation,
+            isExpanded: true,
+            decoration: _decoration(context, 'Designation / Job Title', Icons.work_outline),
+            dropdownColor: AppColors.surfaceOf(context),
+            style: TextStyle(color:textPrimary),
+            validator:(v)=>v==null ? 'Select a designation' : null,
+            items: _groupedStaffItems(staffDesignations, textSecondary),
+            onChanged: onStaffDesignation,
+          ),
       ] else
         AfosTextField(hint:'Designation (e.g. Lecturer)', controller:designationCtrl,
           prefixIcon:Icons.work_outline,
           validator:(v)=>AppValidators.required(v,f:'Designation')),
     ]);
+  }
+
+  /// DropdownButtonFormField has no native optgroup support — inserts a
+  /// disabled, differently-styled header item whenever the category
+  /// changes (real DIU org-chart categories: Executive Leadership,
+  /// Department-Level, Project & Research, Campus Support), a standard
+  /// Flutter workaround for grouped dropdowns.
+  List<DropdownMenuItem<StaffDesignationOption>> _groupedStaffItems(
+      List<StaffDesignationOption> options, Color headerColor) {
+    final items = <DropdownMenuItem<StaffDesignationOption>>[];
+    String? lastCategory;
+    for (final o in options) {
+      if (o.category != lastCategory) {
+        items.add(DropdownMenuItem(
+            enabled: false,
+            value: StaffDesignationOption(id: '__header_${o.category}', category: o.category, title: o.category),
+            child: Text(o.category.toUpperCase(),
+                style: TextStyle(color: headerColor, fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 0.4))));
+        lastCategory = o.category;
+      }
+      items.add(DropdownMenuItem(value: o,
+          child: Padding(padding: const EdgeInsets.only(left: 8),
+              child: Text(o.title, overflow: TextOverflow.ellipsis))));
+    }
+    return items;
   }
 }
 

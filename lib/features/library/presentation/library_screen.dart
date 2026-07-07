@@ -20,6 +20,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
   List<Map<String, dynamic>> _borrowed = [];
   List<Map<String, dynamic>> _searchResults = [];
   bool _loading = true, _searching = false;
+  String? _error;
   double _totalFine = 0;
   Timer? _fineTimer;
   final _searchCtrl = TextEditingController();
@@ -38,6 +39,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    setState(() => _error = null);
     try {
       final res = await SupabaseConfig.client
           .from('borrowed_books')
@@ -46,7 +48,12 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
           .eq('status', 'borrowed') as List;
       if (mounted) setState(() => _borrowed = res.cast());
       _calcFines();
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently — a real load failure rendered
+      // identically to "you have no borrowed books", same class of bug
+      // already found and fixed once in Manage Hall.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -76,14 +83,17 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
 
   Future<void> _renew(String borrowId, String bookId) async {
     try {
-      final newDue = DateTime.now().add(const Duration(days: 14));
+      // DIU's real library policy is a 7-day loan period for books
+      // (library.daffodilvarsity.edu.bd/content/library-policy) — this
+      // used to renew for 14 days, double the actual real-world policy.
+      final newDue = DateTime.now().add(const Duration(days: 7));
       await SupabaseConfig.client.from('borrowed_books').update({
         'due_date': newDue.toIso8601String().substring(0, 10),
         'renewals_count': 1,
       }).eq('id', borrowId);
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Book renewed for 14 days ✓'),
+          const SnackBar(content: Text('Book renewed for 7 days ✓'),
               backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -105,7 +115,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
             tabs: const [Tab(text: 'Borrowed'), Tab(text: 'Search')])),
         Expanded(child: TabBarView(controller: _tab, children: [
           _BorrowedTab(borrowed: _borrowed, fine: _totalFine,
-              loading: _loading, onRenew: _renew, onRefresh: _load),
+              loading: _loading, error: _error, onRenew: _renew, onRefresh: _load),
           _SearchTab(ctrl: _searchCtrl, results: _searchResults,
               searching: _searching, onSearch: _search),
         ])),
@@ -116,15 +126,23 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
 
 class _BorrowedTab extends StatelessWidget {
   final List<Map<String, dynamic>> borrowed;
-  final double fine; final bool loading;
+  final double fine; final bool loading; final String? error;
   final Future<void> Function(String, String) onRenew;
   final VoidCallback onRefresh;
   const _BorrowedTab({required this.borrowed, required this.fine,
-      required this.loading, required this.onRenew, required this.onRefresh});
+      required this.loading, required this.error, required this.onRenew, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
     if (loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
+    if (error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+        const SizedBox(height: 12),
+        Text('Couldn\'t load: $error', textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 12),
+        TextButton(onPressed: onRefresh, child: const Text('Retry')),
+      ])));
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       color: AppColors.holoviolet,
@@ -169,7 +187,7 @@ class _BookCard extends StatelessWidget {
     final isOverdue = dueDate != null && now.isAfter(dueDate);
     final daysLeft = dueDate != null ? dueDate.difference(now).inDays : 0;
     final progress = dueDate != null
-        ? (1 - daysLeft / 14.0).clamp(0.0, 1.0) : 0.0;
+        ? (1 - daysLeft / 7.0).clamp(0.0, 1.0) : 0.0;
     final statusColor = isOverdue ? AppColors.red
         : daysLeft <= 3 ? AppColors.amber : AppColors.green;
 
@@ -273,7 +291,12 @@ class _SearchTab extends StatelessWidget {
                 final b = results[i];
                 final avail = (b['available_copies'] as int? ?? 0) > 0;
                 return RepaintBoundary(
-                  child: Container(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => _showBookDetail(context, b),
+                      child: Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: AppColors.surfaceOf(context),
@@ -300,9 +323,70 @@ class _SearchTab extends StatelessWidget {
                         ),
                       ])),
                     ]),
+                      ),
+                    ),
                   ),
                 );
               })),
     ]);
+  }
+
+  void _showBookDetail(BuildContext context, Map<String, dynamic> book) {
+    final avail = (book['available_copies'] as int? ?? 0) > 0;
+    showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) {
+          final textPrimary = AppColors.textPrimaryOf(sheetCtx);
+          final textSecondary = AppColors.textSecondaryOf(sheetCtx);
+          Widget row(String label, String? value) {
+            if (value == null || value.isEmpty) return const SizedBox.shrink();
+            return Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 90, child: Text(label, style: TextStyle(color: textSecondary, fontSize: 12))),
+              Expanded(child: Text(value, style: TextStyle(color: textPrimary, fontSize: 13, fontWeight: FontWeight.w500))),
+            ]));
+          }
+          return SafeArea(child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Container(width: 64, height: 88,
+                      decoration: BoxDecoration(color: AppColors.holoviolet.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10)),
+                      child: (book['cover_url'] as String?)?.isNotEmpty == true
+                          ? ClipRRect(borderRadius: BorderRadius.circular(10),
+                              child: Image.network(book['cover_url'] as String, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)))
+                          : Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(book['title'] ?? '', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+                    const SizedBox(height: 4),
+                    Text(book['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                    const SizedBox(height: 8),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: (avail ? AppColors.green : AppColors.red).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10)),
+                        child: Text(avail ? 'Available' : 'Checked Out',
+                            style: TextStyle(color: avail ? AppColors.green : AppColors.red, fontSize: 11, fontWeight: FontWeight.w700))),
+                  ])),
+                ]),
+                const SizedBox(height: 20),
+                row('ISBN', book['isbn'] as String?),
+                row('Publisher', book['publisher'] as String?),
+                row('Year', book['year']?.toString()),
+                row('Category', book['category'] as String?),
+                row('Shelf', book['shelf_location'] as String?),
+                row('Copies', '${book['available_copies'] ?? 0} of ${book['total_copies'] ?? 0} available'),
+                if ((book['description'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 6),
+                  Text('About', style: TextStyle(color: textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(book['description'] as String, style: TextStyle(color: textPrimary, fontSize: 13, height: 1.4)),
+                ],
+              ])));
+        });
   }
 }

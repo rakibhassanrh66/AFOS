@@ -8,12 +8,14 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import 'club_chat_screen.dart';
 
 IconData categoryIcon(String? category) => switch (category) {
       'Tech' => Icons.memory_rounded,
@@ -35,7 +37,10 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   List<Map<String, dynamic>> _clubs = [], _myClubs = [], _events = [];
   List<Map<String, dynamic>> _myMembershipRequests = [], _myPostRequests = [];
   List<Map<String, dynamic>> _presidingRequests = [];
+  Set<String> _myEventRegistrations = {};
+  UserModel? _user;
   bool _loading = true;
+  String? _error;
   String _filter = 'All';
   String _search = '';
   static const _filters = ['All', 'Tech', 'Sports', 'Cultural', 'Volunteer', 'Business', 'Academic'];
@@ -46,6 +51,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     super.initState();
     _tab = TabController(length: 3, vsync: this);
     _load();
+    _loadUser();
     _clubsSub = SupabaseConfig.client.channel('clubs_screen_clubs')
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'clubs',
             callback: (_) => _load())
@@ -59,7 +65,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   void dispose() { _tab.dispose(); _clubsSub?.unsubscribe(); _membersSub?.unsubscribe(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     final uid = SupabaseConfig.uid;
     try {
       var q = SupabaseConfig.client.from('clubs').select();
@@ -68,16 +74,18 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         q.order('name') as Future,
         SupabaseConfig.client.from('club_events').select().order('event_date') as Future,
       ]);
-      List myClubs = [], myMembershipRequests = [], myPostRequests = [], presidingRequests = [];
+      List myClubs = [], myMembershipRequests = [], myPostRequests = [], presidingRequests = [], myRegistrations = [];
       if (uid != null) {
         final results = await Future.wait([
           SupabaseConfig.client.from('club_members').select('*, clubs(*)').eq('member_id', uid) as Future,
           SupabaseConfig.client.from('club_membership_requests').select().eq('student_id', uid).eq('status', 'pending') as Future,
           SupabaseConfig.client.from('club_post_requests').select().eq('member_id', uid).eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('event_registrations').select('event_id').eq('student_id', uid) as Future,
         ]);
         myClubs = results[0] as List;
         myMembershipRequests = results[1] as List;
         myPostRequests = results[2] as List;
+        myRegistrations = results[3] as List;
         final presidentClubIds = myClubs.cast<Map<String, dynamic>>()
             .where((m) => m['role'] == 'president').map((m) => m['club_id'] as String).toList();
         if (presidentClubIds.isNotEmpty) {
@@ -93,9 +101,25 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         _myMembershipRequests = myMembershipRequests.cast();
         _myPostRequests = myPostRequests.cast();
         _presidingRequests = presidingRequests.cast();
+        _myEventRegistrations = myRegistrations.cast<Map<String, dynamic>>().map((r) => r['event_id'] as String).toSet();
       });
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently — a real load failure rendered
+      // identically to "no clubs/events", same class of bug found and
+      // fixed elsewhere this session.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadUser() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    try {
+      final p = await SupabaseConfig.client.from('profiles')
+          .select('*, students(batch_label,section)').eq('id', uid).single();
+      if (mounted) setState(() => _user = UserModel.fromJson(p));
+    } catch (_) {}
   }
 
   /// Neither the president self-serve approval flow nor these requests
@@ -152,6 +176,19 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post application submitted ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  Future<void> _registerForEvent(String eventId) async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    try {
+      await SupabaseConfig.client.from('event_registrations').insert(
+          {'event_id': eventId, 'student_id': uid});
+      if (mounted) setState(() => _myEventRegistrations = {..._myEventRegistrations, eventId});
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
@@ -255,6 +292,99 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
             ])));
   }
 
+  Future<void> _showCreateEventDialog(String clubId, String clubName) async {
+    final titleCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final venueCtrl = TextEditingController();
+    final seatsCtrl = TextEditingController();
+    DateTime? eventDate;
+    DateTime? visibleFrom;
+    bool saving = false;
+
+    Future<DateTime?> pickDateTime(BuildContext c, DateTime? initial) async {
+      final date = await showDatePicker(context: c, initialDate: initial ?? DateTime.now(),
+          firstDate: DateTime.now().subtract(const Duration(days: 1)),
+          lastDate: DateTime.now().add(const Duration(days: 730)));
+      if (date == null || !c.mounted) return null;
+      final time = await showTimePicker(context: c,
+          initialTime: initial != null ? TimeOfDay.fromDateTime(initial) : TimeOfDay.now());
+      if (time == null) return null;
+      return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    }
+
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true,
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
+          final textPrimary = AppColors.textPrimaryOf(sheetCtx);
+          return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Create Event for $clubName', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+                const SizedBox(height: 16),
+                AfosTextField(hint: 'Event title', controller: titleCtrl),
+                const SizedBox(height: 12),
+                AfosTextField(hint: 'Description', controller: descCtrl, maxLines: 3),
+                const SizedBox(height: 12),
+                AfosTextField(hint: 'Venue', controller: venueCtrl),
+                const SizedBox(height: 12),
+                AfosTextField(hint: 'Max seats (optional)', controller: seatsCtrl, keyboardType: TextInputType.number),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.event_rounded, color: AppColors.pink),
+                  title: Text(eventDate == null ? 'Event date & time' : '${eventDate!.day}/${eventDate!.month}/${eventDate!.year} ${eventDate!.hour}:${eventDate!.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(color: textPrimary)),
+                  onTap: () async {
+                    final picked = await pickDateTime(sheetCtx, eventDate);
+                    if (picked != null) setSheetState(() => eventDate = picked);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.visibility_outlined, color: AppColors.pink),
+                  title: Text(visibleFrom == null ? 'Visible to everyone: immediately' : 'Visible to everyone from: ${visibleFrom!.day}/${visibleFrom!.month}/${visibleFrom!.year} ${visibleFrom!.hour}:${visibleFrom!.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(color: textPrimary)),
+                  subtitle: Text('Club members always see it — this only controls when everyone else can',
+                      style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx), fontSize: 11)),
+                  onTap: () async {
+                    final picked = await pickDateTime(sheetCtx, visibleFrom);
+                    if (picked != null) setSheetState(() => visibleFrom = picked);
+                  },
+                ),
+                const SizedBox(height: 20),
+                AfosButton(
+                  label: 'Create Event',
+                  loading: saving,
+                  onTap: () async {
+                    if (titleCtrl.text.trim().isEmpty || eventDate == null) return;
+                    setSheetState(() => saving = true);
+                    try {
+                      await SupabaseConfig.client.from('club_events').insert({
+                        'club_id': clubId, 'created_by': SupabaseConfig.uid,
+                        'title': titleCtrl.text.trim(),
+                        'description': descCtrl.text.trim(),
+                        'event_date': eventDate!.toIso8601String(),
+                        'venue': venueCtrl.text.trim(),
+                        'max_seats': int.tryParse(seatsCtrl.text.trim()),
+                        'visible_from': (visibleFrom ?? DateTime.now()).toIso8601String(),
+                      });
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                      _load();
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Event created ✓'), backgroundColor: AppColors.green));
+                    } catch (e) {
+                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      setSheetState(() => saving = false);
+                    }
+                  },
+                ),
+              ]));
+        }));
+  }
+
   void _showPostDialog(BuildContext ctx, String clubId, String currentRole) {
     final options = ['secretary', 'vice_president', 'president'].where((r) => r != currentRole).toList();
     showModalBottomSheet(context: ctx, backgroundColor: AppColors.surfaceOf(ctx),
@@ -274,6 +404,17 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     if (q.isEmpty) return _clubs;
     return _clubs.where((c) => (c['name'] as String? ?? '').toLowerCase().contains(q)).toList();
   }
+
+  Widget _errorView(BuildContext context) => Center(child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+        const SizedBox(height: 12),
+        Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 12),
+        TextButton(onPressed: _load, child: const Text('Retry')),
+      ])));
 
   @override
   Widget build(BuildContext context) {
@@ -299,16 +440,20 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
                 onSelect: (f) { setState(() => _filter = f); _load(); }),
             Expanded(child: _loading
                 ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5, itemHeight: 120))
+                : _error != null ? _errorView(context)
                 : _ClubList(clubs: _searchFiltered, myClubs: _myClubs, pendingClubIds: pendingClubIds, onJoin: _requestJoin)),
           ]),
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+              : _error != null ? _errorView(context)
               : _MyClubsTab(myClubs: _myClubs, pendingPostClubIds: pendingPostClubIds,
                   presidingRequests: _presidingRequests, processingRequestIds: _processingRequestIds,
                   onApplyPost: (clubId, role) => _showPostDialog(context, clubId, role),
-                  onSendNotice: _sendClubNotice,
+                  onSendNotice: _sendClubNotice, user: _user,
+                  onCreateEvent: _showCreateEventDialog,
                   onApproveRequest: _approvePresidingRequest, onRejectRequest: _rejectPresidingRequest),
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-              : _EventsTab(events: _events),
+              : _error != null ? _errorView(context)
+              : _EventsTab(events: _events, registeredIds: _myEventRegistrations, onRegister: _registerForEvent),
         ])),
       ]),
     );
@@ -365,7 +510,7 @@ class _ClubList extends StatelessWidget {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 3),
-                    Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2),
+                    Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 6),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
@@ -394,11 +539,14 @@ class _MyClubsTab extends StatelessWidget {
   final Set<String> processingRequestIds;
   final void Function(String clubId, String currentRole) onApplyPost;
   final void Function(String clubId, String clubName) onSendNotice;
+  final void Function(String clubId, String clubName) onCreateEvent;
   final ValueChanged<String> onApproveRequest;
   final ValueChanged<String> onRejectRequest;
+  final UserModel? user;
   const _MyClubsTab({required this.myClubs, required this.pendingPostClubIds,
       required this.presidingRequests, required this.processingRequestIds,
-      required this.onApplyPost, required this.onSendNotice,
+      required this.onApplyPost, required this.onSendNotice, this.user,
+      required this.onCreateEvent,
       required this.onApproveRequest, required this.onRejectRequest});
   @override
   Widget build(BuildContext context) {
@@ -409,6 +557,7 @@ class _MyClubsTab extends StatelessWidget {
           final m = myClubs[i];
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
           final clubId = m['club_id'] as String? ?? '';
+          final clubName = club['name'] as String? ?? 'Club';
           final role = m['role'] as String? ?? 'member';
           final isPresident = role == 'president';
           final hasPendingPost = pendingPostClubIds.contains(clubId);
@@ -431,14 +580,23 @@ class _MyClubsTab extends StatelessWidget {
                       decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                       child: Text(role.replaceAll('_', ' ').toUpperCase(),
                           style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, fontWeight: FontWeight.w700))),
+                  if (user != null)
+                    IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.pink, size: 20),
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => ClubChatScreen(clubId: clubId, clubName: clubName, user: user!)))),
                 ]),
                 const SizedBox(height: 10),
-                if (isPresident)
+                if (isPresident) ...[
                   SizedBox(width: double.infinity, child: OutlinedButton.icon(
                       onPressed: () => onSendNotice(clubId, club['name'] ?? 'Club'),
                       icon: const Icon(Icons.campaign_outlined, size: 16),
-                      label: const Text('Send Club Notice')))
-                else if (hasPendingPost)
+                      label: const Text('Send Club Notice'))),
+                  const SizedBox(height: 8),
+                  SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                      onPressed: () => onCreateEvent(clubId, club['name'] ?? 'Club'),
+                      icon: const Icon(Icons.event_rounded, size: 16),
+                      label: const Text('Create Event'))),
+                ] else if (hasPendingPost)
                   Text('Post application pending approval', style: TextStyle(color: AppColors.amber, fontSize: 12))
                 else
                   SizedBox(width: double.infinity, child: OutlinedButton(
@@ -487,7 +645,9 @@ class _MyClubsTab extends StatelessWidget {
 
 class _EventsTab extends StatelessWidget {
   final List<Map<String, dynamic>> events;
-  const _EventsTab({required this.events});
+  final Set<String> registeredIds;
+  final ValueChanged<String> onRegister;
+  const _EventsTab({required this.events, required this.registeredIds, required this.onRegister});
   @override
   Widget build(BuildContext context) {
     if (events.isEmpty) return EmptyState(icon: Icons.event_rounded,
@@ -495,27 +655,41 @@ class _EventsTab extends StatelessWidget {
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: events.length,
         itemBuilder: (ctx, i) {
           final e = events[i];
+          final eventId = e['id'] as String?;
           final date = e['event_date'] != null ? DateTime.tryParse(e['event_date']) : null;
+          final registered = eventId != null && registeredIds.contains(eventId);
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-              child: Row(children: [
-                Container(width: 48, height: 56, decoration: BoxDecoration(
-                    color: AppColors.indigo.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text(date != null ? '${date.day}' : '?',
-                          style: const TextStyle(color: AppColors.indigo, fontSize: 18, fontWeight: FontWeight.w800)),
-                      Text(date != null ? _month(date.month) : '',
-                          style: const TextStyle(color: AppColors.indigo, fontSize: 10)),
-                    ])),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(e['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (e['max_seats'] != null) Text('${e['max_seats']} seats',
-                      style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)),
-                ])),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(width: 48, height: 56, decoration: BoxDecoration(
+                      color: AppColors.indigo.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text(date != null ? '${date.day}' : '?',
+                            style: const TextStyle(color: AppColors.indigo, fontSize: 18, fontWeight: FontWeight.w800)),
+                        Text(date != null ? _month(date.month) : '',
+                            style: const TextStyle(color: AppColors.indigo, fontSize: 10)),
+                      ])),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(e['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (e['max_seats'] != null) Text('${e['max_seats']} seats',
+                        style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)),
+                  ])),
+                ]),
+                if (eventId != null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(width: double.infinity, child: OutlinedButton(
+                      onPressed: registered ? null : () => onRegister(eventId),
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: registered ? AppColors.green : AppColors.indigo,
+                          side: BorderSide(color: registered ? AppColors.green : AppColors.indigo),
+                          minimumSize: const Size(0, 40)),
+                      child: Text(registered ? 'Joined ✓' : 'Join / Visit'))),
+                ],
               ]));
         });
   }

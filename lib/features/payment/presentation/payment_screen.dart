@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -18,6 +19,7 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
   late TabController _tab;
   List<Map<String, dynamic>> _history = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -29,6 +31,7 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
   Future<void> _loadHistory() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    setState(() => _error = null);
     try {
       final res = await SupabaseConfig.client
           .from('payment_records')
@@ -36,7 +39,12 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
           .eq('student_id', uid)
           .order('created_at', ascending: false) as List;
       if (mounted) setState(() => _history = res.cast());
-    } catch (_) {}
+    } catch (e) {
+      // Previously swallowed silently — a real load failure for financial
+      // records rendered identically to "no payment history", which is a
+      // bad thing to get wrong.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -69,7 +77,16 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
           _PayNowTab(categories: _categories),
           _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-              : _HistoryTab(history: _history),
+              : _error != null
+                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                      const SizedBox(height: 12),
+                      Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondaryOf(context))),
+                      const SizedBox(height: 12),
+                      TextButton(onPressed: _loadHistory, child: const Text('Retry')),
+                    ])))
+                  : _HistoryTab(history: _history),
         ])),
       ]),
     );
