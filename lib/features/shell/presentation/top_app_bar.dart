@@ -89,9 +89,22 @@ class _NotificationBellState extends State<_NotificationBell> {
   void initState() {
     super.initState();
     _load();
-    _sub = SupabaseConfig.client.channel('notif_bell_${SupabaseConfig.uid}')
+    final uid = SupabaseConfig.uid;
+    // Unique per-instance channel name: AfosAppBar (and this bell) is
+    // instantiated on nearly every screen, and go_router's nested navigator
+    // keeps pushed-under screens' State alive rather than disposing them,
+    // so multiple bells for the same user are routinely mounted at once.
+    // supabase-dart dedupes channels by topic name, so a shared name meant
+    // one instance's dispose()->unsubscribe() could tear the channel down
+    // out from under the others. Filtering to this user's own rows also
+    // matters once SOS alerts start bulk-inserting into this same table.
+    _sub = SupabaseConfig.client
+        .channel('notif_bell_${uid}_${identityHashCode(this)}')
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-            table: 'user_notifications', callback: (_) => _load())
+            table: 'user_notifications',
+            filter: uid == null ? null : PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq, column: 'user_id', value: uid),
+            callback: (_) => _load())
         .subscribe();
   }
 

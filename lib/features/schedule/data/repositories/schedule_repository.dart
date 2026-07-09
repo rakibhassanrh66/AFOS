@@ -1,76 +1,95 @@
 import '../../../../config/supabase_config.dart';
+import '../../../../core/utils/offline_cache.dart';
 import '../models/class_slot.dart';
 
 class ScheduleRepository {
   final _client = SupabaseConfig.client;
 
   /// Stream schedule slots, filter by dept+semester+day client-side.
-  /// Supabase stream builder supports only one .eq() — we filter the rest locally.
+  /// Supabase stream builder supports only one .eq() — we filter the rest
+  /// locally. Cached so this (and the two variants below) still render the
+  /// last-known routine while offline instead of hanging on the loading
+  /// shimmer forever, since a live .stream() never emits with no connection.
   Stream<List<ClassSlot>> watchSchedule(String dept, int semester, int day) {
-    return _client
-        .from('schedule_slots')
-        .stream(primaryKey: ['id'])
-        .eq('department', dept)
-        .order('start_time')
-        .map((list) => list
-            .where((s) =>
-                s['semester'] == semester &&
-                s['day_of_week'] == day)
-            .map((s) => ClassSlot.fromJson(s))
-            .toList());
+    return cachedListStream(
+      cacheKey: 'schedule_slots_${dept}_${semester}_$day',
+      liveStream: () => _client
+          .from('schedule_slots')
+          .stream(primaryKey: ['id'])
+          .eq('department', dept)
+          .order('start_time')
+          .map((list) => list
+              .where((s) =>
+                  s['semester'] == semester &&
+                  s['day_of_week'] == day)
+              .map((s) => Map<String, dynamic>.from(s))
+              .toList()),
+    ).map((rows) => rows.map((s) => ClassSlot.fromJson(s)).toList());
   }
 
   /// Stream only the classes belonging to this student's own batch+section
   /// (from PDF-imported class routine data), so they don't see every other
   /// section's classes in the department.
   Stream<List<ClassSlot>> watchMyClassesAsStudent(String dept, String batch, String section, int day) {
-    return _client
-        .from('schedule_slots')
-        .stream(primaryKey: ['id'])
-        .eq('department', dept)
-        .order('start_time')
-        .map((list) => list
-            .where((s) =>
-                s['day_of_week'] == day &&
-                (s['batch'] as String?)?.toLowerCase() == batch.toLowerCase() &&
-                (s['section'] as String?)?.toLowerCase() == section.toLowerCase())
-            .map((s) => ClassSlot.fromJson(s))
-            .toList());
+    return cachedListStream(
+      cacheKey: 'schedule_slots_student_${dept}_${batch}_${section}_$day',
+      liveStream: () => _client
+          .from('schedule_slots')
+          .stream(primaryKey: ['id'])
+          .eq('department', dept)
+          .order('start_time')
+          .map((list) => list
+              .where((s) =>
+                  s['day_of_week'] == day &&
+                  (s['batch'] as String?)?.toLowerCase() == batch.toLowerCase() &&
+                  (s['section'] as String?)?.toLowerCase() == section.toLowerCase())
+              .map((s) => Map<String, dynamic>.from(s))
+              .toList()),
+    ).map((rows) => rows.map((s) => ClassSlot.fromJson(s)).toList());
   }
 
   /// Stream only the classes taught by this teacher (matched by the
   /// initials they set in Settings, as printed in the class routine PDF).
   Stream<List<ClassSlot>> watchMyClassesAsTeacher(String teacherInitial, int day) {
-    return _client
-        .from('schedule_slots')
-        .stream(primaryKey: ['id'])
-        .eq('teacher_initial', teacherInitial)
-        .order('start_time')
-        .map((list) => list
-            .where((s) => s['day_of_week'] == day)
-            .map((s) => ClassSlot.fromJson(s))
-            .toList());
+    return cachedListStream(
+      cacheKey: 'schedule_slots_teacher_${teacherInitial}_$day',
+      liveStream: () => _client
+          .from('schedule_slots')
+          .stream(primaryKey: ['id'])
+          .eq('teacher_initial', teacherInitial)
+          .order('start_time')
+          .map((list) => list
+              .where((s) => s['day_of_week'] == day)
+              .map((s) => Map<String, dynamic>.from(s))
+              .toList()),
+    ).map((rows) => rows.map((s) => ClassSlot.fromJson(s)).toList());
   }
 
-  Future<List<Map<String,dynamic>>> getExams(String dept, int semester) async {
-    final res = await _client
-        .from('exams')
-        .select()
-        .eq('department', dept)
-        .eq('semester', semester)
-        .order('exam_date') as List;
-    return res.cast<Map<String,dynamic>>();
-  }
+  Future<List<Map<String,dynamic>>> getExams(String dept, int semester) => cachedListFetch(
+    cacheKey: 'exams_${dept}_$semester',
+    liveFetch: () async {
+      final res = await _client
+          .from('exams')
+          .select()
+          .eq('department', dept)
+          .eq('semester', semester)
+          .order('exam_date') as List;
+      return res.cast<Map<String, dynamic>>();
+    },
+  );
 
   /// Exams filtered to this student's own batch, or this teacher's own
   /// initials aren't tracked on exams — teachers see the full department
   /// exam routine since they may invigilate/teach across batches.
-  Future<List<Map<String,dynamic>>> getMyExams({required String dept, String? batch}) async {
-    var q = _client.from('exams').select().eq('department', dept);
-    if (batch != null && batch.isNotEmpty) q = q.eq('batch', batch);
-    final res = await q.order('exam_date') as List;
-    return res.cast<Map<String,dynamic>>();
-  }
+  Future<List<Map<String,dynamic>>> getMyExams({required String dept, String? batch}) => cachedListFetch(
+    cacheKey: 'exams_my_${dept}_${batch ?? 'all'}',
+    liveFetch: () async {
+      var q = _client.from('exams').select().eq('department', dept);
+      if (batch != null && batch.isNotEmpty) q = q.eq('batch', batch);
+      final res = await q.order('exam_date') as List;
+      return res.cast<Map<String, dynamic>>();
+    },
+  );
 
   /// Maps a teacher's routine-sheet initials (e.g. "FNN") to their real
   /// name and profile photo, so a class card can show who's actually
@@ -102,5 +121,128 @@ class ScheduleRepository {
       'p_department_code': departmentCode, 'p_batch': batch, 'p_section': section,
     }) as List;
     return res.isNotEmpty ? res.first as Map<String, dynamic> : null;
+  }
+
+  /// Finds any class (retake included) by course code — how a student or
+  /// teacher locates a retake session, which isn't in their normal
+  /// batch/section view at all. Row counts per department are small enough
+  /// (low hundreds) that a plain ilike scan doesn't need a trigram index.
+  Future<List<ClassSlot>> searchByCourseCode(String code, {required String department}) async {
+    if (code.trim().isEmpty) return [];
+    final res = await _client.from('schedule_slots').select()
+        .ilike('subject_code', '%${code.trim()}%').eq('department', department)
+        .order('day_of_week').order('start_time') as List;
+    return res.map((s) => ClassSlot.fromJson(Map<String, dynamic>.from(s))).toList();
+  }
+
+  /// Best-effort "here's your other lab half" lookup for a J1/J2-style
+  /// split lab section — computed at display time (not parse time) so it
+  /// stays correct even if only one subgroup's row changes on a later
+  /// re-upload.
+  Future<ClassSlot?> findLabCounterpart(ClassSlot slot) async {
+    if (slot.labSubgroup == null || slot.subjectCode == null || slot.batch == null || slot.section == null) return null;
+    final otherSubgroup = slot.labSubgroup == 1 ? 2 : 1;
+    final res = await _client.from('schedule_slots').select()
+        .eq('subject_code', slot.subjectCode as Object)
+        .eq('batch', slot.batch as Object)
+        .eq('section', slot.section as Object)
+        .eq('department', slot.department)
+        .eq('lab_subgroup', otherSubgroup)
+        .limit(1) as List;
+    return res.isEmpty ? null : ClassSlot.fromJson(Map<String, dynamic>.from(res.first));
+  }
+
+  /// "Add this retake course to my schedule" — a manually-pinned extra slot
+  /// on top of the student's/teacher's regular batch/section-or-initial view.
+  Future<void> pinSlot(String scheduleSlotId) async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    await _client.from('user_pinned_slots').upsert({'user_id': uid, 'schedule_slot_id': scheduleSlotId});
+  }
+
+  Future<void> unpinSlot(String scheduleSlotId) async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    await _client.from('user_pinned_slots').delete()
+        .eq('user_id', uid).eq('schedule_slot_id', scheduleSlotId);
+  }
+
+  /// Every distinct (building, room_number) in this department's routine —
+  /// the room axis for the empty-room-availability view.
+  Future<List<Map<String, String>>> fetchDistinctRooms(String department) async {
+    final res = await _client.from('schedule_slots').select('building, room_number')
+        .eq('department', department) as List;
+    final seen = <String>{};
+    final rooms = <Map<String, String>>[];
+    for (final r in res.cast<Map<String, dynamic>>()) {
+      final building = r['building'] as String? ?? '';
+      final roomNumber = r['room_number'] as String? ?? '';
+      final key = '$building|$roomNumber';
+      if (building.isEmpty || roomNumber.isEmpty || !seen.add(key)) continue;
+      rooms.add({'building': building, 'room_number': roomNumber});
+    }
+    rooms.sort((a, b) => '${a['building']}${a['room_number']}'.compareTo('${b['building']}${b['room_number']}'));
+    return rooms;
+  }
+
+  /// Every distinct time period in use across this department's routine —
+  /// the period axis for the empty-room-availability view (self-adjusting
+  /// if the university's period times ever change, rather than a hardcoded
+  /// constant).
+  Future<List<({String start, String end})>> fetchDistinctPeriods(String department) async {
+    final res = await _client.from('schedule_slots').select('start_time, end_time')
+        .eq('department', department) as List;
+    final seen = <String>{};
+    final periods = <({String start, String end})>[];
+    for (final r in res.cast<Map<String, dynamic>>()) {
+      final start = r['start_time'] as String? ?? '';
+      final end = r['end_time'] as String? ?? '';
+      final key = '$start|$end';
+      if (start.isEmpty || !seen.add(key)) continue;
+      periods.add((start: start, end: end));
+    }
+    periods.sort((a, b) => a.start.compareTo(b.start));
+    return periods;
+  }
+
+  Future<List<ClassSlot>> fetchSlotsForDay(String department, int dayOfWeek) async {
+    final res = await _client.from('schedule_slots').select()
+        .eq('department', department).eq('day_of_week', dayOfWeek) as List;
+    return res.map((s) => ClassSlot.fromJson(Map<String, dynamic>.from(s))).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchEmptyRoomRequests(String department, int dayOfWeek) async {
+    final res = await _client.from('empty_room_requests').select('*, profiles!requester_id(full_name)')
+        .eq('department', department).eq('day_of_week', dayOfWeek) as List;
+    return res.cast<Map<String, dynamic>>();
+  }
+
+  Future<void> requestEmptyRoom({
+    required String department, required String building, required String roomNumber,
+    required int dayOfWeek, required String startTime, required String endTime, required String purpose,
+  }) async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    await _client.from('empty_room_requests').insert({
+      'requester_id': uid, 'department': department, 'building': building, 'room_number': roomNumber,
+      'day_of_week': dayOfWeek, 'start_time': startTime, 'end_time': endTime, 'purpose': purpose,
+    });
+  }
+
+  Stream<List<ClassSlot>> watchMyPinnedSlots() {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return Stream.value(const []);
+    return cachedListStream(
+      cacheKey: 'user_pinned_slots_$uid',
+      liveStream: () => _client.from('user_pinned_slots')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', uid)
+          .map((rows) => rows.map((r) => Map<String, dynamic>.from(r)).toList()),
+    ).asyncMap((rows) async {
+      if (rows.isEmpty) return <ClassSlot>[];
+      final ids = rows.map((r) => r['schedule_slot_id'] as String).toList();
+      final slots = await _client.from('schedule_slots').select().inFilter('id', ids) as List;
+      return slots.map((s) => ClassSlot.fromJson(Map<String, dynamic>.from(s))).toList();
+    });
   }
 }

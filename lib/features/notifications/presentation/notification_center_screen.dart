@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -54,6 +55,12 @@ class _NotifState extends State<NotificationCenterScreen> {
         if (idx >= 0) _notifs[idx] = {..._notifs[idx], 'is_read': true};
       });
     } catch (_) {}
+  }
+
+  void _onTapNotification(Map<String, dynamic> n) {
+    _markRead(n['id'] as String);
+    final route = n['deep_link_route'] as String?;
+    if (route != null && route.isNotEmpty) context.push(route);
   }
 
   static IconData _catIcon(String? cat) => switch (cat) {
@@ -129,7 +136,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                               color: Colors.white)),
                         onDismissed: (_) => setState(() => _notifs.removeAt(i)),
                         child: GestureDetector(
-                          onTap: () => _markRead(n['id'] as String),
+                          onTap: () => _onTapNotification(n),
                           child: Container(
                             clipBehavior: Clip.antiAlias,
                             margin: const EdgeInsets.only(bottom: 8),

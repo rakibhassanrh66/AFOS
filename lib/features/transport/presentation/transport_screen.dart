@@ -1,16 +1,53 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/transport_repository.dart';
+
+/// Parses "10:50 AM" / "4:20 PM" style time strings (as stored in
+/// transport_routes.to_dsc_times/from_dsc_times) into minutes-since-midnight.
+/// Returns null for anything unparseable rather than throwing -- source
+/// data is PDF-extracted and not perfectly uniform.
+int? _parseTimeToMinutes(String raw) {
+  final m = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?').firstMatch(raw.trim());
+  if (m == null) return null;
+  var hour = int.parse(m.group(1)!);
+  final minute = int.parse(m.group(2)!);
+  final ampm = m.group(3)?.toUpperCase();
+  if (ampm == 'PM' && hour != 12) hour += 12;
+  if (ampm == 'AM' && hour == 12) hour = 0;
+  return hour * 60 + minute;
+}
+
+typedef _NextTrip = ({String time, int minutesUntil, bool isTomorrow});
+
+/// Finds the next upcoming departure in [times] relative to [nowMinutes],
+/// wrapping to tomorrow's first departure if everything today has passed.
+_NextTrip? _nextDeparture(List<String> times, int nowMinutes) {
+  final parsed = times
+      .map((t) => (raw: t, min: _parseTimeToMinutes(t)))
+      .where((e) => e.min != null)
+      .toList()
+    ..sort((a, b) => a.min!.compareTo(b.min!));
+  if (parsed.isEmpty) return null;
+  final upcoming = parsed.where((e) => e.min! >= nowMinutes);
+  if (upcoming.isNotEmpty) {
+    final next = upcoming.first;
+    return (time: next.raw, minutesUntil: next.min! - nowMinutes, isTomorrow: false);
+  }
+  final first = parsed.first;
+  return (time: first.raw, minutesUntil: (24 * 60 - nowMinutes) + first.min!, isTomorrow: true);
+}
 
 // Uses stop *names* for origin/destination/waypoints rather than lat/long
 // — the source routine sheet never has GPS coordinates for stops (only
@@ -261,6 +298,52 @@ class _MyRouteTab extends StatefulWidget {
 
 class _MyRouteTabState extends State<_MyRouteTab> {
   String? _selectedRoute;
+  bool _autoSuggested = false;
+  Timer? _tickTimer;
+
+  // No stop in transport_stops has ever had a real GPS coordinate (the
+  // source routine sheet only ever lists stop *names* -- confirmed live,
+  // 0 of 174 rows have latitude/longitude). True "nearest stop by distance"
+  // isn't possible on this data, so this matches the user's *registered*
+  // address text against route/stop names instead -- an honest, disclosed
+  // approximation, not a silent guess dressed up as GPS proximity.
+  Future<void> _suggestFromAddress() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    try {
+      final p = await SupabaseConfig.client.from('profiles')
+          .select('permanent_thana, permanent_upazila, permanent_district')
+          .eq('id', uid).maybeSingle();
+      if (p == null) return;
+      final needles = [p['permanent_thana'], p['permanent_upazila'], p['permanent_district']]
+          .whereType<String>().where((s) => s.isNotEmpty).map((s) => s.toLowerCase()).toList();
+      if (needles.isEmpty) return;
+      for (final r in widget.routes) {
+        final haystack = ((r['route_name'] as String? ?? '') + ' '
+            + ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').join(' '))
+            .toLowerCase();
+        if (needles.any((n) => haystack.contains(n))) {
+          if (mounted) setState(() { _selectedRoute = r['id'] as String; _autoSuggested = true; });
+          return;
+        }
+      }
+    } catch (_) {
+      // Best-effort suggestion only -- the manual dropdown always still works.
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _suggestFromAddress();
+    // Drives the "next bus in Xm" countdown so it advances live without a
+    // manual refresh, same pattern as the dashboard's class status card.
+    _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) { if (mounted) setState(() {}); });
+  }
+
+  @override
+  void dispose() { _tickTimer?.cancel(); super.dispose(); }
+
   @override
   Widget build(BuildContext context) {
     if(widget.routes.isEmpty) return Center(
@@ -272,6 +355,11 @@ class _MyRouteTabState extends State<_MyRouteTab> {
     return ListView(padding:const EdgeInsets.all(16),children:[
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
+      if (_autoSuggested && selected != null) ...[
+        const SizedBox(height: 4),
+        Text('Suggested based on your registered address — pick a different one if this isn\'t right.',
+            style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+      ],
       const SizedBox(height:12),
       DropdownButtonFormField<String>(
         value:_selectedRoute,
@@ -282,7 +370,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
         dropdownColor:AppColors.surfaceOf(context),style:TextStyle(color:AppColors.textPrimaryOf(context)),
         items:widget.routes.map((r)=>DropdownMenuItem(value:r['id'] as String,
           child:Text('${r['route_number']} — ${r['route_name'] ?? 'Route'}', overflow: TextOverflow.ellipsis))).toList(),
-        onChanged:(v)=>setState(()=>_selectedRoute=v),
+        onChanged:(v)=>setState(() { _selectedRoute=v; _autoSuggested = false; }),
       ),
       if(selected!=null) ...[
         const SizedBox(height:16),
@@ -290,6 +378,10 @@ class _MyRouteTabState extends State<_MyRouteTab> {
           _LiveStatusBadge(status: widget.liveStatus[selected['id']]),
         ]),
         const SizedBox(height:8),
+        if (toDsc.isNotEmpty || fromDsc.isNotEmpty) ...[
+          _NextDepartureCard(toDsc: toDsc, fromDsc: fromDsc),
+          const SizedBox(height: 12),
+        ],
         if (stops.isNotEmpty) Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
@@ -312,6 +404,51 @@ class _MyRouteTabState extends State<_MyRouteTab> {
             style: TextStyle(color: AppColors.textSecondaryOf(context))),
       ],
     ]);
+  }
+}
+
+/// Live "next bus" countdown in both directions for the selected route,
+/// re-evaluated every minute (see _MyRouteTabState's _tickTimer) so it
+/// advances to the following trip once the current one's time passes,
+/// wrapping to tomorrow's first departure once today's are all gone.
+class _NextDepartureCard extends StatelessWidget {
+  final List<String> toDsc; final List<String> fromDsc;
+  const _NextDepartureCard({required this.toDsc, required this.fromDsc});
+
+  String _fmt(_NextTrip n) {
+    final rel = n.minutesUntil < 60 ? '${n.minutesUntil}m' : '${n.minutesUntil ~/ 60}h ${n.minutesUntil % 60}m';
+    return '${n.time} (${n.isTomorrow ? 'tomorrow, ' : ''}in $rel)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final nowMin = now.hour * 60 + now.minute;
+    final nextTo = _nextDeparture(toDsc, nowMin);
+    final nextFrom = _nextDeparture(fromDsc, nowMin);
+    if (nextTo == null && nextFrom == null) return const SizedBox.shrink();
+    final textPrimary = AppColors.textPrimaryOf(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          AppColors.holoTeal.withValues(alpha: 0.15), AppColors.holoBlue.withValues(alpha: 0.08)]),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.holoTeal.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.directions_bus_filled_rounded, color: AppColors.holoTeal, size: 18),
+          const SizedBox(width: 8),
+          Text('NEXT BUS', style: TextStyle(
+              color: AppColors.holoTeal, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        ]),
+        const SizedBox(height: 10),
+        if (nextTo != null) Text('To DSC: ${_fmt(nextTo)}', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+        if (nextTo != null && nextFrom != null) const SizedBox(height: 4),
+        if (nextFrom != null) Text('From DSC: ${_fmt(nextFrom)}', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+      ]),
+    );
   }
 }
 
@@ -477,27 +614,11 @@ class _MapTabState extends State<_MapTab> {
   /// are relative to campus/routes on the map, instead of a static view.
   Future<void> _enableLocation() async {
     setState(() { _requestingLocation = true; _locationError = null; });
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() { _locationError = 'Turn on location services to see your position'; _requestingLocation = false; });
-        return;
-      }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        setState(() { _locationError = 'Location permission denied'; _requestingLocation = false; });
-        return;
-      }
-      final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-      if (!mounted) return;
-      setState(() { _myLocation = LatLng(pos.latitude, pos.longitude); _requestingLocation = false; });
-      _mapController.move(_myLocation!, 15);
-    } catch (e) {
-      if (mounted) setState(() { _locationError = 'Could not get your location'; _requestingLocation = false; });
-    }
+    final pos = await LocationHelper.getCurrentPosition(
+        onError: (msg) { if (mounted) setState(() { _locationError = msg; _requestingLocation = false; }); });
+    if (pos == null || !mounted) return;
+    setState(() { _myLocation = LatLng(pos.latitude, pos.longitude); _requestingLocation = false; });
+    _mapController.move(_myLocation!, 15);
   }
 
   @override

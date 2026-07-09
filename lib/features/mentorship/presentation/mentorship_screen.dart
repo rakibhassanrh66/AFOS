@@ -8,6 +8,7 @@ import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
+import '../../../core/services/outbox_service.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -180,22 +181,15 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                 if (topicCtrl.text.trim().isEmpty) return;
                 Navigator.pop(ctx);
                 try {
-                  await SupabaseConfig.client.from('mentorship_bookings').insert({
+                  final queued = await OutboxService.instance.submitOrQueue('mentorship_booking_request', {
                     'student_id': SupabaseConfig.uid,
                     'mentor_id': mentor['id'],
                     'topic': topicCtrl.text.trim(),
-                    'status': 'pending',
                   });
-                  NotificationService.sendToUsers(
-                    userIds: [mentor['id']],
-                    title: 'New mentorship request',
-                    message: '${(mentor['profiles'] as Map?)?['full_name'] ?? 'A student'} — new request awaiting your response',
-                    deepLink: '/mentorship',
-                    category: 'mentorship',
-                  );
                   _load();
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
+                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+                      ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
+                      : const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
                 } catch (e) {
                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));

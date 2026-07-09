@@ -1,4 +1,5 @@
 import '../../../../config/supabase_config.dart';
+import '../../../../core/utils/offline_cache.dart';
 
 /// Mirrors the realtime pattern used by ScheduleRepository.watchSchedule —
 /// keeps transport_routes live so admin uploads (parse-routine edge
@@ -6,12 +7,19 @@ import '../../../../config/supabase_config.dart';
 class TransportRepository {
   final _client = SupabaseConfig.client;
 
+  /// Cached for offline viewing — deliberately NOT watchLiveStatus below,
+  /// since a stale cached bus GPS position offline would be actively
+  /// misleading rather than merely unavailable.
   Stream<List<Map<String, dynamic>>> watchRoutes() {
-    return _client
-        .from('transport_routes')
-        .stream(primaryKey: ['id'])
-        .order('route_number')
-        .map((list) => list.where((r) => r['is_active'] == true).toList());
+    return cachedListStream(
+      cacheKey: 'transport_routes',
+      liveStream: () => _client
+          .from('transport_routes')
+          .stream(primaryKey: ['id'])
+          .order('route_number')
+          .map((list) => list.where((r) => r['is_active'] == true)
+              .map((r) => Map<String, dynamic>.from(r)).toList()),
+    );
   }
 
   /// Latest status row per route, keyed by route_id — there's no explicit

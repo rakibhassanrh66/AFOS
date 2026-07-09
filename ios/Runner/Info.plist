@@ -26,6 +26,21 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Was completely missing before -- transport_screen.dart already calls
+	     Geolocator.getCurrentPosition() and iOS terminates any app that
+	     requests location without this key present. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AFOS uses your location to show nearby transport routes and to attach your position to an emergency SOS alert.</string>
+	<!-- For the SOS system's opt-out ambient "who's nearby" layer. -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>AFOS can share your location in the background so nearby students and staff can be alerted if you ever need emergency help. You can turn this off anytime in Settings.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<!-- For the SOS floating button's optional voice note. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AFOS can record a short voice note to attach to an emergency SOS alert.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

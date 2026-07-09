@@ -10,6 +10,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class DeptChatScreen extends StatefulWidget {
@@ -182,7 +183,8 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
   Future<void> _loadMessages() async {
     try {
       final res = await SupabaseConfig.client.from('dept_messages')
-          .select('*, profiles(full_name,avatar_url,role,university_id,department,students(batch_label,section))')
+          .select('*, profiles(full_name,avatar_url,role,university_id,department,is_verified,'
+              'students(batch_label,section),teachers(designation),staff(designation))')
           .eq('channel_id', widget.channel['id'])
           .order('created_at') as List;
       if (mounted) setState(() { _messages = res.cast(); _loading = false; });
@@ -227,6 +229,11 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         'role': widget.user.role,
         'university_id': widget.user.studentId,
         'department': widget.user.department,
+        // An account able to send a message here has already passed the
+        // app-wide is_verified gate (pending_approval_screen blocks anyone
+        // who hasn't) -- safe to assume true for this optimistic local echo
+        // of your own just-sent message without a separate fetch.
+        'is_verified': true,
         'students': widget.user.batch != null || widget.user.section != null
             ? {'batch_label': widget.user.batch, 'section': widget.user.section} : null,
       },
@@ -356,14 +363,17 @@ class _MsgBubble extends StatelessWidget {
 
     final bubbleColumn = Column(crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
       if (showAvatar && !isMe) Padding(padding: const EdgeInsets.only(bottom: 4, left: 4),
-          child: Row(children: [
-            Flexible(child: Text(anonymizedChatName(profile), maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
-            if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                child: const Text('Faculty', style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w700))),
-          ])),
+          child: GestureDetector(
+            onTap: () => showUserDetailsSheet(context, profile),
+            child: Row(children: [
+              Flexible(child: Text(anonymizedChatName(profile), maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
+              if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                  child: const Text('Faculty', style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w700))),
+            ]),
+          )),
       bubble,
       if (time != null) Padding(padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
           child: Text(AppFormatters.time(time), style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context)))),
@@ -377,13 +387,17 @@ class _MsgBubble extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6, right: 60),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (showAvatar) Padding(padding: const EdgeInsets.only(right: 8, bottom: 20),
-            child: CircleAvatar(radius: 14, backgroundColor: AppColors.blue.withOpacity(0.15),
+            child: GestureDetector(
+              onTap: () => showUserDetailsSheet(context, profile),
+              child: CircleAvatar(radius: 14, backgroundColor: AppColors.blue.withOpacity(0.15),
                 backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
                 child: avatarUrl == null
                     ? Text(((profile['full_name'] as String?)?.isNotEmpty == true
                             ? (profile['full_name'] as String)[0] : '?').toUpperCase(),
                         style: const TextStyle(color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.w700))
-                    : null))
+                    : null),
+              ),
+            )
         else const SizedBox(width: 36),
         Expanded(child: bubbleColumn),
       ]),

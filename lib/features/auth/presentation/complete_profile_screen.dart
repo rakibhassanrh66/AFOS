@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/data/bd_geography.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
@@ -33,6 +36,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   bool _isTeacher = false;
   bool _isStaff = false;
+  bool _isAdminTier = false;
   String? _gender;
   double _sem = 1;
   bool _loading = true, _saving = false;
@@ -45,6 +49,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   bool _loadingStaffDesignations = true;
   List<StaffDesignationOption> _staffDesignations = [];
   StaffDesignationOption? _selectedStaffDesignation;
+
+  String? _division;
+  String? _district;
+  String? _upazila;
+  String? _thana;
+
+  // Mandatory live-GPS capture -- separate from (and in addition to) the
+  // registered permanent address above. A student's registered home
+  // district might be far from where they actually are day to day; this is
+  // what makes "nearest bus stop"/"who's actually nearby" features and the
+  // SOS proximity layer work from first login, not just after the user
+  // happens to open Transport or Settings later.
+  Position? _capturedPosition;
+  bool _capturingLocation = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -64,17 +82,30 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       if (mounted) setState(() { _staffDesignations = staffDesignations; _loadingStaffDesignations = false; });
       if (uid != null) {
         final p = await SupabaseConfig.client.from('profiles')
-            .select('*, teachers(designation), staff(designation,category)').eq('id', uid).maybeSingle();
+            .select('*, teachers(designation), staff(designation,category), students(batch_label,section)').eq('id', uid).maybeSingle();
         if (p != null) {
           _nameCtrl.text = (p['full_name'] as String? ?? '') == 'New User' ? '' : (p['full_name'] as String? ?? '');
           _phoneCtrl.text = p['phone'] as String? ?? '';
-          _isTeacher = const ['teacher', 'admin', 'dept_admin', 'super_admin'].contains(p['role']);
+          _isTeacher = p['role'] == 'teacher';
           _isStaff = p['role'] == 'staff';
+          _isAdminTier = const ['admin', 'dept_admin', 'super_admin'].contains(p['role']);
           _sem = ((p['semester'] as int?) ?? 1).toDouble();
+          // profiles.batch/section are only ever populated once this exact
+          // screen (or Settings' Routine Info) has been saved at least once
+          // -- students.batch_label/section is set at signup and is the
+          // reliable source, so fall back to it rather than showing blank
+          // fields for a value that's genuinely already saved.
+          final studentRow = (p['students'] as List?)?.firstOrNull as Map<String, dynamic>?;
+          _batchCtrl.text = p['batch'] as String? ?? studentRow?['batch_label'] as String? ?? '';
+          _sectionCtrl.text = p['section'] as String? ?? studentRow?['section'] as String? ?? '';
           _avatarUrl = p['avatar_url'] as String?;
           _gender = p['gender'] as String?;
           _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? '';
           _email = p['email'] as String? ?? '';
+          _division = p['permanent_division'] as String?;
+          _district = p['permanent_district'] as String?;
+          _upazila = p['permanent_upazila'] as String?;
+          _thana = p['permanent_thana'] as String?;
           final teacherRow = (p['teachers'] as List?)?.firstOrNull as Map<String, dynamic>?;
           if (teacherRow?['designation'] != null) _designationCtrl.text = teacherRow!['designation'] as String;
           final staffRow = (p['staff'] as List?)?.firstOrNull as Map<String, dynamic>?;
@@ -93,14 +124,38 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
   }
 
+  Future<void> _confirmLocation() async {
+    setState(() => _capturingLocation = true);
+    final pos = await LocationHelper.getCurrentPosition(onError: (msg) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppColors.red));
+    });
+    if (mounted) setState(() { _capturedPosition = pos; _capturingLocation = false; });
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDept == null) return;
     if (_isStaff && _selectedStaffDesignation == null) return;
+    if (_division == null || _district == null || _upazila == null) return;
+    if (BdGeography.isDhakaMahanagar(_division, _district, _upazila) && _thana == null) return;
+    if (_capturedPosition == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Confirm your current location to continue'), backgroundColor: AppColors.red));
+      return;
+    }
     final uid = SupabaseConfig.uid;
     if (uid == null) return;
     setState(() => _saving = true);
     try {
+      await SupabaseConfig.client.from('user_locations').upsert({
+        'user_id': uid,
+        'latitude': _capturedPosition!.latitude,
+        'longitude': _capturedPosition!.longitude,
+        'accuracy_m': _capturedPosition!.accuracy,
+        'sharing_enabled': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
       await SupabaseConfig.client.from('profiles').update({
         'full_name': _nameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
@@ -109,15 +164,23 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'department_id': _selectedDept!.id,
         'semester': _sem.toInt(),
         'profile_completed': true,
+        'permanent_division': _division,
+        'permanent_district': _district,
+        'permanent_upazila': _upazila,
+        'permanent_thana': BdGeography.isDhakaMahanagar(_division, _district, _upazila) ? _thana : null,
         if (_gender != null) 'gender': _gender,
         // Also mirrored onto students.batch_label/section below — the
         // schedule screen's "only my batch+section" routine filter reads
         // profiles.batch/section specifically (it matches the routine PDF's
         // raw text), so without this a student could complete the required
         // onboarding batch/section fields and still never see their
-        // personalized class schedule.
-        if (!_isTeacher && !_isStaff) 'batch': _batchCtrl.text.trim(),
-        if (!_isTeacher && !_isStaff) 'section': _sectionCtrl.text.trim(),
+        // personalized class schedule. Guarded by isNotEmpty (matching the
+        // students-table write below) so re-visiting this screen can never
+        // blank out an already-saved value with an empty string.
+        if (!_isTeacher && !_isStaff && !_isAdminTier && _batchCtrl.text.trim().isNotEmpty)
+          'batch': _batchCtrl.text.trim(),
+        if (!_isTeacher && !_isStaff && !_isAdminTier && _sectionCtrl.text.trim().isNotEmpty)
+          'section': _sectionCtrl.text.trim(),
       }).eq('id', uid);
 
       if (_isTeacher) {
@@ -131,6 +194,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           if (_selectedStaffDesignation != null) 'designation': _selectedStaffDesignation!.title,
           if (_selectedStaffDesignation != null) 'category': _selectedStaffDesignation!.category,
         }).eq('profile_id', uid);
+      } else if (_isAdminTier) {
+        // Admin/dept_admin/super_admin accounts have no teachers/staff/
+        // students row at all (they're created via role promotion, not a
+        // dedicated signup path) and no professional-designation concept
+        // anywhere else in the app — nothing further to persist for them.
       } else {
         await SupabaseConfig.client.from('students').update({
           'department_id': _selectedDept!.id,
@@ -186,6 +254,45 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     const SizedBox(height: 16),
                     AfosTextField(hint: 'Emergency contact (name + phone)', controller: _emergencyCtrl),
                     const SizedBox(height: 16),
+                    Text('Permanent address', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                    const SizedBox(height: 4),
+                    Text('Used to alert nearby people if you ever need emergency help.',
+                        style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                    const SizedBox(height: 8),
+                    _AddressDropdown(
+                      hint: 'Division',
+                      value: _division,
+                      items: BdGeography.divisions,
+                      onChanged: (v) => setState(() { _division = v; _district = null; _upazila = null; _thana = null; }),
+                    ),
+                    const SizedBox(height: 12),
+                    _AddressDropdown(
+                      hint: 'District',
+                      value: _district,
+                      items: BdGeography.districtsOf(_division),
+                      onChanged: (v) => setState(() { _district = v; _upazila = null; _thana = null; }),
+                    ),
+                    const SizedBox(height: 12),
+                    _AddressDropdown(
+                      hint: 'Upazila',
+                      value: _upazila,
+                      items: BdGeography.upazilasOf(_division, _district),
+                      onChanged: (v) => setState(() { _upazila = v; _thana = null; }),
+                    ),
+                    // Dhaka city proper isn't subdivided into upazilas --
+                    // selecting the synthetic "Dhaka Mahanagar" entry above
+                    // reveals the real DMP thana list as a 4th level instead
+                    // of the address stopping one level short.
+                    if (BdGeography.isDhakaMahanagar(_division, _district, _upazila)) ...[
+                      const SizedBox(height: 12),
+                      _AddressDropdown(
+                        hint: 'Thana',
+                        value: _thana,
+                        items: BdGeography.dhakaThanas,
+                        onChanged: (v) => setState(() => _thana = v),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
                     Text('Gender', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                     const SizedBox(height: 8),
                     Row(children: [
@@ -229,6 +336,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                               items: _groupedStaffItems(_staffDesignations, AppColors.textSecondaryOf(context)),
                               onChanged: (v) => setState(() => _selectedStaffDesignation = v),
                             )
+                    else if (_isAdminTier)
+                      const SizedBox.shrink()
                     else ...[
                       Row(children: [
                         Expanded(child: AfosTextField(hint: 'Batch (e.g. 61)', controller: _batchCtrl,
@@ -243,6 +352,38 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           activeColor: AppColors.holoBlue, label: '${_sem.toInt()}',
                           onChanged: (v) => setState(() => _sem = v)),
                     ],
+                    const SizedBox(height: 20),
+                    Text('Current location', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                    const SizedBox(height: 4),
+                    Text('Required so nearby bus stops and emergency alerts can find you.',
+                        style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                    const SizedBox(height: 8),
+                    if (_capturedPosition != null)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(children: [
+                          Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text('Location confirmed',
+                              style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
+                          TextButton(onPressed: _capturingLocation ? null : _confirmLocation,
+                              child: const Text('Refresh')),
+                        ]),
+                      )
+                    else
+                      OutlinedButton.icon(
+                        onPressed: _capturingLocation ? null : _confirmLocation,
+                        icon: _capturingLocation
+                            ? const SizedBox(width: 16, height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.my_location_rounded),
+                        label: Text(_capturingLocation ? 'Getting location…' : 'Confirm my location'),
+                      ),
                     const SizedBox(height: 24),
                     AfosButton(label: 'Save & Continue', loading: _saving, onTap: _save),
                   ])),
@@ -272,6 +413,32 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               child: Text(o.title, overflow: TextOverflow.ellipsis))));
     }
     return items;
+  }
+}
+
+class _AddressDropdown extends StatelessWidget {
+  final String hint;
+  final String? value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+  const _AddressDropdown({required this.hint, required this.value, required this.items, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    return DropdownButtonFormField<String>(
+      value: items.contains(value) ? value : null,
+      isExpanded: true,
+      decoration: InputDecoration(hintText: hint, filled: true,
+          fillColor: AppColors.glassFill(context),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.borderOf(context)))),
+      dropdownColor: AppColors.surfaceOf(context),
+      style: TextStyle(color: textPrimary),
+      validator: (v) => v == null ? 'Select a $hint'.toLowerCase() : null,
+      items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: items.isEmpty ? null : onChanged,
+    );
   }
 }
 

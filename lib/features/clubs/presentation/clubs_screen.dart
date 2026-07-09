@@ -13,6 +13,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../../core/services/outbox_service.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'club_chat_screen.dart';
@@ -140,20 +141,16 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
 
   Future<void> _requestJoin(String clubId) async {
     try {
-      await SupabaseConfig.client.from('club_membership_requests').insert(
-          {'club_id': clubId, 'student_id': SupabaseConfig.uid});
-      final presidentId = _presidentIdFor(clubId);
-      if (presidentId != null) {
-        NotificationService.sendToUsers(
-          userIds: [presidentId],
-          title: 'New membership request',
-          message: 'A student wants to join ${_anyClubNameFor(clubId)}.',
-          category: 'club', deepLink: '/clubs',
-        );
-      }
+      final queued = await OutboxService.instance.submitOrQueue('club_join_request', {
+        'club_id': clubId,
+        'student_id': SupabaseConfig.uid,
+        'president_id': _presidentIdFor(clubId),
+        'club_name': _anyClubNameFor(clubId),
+      });
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Membership requested ✓'), backgroundColor: AppColors.green));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+          ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
+          : const SnackBar(content: Text('Membership requested ✓'), backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
@@ -465,7 +462,14 @@ class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.selected, required this.filters, required this.onSelect});
   @override
   Widget build(BuildContext context) => Container(
-    height: 48, color: AppColors.surfaceOf(context),
+    // Was a razor-thin fixed 48px: the ListView's own 8px top+bottom padding
+    // plus each chip's 6px top+bottom padding plus real (Google Fonts, not
+    // system default) line-height metrics add up to ~51px, tipping over by
+    // a few pixels depending on the exact font metrics measured at runtime
+    // -- confirmed live via integration_test (RenderFlex overflowed by 3.2
+    // pixels on the bottom). 56px gives real margin instead of a coincidental
+    // near-fit.
+    height: 56, color: AppColors.surfaceOf(context),
     child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: filters.map((f) {
           final sel = selected == f;
