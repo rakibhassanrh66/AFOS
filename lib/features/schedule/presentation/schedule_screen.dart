@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:rxdart/rxdart.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -12,6 +14,13 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/models/class_slot.dart';
 import '../data/repositories/schedule_repository.dart';
+
+/// Pairwise same-day/overlapping-time check over a slot list — used both
+/// as a confirmation before pinning a retake course and as a persistent
+/// warning chip if a later routine re-upload creates a clash with an
+/// already-pinned or regular class.
+List<ClassSlot> findConflictsWith(ClassSlot candidate, List<ClassSlot> existing) =>
+    existing.where((s) => s.id != candidate.id && s.overlaps(candidate)).toList();
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -33,6 +42,12 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   Map<String, ({String fullName, String? avatarUrl})> _teacherDirectory = const {};
   static const _days = ['Sat','Sun','Mon','Tue','Wed','Thu','Fri'];
 
+  final _searchCtrl = TextEditingController();
+  List<ClassSlot> _searchResults = [];
+  bool _searching = false;
+  bool _searchOpen = false;
+  List<ClassSlot> _allMySlots = []; // last-emitted effective set (regular + pinned), for conflict checks
+
   bool get _isFacultyRole => _user?.role == 'teacher';
   // Class schedule only ever meant anything for a student's own
   // batch+section or a teacher's own taught classes — admin/staff/
@@ -52,7 +67,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   }
 
   @override
-  void dispose() { _tab.dispose(); super.dispose(); }
+  void dispose() { _tab.dispose(); _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _loadUser() async {
     final uid = SupabaseConfig.uid;
@@ -67,7 +82,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
     setState(()=>_loading=false);
   }
 
-  Stream<List<ClassSlot>> _classesStream() {
+  Stream<List<ClassSlot>> _regularClassesStream() {
     if (_isFacultyRole && _myTeacherInitial != null && _myTeacherInitial!.isNotEmpty) {
       return _repo.watchMyClassesAsTeacher(_myTeacherInitial!, _day);
     }
@@ -75,6 +90,74 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
       return _repo.watchMyClassesAsStudent(_user!.department, _myBatch!, _mySection!, _day);
     }
     return _repo.watchSchedule(_user!.department, _user!.semester, _day);
+  }
+
+  /// The "effective" set for the selected day: regular batch/section-or-
+  /// teacher-initial classes UNION any retake courses the user has manually
+  /// pinned (see pinSlot), deduped by id and sorted by start time — this is
+  /// what conflict detection runs over and what the day's list actually shows.
+  Stream<List<ClassSlot>> _classesStream() {
+    return Rx.combineLatest2<List<ClassSlot>, List<ClassSlot>, List<ClassSlot>>(
+      _regularClassesStream(),
+      _repo.watchMyPinnedSlots(),
+      (regular, pinned) {
+        final byId = <String, ClassSlot>{};
+        for (final s in regular) { byId[s.id] = s; }
+        for (final s in pinned) { if (s.dayOfWeek == _day) byId[s.id] = s; }
+        final all = byId.values.toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+        _allMySlots = all;
+        return all;
+      },
+    );
+  }
+
+  Future<void> _searchCourses(String code) async {
+    if (_user == null) return;
+    setState(() => _searching = true);
+    try {
+      final results = await _repo.searchByCourseCode(code, department: _user!.department);
+      if (mounted) setState(() { _searchResults = results; _searching = false; });
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _pinSlot(ClassSlot slot) async {
+    final conflicts = findConflictsWith(slot, _allMySlots);
+    if (conflicts.isNotEmpty) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: AppColors.surfaceOf(dctx),
+          title: Text('Schedule conflict', style: TextStyle(color: AppColors.textPrimaryOf(dctx))),
+          content: Text(
+              'This overlaps with ${conflicts.first.subject} (${conflicts.first.startTime}–${conflicts.first.endTime}). Add anyway?',
+              style: TextStyle(color: AppColors.textSecondaryOf(dctx))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Add anyway')),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+    try {
+      await _repo.pinSlot(slot.id);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Added to your schedule ✓'), backgroundColor: AppColors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
+  Future<void> _unpinSlot(ClassSlot slot) async {
+    try {
+      await _repo.unpinSlot(slot.id);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
   }
 
   @override
@@ -94,7 +177,16 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
 
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
-      appBar: AfosAppBar(title:'Class Schedule'),
+      appBar: AfosAppBar(title:'Class Schedule', actions: [
+        IconButton(
+          icon: Icon(_searchOpen ? Icons.close_rounded : Icons.search_rounded, color: AppColors.textPrimaryOf(context)),
+          tooltip: 'Find a retake class by course code',
+          onPressed: () => setState(() {
+            _searchOpen = !_searchOpen;
+            if (!_searchOpen) { _searchResults = []; _searchCtrl.clear(); }
+          }),
+        ),
+      ]),
       body: Column(children:[
         Container(color: AppColors.surfaceOf(context), child: TabBar(
             controller: _tab, labelColor: AppColors.blue,
@@ -111,6 +203,26 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                 style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 12))),
         Expanded(child: TabBarView(controller: _tab, children: [
           Column(children:[
+            if (_searchOpen) _SearchBar(controller: _searchCtrl, onSubmit: _searchCourses),
+            if (_searchOpen)
+              Expanded(child: _searching
+                  ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+                  : _searchResults.isEmpty
+                      ? EmptyState(icon: Icons.search_off_rounded, title: 'Search a course code',
+                          subtitle: 'e.g. CSE112 — including retake sections')
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _searchResults.length,
+                          itemBuilder: (ctx, i) {
+                            final s = _searchResults[i];
+                            final pinned = _allMySlots.any((p) => p.id == s.id);
+                            return _ClassCard(slot: s, index: i, teacherDirectory: _teacherDirectory,
+                                isTeacher: _isFacultyRole, repo: _repo,
+                                isPinnable: !pinned, isPinned: pinned,
+                                conflicts: findConflictsWith(s, _allMySlots),
+                                onPin: () => _pinSlot(s), onUnpin: () => _unpinSlot(s));
+                          }))
+            else ...[
             _DaySelector(selected:_day, onTap:(i)=>setState(()=>_day=i)),
             Expanded(child: _loading
               ? const Padding(padding:EdgeInsets.all(16),child:ShimmerList())
@@ -137,9 +249,12 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                           padding:const EdgeInsets.all(16),
                           itemCount:slots.length,
                           itemBuilder:(ctx,i)=>_ClassCard(slot:slots[i],index:i,teacherDirectory:_teacherDirectory,
-                            isTeacher:_isFacultyRole, repo:_repo))),
+                            isTeacher:_isFacultyRole, repo:_repo,
+                            isPinned: slots[i].isRetake, onUnpin: slots[i].isRetake ? () => _unpinSlot(slots[i]) : null,
+                            conflicts: findConflictsWith(slots[i], slots)))),
                       ]);
                     })),
+            ],
           ]),
           _loading || _user == null
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -268,8 +383,16 @@ class _ClassCard extends StatelessWidget {
   final Map<String, ({String fullName, String? avatarUrl})> teacherDirectory;
   final bool isTeacher;
   final ScheduleRepository? repo;
+  // isPinnable/onPin: shown in search results for a not-yet-pinned retake.
+  // isPinned/onUnpin: shown for an already-pinned slot (either from a search
+  // result or in the day's own list) so it can be removed again.
+  final bool isPinnable, isPinned;
+  final VoidCallback? onPin, onUnpin;
+  final List<ClassSlot> conflicts;
   const _ClassCard({required this.slot,required this.index, this.teacherDirectory = const {},
-    this.isTeacher = false, this.repo});
+    this.isTeacher = false, this.repo,
+    this.isPinnable = false, this.isPinned = false, this.onPin, this.onUnpin,
+    this.conflicts = const []});
 
   Future<void> _messageCr(BuildContext context) async {
     if (repo == null || slot.batch == null || slot.section == null) return;
@@ -345,6 +468,14 @@ class _ClassCard extends StatelessWidget {
                 const SizedBox(width:14),
                 Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
                   Text(slot.subject,style:AppTextStyles.titleMedium.copyWith(color:textPrimary),maxLines:2),
+                  if (slot.isRetake || slot.isLab || conflicts.isNotEmpty) Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Wrap(spacing: 6, runSpacing: 4, children: [
+                      if (slot.isRetake) _Badge(label: 'RETAKE', color: AppColors.gold),
+                      if (slot.isLab) _Badge(label: slot.labSubgroup != null ? 'LAB · GROUP ${slot.labSubgroup}' : (slot.roomType ?? 'LAB'), color: AppColors.holoTeal),
+                      if (conflicts.isNotEmpty) _Badge(label: 'CONFLICTS WITH ${conflicts.first.subject.toUpperCase()}', color: AppColors.red),
+                    ]),
+                  ),
                   const SizedBox(height:6),
                   Row(children:[
                     Icon(Icons.location_on_rounded,size:13,color:textSecondary),
@@ -367,6 +498,12 @@ class _ClassCard extends StatelessWidget {
                   padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),
                   decoration:BoxDecoration(color:AppColors.holoBlue.withOpacity(0.12),borderRadius:BorderRadius.circular(6)),
                   child:Text('${slot.creditHours}cr',style:const TextStyle(color:AppColors.holoBlue,fontSize:11,fontWeight:FontWeight.w600))),
+                if (isPinnable && onPin != null)
+                  IconButton(icon: const Icon(Icons.add_circle_outline_rounded, size: 20, color: AppColors.green),
+                      tooltip: 'Add to my schedule', onPressed: onPin),
+                if (isPinned && onUnpin != null)
+                  IconButton(icon: const Icon(Icons.remove_circle_outline_rounded, size: 20, color: AppColors.red),
+                      tooltip: 'Remove from my schedule', onPressed: onUnpin),
                 if (isTeacher && slot.batch != null && slot.section != null)
                   IconButton(icon: const Icon(Icons.forum_outlined, size: 18, color: AppColors.holoTeal),
                       tooltip: 'Message Section CR', onPressed: () => _messageCr(context)),
@@ -391,4 +528,38 @@ class _ClassCard extends StatelessWidget {
     ).animate(delay:Duration(milliseconds:index*80))
         .fadeIn(curve: Curves.easeOutCubic).slideY(begin:0.05, curve: Curves.easeOutCubic);
   }
+}
+
+class _Badge extends StatelessWidget {
+  final String label; final Color color;
+  const _Badge({required this.label, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
+    child: Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
+  );
+}
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller; final ValueChanged<String> onSubmit;
+  const _SearchBar({required this.controller, required this.onSubmit});
+  @override
+  Widget build(BuildContext context) => Container(
+    color: AppColors.surfaceOf(context),
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+    child: TextField(
+      controller: controller,
+      style: TextStyle(color: AppColors.textPrimaryOf(context)),
+      textInputAction: TextInputAction.search,
+      onSubmitted: onSubmit,
+      decoration: InputDecoration(
+        hintText: 'Find a class by course code (e.g. CSE112)…',
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        filled: true, fillColor: AppColors.glassFill(context),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      ),
+    ),
+  );
 }

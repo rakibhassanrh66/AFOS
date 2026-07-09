@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +10,8 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/services/outbox_service.dart';
+import '../../../core/services/sos_location_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -18,7 +19,6 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
-import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -39,6 +39,7 @@ class _SettingsState extends State<SettingsScreen> {
 
   String _notificationSound = 'default';
   String _chatBackground = 'default';
+  bool _locationSharing = true;
 
   static const _accentSwatches = [
     Color(0xFF1E6FFF), Color(0xFF8B5CF6), Color(0xFF06B6D4), Color(0xFF22C55E),
@@ -70,6 +71,7 @@ class _SettingsState extends State<SettingsScreen> {
       if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
       if (_isStudentRole) await _loadCrStatus(uid);
       await _loadUserSettings(uid);
+      await _loadLocationSharing(uid);
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
@@ -104,6 +106,32 @@ class _SettingsState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
+  Future<void> _loadLocationSharing(String uid) async {
+    try {
+      final row = await SupabaseConfig.client.from('user_locations')
+          .select('sharing_enabled').eq('user_id', uid).maybeSingle();
+      if (mounted) setState(() => _locationSharing = row == null ? true : (row['sharing_enabled'] as bool? ?? true));
+    } catch (_) {}
+  }
+
+  Future<void> _updateLocationSharing(bool enabled) async {
+    setState(() => _locationSharing = enabled);
+    try {
+      await SupabaseConfig.client.from('user_locations').upsert({
+        'user_id': SupabaseConfig.uid, 'sharing_enabled': enabled,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      if (enabled) {
+        await SosLocationService.start();
+      } else {
+        await SosLocationService.stop();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+    }
+  }
+
   Future<void> _loadCrStatus(String uid) async {
     try {
       final student = await SupabaseConfig.client.from('students')
@@ -122,21 +150,16 @@ class _SettingsState extends State<SettingsScreen> {
     if (student == null || student['batch_label'] == null || student['section'] == null) return;
     setState(() => _crBusy = true);
     try {
-      await SupabaseConfig.client.from('cr_requests').insert({
+      final queued = await OutboxService.instance.submitOrQueue('cr_request', {
         'student_id': SupabaseConfig.uid,
         'department_id': student['department_id'],
         'batch_label': student['batch_label'],
         'section': student['section'],
       });
-      NotificationService.notifyRoles(
-        roles: const ['super_admin'],
-        title: 'New CR request',
-        message: 'A student requested to become Class Representative.',
-        category: 'general', deepLink: '/admin/users',
-      );
       await _loadCrStatus(SupabaseConfig.uid!);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('CR request submitted ✓'), backgroundColor: AppColors.green));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+          ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
+          : const SnackBar(content: Text('CR request submitted ✓'), backgroundColor: AppColors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
@@ -355,6 +378,22 @@ class _SettingsState extends State<SettingsScreen> {
 
               const SizedBox(height: 16),
 
+              // ── Campus Safety ─────────────────────────────────────────────
+              _Section(title: 'Campus Safety', children: [
+                Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Location Sharing', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                    const SizedBox(height: 4),
+                    Text('Lets nearby users and staff be alerted if you ever need emergency help. You can still send your own SOS with this off.',
+                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+                  ])),
+                  Switch(value: _locationSharing, activeColor: AppColors.blue,
+                      onChanged: _updateLocationSharing),
+                ])),
+              ]),
+
+              const SizedBox(height: 16),
+
               // ── Account ──────────────────────────────────────────────────
               _Section(title: 'Account', children: [
                 _ActionTile('Change Password', Icons.lock_outline_rounded, AppColors.blue,
@@ -525,26 +564,24 @@ class _SettingsState extends State<SettingsScreen> {
                 if (ctrl.text.trim().isEmpty) return;
                 setSheetState(() => saving = true);
                 try {
-                  String? fileUrl, fileName;
+                  // File upload only happens here (immediate path) when
+                  // already online -- if offline, the local file path is
+                  // queued instead and the actual upload happens at flush
+                  // time in outbox_handlers.dart's feedback_submit handler.
                   final file = attachment;
-                  if (file != null && file.path != null) {
-                    final uid = SupabaseConfig.uid;
-                    final path = '$uid/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-                    await SupabaseConfig.client.storage.from('feedback-attachments')
-                        .uploadBinary(path, await File(file.path!).readAsBytes());
-                    fileUrl = path; // private bucket — a signed URL is generated on demand when viewed, not stored.
-                    fileName = file.name;
-                  }
-                  await SupabaseConfig.client.from('feedback').insert({
+                  final payload = {
                     'user_id': SupabaseConfig.uid,
                     'title': titleCtrl.text.trim().isEmpty ? null : titleCtrl.text.trim(),
                     'message': ctrl.text.trim(),
-                    'file_url': fileUrl, 'file_name': fileName,
                     'app_version': AppConfig.appVersion,
-                  });
+                    if (file != null && file.path != null) 'local_file_path': file.path,
+                    if (file != null) 'file_name': file.name,
+                  };
+                  final queued = await OutboxService.instance.submitOrQueue('feedback_submit', payload);
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Thanks — sent ✓'), backgroundColor: AppColors.green));
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+                      ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
+                      : const SnackBar(content: Text('Thanks — sent ✓'), backgroundColor: AppColors.green));
                 } catch (e) {
                   if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));

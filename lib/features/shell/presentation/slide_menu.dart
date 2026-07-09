@@ -50,6 +50,7 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Assignments',    AppIcons.assignments, '/assignments',   AppColors.holoTeal),
     _MenuItem('Mentorship',     AppIcons.mentorship,  '/mentorship',    Color(0xFF60A5FA)),
     _MenuItem('Dept Chat',      AppIcons.deptChat,    '/dept-chat',     AppColors.indigo),
+    _MenuItem('Nearby SOS Alerts', Icons.sos_rounded, '/sos/nearby',    AppColors.red),
     _MenuItem('Notifications',  AppIcons.notifications, '/notifications', AppColors.red),
     _MenuItem('Settings',       AppIcons.settings,    '/settings',      AppColors.textSecondary),
   ];
@@ -66,6 +67,9 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _conferenceRoomItem =
     _MenuItem('Conference Room', AppIcons.conferenceRoom, '/conference-room', AppColors.holoTeal);
 
+  static const _roomAvailabilityItem =
+    _MenuItem('Room Availability', AppIcons.schedule, '/room-availability', AppColors.holoTeal);
+
   static const _adminItems = [
     _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue),
     _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber),
@@ -75,10 +79,17 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Manage Departments', AppIcons.hall, '/admin/departments', AppColors.holoTeal),
     _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red),
     _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange),
+    _sosAdminItem,
   ];
 
   static const _libraryAdminItem =
     _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple);
+
+  // Staff should be able to run and help too, same as any other admin-tier
+  // role -- but the staff branch below doesn't fall through to
+  // _adminItems, so this needs adding to both places explicitly.
+  static const _sosAdminItem =
+    _MenuItem('Manage SOS Alerts', Icons.sos_rounded, '/admin/sos', AppColors.red);
 
   static const _noticesItem =
     _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red);
@@ -128,10 +139,10 @@ class _SlideMenuState extends State<SlideMenu> {
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _noticesItem, _conferenceRoomItem];
+      return [..._commonItems, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem];
     }
     if (role == 'staff') {
-      return [..._commonItems, _conferenceRoomItem, _libraryAdminItem];
+      return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem];
     }
     if (role == 'exam_controller') {
       // Was previously falling through to the student branch below,
@@ -147,7 +158,14 @@ class _SlideMenuState extends State<SlideMenu> {
   Widget build(BuildContext context) {
     final surface = AppColors.surfaceOf(context);
     final border = AppColors.borderOf(context);
-    return BlocBuilder<ShellBloc,ShellState>(
+    return BlocConsumer<ShellBloc,ShellState>(
+      // The menu is a permanently-mounted, just-translated-offscreen widget
+      // (see app_shell.dart's AnimatedPositioned) rather than being rebuilt
+      // per open — without this, editing batch/section/designation via
+      // Settings or Complete Profile and returning here would keep showing
+      // whatever was fetched once at app start.
+      listenWhen: (prev, curr) => !prev.isOpen && curr.isOpen,
+      listener: (ctx, state) => _loadUser(),
       builder:(ctx,state) => Container(
         decoration: BoxDecoration(
           color: surface,

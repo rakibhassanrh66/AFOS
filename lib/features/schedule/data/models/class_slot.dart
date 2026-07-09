@@ -4,6 +4,9 @@ class ClassSlot {
   final String startTime, endTime;
   final bool isCancelled;
   final String? cancelledReason, subjectCode, batch, section, teacherInitial;
+  final String? roomType;
+  final bool isLab, isRetake;
+  final int? labSubgroup;
 
   const ClassSlot({
     required this.id, required this.subject, required this.teacherName,
@@ -11,6 +14,7 @@ class ClassSlot {
     required this.dayOfWeek, required this.creditHours, required this.semester,
     required this.startTime, required this.endTime, required this.isCancelled,
     this.cancelledReason, this.subjectCode, this.batch, this.section, this.teacherInitial,
+    this.roomType, this.isLab = false, this.isRetake = false, this.labSubgroup,
   });
 
   factory ClassSlot.fromJson(Map<String,dynamic> j) => ClassSlot(
@@ -31,5 +35,14 @@ class ClassSlot {
     batch: j['batch'] as String?,
     section: j['section'] as String?,
     teacherInitial: j['teacher_initial'] as String?,
+    roomType: j['room_type'] as String?,
+    isLab: j['is_lab'] as bool? ?? false,
+    isRetake: j['is_retake'] as bool? ?? false,
+    labSubgroup: j['lab_subgroup'] as int?,
   );
+
+  /// True if [other] overlaps this slot on the same day (used for the
+  /// retake-vs-regular-class conflict warning).
+  bool overlaps(ClassSlot other) =>
+      dayOfWeek == other.dayOfWeek && startTime.compareTo(other.endTime) < 0 && other.startTime.compareTo(endTime) < 0;
 }

@@ -31,6 +31,51 @@
 
   <title>afos_v7</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Passkeys Web SDK -- supabase_flutter transitively depends on the
+       passkeys plugin (WebAuthn support), which AFOS never actually uses.
+       Its web implementation still unconditionally registers itself during
+       Flutter's engine bootstrap (before main() runs), and without this
+       script it throws a null-check TypeError that aborts plugin
+       registration entirely -- silently preventing runApp() from ever
+       being called (permanent blank page, confirmed via a symbolicated
+       stack trace: PasskeysWeb.registerWith in web_plugin_registrant.dart). -->
+  <script src="https://github.com/corbado/flutter-passkeys/releases/download/2.4.0/bundle.js"></script>
+
+  <!-- OneSignal Web Push -- the onesignal_flutter Dart plugin has no web
+       platform implementation at all, so web push is wired directly against
+       OneSignal's own Web SDK here instead. Bridged into Dart via
+       lib/core/services/onesignal_web_bridge_web.dart, which calls the
+       three afosOneSignal* functions below through dart:js_interop. -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function (OneSignal) {
+      await OneSignal.init({ appId: "2ae8d7b3-8999-4054-b185-2256b290993c" });
+    });
+
+    // OneSignal's own SDK throws internally from login()/logout()/
+    // requestPermission() while "Web Push" isn't yet enabled in the
+    // OneSignal dashboard (confirmed live: it fails reading an internal
+    // property on its own not-yet-configured state) -- caught here so a
+    // third-party SDK's internal failure never surfaces as an uncaught
+    // exception in this app, regardless of dashboard configuration state.
+    window.afosOneSignalLogin = function (externalId) {
+      window.OneSignalDeferred.push(function (OneSignal) {
+        try { Promise.resolve(OneSignal.login(externalId)).catch(function () {}); } catch (e) {}
+      });
+    };
+    window.afosOneSignalLogout = function () {
+      window.OneSignalDeferred.push(function (OneSignal) {
+        try { Promise.resolve(OneSignal.logout()).catch(function () {}); } catch (e) {}
+      });
+    };
+    window.afosOneSignalRequestPermission = function () {
+      window.OneSignalDeferred.push(function (OneSignal) {
+        try { Promise.resolve(OneSignal.Notifications.requestPermission()).catch(function () {}); } catch (e) {}
+      });
+    };
+  </script>
 </head>
 <body>
   <!--

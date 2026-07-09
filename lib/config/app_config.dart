@@ -20,5 +20,16 @@ class AppConfig {
   // is the authoritative enforcement.
   static const List<String> emailDomainAllowlist = [
     'rakibhassan.rh68@gmail.com',
+    // Persistent QA accounts for integration_test/overflow_smoke_test.dart
+    // (see the plan file for the full rationale) — this is a client-side
+    // form-message gate only (the DB-level enforce_email_domain trigger was
+    // already dropped in 20260703030000_remove_email_domain_restriction.sql),
+    // not a real security boundary, so adding test accounts here carries no
+    // more risk than the existing super_admin entry above.
+    'qa_student@afos.test',
+    'qa_teacher@afos.test',
+    'qa_staff@afos.test',
+    'rakibhassan.rh68+qaadmin@gmail.com',
+    'rakibhassan.rh68+qasuperadmin@gmail.com',
   ];
 }

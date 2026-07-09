@@ -46,3 +46,16 @@ String friendlyError(Object err) {
   }
   return cleaned;
 }
+
+/// Distinguishes "the network dropped" from a genuine app-level error
+/// (validation, RLS, a real constraint violation) -- used by OutboxService
+/// to decide whether a failed submit should be queued for retry (connectivity)
+/// or surfaced to the user immediately (it would fail identically on retry).
+bool isConnectivityError(Object err) {
+  if (err is PostgrestException) return false;
+  if (err is AuthException) return false;
+  final msg = err.toString();
+  return msg.contains('SocketException') || msg.contains('Failed host lookup') ||
+      msg.contains('TimeoutException') || msg.contains('ClientException') ||
+      msg.contains('Connection closed') || msg.contains('Network is unreachable');
+}

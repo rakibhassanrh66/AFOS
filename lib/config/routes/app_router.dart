@@ -32,13 +32,18 @@ import '../../features/registry/presentation/manage_notices_screen.dart';
 import '../../features/registry/presentation/registry_list_screen.dart';
 import '../../features/schedule/presentation/schedule_screen.dart';
 import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
+import '../../features/schedule/presentation/room_availability_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/shell/presentation/app_shell.dart';
+import '../../features/sos/presentation/manage_sos_screen.dart';
+import '../../features/sos/presentation/nearby_sos_screen.dart';
+import '../../features/sos/presentation/sos_alert_detail_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/transport/presentation/transport_screen.dart';
 import '../../features/vr_id/presentation/vr_id_screen.dart';
 import '../../shared/animations/page_transitions.dart';
 import '../../core/auth/role_session.dart';
+import '../../core/navigation/back_press_tracker.dart';
 import '../../core/utils/last_route.dart';
 
 const _adminRoles = ['admin', 'super_admin', 'dept_admin'];
@@ -76,8 +81,10 @@ class AppRouter {
       if (loc.startsWith('/admin')) {
         final role = await RoleSession.ensureLoaded();
         // Library checkout is a real front-desk task, not admin-tier
-        // oversight — staff need it same as they need Conference Room.
-        final allowed = _adminRoles.contains(role) || (loc == '/admin/library' && role == 'staff');
+        // oversight — staff need it same as they need Conference Room and
+        // SOS oversight (staff should be able to run and help too).
+        final allowed = _adminRoles.contains(role)
+            || (role == 'staff' && (loc == '/admin/library' || loc == '/admin/sos'));
         if (!allowed) return '/home';
       }
       // User management (approve/reject signups, delete accounts entirely)
@@ -131,6 +138,7 @@ class AppRouter {
         pageBuilder: (c, s) => fadeScalePage(const PendingApprovalScreen(), s)),
       ShellRoute(
         navigatorKey: _shell,
+        observers: [BackPressTracker.instance],
         builder: (c, s, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/home',          pageBuilder: (c,s) => slideRightPage(const DashboardScreen(), s)),
@@ -150,6 +158,7 @@ class AppRouter {
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
+          GoRoute(path: '/room-availability', pageBuilder: (c,s) => slideRightPage(const RoomAvailabilityScreen(), s)),
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
           GoRoute(path: '/admin/library', pageBuilder: (c,s) => slideRightPage(const ManageLibraryScreen(), s)),
           GoRoute(path: '/admin/users',   pageBuilder: (c,s) => slideRightPage(const ManageUsersScreen(), s)),
@@ -158,6 +167,10 @@ class AppRouter {
           GoRoute(path: '/admin/conference-rooms', pageBuilder: (c,s) => slideRightPage(const ManageConferenceRoomsScreen(), s)),
           GoRoute(path: '/conference-room', pageBuilder: (c,s) => slideRightPage(const ConferenceRoomScreen(), s)),
           GoRoute(path: '/admin/dept-chat', pageBuilder: (c,s) => slideRightPage(const ManageDeptChatScreen(), s)),
+          GoRoute(path: '/admin/sos', pageBuilder: (c,s) => slideRightPage(const ManageSosScreen(), s)),
+          GoRoute(path: '/sos/nearby', pageBuilder: (c,s) => slideRightPage(const NearbySosScreen(), s)),
+          GoRoute(path: '/sos/:id', pageBuilder: (c,s) => slideRightPage(
+              SosAlertDetailScreen(alertId: s.pathParameters['id']!), s)),
           GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
           GoRoute(path: '/manage-exam-seats', pageBuilder: (c,s) => slideRightPage(const ManageExamSeatsScreen(), s)),
           // Registry Module Routes

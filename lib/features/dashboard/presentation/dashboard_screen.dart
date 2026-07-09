@@ -7,9 +7,11 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../schedule/data/models/class_slot.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -26,11 +28,17 @@ class _DashboardState extends State<DashboardScreen> {
   // Real per-user quick stats — replaces what used to be 4 hardcoded
   // strings ('Today: 4 classes', 'Route 5: On time', ...) shown to every
   // user regardless of role or actual data.
-  int? _classesToday;
   int? _booksDueSoon;
   String? _hallStatus;
   Map<String, dynamic>? _hallApp;
   bool _statsLoading = true;
+
+  // Full week of the user's own classes (student batch/section or teacher's
+  // taught slots), used to compute a live "happening now / next up" status
+  // instead of just a same-day count — re-evaluated every minute so a class
+  // ending or the next one starting updates without a manual refresh.
+  List<ClassSlot> _weekSlots = [];
+  Timer? _tickTimer;
 
   // Super_admin gets its own oversight stats instead — the tally of every
   // pending-action queue across the app (new signups, hall, clubs,
@@ -40,24 +48,41 @@ class _DashboardState extends State<DashboardScreen> {
   Map<String, int> _adminPending = {};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
-  void dispose() { _noticesSub?.cancel(); super.dispose(); }
+  void dispose() { _noticesSub?.cancel(); _tickTimer?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() { _loading = false; _statsLoading = false; }); return; }
     try {
-      final profileRaw = await SupabaseConfig.client
-          .from('profiles').select('*, students(batch_label,section)').eq('id', uid).single();
+      // Cached so a cold open while offline shows the last-known profile
+      // and notices instead of hanging on the loading shimmer forever (a
+      // live .stream() never emits at all with no connection).
+      final profileRaw = await cachedMapFetch(
+        cacheKey: 'dashboard_profile_$uid',
+        liveFetch: () => SupabaseConfig.client
+            .from('profiles').select('*, students(batch_label,section)').eq('id', uid).single(),
+      );
+      if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; }); return; }
       if (mounted) setState(() => _user = UserModel.fromJson(profileRaw));
       // A super_admin posting a notice should reach open dashboards
       // immediately, not on next manual refresh — subscribe instead of
       // fetching once.
       _noticesSub?.cancel();
-      _noticesSub = SupabaseConfig.client.from('notices').stream(primaryKey: ['id'])
-          .order('created_at', ascending: false).limit(3).listen((rows) {
+      _noticesSub = cachedListStream(
+        cacheKey: 'dashboard_notices',
+        liveStream: () => SupabaseConfig.client.from('notices').stream(primaryKey: ['id'])
+            .order('created_at', ascending: false).limit(3)
+            .map((rows) => rows.map((r) => Map<String, dynamic>.from(r)).toList()),
+      ).listen((rows) {
         if (mounted) setState(() { _notices = rows; _loading = false; });
       });
       unawaited(_loadQuickStats(profileRaw, uid));
@@ -69,7 +94,6 @@ class _DashboardState extends State<DashboardScreen> {
   Future<void> _loadQuickStats(Map<String,dynamic> p, String uid) async {
     final role = p['role'] as String? ?? 'student';
     final dept = p['department'] as String?;
-    final today = (DateTime.now().weekday + 1) % 7;
 
     if (role == 'student') {
       final students = p['students'];
@@ -82,12 +106,13 @@ class _DashboardState extends State<DashboardScreen> {
       if (dept != null && batch != null && section != null) {
         try {
           final rows = await SupabaseConfig.client.from('schedule_slots')
-              .select('day_of_week,batch,section,is_cancelled').eq('department', dept) as List;
-          final count = rows.where((s) =>
-              s['day_of_week'] == today && s['is_cancelled'] != true &&
+              .select().eq('department', dept) as List;
+          final mine = rows.where((s) =>
+              s['is_cancelled'] != true &&
               (s['batch'] as String?)?.toLowerCase() == batch.toLowerCase() &&
-              (s['section'] as String?)?.toLowerCase() == section.toLowerCase()).length;
-          if (mounted) setState(() => _classesToday = count);
+              (s['section'] as String?)?.toLowerCase() == section.toLowerCase())
+              .map((s) => ClassSlot.fromJson(s as Map<String, dynamic>)).toList();
+          if (mounted) setState(() => _weekSlots = mine);
         } catch (_) {}
       }
 
@@ -116,9 +141,10 @@ class _DashboardState extends State<DashboardScreen> {
       if (initial != null) {
         try {
           final rows = await SupabaseConfig.client.from('schedule_slots')
-              .select('day_of_week,is_cancelled').eq('teacher_initial', initial) as List;
-          final count = rows.where((s) => s['day_of_week'] == today && s['is_cancelled'] != true).length;
-          if (mounted) setState(() => _classesToday = count);
+              .select().eq('teacher_initial', initial) as List;
+          final mine = rows.where((s) => s['is_cancelled'] != true)
+              .map((s) => ClassSlot.fromJson(s as Map<String, dynamic>)).toList();
+          if (mounted) setState(() => _weekSlots = mine);
         } catch (_) {}
       }
     } else if (role == 'super_admin') {
@@ -149,9 +175,8 @@ class _DashboardState extends State<DashboardScreen> {
 
   List<String> get _quickChips {
     final chips = <String>[];
-    if (_classesToday != null) {
-      chips.add(_classesToday == 0 ? '📅 No classes today' : '📅 Today: $_classesToday ${_classesToday == 1 ? 'class' : 'classes'}');
-    }
+    // Schedule status now lives in the dedicated _ClassStatusCard below
+    // (live now/next class, not just a same-day count) instead of a chip.
     if (_hallStatus == 'approved' && _hallApp?['assigned_room'] != null) {
       chips.add('🏠 Room ${_hallApp!['assigned_room']}');
     } else if (_hallStatus != null) {
@@ -175,11 +200,47 @@ class _DashboardState extends State<DashboardScreen> {
       return (_allModules.firstWhere((m) => m.title == 'Library'),
           '$_booksDueSoon book${_booksDueSoon == 1 ? '' : 's'} due soon — renew now');
     }
-    if ((_classesToday ?? 0) > 0) {
-      return (_allModules.firstWhere((m) => m.title == 'Schedule'),
-          '$_classesToday ${_classesToday == 1 ? 'class' : 'classes'} today — view your schedule');
-    }
+    // Schedule status lives in the dedicated _ClassStatusCard instead.
     return null;
+  }
+
+  /// Computes "happening now" / "next up" from the fetched week of classes,
+  /// re-evaluated on every rebuild (driven by _tickTimer) so a class ending
+  /// or the next one starting updates live without a manual refresh.
+  _ClassStatus get _classStatus {
+    if (_weekSlots.isEmpty) return const _ClassStatus();
+    final now = DateTime.now();
+    // schedule_slots.day_of_week is Sat=0..Thu=5, Fri=6 — see schedule_screen.dart.
+    final todayIdx = (now.weekday + 1) % 7;
+    final nowMin = now.hour * 60 + now.minute;
+
+    int toMin(String hhmmss) {
+      final p = hhmmss.split(':');
+      return int.parse(p[0]) * 60 + int.parse(p[1]);
+    }
+
+    final today = _weekSlots.where((s) => s.dayOfWeek == todayIdx).toList()
+      ..sort((a, b) => toMin(a.startTime).compareTo(toMin(b.startTime)));
+
+    ClassSlot? current;
+    for (final s in today) {
+      if (nowMin >= toMin(s.startTime) && nowMin < toMin(s.endTime)) { current = s; break; }
+    }
+
+    final laterToday = today.where((s) => toMin(s.startTime) > nowMin).toList();
+    if (laterToday.isNotEmpty) {
+      return _ClassStatus(current: current, next: laterToday.first, nextDayOffset: 0);
+    }
+    // Nothing left today -- scan forward up to 6 more days for the next slot.
+    for (var offset = 1; offset <= 6; offset++) {
+      final day = (todayIdx + offset) % 7;
+      final onThatDay = _weekSlots.where((s) => s.dayOfWeek == day).toList()
+        ..sort((a, b) => toMin(a.startTime).compareTo(toMin(b.startTime)));
+      if (onThatDay.isNotEmpty) {
+        return _ClassStatus(current: current, next: onThatDay.first, nextDayOffset: offset);
+      }
+    }
+    return _ClassStatus(current: current);
   }
 
   static const _adminCategories = {
@@ -276,6 +337,10 @@ class _DashboardState extends State<DashboardScreen> {
                 ),
               ),
               if (!_loading && !_statsLoading && _search.trim().isEmpty) ...[
+                if ((_user?.role == 'student' || _user?.role == 'teacher')) ...[
+                  const SizedBox(height: 16),
+                  _ClassStatusCard(status: _classStatus),
+                ],
                 if (_user?.role == 'super_admin' && _adminFeatured != null) ...[
                   const SizedBox(height: 16),
                   _FeaturedCard(module: _adminFeatured!.$1, reason: _adminFeatured!.$2),
@@ -286,8 +351,14 @@ class _DashboardState extends State<DashboardScreen> {
               ],
               const SizedBox(height: 24),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Modules', style: AppTextStyles.headlineLarge
-                    .copyWith(color: AppColors.textPrimaryOf(context))),
+                Expanded(child: Text('Modules', style: AppTextStyles.headlineLarge
+                    .copyWith(color: AppColors.textPrimaryOf(context)),
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+                // Only appears while actively searching -- without Expanded
+                // above, this second child had nothing stopping the Row
+                // from overflowing once it actually had two competing
+                // children (e.g. with larger system font scaling), which
+                // the "Modules" text alone could never trigger by itself.
                 if (_search.trim().isNotEmpty)
                   Text('${_visibleModules.length} found',
                       style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
@@ -325,12 +396,13 @@ class _DashboardState extends State<DashboardScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Row(children: [
+                Expanded(child: Row(children: [
                   Icon(AppIcons.notices, size: 18, color: AppColors.red),
                   const SizedBox(width: 8),
-                  Text('Latest Notices', style: AppTextStyles.headlineLarge
-                      .copyWith(color: AppColors.textPrimaryOf(context))),
-                ]),
+                  Flexible(child: Text('Latest Notices', style: AppTextStyles.headlineLarge
+                      .copyWith(color: AppColors.textPrimaryOf(context)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                ])),
                 TextButton(
                   onPressed: () => context.push('/notifications'),
                   child: Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
@@ -406,6 +478,105 @@ class _FeaturedCard extends StatelessWidget {
             ])),
             const SizedBox(width: 8),
             const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+          ]),
+        ),
+      ),
+    ).animate().fadeIn(duration: const Duration(milliseconds: 400)).slideY(begin: 0.08, curve: Curves.easeOutCubic);
+  }
+}
+
+class _ClassStatus {
+  final ClassSlot? current;
+  final ClassSlot? next;
+  final int nextDayOffset; // 0 = later today, 1 = tomorrow, ... 6
+  const _ClassStatus({this.current, this.next, this.nextDayOffset = 0});
+}
+
+/// Live "what's my class situation right now" card for students/teachers —
+/// replaces the old flat same-day count with a status that auto-advances as
+/// classes start/end (driven by _DashboardState's minute tick timer) and
+/// explicitly spells out "no class today, next one's X" instead of leaving
+/// the user to guess from a bare number.
+class _ClassStatusCard extends StatelessWidget {
+  final _ClassStatus status;
+  const _ClassStatusCard({required this.status});
+
+  static const _dayNames = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+  @override
+  Widget build(BuildContext context) {
+    if (status.current == null && status.next == null) return const SizedBox.shrink();
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+
+    String fmtTime(String hhmmss) {
+      final p = hhmmss.split(':');
+      return AppFormatters.time(DateTime(2000, 1, 1, int.parse(p[0]), int.parse(p[1])));
+    }
+
+    String? nextSubtitle;
+    if (status.next != null) {
+      final n = status.next!;
+      final where = '${n.building} · ${n.roomNumber}';
+      if (status.nextDayOffset == 0) {
+        final p = n.startTime.split(':');
+        final startMin = int.parse(p[0]) * 60 + int.parse(p[1]);
+        final now = DateTime.now();
+        final inMin = startMin - (now.hour * 60 + now.minute);
+        final inText = inMin < 60 ? 'in ${inMin}m' : 'in ${(inMin / 60).floor()}h ${inMin % 60}m';
+        nextSubtitle = '$where · ${fmtTime(n.startTime)} ($inText)';
+      } else {
+        nextSubtitle = '$where · ${_dayNames[n.dayOfWeek]} at ${fmtTime(n.startTime)}';
+      }
+    }
+
+    return GestureDetector(
+      onTap: () => context.push('/schedule'),
+      child: RepaintBoundary(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: AppColors.surfaceOf(context),
+            border: Border.all(color: AppColors.borderOf(context)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (status.current != null) ...[
+              Row(children: [
+                Container(width: 8, height: 8,
+                    decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text('LIVE NOW', style: TextStyle(
+                    color: AppColors.green, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              ]),
+              const SizedBox(height: 6),
+              Text(status.current!.subject,
+                  style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text('${status.current!.building} · ${status.current!.roomNumber} · until ${fmtTime(status.current!.endTime)}',
+                  style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+              if (nextSubtitle != null) ...[
+                const SizedBox(height: 12),
+                Divider(color: AppColors.borderOf(context), height: 1),
+                const SizedBox(height: 12),
+              ],
+            ],
+            if (nextSubtitle != null) ...[
+              Text(status.current != null ? 'NEXT UP' : 'NEXT CLASS', style: TextStyle(
+                  color: AppColors.holoBlue, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              const SizedBox(height: 6),
+              Text(status.next!.subject,
+                  style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text(nextSubtitle, style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+            ] else if (status.current == null) ...[
+              Text('No class today',
+                  style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text('No more classes scheduled this week',
+                  style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+            ],
           ]),
         ),
       ),

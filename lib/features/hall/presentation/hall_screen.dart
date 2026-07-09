@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/services/connectivity_service.dart';
+import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
-import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 class HallScreen extends StatefulWidget {
@@ -359,34 +360,32 @@ class _ApplyTabState extends State<_ApplyTab> {
       // Block a second active application client-side (a DB-level partial
       // unique index enforces this as the real boundary — see migration
       // 20260706090000) so the student gets a clear message instead of a
-      // raw constraint-violation error.
-      final existing = await SupabaseConfig.client.from('hall_applications')
-          .select('id').eq('student_id', SupabaseConfig.uid as Object)
-          .neq('status', 'rejected').neq('status', 'cancelled').limit(1) as List;
-      if (existing.isNotEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('You already have an active application — check the My Application tab.'),
-              backgroundColor: AppColors.amber));
+      // raw constraint-violation error. Can't be checked while offline --
+      // skip it and enqueue directly; a genuine duplicate then surfaces as
+      // a failed outbox entry at flush time instead of being silently lost.
+      if (ConnectivityService.instance.isOnline.value) {
+        final existing = await SupabaseConfig.client.from('hall_applications')
+            .select('id').eq('student_id', SupabaseConfig.uid as Object)
+            .neq('status', 'rejected').neq('status', 'cancelled').limit(1) as List;
+        if (existing.isNotEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('You already have an active application — check the My Application tab.'),
+                backgroundColor: AppColors.amber));
+          }
+          if (mounted) setState(() => _loading = false);
+          return;
         }
-        if (mounted) setState(() => _loading = false);
-        return;
       }
-      await SupabaseConfig.client.from('hall_applications').insert({
+      final queued = await OutboxService.instance.submitOrQueue('hall_application_submit', {
         'student_id': SupabaseConfig.uid, 'preferred_hall': _hall,
-        'preference': _pref, 'reason': _reasonCtrl.text.trim(), 'status': 'pending',
+        'preference': _pref, 'reason': _reasonCtrl.text.trim(),
       });
-      // Admins previously only found out about a new application by
-      // manually checking Manage Hall — no submission ever notified them.
-      NotificationService.notifyRoles(
-        roles: const ['admin', 'staff', 'super_admin'],
-        title: 'New hall application',
-        message: 'A student applied for $_hall.',
-        category: 'hall', deepLink: '/admin/hall',
-      );
       _formKey.currentState!.reset();
       _reasonCtrl.clear();
       if (mounted) setState(() { _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null; _pref = 'Shared'; });
+      if (mounted && queued) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber));
       widget.onApplied();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -511,21 +510,16 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await SupabaseConfig.client.from('hall_complaints').insert({
+      final queued = await OutboxService.instance.submitOrQueue('hall_complaint_submit', {
         'student_id': SupabaseConfig.uid,
         'category': _category,
         'description': _descCtrl.text.trim(),
-        'status': 'open',
       });
-      NotificationService.notifyRoles(
-        roles: const ['admin', 'staff', 'super_admin'],
-        title: 'New hall complaint',
-        message: 'A student filed a $_category complaint.',
-        category: 'hall', deepLink: '/admin/hall',
-      );
       _descCtrl.clear();
       _formKey.currentState!.reset();
       if (mounted) setState(() => _category = 'Food');
+      if (mounted && queued) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber));
       await _loadMine();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(

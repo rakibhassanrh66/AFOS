@@ -182,15 +182,24 @@ serve(async (req) => {
       if (routes.length === 0) {
         return new Response(JSON.stringify({ error: "No transport routes recognized in file." }), { status: 400, headers: corsHeaders })
       }
-      // parseTransportRows attaches working fields (route_details, stops,
-      // to_dsc_times, from_dsc_times) that aren't real transport_routes
-      // columns — sending them straight through would make PostgREST reject
-      // the whole upsert with "column does not exist". Only route_number/
-      // route_name/departure_times/is_active are real columns; stops go to
+      // parseTransportRows attaches a working field (route_details) that
+      // isn't a real transport_routes column — sending it straight through
+      // would make PostgREST reject the whole upsert with "column does not
+      // exist". route_number/route_name/departure_times/to_dsc_times/
+      // from_dsc_times/is_active are all real columns though (confirmed
+      // live against the schema); to_dsc_times/from_dsc_times were
+      // previously dropped here on the wrong assumption that they weren't
+      // real columns, which silently stopped every re-upload from ever
+      // refreshing either direction's schedule — the UI's "Departure Times
+      // (To DSC)" panel was reading the now-stale/empty to_dsc_times while
+      // the real data kept landing in departure_times instead. stops go to
       // their own table below.
       const routeRows = routes.map((r) => ({
         route_number: r.route_number, route_name: r.route_name,
-        departure_times: r.departure_times, is_active: r.is_active,
+        departure_times: r.departure_times,
+        to_dsc_times: r.to_dsc_times ?? null,
+        from_dsc_times: r.from_dsc_times ?? null,
+        is_active: r.is_active,
       }))
       const inserted = await batchUpsert("transport_routes", routeRows, "route_number")
       const removed = await deleteObsolete("transport_routes", routeRows, ["route_number"], [])
@@ -229,7 +238,7 @@ serve(async (req) => {
       if (slots.length === 0) {
         return new Response(JSON.stringify({ error: "No class routine sessions recognized in file.", linesPreview: lines.slice(0, 5) }), { status: 400, headers: corsHeaders })
       }
-      const keyFields = ["subject_code", "day_of_week", "start_time", "room_number", "batch", "section", "department", "semester"]
+      const keyFields = ["subject_code", "day_of_week", "start_time", "room_number", "batch", "section", "lab_subgroup", "department", "semester"]
       const inserted = await batchUpsert("schedule_slots", slots, keyFields.join(","))
       const removed = await deleteObsolete("schedule_slots", slots, keyFields, ["department", "semester"])
       const dept = slots[0]?.department
@@ -333,6 +342,47 @@ const DAY_NAMES: Record<string, number> = {
   saturday: 0, sunday: 1, monday: 2, tuesday: 3, wednesday: 4, thursday: 5, friday: 6,
 }
 const ROOM_START = /\b(?:KT|ANX\d{0,2}|G\d+|SH|CTBA|EMBEDLAB-KT|IOT LAB-KT)-?\d+[A-Za-z()]*/
+// Building codes an occupied room token can start with, longest/most-specific
+// first so e.g. "EMBEDLAB-KT-105" resolves to building "EMBEDLAB-KT" rather
+// than a naive split("-")[0] cutting at the wrong hyphen ("EMBEDLAB").
+const BUILDING_CODES = /^(EMBEDLAB-KT|IOT LAB-KT|KT|ANX\d{0,2}|G\d+|SH|CTBA)/
+const LAB_BUILDING_CODES = ["EMBEDLAB-KT", "IOT LAB-KT"]
+
+// Splits an already-isolated room token (e.g. "KT-208", "G1-011") into a
+// clean building code + room number, instead of storing the whole token
+// (with the building prefix still attached) as room_number the way this
+// used to.
+function splitRoom(room: string): { building: string; roomNumber: string } {
+  const m = room.match(BUILDING_CODES)
+  const building = m ? m[1] : room.split("-")[0]
+  const roomNumber = room.slice(building.length).replace(/^-+/, "") || room
+  return { building, roomNumber }
+}
+
+// Interprets an already-correctly-captured raw batch/section token pair
+// (courseRegex's own capture groups, untouched) into the real signals a
+// retake or lab-subgroup class needs — a post-processing step, not a
+// regex-engine rewrite. "RE" batch + a section like "A(3C)" is a retake
+// class (section letter + credit hours); a section like "J1"/"J2" on a
+// normal batch is one half of a lab section split across two subgroups
+// (each course/batch/section caps a lab at 25 seats, half of the 50-seat
+// theory section).
+function interpretBatchSection(rawBatch: string, rawSection: string): {
+  batch: string; section: string; isRetake: boolean; labSubgroup: number | null; creditHours: number | null
+} {
+  if (/^RE$/i.test(rawBatch)) {
+    const m = rawSection.match(/^([A-Za-z0-9]+)\(([0-9.]+)C?\)$/i)
+    // schedule_slots.credit_hours is an INT column — round rather than
+    // send a fractional value that would fail the insert outright (real
+    // credit-hour values are conventionally whole numbers anyway; this is
+    // just a safety net against an unusual PDF value).
+    if (m) return { batch: rawBatch, section: m[1], isRetake: true, labSubgroup: null, creditHours: Math.round(parseFloat(m[2])) }
+    return { batch: rawBatch, section: rawSection, isRetake: true, labSubgroup: null, creditHours: null }
+  }
+  const lab = rawSection.match(/^([A-Za-z])([12])$/)
+  if (lab) return { batch: rawBatch, section: lab[1], isRetake: false, labSubgroup: parseInt(lab[2], 10), creditHours: null }
+  return { batch: rawBatch, section: rawSection, isRetake: false, labSubgroup: null, creditHours: null }
+}
 
 // Strips the stray artifacts PDF/Excel extraction tends to leave behind
 // (double spaces from column gaps, orphan punctuation, control characters)
@@ -373,38 +423,61 @@ function parseClassRoutineLines(lines: string[]): any[] {
   // have been parsed — a normal row is just a buffer of length 1.
   let bufferLines: string[] = []
   let bufferToken: string | null = null
+  // Captured from a "(COM LAB)"-style continuation line during buffering —
+  // structurally recognized before this, but never stored anywhere.
+  let bufferRoomTag: string | null = null
+  const roomTagRegex = /^\(([A-Z][A-Z /]{1,20})\)$/
 
   function processRow(line: string) {
-    const chunks = line.split(new RegExp(`(?=${ROOM_START.source})`))
-      .map((c) => c.trim()).filter(Boolean)
+    // Was previously `line.split(new RegExp('(?=' + ROOM_START.source + ')'))`
+    // — a lookahead-split finds EVERY position the pattern could match, not
+    // just non-overlapping tokens, so a compound building code like
+    // "EMBEDLAB-KT-105" got wrongly re-split a second time at its own
+    // embedded "KT-105" substring (a bare "KT-<digits>" is also a valid
+    // ROOM_START match on its own), shifting every course after it into the
+    // wrong time-slot column. matchAll's implicit non-overlapping scan
+    // (resumes after each match ends, not at the next possible start)
+    // doesn't have this problem — confirmed against both a compound-code
+    // room and a normal multi-room line in a standalone test harness.
+    const roomMatches = [...line.matchAll(new RegExp(ROOM_START.source, "g"))]
+    const chunks = roomMatches.length === 0 ? [line] : roomMatches.map((m, i) =>
+      line.slice(m.index!, i + 1 < roomMatches.length ? roomMatches[i + 1].index! : line.length).trim())
     if (chunks.length === 0) return
 
     const roomMatch = chunks[0].match(ROOM_START)
     const room = cleanName(roomMatch ? roomMatch[0] : chunks[0].split(/\s+/)[0])
+    const { building, roomNumber } = splitRoom(room)
+    const roomType = bufferRoomTag
+    const isLab = roomType !== null || LAB_BUILDING_CODES.includes(building)
 
     chunks.forEach((chunk, i) => {
       if (i >= slotTimes.length) return
       const matches = [...chunk.matchAll(courseRegex)]
       for (const m of matches) {
         const code = cleanName(m[1])
-        const batch = cleanName(m[2])
-        const section = cleanName(m[3])
+        const rawBatch = cleanName(m[2])
+        const rawSection = cleanName(m[3])
         const teacher = cleanName(m[4])
+        const { batch, section, isRetake, labSubgroup, creditHours } = interpretBatchSection(rawBatch, rawSection)
         slots.push({
           subject: code,
           subject_code: code,
           teacher_name: teacher,
           teacher_initial: teacher,
-          room_number: room,
-          building: room.split("-")[0],
+          room_number: roomNumber,
+          building,
+          room_type: roomType,
+          is_lab: isLab,
           start_time: slotTimes[i].start + ":00",
           end_time: slotTimes[i].end + ":00",
           day_of_week: currentDay,
-          credit_hours: 3,
+          credit_hours: creditHours ?? 3,
           department: "CSE",
           semester: 1,
           batch,
           section,
+          is_retake: isRetake,
+          lab_subgroup: labSubgroup,
           is_cancelled: false,
         })
       }
@@ -416,6 +489,7 @@ function parseClassRoutineLines(lines: string[]): any[] {
     processRow(bufferLines.join(" "))
     bufferLines = []
     bufferToken = null
+    bufferRoomTag = null
   }
 
   for (const rawLine of lines) {
@@ -445,9 +519,13 @@ function parseClassRoutineLines(lines: string[]): any[] {
       else if (token === bufferToken) { bufferLines.push(line) }
       else { flush(); bufferToken = token; bufferLines = [line] }
     } else if (bufferToken !== null) {
-      // Continuation text for the room currently being buffered — e.g. the
-      // "(COM LAB)" label or a bare "<Course>(<batch>_<section>) <Teacher>"
-      // line that had no room token of its own.
+      // Continuation text for the room currently being buffered — either the
+      // "(COM LAB)" lab-tag label (captured into bufferRoomTag, not pushed
+      // into the blob — it carries no course info) or a bare
+      // "<Course>(<batch>_<section>) <Teacher>" line with no room token of
+      // its own.
+      const tagMatch = line.match(roomTagRegex)
+      if (tagMatch) { bufferRoomTag = tagMatch[1]; continue }
       bufferLines.push(line)
     }
   }
