@@ -73,16 +73,46 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
     });
   }
 
+  static const _tabLabels = ['My VR-ID', 'Scan', 'Access Log'];
+  static const _tabIcons = [Icons.badge_rounded, Icons.qr_code_scanner_rounded, Icons.history_rounded];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'VR-ID'),
+      appBar: const AfosAppBar(title: 'VR-ID'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
-            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.blue,
-            tabs: const [Tab(text: 'My VR-ID'), Tab(text: 'Scan'), Tab(text: 'Access Log')])),
+        const SizedBox(height: 12),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: List.generate(_tabLabels.length, (i) {
+              final sel = _tab.index == i;
+              return Expanded(child: GestureDetector(
+                onTap: () => _tab.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                      gradient: sel ? AppColors.holoGradient : null,
+                      color: sel ? null : AppColors.glassFill(context),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                    const SizedBox(height: 5),
+                    Text(_tabLabels[i], textAlign: TextAlign.center,
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                            fontSize: 10.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+                ),
+              ));
+            })),
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _MyVrIdTab(user: _user, token: _token, countdown: _countdown, loading: _loading),
           kIsWeb ? _WebScanPlaceholder() : _ScanTab(),
@@ -310,19 +340,23 @@ class _AccessLogTabState extends State<_AccessLogTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return Padding(padding: const EdgeInsets.all(16), child: ShimmerList());
-    if (_error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
+    if (_error != null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
       const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
       const SizedBox(height: 12),
       Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondaryOf(context))),
       const SizedBox(height: 12),
       TextButton(onPressed: _load, child: const Text('Retry')),
     ])));
-    if (_logs.isEmpty) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+    }
+    if (_logs.isEmpty) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.history_rounded, color: AppColors.textMutedOf(context), size: 52),
       const SizedBox(height: 16),
       Text('No scans yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     ]));
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _logs.length,
         itemBuilder: (ctx, i) {
           final log = _logs[i];

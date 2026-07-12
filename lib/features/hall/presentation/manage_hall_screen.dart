@@ -85,8 +85,10 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
           .update({'status': 'in_progress'}).eq('id', complaint['id']);
       if (mounted) setState(() => complaint['status'] = 'in_progress');
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -134,8 +136,10 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       }
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
-                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
                           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      }
                       setSheetState(() => saving = false);
                     }
                   },
@@ -216,8 +220,10 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       }
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
-                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
                           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      }
                       setSheetState(() => saving = false);
                     }
                   },
@@ -270,8 +276,10 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       }
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
-                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
                           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      }
                       setSheetState(() => saving = false);
                     }
                   },
@@ -298,8 +306,10 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -319,8 +329,10 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -341,23 +353,77 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     try {
       await SupabaseConfig.client.from('hall_applications').delete().eq('id', app['id']);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
+
+  static const _tabLabels = ['Applications', 'Complaints'];
+  static const _tabIcons = [Icons.assignment_rounded, Icons.report_problem_rounded];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Manage Hall'),
+      appBar: const AfosAppBar(title: 'Manage Hall'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(
-            controller: _tab,
-            labelColor: AppColors.blue,
-            unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.blue,
-            tabs: const [Tab(text: 'Applications'), Tab(text: 'Complaints')])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.amber, AppColors.gold]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Manage Hall', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text('${_apps.length} applications · ${_complaints.length} complaints',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(children: List.generate(_tabLabels.length, (i) {
+            return Expanded(child: AnimatedBuilder(
+              animation: _tab,
+              builder: (ctx, _) {
+                final sel = _tab.index == i;
+                return GestureDetector(
+                  onTap: () => _tab.animateTo(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                        gradient: sel ? const LinearGradient(colors: [AppColors.amber, AppColors.gold]) : null,
+                        color: sel ? null : AppColors.glassFill(context),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                      const SizedBox(width: 6),
+                      Text(_tabLabels[i],
+                          textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                              fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                    ]),
+                  ),
+                );
+              },
+            ));
+          })),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _buildApplicationsTab(context),
           _buildComplaintsTab(context),
@@ -420,7 +486,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                             if (status == 'approved' || status == 'cancel_requested')
                               Padding(padding: const EdgeInsets.only(top: 6), child: Text(
                                   'Room ${a['assigned_room'] ?? '-'}, ${a['assigned_building'] ?? '-'} (Floor ${a['assigned_floor'] ?? '-'})',
-                                  style: TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.w600))),
+                                  style: const TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.w600))),
                             if (status == 'rejected')
                               Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reason: ${a['rejection_reason'] ?? '-'}',
                                   style: const TextStyle(color: AppColors.red, fontSize: 12))),
@@ -507,7 +573,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                           Text(c['description'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
                           if ((c['resolution'] as String?)?.isNotEmpty ?? false)
                             Padding(padding: const EdgeInsets.only(top: 6), child: Text('Response: ${c['resolution']}',
-                                style: TextStyle(color: AppColors.green, fontSize: 12))),
+                                style: const TextStyle(color: AppColors.green, fontSize: 12))),
                           if (status == 'open' || status == 'in_progress') ...[
                             const SizedBox(height: 10),
                             Row(children: [

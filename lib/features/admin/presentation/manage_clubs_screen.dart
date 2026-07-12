@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -63,11 +64,13 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             .select('*, clubs(name), profiles!member_id(full_name, university_id, avatar_url)')
             .eq('status', 'pending').order('created_at', ascending: false) as Future,
       ]);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _membershipRequests = (results[0] as List).cast();
         _postRequests = (results[1] as List).cast();
         _loading = false;
       });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -94,11 +97,15 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
         message: 'You are now a member of ${(req['clubs'] as Map?)?['name'] ?? 'the club'}.',
         category: 'club', deepLink: '/clubs',
       );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Membership approved ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Couldn\'t approve — please try again. (${friendlyError(e)})'), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _processingIds.remove(id));
   }
@@ -147,11 +154,15 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
         message: 'You are now ${role.replaceAll('_', ' ')} of ${(req['clubs'] as Map?)?['name'] ?? 'the club'}.',
         category: 'club', deepLink: '/clubs',
       );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post approved ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Couldn\'t approve — please try again. (${friendlyError(e)})'), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _processingIds.remove(id));
   }
@@ -195,7 +206,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Manage Clubs'),
+      appBar: const AfosAppBar(title: 'Manage Clubs'),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -212,18 +223,26 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             ),
           ),
         ),
-        Container(color: AppColors.surfaceOf(context), child: TabBar(
-            controller: _tab, labelColor: AppColors.holoviolet,
-            unselectedLabelColor: AppColors.textSecondaryOf(context), indicatorColor: AppColors.holoviolet,
-            tabs: [
-              Tab(text: 'Membership (${_membershipRequests.length})'),
-              Tab(text: 'Post Requests (${_postRequests.length})'),
-            ])),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              Expanded(child: AdminTabPill(label: 'Membership (${_membershipRequests.length})',
+                  icon: Icons.group_add_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
+                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
+              const SizedBox(width: 8),
+              Expanded(child: AdminTabPill(label: 'Post Requests (${_postRequests.length})',
+                  icon: Icons.post_add_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
+                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
+            ]),
+          ),
+        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : TabBarView(controller: _tab, children: [
                 _membershipRequests.isEmpty
-                    ? EmptyState(icon: Icons.group_add_outlined, title: 'No pending requests', subtitle: 'Membership requests will show up here')
+                    ? const EmptyState(icon: Icons.group_add_outlined, title: 'No pending requests', subtitle: 'Membership requests will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _membershipRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _membershipRequests[i];
@@ -239,7 +258,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
                           );
                         }),
                 _postRequests.isEmpty
-                    ? EmptyState(icon: Icons.workspace_premium_outlined, title: 'No pending post applications', subtitle: 'Officer post applications will show up here')
+                    ? const EmptyState(icon: Icons.workspace_premium_outlined, title: 'No pending post applications', subtitle: 'Officer post applications will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _postRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _postRequests[i];

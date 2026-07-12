@@ -92,27 +92,91 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
         'renewals_count': 1,
       }).eq('id', borrowId);
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Book renewed for 7 days ✓'),
               backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
+
+  static const _tabLabels = ['Borrowed', 'Search'];
+  static const _tabIcons = [Icons.menu_book_rounded, Icons.search_rounded];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
-      appBar: AfosAppBar(title: 'Library'),
+      appBar: const AfosAppBar(title: 'Library'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(
-            controller: _tab,
-            labelColor: AppColors.holoviolet,
-            unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.holoviolet,
-            tabs: const [Tab(text: 'Borrowed'), Tab(text: 'Search')])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.holoviolet, AppColors.indigo]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), shape: BoxShape.circle),
+                  child: const Icon(Icons.local_library_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Library', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_borrowed.length} book${_borrowed.length == 1 ? '' : 's'} borrowed',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.85))),
+              ])),
+              if (!_loading && _totalFine > 0) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text('৳${_totalFine.toStringAsFixed(0)}', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                      style: const TextStyle(color: Colors.white, fontSize: 18, height: 1.0, fontWeight: FontWeight.w800)),
+                  Text('fine due', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 10, height: 1.0)),
+                ]),
+              ),
+            ]),
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: List.generate(_tabLabels.length, (i) {
+              final sel = _tab.index == i;
+              return Expanded(child: GestureDetector(
+                onTap: () => _tab.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                      gradient: sel ? const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]) : null,
+                      color: sel ? null : AppColors.glassFill(context),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                    const SizedBox(width: 6),
+                    Text(_tabLabels[i],
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                            fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+                ),
+              ));
+            })),
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _BorrowedTab(borrowed: _borrowed, fine: _totalFine,
               loading: _loading, error: _error, onRenew: _renew, onRefresh: _load),
@@ -135,7 +199,8 @@ class _BorrowedTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    if (error != null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
         const SizedBox(height: 12),
         Text('Couldn\'t load: $error', textAlign: TextAlign.center,
@@ -143,6 +208,7 @@ class _BorrowedTab extends StatelessWidget {
         const SizedBox(height: 12),
         TextButton(onPressed: onRefresh, child: const Text('Retry')),
       ])));
+    }
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       color: AppColors.holoviolet,
@@ -164,7 +230,7 @@ class _BorrowedTab extends StatelessWidget {
         ),
         if (borrowed.isEmpty) ...[
           const SizedBox(height: 40),
-          EmptyState(icon: AppIcons.library,
+          const EmptyState(icon: AppIcons.library,
               title: 'No books borrowed', subtitle: 'Search the catalogue to borrow'),
         ] else
           ...borrowed.asMap().entries.map((e) => _BookCard(
@@ -204,9 +270,11 @@ class _BookCard extends StatelessWidget {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(width: 48, height: 64,
                 decoration: BoxDecoration(
-                    color: AppColors.holoviolet.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)),
+                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [AppColors.holoviolet, AppColors.indigo]),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [BoxShadow(color: AppColors.holoviolet.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                child: const Icon(Icons.book_rounded, color: Colors.white, size: 28)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(book['title'] ?? 'Unknown',
@@ -230,7 +298,7 @@ class _BookCard extends StatelessWidget {
                 onPressed: () => onRenew(borrow['id'], borrow['book_id']),
                 style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.holoBlue,
-                    side: BorderSide(color: AppColors.holoBlue),
+                    side: const BorderSide(color: AppColors.holoBlue),
                     minimumSize: const Size(0, 40)),
                 child: const Text('Renew'))),
             if (isOverdue) ...[
@@ -277,12 +345,12 @@ class _SearchTab extends StatelessWidget {
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: AppColors.glassBorder(context), width: 0.5)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.holoviolet, width: 1))),
+                borderSide: const BorderSide(color: AppColors.holoviolet, width: 1))),
       )),
       if (searching) LinearProgressIndicator(
           color: AppColors.holoviolet, backgroundColor: AppColors.borderOf(context)),
       Expanded(child: results.isEmpty && ctrl.text.isNotEmpty && !searching
-          ? EmptyState(icon: Icons.search_off_rounded, title: 'No results',
+          ? const EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -304,9 +372,12 @@ class _SearchTab extends StatelessWidget {
                         border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                     child: Row(children: [
                       Container(width: 44, height: 60,
-                          decoration: BoxDecoration(color: AppColors.holoviolet.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 24)),
+                          decoration: BoxDecoration(
+                              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                  colors: [AppColors.holoviolet, AppColors.indigo]),
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: [BoxShadow(color: AppColors.holoviolet.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
+                          child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(b['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
@@ -358,8 +429,8 @@ class _SearchTab extends StatelessWidget {
                       child: (book['cover_url'] as String?)?.isNotEmpty == true
                           ? ClipRRect(borderRadius: BorderRadius.circular(10),
                               child: Image.network(book['cover_url'] as String, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)))
-                          : Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)),
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)))
+                          : const Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(book['title'] ?? '', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),

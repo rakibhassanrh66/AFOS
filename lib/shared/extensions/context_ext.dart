@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/theme/app_colors.dart';
 
 extension ContextExt on BuildContext {
   ThemeData    get theme   => Theme.of(this);
@@ -14,7 +15,7 @@ extension ContextExt on BuildContext {
     ScaffoldMessenger.of(this).clearSnackBars();
     ScaffoldMessenger.of(this).showSnackBar(SnackBar(
       content: Text(msg, style: const TextStyle(color: Colors.white)),
-      backgroundColor: isError ? const Color(0xFFFF4D6A) : const Color(0xFF00D084),
+      backgroundColor: isError ? AppColors.red : AppColors.green,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       margin: const EdgeInsets.all(16),

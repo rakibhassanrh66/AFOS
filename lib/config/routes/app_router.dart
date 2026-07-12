@@ -34,6 +34,7 @@ import '../../features/schedule/presentation/schedule_screen.dart';
 import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
 import '../../features/schedule/presentation/room_availability_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/feedback/presentation/feedback_screen.dart';
 import '../../features/shell/presentation/app_shell.dart';
 import '../../features/sos/presentation/manage_sos_screen.dart';
 import '../../features/sos/presentation/nearby_sos_screen.dart';
@@ -157,6 +158,7 @@ class AppRouter {
           GoRoute(path: '/vr-id',         pageBuilder: (c,s) => slideRightPage(const VrIdScreen(), s)),
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
+          GoRoute(path: '/feedback',      pageBuilder: (c,s) => slideRightPage(const FeedbackScreen(), s)),
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
           GoRoute(path: '/room-availability', pageBuilder: (c,s) => slideRightPage(const RoomAvailabilityScreen(), s)),
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
@@ -180,11 +182,11 @@ class AppRouter {
       ),
     ],
     errorBuilder: (c, s) => Scaffold(
-      backgroundColor: const Color(0xFF060D1F),
+      backgroundColor: const Color(0xFF0B1220),
       body: Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
-        const Icon(Icons.error_outline, color: Color(0xFFFF4D6A), size: 48),
+        const Icon(Icons.error_outline, color: Color(0xFFD9576D), size: 48),
         const SizedBox(height:16),
-        Text('Page not found', style: const TextStyle(color:Colors.white70)),
+        const Text('Page not found', style: TextStyle(color:Colors.white70)),
         const SizedBox(height:16),
         ElevatedButton(onPressed:()=>GoRouter.of(c).go('/home'), child:const Text('Go Home')),
       ])),

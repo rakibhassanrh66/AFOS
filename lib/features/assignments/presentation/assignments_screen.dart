@@ -27,23 +27,51 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = _isTeacher ? 'Post and track assignments for your classes'
+        : _isSuperAdmin ? 'System-wide assignment activity'
+        : _isStudent ? 'Assignments from your teachers'
+        : 'Not applicable for your role';
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Assignments', actions: _isTeacher
           ? [IconButton(icon: const Icon(Icons.add_circle_outline_rounded), onPressed: () => _openCreate(context))]
           : null),
-      body: _isTeacher
-          ? _TeacherAssignmentsTab(repo: _repo)
-          : _isSuperAdmin
-              ? _ObserveTab()
-              : _isStudent
-                  ? _StudentAssignmentsTab(repo: _repo)
-                  // admin/dept_admin/staff/exam_controller previously fell
-                  // through to the student tab (always empty, confusing) —
-                  // assignments are only ever relevant to students/teachers,
-                  // matching schedule_screen.dart's not-applicable pattern.
-                  : EmptyState(icon: AppIcons.assignments, title: 'Not applicable for your role',
-                      subtitle: 'Assignments are for students and teachers only'),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.purple, AppColors.indigo]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(AppIcons.assignments, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Assignments', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Expanded(child: _isTeacher
+            ? _TeacherAssignmentsTab(repo: _repo)
+            : _isSuperAdmin
+                ? _ObserveTab()
+                : _isStudent
+                    ? _StudentAssignmentsTab(repo: _repo)
+                    // admin/dept_admin/staff/exam_controller previously fell
+                    // through to the student tab (always empty, confusing) —
+                    // assignments are only ever relevant to students/teachers,
+                    // matching schedule_screen.dart's not-applicable pattern.
+                    : const EmptyState(icon: AppIcons.assignments, title: 'Not applicable for your role',
+                        subtitle: 'Assignments are for students and teachers only')),
+      ]),
     );
   }
 
@@ -113,8 +141,10 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
       widget.onCreated();
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -173,16 +203,20 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
       await widget.repo.deleteAssignment(id);
       _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_assignments.isEmpty) return EmptyState(icon: AppIcons.assignments,
+    if (_assignments.isEmpty) {
+      return const EmptyState(icon: AppIcons.assignments,
         title: 'No assignments yet', subtitle: 'Tap + to post one to a class you teach');
+    }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
         child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _assignments.length,
             itemBuilder: (ctx, i) {
@@ -249,8 +283,10 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_assignments.isEmpty) return EmptyState(icon: AppIcons.assignments,
+    if (_assignments.isEmpty) {
+      return const EmptyState(icon: AppIcons.assignments,
         title: 'No assignments yet', subtitle: 'Assignments from your teachers will show up here');
+    }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
         child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _assignments.length,
             itemBuilder: (ctx, i) {
@@ -299,7 +335,7 @@ class _ObserveTabState extends State<_ObserveTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_all.isEmpty) return EmptyState(icon: AppIcons.assignments, title: 'No assignments yet', subtitle: 'System-wide assignments will show up here');
+    if (_all.isEmpty) return const EmptyState(icon: AppIcons.assignments, title: 'No assignments yet', subtitle: 'System-wide assignments will show up here');
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _all.length,
         itemBuilder: (ctx, i) {
           final a = _all[i];

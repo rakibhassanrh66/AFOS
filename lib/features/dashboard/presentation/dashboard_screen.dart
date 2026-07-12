@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -131,10 +132,12 @@ class _DashboardState extends State<DashboardScreen> {
         final rows = await SupabaseConfig.client.from('hall_applications')
             .select('status,assigned_room,assigned_building,assigned_floor').eq('student_id', uid)
             .order('created_at', ascending: false).limit(1) as List;
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _hallStatus = rows.isNotEmpty ? rows.first['status'] as String? : null;
           _hallApp = rows.isNotEmpty ? rows.first as Map<String, dynamic> : null;
         });
+        }
       } catch (_) {}
     } else if (role == 'teacher') {
       final initial = p['teacher_initial'] as String?;
@@ -159,7 +162,8 @@ class _DashboardState extends State<DashboardScreen> {
           SupabaseConfig.client.from('cr_requests').select('id').eq('status', 'pending') as Future,
           SupabaseConfig.client.from('feedback').select('id').eq('status', 'new') as Future,
         ]);
-        if (mounted) setState(() => _adminPending = {
+        if (mounted) {
+          setState(() => _adminPending = {
           'users': (results[0] as List).length,
           'hall': (results[1] as List).length,
           'clubs': (results[2] as List).length + (results[3] as List).length,
@@ -167,6 +171,7 @@ class _DashboardState extends State<DashboardScreen> {
           'cr': (results[5] as List).length,
           'feedback': (results[6] as List).length,
         });
+        }
       } catch (_) {}
     }
 
@@ -312,7 +317,7 @@ class _DashboardState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
-      appBar: AfosAppBar(title: 'Dashboard'),
+      appBar: const AfosAppBar(title: 'Dashboard'),
       body: RefreshIndicator(
         onRefresh: _load, color: AppColors.holoBlue,
         backgroundColor: AppColors.surfaceOf(context),
@@ -377,7 +382,7 @@ class _DashboardState extends State<DashboardScreen> {
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: _loading
-                ? SliverToBoxAdapter(child: ShimmerGrid(count: 12))
+                ? const SliverToBoxAdapter(child: ShimmerGrid(count: 12))
                 : _visibleModules.isEmpty
                     ? SliverToBoxAdapter(child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -397,7 +402,7 @@ class _DashboardState extends State<DashboardScreen> {
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Expanded(child: Row(children: [
-                  Icon(AppIcons.notices, size: 18, color: AppColors.red),
+                  const Icon(AppIcons.notices, size: 18, color: AppColors.red),
                   const SizedBox(width: 8),
                   Flexible(child: Text('Latest Notices', style: AppTextStyles.headlineLarge
                       .copyWith(color: AppColors.textPrimaryOf(context)),
@@ -405,7 +410,7 @@ class _DashboardState extends State<DashboardScreen> {
                 ])),
                 TextButton(
                   onPressed: () => context.push('/notifications'),
-                  child: Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
+                  child: const Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
               ]),
               const SizedBox(height: 12),
               if (_loading) const ShimmerList(count: 3, itemHeight: 80)
@@ -430,19 +435,43 @@ class _Greeting extends StatelessWidget {
   const _Greeting({this.user, required this.loading});
   @override
   Widget build(BuildContext context) {
-    if (loading) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ShimmerCard(width: 200, height: 28, radius: 6),
-      const SizedBox(height: 8),
-      ShimmerCard(width: 140, height: 18, radius: 4),
-    ]);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('${AppFormatters.greetingEmoji()} ${AppFormatters.greeting()},',
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-      Text(user?.firstName ?? 'Student', style: AppTextStyles.displayMedium
-          .copyWith(color: AppColors.textPrimaryOf(context))),
-      const SizedBox(height: 4),
-      Text(AppFormatters.fullDate(DateTime.now()),
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+    if (loading) {
+      return const Row(children: [
+        ShimmerCard(width: 56, height: 56, radius: 28),
+        SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ShimmerCard(width: 200, height: 28, radius: 6),
+          SizedBox(height: 8),
+          ShimmerCard(width: 140, height: 18, radius: 4),
+        ])),
+      ]);
+    }
+    return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      Container(
+        width: 56, height: 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppColors.holoGradient,
+          boxShadow: [BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 5))],
+        ),
+        padding: const EdgeInsets.all(2),
+        child: CircleAvatar(
+          backgroundColor: AppColors.surfaceOf(context),
+          backgroundImage: (user?.avatarUrl?.isNotEmpty ?? false) ? CachedNetworkImageProvider(user!.avatarUrl!) : null,
+          child: (user?.avatarUrl?.isNotEmpty ?? false) ? null : Text(user?.initials ?? '?',
+              style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w800)),
+        ),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${AppFormatters.greetingEmoji()} ${AppFormatters.greeting()},',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+        Text(user?.firstName ?? 'Student', style: AppTextStyles.displayMedium
+            .copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 4),
+        Text(AppFormatters.fullDate(DateTime.now()),
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+      ])),
     ]).animate().fadeIn(duration: const Duration(milliseconds: 500), curve: Curves.easeOutCubic);
   }
 }
@@ -547,7 +576,7 @@ class _ClassStatusCard extends StatelessWidget {
                 Container(width: 8, height: 8,
                     decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle)),
                 const SizedBox(width: 6),
-                Text('LIVE NOW', style: TextStyle(
+                const Text('LIVE NOW', style: TextStyle(
                     color: AppColors.green, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               ]),
               const SizedBox(height: 6),
@@ -563,7 +592,7 @@ class _ClassStatusCard extends StatelessWidget {
               ],
             ],
             if (nextSubtitle != null) ...[
-              Text(status.current != null ? 'NEXT UP' : 'NEXT CLASS', style: TextStyle(
+              Text(status.current != null ? 'NEXT UP' : 'NEXT CLASS', style: const TextStyle(
                   color: AppColors.holoBlue, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 6),
               Text(status.next!.subject,
@@ -595,9 +624,17 @@ class _QuickChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return SizedBox(height: 44, child: Row(children: List.generate(3, (i) =>
-          Padding(padding: const EdgeInsets.only(right: 8),
-              child: ShimmerCard(width: 120, height: 36, radius: 22)))));
+      // Was a plain Row of 3 fixed-120px cards (~384px, before padding) with
+      // no scroll and no width cap -- overflowed on any phone narrower than
+      // that, confirmed live ("RenderFlex overflowed by 25 pixels on the
+      // right"). The loaded state below already uses a horizontal ListView
+      // for the exact same reason; the shimmer placeholder just never
+      // matched it.
+      return SizedBox(height: 44, child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: List.generate(3, (i) =>
+            const Padding(padding: EdgeInsets.only(right: 8),
+                child: ShimmerCard(width: 120, height: 36, radius: 22)))));
     }
     if (chips.isEmpty) return const SizedBox.shrink();
     return SizedBox(height: 44, child: ListView(
@@ -607,6 +644,12 @@ class _QuickChips extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  // A direct child of a horizontal ListView gets stretched
+                  // to the full 44px cross-axis height by the sliver layout
+                  // (unlike Row/Column, which center by default) -- without
+                  // this, the padding only inset from the top, leaving the
+                  // text looking stuck near the top of the pill.
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                       color: AppColors.glassFill(context),
                       borderRadius: BorderRadius.circular(22),
@@ -630,7 +673,7 @@ class _AdminPendingGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) {
       return SizedBox(height: 72, child: Row(children: List.generate(4, (i) =>
-          Padding(padding: const EdgeInsets.only(right: 10), child: ShimmerCard(width: 100, height: 72, radius: 14)))));
+          const Padding(padding: EdgeInsets.only(right: 10), child: ShimmerCard(width: 100, height: 72, radius: 14)))));
     }
     return SizedBox(height: 72, child: ListView(
       scrollDirection: Axis.horizontal,
@@ -643,6 +686,11 @@ class _AdminPendingGrid extends StatelessWidget {
           child: Container(
             width: 104,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            // Direct child of a horizontal ListView -- gets stretched to the
+            // full 72px cross-axis height (unlike Row/Column, which center
+            // by default), leaving the content crammed at the top with dead
+            // space below instead of vertically centered.
+            alignment: Alignment.center,
             decoration: BoxDecoration(
                 color: active ? color.withValues(alpha: 0.14) : AppColors.glassFill(context),
                 borderRadius: BorderRadius.circular(14),
@@ -713,16 +761,19 @@ class _ModuleCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
-                width: 42, height: 42,
+                width: 44, height: 44,
                 decoration: BoxDecoration(
-                    color: m.color.withAlpha(38),
-                    borderRadius: BorderRadius.circular(12)),
-                child: Icon(m.icon, color: m.color, size: 22)),
+                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [m.color.withValues(alpha: 0.85), m.color.withValues(alpha: 0.55)]),
+                    borderRadius: BorderRadius.circular(13),
+                    boxShadow: [BoxShadow(color: m.color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))]),
+                child: Icon(m.icon, color: Colors.white, size: 22)),
               const Spacer(),
+              Icon(Icons.arrow_outward_rounded, size: 15, color: m.color.withValues(alpha: 0.5)),
             ]),
             const Spacer(),
             Text(m.title, style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textPrimaryOf(context)),
+                    .copyWith(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
             Text(m.subtitle, style: AppTextStyles.bodyMedium
@@ -746,6 +797,11 @@ class _NoticeCard extends StatelessWidget {
     'URGENT' => AppColors.gold,  _ => AppColors.green,
   };
 
+  IconData _catIcon(String? cat) => switch (cat) {
+    'EXAM'   => Icons.edit_note_rounded,     'EVENT' => Icons.celebration_rounded,
+    'URGENT' => Icons.priority_high_rounded, _ => Icons.campaign_rounded,
+  };
+
   @override
   Widget build(BuildContext context) {
     final cat = notice['category'] as String? ?? 'GENERAL';
@@ -759,20 +815,27 @@ class _NoticeCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
               border: Border(left: BorderSide(color: c, width: 3))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                  color: c.withAlpha(38), borderRadius: BorderRadius.circular(4)),
-              child: Text(cat, style: TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.w700))),
-            const SizedBox(height: 6),
-            Text(notice['title'] ?? '', style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textPrimaryOf(context)),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(notice['body'] ?? '', style: AppTextStyles.bodyMedium
-                    .copyWith(color: AppColors.textSecondaryOf(context)),
-                maxLines: 2, overflow: TextOverflow.ellipsis),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 34, height: 34,
+                decoration: BoxDecoration(color: c.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+                child: Icon(_catIcon(cat), color: c, size: 17)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                    color: c.withAlpha(38), borderRadius: BorderRadius.circular(4)),
+                child: Text(cat, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                    style: TextStyle(color: c, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
+              const SizedBox(height: 6),
+              Text(notice['title'] ?? '', style: AppTextStyles.titleMedium
+                      .copyWith(color: AppColors.textPrimaryOf(context)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(notice['body'] ?? '', style: AppTextStyles.bodyMedium
+                      .copyWith(color: AppColors.textSecondaryOf(context)),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ])),
           ]),
         ),
       ),

@@ -47,10 +47,10 @@ class _OfflineBannerState extends State<OfflineBanner> {
       AnimatedCrossFade(
         firstChild: Container(
           width: double.infinity, color: AppColors.amber, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.wifi_off, size: 16, color: Colors.white),
-            const SizedBox(width: 8),
-            const Flexible(child: Text(
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.wifi_off, size: 16, color: Colors.white),
+            SizedBox(width: 8),
+            Flexible(child: Text(
                 "No internet — showing cached data. New actions will be saved and sent when you're back online.",
                 style: TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.center)),
           ]),

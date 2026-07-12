@@ -18,6 +18,7 @@ class SlideMenu extends StatefulWidget {
 
 class _SlideMenuState extends State<SlideMenu> {
   UserModel? _user;
+  bool _isCr = false;
 
   @override
   void initState() {
@@ -30,8 +31,9 @@ class _SlideMenuState extends State<SlideMenu> {
     if(uid==null) return;
     try {
       final p = await SupabaseConfig.client.from('profiles')
-          .select('*, teachers(designation), staff(designation)').eq('id',uid).single();
-      if(mounted) setState(()=>_user=UserModel.fromJson(p));
+          .select('*, teachers(designation), staff(designation), students(is_cr)').eq('id',uid).single();
+      final isCr = (p['students'] as Map?)?['is_cr'] as bool? ?? false;
+      if(mounted) setState(() { _user=UserModel.fromJson(p); _isCr=isCr; });
     } catch(_) {}
   }
 
@@ -42,7 +44,7 @@ class _SlideMenuState extends State<SlideMenu> {
   // something to just "view".
   static const _commonItems = [
     _MenuItem('Dashboard',      AppIcons.dashboard,   '/home',          AppColors.blue),
-    _MenuItem('Class Schedule', AppIcons.schedule,    '/schedule',      Color(0xFF1E6FFF)),
+    _MenuItem('Class Schedule', AppIcons.schedule,    '/schedule',      AppColors.blue),
     _MenuItem('Transport',      AppIcons.transport,   '/transport',     AppColors.teal),
     _MenuItem('Lost & Found',   AppIcons.lostFound,   '/lost-found',    AppColors.coral),
     _MenuItem('Clubs',          AppIcons.clubs,       '/clubs',         AppColors.pink),
@@ -54,6 +56,12 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Notifications',  AppIcons.notifications, '/notifications', AppColors.red),
     _MenuItem('Settings',       AppIcons.settings,    '/settings',      AppColors.textSecondary),
   ];
+
+  // Deliberately last in every role's list, not folded into _commonItems
+  // (which every role branch below inserts more items after) -- the user
+  // asked for it at the true end of the menu, not buried in the middle.
+  static const _feedbackItem =
+    _MenuItem('Feedback & Ideas', Icons.lightbulb_outline_rounded, '/feedback', AppColors.holoviolet);
 
   // Student-only: hall allocation, payment, exam seating, and library are
   // student-personal records — a teacher/staff member has none of their own.
@@ -131,27 +139,35 @@ class _SlideMenuState extends State<SlideMenu> {
     // room, exam seat, or payment of their own to apply for, so showing
     // those would be nonsensical, not just redundant.
     if (role == 'super_admin') {
-      return [..._commonItems, ..._adminItems, ..._superAdminItems];
+      return [..._commonItems, ..._adminItems, ..._superAdminItems, _feedbackItem];
     }
     if (const ['admin', 'dept_admin'].contains(role)) {
-      return [..._commonItems, ..._adminItems];
+      return [..._commonItems, ..._adminItems, _feedbackItem];
     }
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem];
+      return [..._commonItems, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
     }
     if (role == 'staff') {
-      return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem];
+      return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem, _feedbackItem];
     }
     if (role == 'exam_controller') {
       // Was previously falling through to the student branch below,
       // showing personal-record items (Hall/Payment/Library) that make no
       // sense for this role — same class of bug as the admin-tier fix
       // above, just never caught for this specific role until now.
-      return [..._commonItems, _examSeatsItem];
+      return [..._commonItems, _examSeatsItem, _feedbackItem];
     }
-    return [..._commonItems, ..._studentOnlyItems];
+    // A CR (Class Representative) is a per-section flag on the `students`
+    // row, not a distinct `role` — so this is the one student-branch case
+    // that needs an extra check rather than a role switch. The server-side
+    // RLS policy on empty_room_requests already allows CR inserts; without
+    // this the menu item simply never existed for them to reach it.
+    if (_isCr) {
+      return [..._commonItems, ..._studentOnlyItems, _roomAvailabilityItem, _feedbackItem];
+    }
+    return [..._commonItems, ..._studentOnlyItems, _feedbackItem];
   }
 
   @override
@@ -178,8 +194,17 @@ class _SlideMenuState extends State<SlideMenu> {
           child: Column(children:[
             _buildHeader(ctx),
             Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
+              // Capped, not i*40 uncapped -- a role with a long menu (25
+              // items for super_admin) meant the last tile's fade-in didn't
+              // even START until ~960ms after the menu opened. Scrolling
+              // down before that elapsed (easy to do in under a second)
+              // caught later items still invisible/mid-fade, reading as
+              // "icons take time to load" rather than a deliberate
+              // animation. Capping keeps the same staggered-entrance feel
+              // for the first several tiles while guaranteeing the whole
+              // list finishes animating well within any real scroll.
               ...List.generate(_effectiveItems.length, (i) =>
-                _MenuTile(item:_effectiveItems[i], isActive:state.selectedIndex==i, index:i, delay:i*40)),
+                _MenuTile(item:_effectiveItems[i], isActive:state.selectedIndex==i, index:i, delay:(i*15).clamp(0,90))),
               Divider(color:border, height:24),
               _buildLogout(ctx),
             ])),
@@ -193,48 +218,56 @@ class _SlideMenuState extends State<SlideMenu> {
   Widget _buildHeader(BuildContext ctx) {
     final textPrimary = AppColors.textPrimaryOf(ctx);
     final textSecondary = AppColors.textSecondaryOf(ctx);
-    final border = AppColors.borderOf(ctx);
+    final isSuperAdmin = _user?.role == 'super_admin';
+    final ringColor = isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
       decoration: BoxDecoration(
-        border: Border(bottom:BorderSide(color:border,width:0.5))),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [ringColor.withOpacity(0.14), Colors.transparent]),
+        border: Border(bottom: BorderSide(color: AppColors.borderOf(ctx), width: 0.5)),
+      ),
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
         Row(children:[
           GestureDetector(
             onTap: () { ctx.read<ShellBloc>().add(CloseMenu()); ctx.push('/complete-profile'); },
-            child: _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?', isSuperAdmin: _user?.role == 'super_admin')),
+            child: _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?', isSuperAdmin: isSuperAdmin)),
           const Spacer(),
           IconButton(icon:Icon(AppIcons.close,color:textSecondary),
             onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
         ]),
-        const SizedBox(height:12),
+        const SizedBox(height:14),
         Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge.copyWith(color: textPrimary),
           maxLines:1, overflow:TextOverflow.ellipsis),
-        const SizedBox(height:2),
+        const SizedBox(height:3),
         Text(_user?.studentId??'', style:AppTextStyles.monoSmall.copyWith(color: textSecondary),
           maxLines:1, overflow:TextOverflow.ellipsis),
-        const SizedBox(height:8),
+        const SizedBox(height:10),
         Row(children:[
           Flexible(child: _Chip(_user?.department??'', AppColors.holoBlue)),
-          const SizedBox(width:6),
+          const SizedBox(width:8),
           _Chip(_secondaryChipLabel, AppColors.green),
         ]),
-        const SizedBox(height:12),
+        const SizedBox(height:14),
         GestureDetector(
           onTap:()=>ctx.go('/vr-id'),
           child: Container(
-            padding:const EdgeInsets.symmetric(horizontal:12,vertical:8),
+            width: double.infinity,
+            padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),
             decoration:BoxDecoration(
-              border:Border.all(color:AppColors.gold.withOpacity(0.5)),
-              borderRadius:BorderRadius.circular(8),
-              gradient: LinearGradient(colors:[
-                AppColors.gold.withOpacity(0.08), Colors.transparent,
+              border:Border.all(color:AppColors.gold.withOpacity(0.4)),
+              borderRadius:BorderRadius.circular(12),
+              gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors:[
+                AppColors.gold.withOpacity(0.12), Colors.transparent,
               ]),
             ),
-            child: Row(mainAxisSize:MainAxisSize.min, children:[
-              const Icon(AppIcons.vrId,color:AppColors.gold,size:16),
-              const SizedBox(width:8),
-              Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:AppColors.gold)),
+            child: Row(children:[
+              Container(width: 28, height: 28, alignment: Alignment.center,
+                  decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.16), shape: BoxShape.circle),
+                  child: const Icon(AppIcons.vrId,color:AppColors.gold,size:15)),
+              const SizedBox(width:10),
+              Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:AppColors.gold, fontWeight: FontWeight.w700))),
+              Icon(Icons.chevron_right_rounded, color: AppColors.gold.withOpacity(0.6), size: 18),
             ]),
           ),
         ),
@@ -335,11 +368,17 @@ class _MenuTile extends StatelessWidget {
               border:Border(left:BorderSide(color:item.color,width:3)),
             ):null,
             child: Row(children:[
-              Container(width:34,height:34,
-                decoration:BoxDecoration(
-                  color:item.color.withOpacity(0.15),
-                  borderRadius:BorderRadius.circular(9)),
-                child:Icon(item.icon,color:item.color,size:18)),
+              Container(width:34,height:34, alignment: Alignment.center,
+                decoration: isActive
+                    ? BoxDecoration(
+                        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                            colors: [item.color, item.color.withOpacity(0.7)]),
+                        borderRadius:BorderRadius.circular(10),
+                        boxShadow: [BoxShadow(color: item.color.withOpacity(0.35), blurRadius: 8, offset: const Offset(0, 3))])
+                    : BoxDecoration(
+                        color:item.color.withOpacity(0.15),
+                        borderRadius:BorderRadius.circular(10)),
+                child:Icon(item.icon,color: isActive ? Colors.white : item.color,size:18)),
               const SizedBox(width:12),
               Text(item.label, style:TextStyle(
                 color:isActive?item.color:textPrimary,
@@ -348,7 +387,9 @@ class _MenuTile extends StatelessWidget {
           ),
         ),
       ),
-    ).animate(delay:Duration(milliseconds:delay)).fadeIn(duration:280.ms,curve:Curves.easeOutCubic).slideX(begin:-0.05,curve:Curves.easeOutCubic);
+    ).animate(delay:Duration(milliseconds:delay))
+      .fadeIn(duration:140.ms,curve:Curves.easeOutCubic)
+      .slideX(begin:-0.05,duration:140.ms,curve:Curves.easeOutCubic);
   }
 }
 
@@ -377,11 +418,22 @@ class _Chip extends StatelessWidget {
   final String label; final Color color;
   const _Chip(this.label,this.color);
   @override
+  // Container's own `alignment` was tried here first -- it fixed the text's
+  // vertical centering, but this chip is used both bare in a Row AND wrapped
+  // in Flexible (the department chip); a Container with alignment but no
+  // explicit size EXPANDS to fill all available space once its parent's
+  // constraints are bounded (which Flexible imposes), so the Flexible-wrapped
+  // department chip ballooned to fill most of the row's width. Centering the
+  // text's own line box instead (height:1.0 + textHeightBehavior) fixes the
+  // same vertical-centering issue without touching how the Container sizes
+  // itself, so both the bare and Flexible-wrapped usages stay tightly
+  // wrapped around their text.
   Widget build(BuildContext context) => Container(
     padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
     decoration:BoxDecoration(color:color.withOpacity(0.15),borderRadius:BorderRadius.circular(20),
       border:Border.all(color:color.withOpacity(0.3))),
-    child:Text(label,style:TextStyle(color:color,fontSize:11,fontWeight:FontWeight.w600),
+    child:Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+      style:TextStyle(color:color,fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
       maxLines:1,overflow:TextOverflow.ellipsis),
   );
 }

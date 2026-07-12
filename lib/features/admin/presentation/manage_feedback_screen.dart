@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -53,8 +54,10 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
       }).eq('id', item['id']);
       _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -66,8 +69,10 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
           .from('feedback-attachments').createSignedUrl(path, 300);
       await launchUrl(Uri.parse(signedUrl), mode: LaunchMode.externalApplication);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -93,8 +98,10 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
       await SupabaseConfig.client.from('feedback').delete().eq('id', item['id']);
       _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -104,8 +111,31 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Feedback & Contributions'),
+      appBar: const AfosAppBar(title: 'Feedback & Contributions'),
       body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.holoviolet, AppColors.indigo]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.feedback_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Feedback & Contributions', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_items.length} submissions total',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
         SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             children: _filters.map((f) {
@@ -128,12 +158,14 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                     TextButton(onPressed: _load, child: const Text('Retry')),
                   ])))
                 : _visible.isEmpty
-                    ? EmptyState(icon: Icons.feedback_outlined, title: 'Nothing here', subtitle: 'Nothing in "$_filter" right now')
-                    : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
+                    ? ListView(children: [EmptyState(icon: Icons.feedback_outlined, title: 'Nothing here', subtitle: 'Nothing in "$_filter" right now')])
+                    : RefreshIndicator(onRefresh: _load, color: AppColors.holoviolet,
+                        child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final item = _visible[i];
                           final profile = item['profiles'] as Map<String, dynamic>? ?? {};
                           final status = item['status'] as String? ?? 'new';
+                          final createdAt = item['created_at'] != null ? DateTime.tryParse(item['created_at']) : null;
                           return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
@@ -143,11 +175,17 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                                       style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(color: AppColors.holoviolet.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                                      child: Text(status.toUpperCase(), style: const TextStyle(color: AppColors.holoviolet, fontSize: 10, fontWeight: FontWeight.w700))),
+                                      child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                                          style: const TextStyle(color: AppColors.holoviolet, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                                   IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red), onPressed: () => _delete(item)),
                                 ]),
-                                Text('${profile['full_name'] ?? 'Unknown'} · ${profile['email'] ?? ''}',
-                                    style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                                Row(children: [
+                                  Expanded(child: Text('${profile['full_name'] ?? 'Unknown'} · ${profile['email'] ?? ''}',
+                                      style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+                                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                  if (createdAt != null) Text(AppFormatters.relativeTime(createdAt),
+                                      style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedOf(context), fontSize: 10)),
+                                ]),
                                 const SizedBox(height: 6),
                                 Text(item['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
                                 if (item['file_url'] != null) Padding(padding: const EdgeInsets.only(top: 8),
@@ -168,6 +206,7 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                                     ])),
                               ]));
                         }),
+                      ),
         ),
       ]),
     );

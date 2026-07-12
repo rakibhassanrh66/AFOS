@@ -1,7 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -50,6 +50,7 @@ dependencies:
   flutter_background_service: ^5.1.0
   record: ^6.2.1
   audioplayers: ^6.7.1
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

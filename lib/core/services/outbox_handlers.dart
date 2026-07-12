@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 import '../../config/supabase_config.dart';
 import '../../features/notifications/data/repositories/notification_service.dart';
 import 'outbox_service.dart';
@@ -43,17 +43,22 @@ void registerOutboxHandlers() {
 
   OutboxService.instance.registerHandler('feedback_submit', (p) async {
     var payload = Map<String, dynamic>.from(p);
-    final localPath = payload.remove('local_file_path') as String?;
-    if (localPath != null) {
+    // Carries the attachment as base64 bytes captured at pick-time, not a
+    // dart:io disk path -- a local path is meaningless on web (no
+    // filesystem, and file_picker's PlatformFile.path throws just by being
+    // read there) and was already fragile on native too (the picked file
+    // could be gone from disk by the time connectivity returns and this
+    // queued action actually flushes).
+    final b64 = payload.remove('file_bytes_base64') as String?;
+    if (b64 != null) {
       try {
         final path = '${payload['user_id']}/${DateTime.now().millisecondsSinceEpoch}_${payload['file_name']}';
         await SupabaseConfig.client.storage.from('feedback-attachments')
-            .uploadBinary(path, await File(localPath).readAsBytes());
+            .uploadBinary(path, base64Decode(b64));
         payload['file_url'] = path;
       } catch (_) {
-        // The picked file may no longer be on disk by the time connectivity
-        // returns (e.g. OS cache reclaim) -- still send the text feedback
-        // rather than losing the whole submission over a missing attachment.
+        // Still send the text feedback rather than losing the whole
+        // submission over a failed attachment upload.
         payload['file_url'] = null;
         payload['file_name'] = null;
       }

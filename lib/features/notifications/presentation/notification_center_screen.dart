@@ -18,6 +18,7 @@ class NotificationCenterScreen extends StatefulWidget {
 class _NotifState extends State<NotificationCenterScreen> {
   List<Map<String, dynamic>> _notifs = [];
   bool _loading = true;
+  int _loadGen = 0;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -25,15 +26,19 @@ class _NotifState extends State<NotificationCenterScreen> {
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    // Guard against out-of-order responses: a pull-to-refresh racing with
+    // _markRead/_markAllRead (or two quick refreshes) could otherwise let
+    // an older, slower response overwrite a fresher one with stale data.
+    final gen = ++_loadGen;
     try {
       final res = await SupabaseConfig.client
           .from('user_notifications')
           .select()
           .eq('user_id', uid)
           .order('received_at', ascending: false) as List;
-      if (mounted) setState(() => _notifs = res.cast());
+      if (mounted && gen == _loadGen) setState(() => _notifs = res.cast());
     } catch (_) {}
-    if (mounted) setState(() => _loading = false);
+    if (mounted && gen == _loadGen) setState(() => _loading = false);
   }
 
   Future<void> _markAllRead() async {
@@ -50,10 +55,12 @@ class _NotifState extends State<NotificationCenterScreen> {
     try {
       await SupabaseConfig.client.from('user_notifications')
           .update({'is_read': true}).eq('id', id);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         final idx = _notifs.indexWhere((n) => n['id'] == id);
         if (idx >= 0) _notifs[idx] = {..._notifs[idx], 'is_read': true};
       });
+      }
     } catch (_) {}
   }
 
@@ -103,10 +110,34 @@ class _NotifState extends State<NotificationCenterScreen> {
             ),
         ],
       ),
-      body: _loading
+      body: Column(children: [
+        if (!_loading && _notifs.isNotEmpty) Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.indigo, AppColors.blue]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Notifications', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text('$unread unread of ${_notifs.length}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
           : _notifs.isEmpty
-              ? EmptyState(
+              ? const EmptyState(
                   icon: Icons.notifications_none_rounded,
                   title: 'No notifications',
                   subtitle: 'You\'re all caught up!')
@@ -145,10 +176,16 @@ class _NotifState extends State<NotificationCenterScreen> {
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(color: AppColors.borderOf(context), width: 0.5),
                             ),
-                            child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                              Container(width: 3, color: isRead ? Colors.transparent : color),
-                              Expanded(child: Padding(
-                                padding: const EdgeInsets.all(14),
+                            // Was IntrinsicHeight + CrossAxisAlignment.stretch just to
+                            // make the unread-color stripe span the row's full height --
+                            // that forces a two-pass layout that occasionally
+                            // overflowed by a rounding pixel ("RenderFlex overflowed by
+                            // 1.00 pixels"). A Positioned stripe in a Stack spans the
+                            // same full height without the extra layout pass or the
+                            // overflow risk.
+                            child: Stack(children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(17, 14, 14, 14),
                                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Container(
                                 width: 40, height: 40,
@@ -178,15 +215,18 @@ class _NotifState extends State<NotificationCenterScreen> {
                                       style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context))),
                                 ],
                               ])),
+                                ]),
+                              ),
+                              if (!isRead) Positioned(left: 0, top: 0, bottom: 0,
+                                  child: Container(width: 3, color: color)),
                             ]),
-                          )),
-                            ])),
                           ),
                         ).animate(delay: Duration(milliseconds: i * 40)).fadeIn().slideX(begin: 0.03),
                       );
                     },
                   ),
-                ),
+                )),
+      ]),
     );
   }
 }

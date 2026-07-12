@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
+import '../../auth/data/repositories/academic_repository.dart';
 
 const _modes = ['class_routine', 'exam_routine', 'transport', 'schedule'];
 String _modeLabel(String m) => switch (m) {
@@ -46,15 +48,70 @@ class AdminUploadRoutineScreen extends StatefulWidget {
 class _AdminUploadState extends State<AdminUploadRoutineScreen> {
   final List<_PendingUpload> _pending = [];
   bool _uploadingAll = false;
+  final _academicRepo = AcademicRepository();
+  List<DepartmentOption> _departments = [];
+  DepartmentOption? _selectedDept;
+  bool _loadingDepts = true;
+  String? _myRole;
+  String? _myDeptName;
+
+  bool get _isSuperAdmin => _myRole == 'super_admin';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDepartments();
+  }
+
+  // Every upload used to be silently tagged "CSE" regardless of who
+  // uploaded it or what the file actually contained. Only super_admin can
+  // freely choose which department an upload is tagged as (the free-choice
+  // picker below is super_admin-only, matching the server-side role check
+  // in parse-routine) — every other authorized uploader (admin/dept_admin/
+  // teacher) is locked to their own profile's department, shown read-only,
+  // so one department's staff can never mislabel another's routine even by
+  // accident.
+  Future<void> _loadDepartments() async {
+    try {
+      final uid = SupabaseConfig.uid;
+      if (uid == null) { if (mounted) setState(() => _loadingDepts = false); return; }
+      final p = await SupabaseConfig.client.from('profiles').select('role, department').eq('id', uid).maybeSingle();
+      final role = p?['role'] as String?;
+      final code = p?['department'] as String?;
+
+      if (role == 'super_admin') {
+        final depts = await _academicRepo.fetchDepartments();
+        final own = code != null ? depts.where((d) => d.code == code).firstOrNull : null;
+        if (mounted) setState(() { _myRole = role; _departments = depts; _selectedDept = own; _loadingDepts = false; });
+      } else {
+        if (mounted) setState(() { _myRole = role; _myDeptName = code; _loadingDepts = false; });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingDepts = false);
+    }
+  }
 
   Future<void> _pickFiles() async {
+    // withData: true -- on web, PlatformFile.path is always unavailable
+    // (merely accessing the getter throws); .bytes is the only cross-platform
+    // way to read what was picked, and it's only populated if requested here.
     final res = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: ['pdf', 'xlsx', 'xls'], allowMultiple: true);
+        type: FileType.custom, allowedExtensions: ['pdf', 'xlsx', 'xls'], allowMultiple: true, withData: true);
     if (res == null) return;
     setState(() => _pending.addAll(res.files.map((f) => _PendingUpload(f))));
   }
 
   void _removeFile(_PendingUpload p) => setState(() => _pending.remove(p));
+
+  /// Resolves a picked file's bytes cross-platform: prefers the in-memory
+  /// .bytes (always what's available on web, and present on every platform
+  /// now that _pickFiles asks for it), falling back to reading .path only
+  /// for the rare case bytes weren't populated on a native platform.
+  Future<Uint8List> _fileBytes(PlatformFile file) async {
+    if (file.bytes != null) return file.bytes!;
+    if (file.path != null) return File(file.path!).readAsBytes();
+    throw 'Could not read "${file.name}" — no file data available.';
+  }
 
   /// PDFs are parsed to text lines right here on-device (Syncfusion's PDF
   /// text extractor), not on the server — a multi-page routine PDF has
@@ -62,8 +119,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
   /// function's CPU/time budget and crashed it (HTTP 546). The phone has
   /// no such limit, so only the already-extracted, tiny text payload goes
   /// to the server for the lightweight regex parsing.
-  List<String> _extractPdfLines(String path) {
-    final bytes = File(path).readAsBytesSync();
+  List<String> _extractPdfLines(Uint8List bytes) {
     final doc = PdfDocument(inputBytes: bytes);
     try {
       final textLines = PdfTextExtractor(doc).extractTextLines();
@@ -74,26 +130,36 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
   }
 
   Future<void> _uploadOne(_PendingUpload p) async {
+    // Transport is university-wide (no department column involved at all).
+    // Only super_admin picks explicitly here — every other role has no
+    // dropdown to fill in at all (locked server-side to their own profile
+    // department instead), so this requirement only applies to super_admin.
+    if (_isSuperAdmin && p.mode != 'transport' && _selectedDept == null) {
+      setState(() => p.error = 'Select a department above before uploading this file.');
+      return;
+    }
     setState(() { p.uploading = true; p.result = null; p.error = null; });
     try {
       final jwt = SupabaseConfig.jwt;
-      final url = '${SupabaseConfig.url}/functions/v1/parse-routine';
+      const url = '${SupabaseConfig.url}/functions/v1/parse-routine';
       final isPdf = p.file.extension?.toLowerCase() == 'pdf';
       final headers = {'Authorization': 'Bearer $jwt', 'apikey': SupabaseConfig.publishableKey};
 
+      final bytes = await _fileBytes(p.file);
       final Response res;
       if (isPdf) {
-        final lines = _extractPdfLines(p.file.path!);
+        final lines = _extractPdfLines(bytes);
         if (lines.isEmpty) {
           throw 'Could not read any text from this PDF — it may be a scanned image rather than a text PDF.';
         }
         res = await Dio().post(url,
-            data: {'type': p.mode, 'lines': lines},
+            data: {'type': p.mode, 'lines': lines, if (_selectedDept != null) 'department': _selectedDept!.code},
             options: Options(headers: {...headers, 'Content-Type': 'application/json'}));
       } else {
         final formData = FormData.fromMap({
           'type': p.mode,
-          'file': await MultipartFile.fromFile(p.file.path!, filename: p.file.name),
+          if (_selectedDept != null) 'department': _selectedDept!.code,
+          'file': MultipartFile.fromBytes(bytes, filename: p.file.name),
         });
         res = await Dio().post(url, data: formData, options: Options(headers: headers));
       }
@@ -145,7 +211,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(Icons.upload_file_rounded, color: AppColors.holoBlue, size: 48)
+                  const Icon(Icons.upload_file_rounded, color: AppColors.holoBlue, size: 48)
                       .animate().scale(curve: Curves.easeOutCubic),
                   const SizedBox(height: 16),
                   Text('Upload Routines & Transport', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
@@ -158,6 +224,47 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          if (_loadingDepts)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
+          else if (_isSuperAdmin) ...[
+            Text('Department', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+            const SizedBox(height: 4),
+            Text('Applies to class/exam routine and legacy schedule uploads — transport is university-wide. '
+                'As super admin you can upload on behalf of any department.',
+                style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<DepartmentOption>(
+              initialValue: _selectedDept,
+              isExpanded: true,
+              decoration: InputDecoration(
+                  hintText: 'Select department', filled: true, fillColor: AppColors.glassFill(context),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppColors.borderOf(context)))),
+              dropdownColor: AppColors.surfaceOf(context),
+              style: TextStyle(color: textPrimary),
+              items: _departments.map((d) => DropdownMenuItem(value: d,
+                  child: Text(d.name, overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) => setState(() => _selectedDept = v),
+            ),
+          ] else
+            // Not super_admin — no picker at all, just a transparent readout
+            // of where this upload is actually going (server-side locked to
+            // this account's own profile department regardless of anything
+            // the client could send).
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderOf(context))),
+              child: Row(children: [
+                Icon(Icons.lock_outline_rounded, size: 16, color: textSecondary),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                    'Uploading for your department: ${_myDeptName ?? "not set — update your profile first"}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
+              ]),
+            ),
           const SizedBox(height: 20),
           GestureDetector(
             onTap: _pickFiles,

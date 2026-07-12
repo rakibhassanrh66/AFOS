@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,9 +42,13 @@ class _SettingsState extends State<SettingsScreen> {
   String _chatBackground = 'default';
   bool _locationSharing = true;
 
+  // Was its own independent, fully-saturated set (not even the same hex
+  // values as AppColors' now-recalibrated palette) -- referencing the
+  // actual muted constants keeps the accent picker's own swatches from
+  // being the one place in Settings still offering "funky" neon options.
   static const _accentSwatches = [
-    Color(0xFF1E6FFF), Color(0xFF8B5CF6), Color(0xFF06B6D4), Color(0xFF22C55E),
-    Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFFEC4899),
+    AppColors.blue, AppColors.purple, AppColors.teal, AppColors.green,
+    AppColors.amber, AppColors.red, AppColors.pink,
   ];
 
   static const _chatBackgrounds = {
@@ -79,10 +84,12 @@ class _SettingsState extends State<SettingsScreen> {
     try {
       final row = await SupabaseConfig.client.from('user_settings')
           .select('notification_sound, chat_background').eq('profile_id', uid).maybeSingle();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _notificationSound = row?['notification_sound'] as String? ?? 'default';
         _chatBackground = row?['chat_background'] as String? ?? 'default';
       });
+      }
     } catch (_) {}
   }
 
@@ -127,8 +134,10 @@ class _SettingsState extends State<SettingsScreen> {
         await SosLocationService.stop();
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -138,10 +147,12 @@ class _SettingsState extends State<SettingsScreen> {
           .select('department_id, batch_label, section, is_cr').eq('profile_id', uid).maybeSingle();
       final requests = await SupabaseConfig.client.from('cr_requests')
           .select().eq('student_id', uid).order('created_at', ascending: false).limit(1) as List;
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _studentRow = student;
         _latestCrRequest = requests.isNotEmpty ? requests.first as Map<String, dynamic> : null;
       });
+      }
     } catch (_) {}
   }
 
@@ -157,12 +168,16 @@ class _SettingsState extends State<SettingsScreen> {
         'section': student['section'],
       });
       await _loadCrStatus(SupabaseConfig.uid!);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(queued
           ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
           : const SnackBar(content: Text('CR request submitted ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _crBusy = false);
   }
@@ -198,14 +213,18 @@ class _SettingsState extends State<SettingsScreen> {
         }).eq('profile_id', SupabaseConfig.uid!);
         await _loadCrStatus(SupabaseConfig.uid!);
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Routine info saved ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
       final msg = e.toString().contains('profiles_teacher_initial_unique')
           ? 'That initial is already taken by another teacher — try a longer one (e.g. "MR" → "MAR").'
           : friendlyError(e);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -235,7 +254,7 @@ class _SettingsState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Settings'),
+      appBar: const AfosAppBar(title: 'Settings'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
           : ListView(padding: const EdgeInsets.all(16), children: [
@@ -305,7 +324,7 @@ class _SettingsState extends State<SettingsScreen> {
               // ── Appearance ──────────────────────────────────────────────
               _Section(title: 'Appearance', children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Theme', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                     const SizedBox(height: 12),
@@ -334,7 +353,13 @@ class _SettingsState extends State<SettingsScreen> {
                           onTap: () => ctx.read<ThemeBloc>().add(SetAccentColor(c)),
                           child: Container(width: 36, height: 36,
                               decoration: BoxDecoration(color: c, shape: BoxShape.circle,
-                                  border: Border.all(color: selected ? Colors.white : Colors.transparent, width: 2),
+                                  // A fixed white ring disappeared against the
+                                  // light theme's white settings card --
+                                  // theme-aware primary text color instead,
+                                  // which is dark-on-light and light-on-dark,
+                                  // so the selected swatch stays visible in
+                                  // both modes.
+                                  border: Border.all(color: selected ? AppColors.textPrimaryOf(context) : Colors.transparent, width: 2),
                                   boxShadow: selected ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null)),
                         );
                       }).toList()),
@@ -387,7 +412,7 @@ class _SettingsState extends State<SettingsScreen> {
                     Text('Lets nearby users and staff be alerted if you ever need emergency help. You can still send your own SOS with this off.',
                         style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                   ])),
-                  Switch(value: _locationSharing, activeColor: AppColors.blue,
+                  Switch(value: _locationSharing, activeThumbColor: AppColors.blue,
                       onChanged: _updateLocationSharing),
                 ])),
               ]),
@@ -407,7 +432,7 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 16),
 
               // ── App Info ─────────────────────────────────────────────────
-              _Section(title: 'App Info', children: [
+              const _Section(title: 'App Info', children: [
                 _InfoTile('Version', 'AFOS v${AppConfig.appVersion}', Icons.info_outline_rounded),
                 _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
               ]),
@@ -501,11 +526,15 @@ class _SettingsState extends State<SettingsScreen> {
                 Navigator.pop(context);
                 try {
                   await Supabase.instance.client.auth.updateUser(UserAttributes(password: newCtrl.text));
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Password updated ✓'), backgroundColor: AppColors.green));
+                  }
                 } catch (e) {
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                 }
               }),
             ])));
@@ -521,11 +550,15 @@ class _SettingsState extends State<SettingsScreen> {
           body: {'resetIdentity': true});
       await OneSignal.logout();
       await OneSignal.login(uid);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Done — try sending yourself a test notice.'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -551,8 +584,12 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () async {
+                  // withData: true -- on web, PlatformFile.path is always
+                  // unavailable (merely accessing it throws); .bytes is the
+                  // only cross-platform way to read what was picked.
                   final res = await FilePicker.platform.pickFiles(
-                      type: FileType.custom, allowedExtensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'zip', 'txt']);
+                      type: FileType.custom, allowedExtensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'zip', 'txt'],
+                      withData: true);
                   if (res != null) setSheetState(() => attachment = res.files.first);
                 },
                 icon: const Icon(Icons.attach_file_rounded, size: 16),
@@ -565,7 +602,7 @@ class _SettingsState extends State<SettingsScreen> {
                 setSheetState(() => saving = true);
                 try {
                   // File upload only happens here (immediate path) when
-                  // already online -- if offline, the local file path is
+                  // already online -- if offline, the attachment bytes are
                   // queued instead and the actual upload happens at flush
                   // time in outbox_handlers.dart's feedback_submit handler.
                   final file = attachment;
@@ -574,17 +611,21 @@ class _SettingsState extends State<SettingsScreen> {
                     'title': titleCtrl.text.trim().isEmpty ? null : titleCtrl.text.trim(),
                     'message': ctrl.text.trim(),
                     'app_version': AppConfig.appVersion,
-                    if (file != null && file.path != null) 'local_file_path': file.path,
+                    if (file != null && file.bytes != null) 'file_bytes_base64': base64Encode(file.bytes!),
                     if (file != null) 'file_name': file.name,
                   };
                   final queued = await OutboxService.instance.submitOrQueue('feedback_submit', payload);
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(queued
                       ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
                       : const SnackBar(content: Text('Thanks — sent ✓'), backgroundColor: AppColors.green));
+                  }
                 } catch (e) {
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                  if (sheetCtx.mounted) {
+                    ScaffoldMessenger.of(sheetCtx).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                   setSheetState(() => saving = false);
                 }
               }),
@@ -611,13 +652,13 @@ class _InfoTile extends StatelessWidget {
   const _InfoTile(this.label, this.value, this.icon);
   @override
   Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     leading: Icon(icon, color: AppColors.textSecondaryOf(context), size: 20),
     title: Text(label, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     trailing: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 160),
         child: Text(value, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
             maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end)),
-    dense: true,
   );
 }
 
@@ -625,13 +666,20 @@ class _ActionTile extends StatelessWidget {
   final String label; final IconData icon; final Color color; final VoidCallback onTap;
   const _ActionTile(this.label, this.icon, this.color, this.onTap);
   @override
+  // Was `dense: true` with a 36px leading icon and no contentPadding override
+  // -- dense mode shrinks ListTile's already-modest default vertical padding
+  // right when the enclosing _Section box has zero padding of its own to
+  // compensate, so the icon and label sat almost flush against the section
+  // box's top/bottom edges. Explicit contentPadding gives real breathing
+  // room regardless of density.
   Widget build(BuildContext context) => ListTile(
-    leading: Container(width: 36, height: 36,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    leading: Container(width: 36, height: 36, alignment: Alignment.center,
         decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(9)),
         child: Icon(icon, color: color, size: 18)),
     title: Text(label, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context), size: 18),
-    onTap: onTap, dense: true,
+    onTap: onTap,
   );
 }
 
@@ -640,12 +688,12 @@ class _ThemeChip extends StatelessWidget {
   const _ThemeChip({required this.label, required this.selected, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(onTap: onTap,
-      child: Container(padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Container(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
           decoration: BoxDecoration(
               color: selected ? AppColors.blue.withOpacity(0.12) : AppColors.surfaceOf(context),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: selected ? AppColors.blue : AppColors.borderOf(context))),
-          child: Center(child: Text(label,
+          child: Center(child: Text(label, textAlign: TextAlign.center,
               style: TextStyle(color: selected ? AppColors.blue : AppColors.textSecondaryOf(context),
-                  fontSize: 12, fontWeight: selected ? FontWeight.w700 : FontWeight.normal)))));
+                  fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.normal)))));
 }

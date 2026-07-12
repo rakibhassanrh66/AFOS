@@ -38,10 +38,12 @@ class _DeptChatState extends State<DeptChatScreen> {
       final channels = await SupabaseConfig.client.from('dept_channels')
           .select().eq('department', user.department)
           .order('channel_name') as List;
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _user = user;
         _channels = channels.cast();
       });
+      }
     } catch (e) {
       // Previously swallowed silently — a real load failure rendered
       // identically to "no channels for your department", same class of
@@ -56,24 +58,49 @@ class _DeptChatState extends State<DeptChatScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: _user != null ? '${_user!.department} Channels' : 'Dept Chat'),
-      body: _loading
-          ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-          : _error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                  const SizedBox(height: 12),
-                  Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                  const SizedBox(height: 12),
-                  TextButton(onPressed: _load, child: const Text('Retry')),
-                ])))
-              : _channels.isEmpty
-              ? _EmptyChannels(dept: _user?.department ?? '')
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _channels.length,
-                  itemBuilder: (ctx, i) => _ChannelTile(
-                      channel: _channels[i], user: _user!, index: i)),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: AppColors.holoGradient,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.forum_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_user != null ? '${_user!.department} Channels' : 'Department Chat',
+                    style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_channels.length} channel${_channels.length == 1 ? '' : 's'} available',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        Expanded(child: _loading
+            ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+            : _error != null
+                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                    const SizedBox(height: 12),
+                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondaryOf(context))),
+                    const SizedBox(height: 12),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ])))
+                : _channels.isEmpty
+                ? _EmptyChannels(dept: _user?.department ?? '')
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    itemCount: _channels.length,
+                    itemBuilder: (ctx, i) => _ChannelTile(
+                        channel: _channels[i], user: _user!, index: i))),
+      ]),
     );
   }
 }
@@ -121,8 +148,12 @@ class _ChannelTile extends StatelessWidget {
             border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
         child: Row(children: [
           Container(width: 44, height: 44,
-              decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-              child: Center(child: Text('#', style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w800)))),
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [color, color.withValues(alpha: 0.7)]),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+              child: const Center(child: Text('#', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)))),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('#$name', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -246,10 +277,12 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         'channel_id': widget.channel['id'], 'sender_id': SupabaseConfig.uid,
         'content': text, 'message_type': 'text',
       }).select('*, profiles(full_name,avatar_url,role,university_id,department,students(batch_label,section))').single();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         final idx = _messages.indexWhere((m) => m['id'] == tempId);
         if (idx != -1) _messages[idx] = row;
       });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _messages.removeWhere((m) => m['id'] == tempId));
@@ -276,9 +309,11 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) _scrollCtrl.animateTo(
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
     });
   }
 
@@ -433,7 +468,7 @@ class _InputBar extends StatelessWidget {
         GestureDetector(
           onTap: onSend,
           child: Container(width: 44, height: 44,
-              decoration: BoxDecoration(gradient: AppColors.blueGradient, shape: BoxShape.circle),
+              decoration: const BoxDecoration(gradient: AppColors.blueGradient, shape: BoxShape.circle),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 20)),
         ),
       ]),

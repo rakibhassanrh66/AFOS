@@ -63,6 +63,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   // happens to open Transport or Settings later.
   Position? _capturedPosition;
   bool _capturingLocation = false;
+  // True when this account already has a saved user_locations row from a
+  // previous visit — the screen used to have no idea this had already
+  // happened (only _capturedPosition, an in-memory Position object that's
+  // never reconstructed from the database) so returning here after any
+  // navigation away — even having successfully confirmed location moments
+  // earlier — silently failed the mandatory-location gate in _save() again,
+  // with no way to tell why "Save & Continue" appeared to do nothing.
+  bool _hasExistingLocation = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -76,46 +84,127 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
+    // The department list is a hard requirement -- _save() can never
+    // succeed without it, and the dropdown itself silently refuses to even
+    // open when its `items` is empty (no error, no visible sign why). It
+    // used to be fetched deep inside one big try/catch alongside several
+    // other, genuinely optional reads (profile row, location check) — ANY
+    // of those throwing (a network hiccup, anything) aborted the whole
+    // function before `_departments` was ever assigned, permanently
+    // bricking the dropdown with zero feedback. Fetched and committed to
+    // state on its own, first, so nothing downstream can take it out.
+    List<DepartmentOption> depts = [];
     try {
-      final depts = await _academicRepo.fetchDepartments();
-      final staffDesignations = await _academicRepo.fetchStaffDesignations();
+      depts = await _academicRepo.fetchDepartments();
+    } catch (_) { /* best-effort; _save() re-validates via the dropdown's own validator */ }
+    if (mounted) setState(() => _departments = depts);
+
+    List<StaffDesignationOption> staffDesignations = [];
+    try {
+      staffDesignations = await _academicRepo.fetchStaffDesignations();
       if (mounted) setState(() { _staffDesignations = staffDesignations; _loadingStaffDesignations = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingStaffDesignations = false);
+    }
+
+    try {
       if (uid != null) {
+        // No embeds -- three simultaneous relationship joins
+        // (teachers/staff/students) on one query previously fed the
+        // batch/section fallback below, and despite matching the same
+        // FK shape Settings' own (working) Routine Info query uses,
+        // students.batch_label/section kept coming back empty here for at
+        // least one real account, blocking save with fields that looked
+        // blank even though the data was genuinely saved. Splitting the
+        // students lookup into its own plain query removes whatever about
+        // the combined embed was failing, and matches Settings' proven
+        // pattern of reading columns directly.
         final p = await SupabaseConfig.client.from('profiles')
-            .select('*, teachers(designation), staff(designation,category), students(batch_label,section)').eq('id', uid).maybeSingle();
+            .select().eq('id', uid).maybeSingle();
         if (p != null) {
-          _nameCtrl.text = (p['full_name'] as String? ?? '') == 'New User' ? '' : (p['full_name'] as String? ?? '');
-          _phoneCtrl.text = p['phone'] as String? ?? '';
-          _isTeacher = p['role'] == 'teacher';
-          _isStaff = p['role'] == 'staff';
-          _isAdminTier = const ['admin', 'dept_admin', 'super_admin'].contains(p['role']);
-          _sem = ((p['semester'] as int?) ?? 1).toDouble();
-          // profiles.batch/section are only ever populated once this exact
-          // screen (or Settings' Routine Info) has been saved at least once
-          // -- students.batch_label/section is set at signup and is the
-          // reliable source, so fall back to it rather than showing blank
-          // fields for a value that's genuinely already saved.
-          final studentRow = (p['students'] as List?)?.firstOrNull as Map<String, dynamic>?;
-          _batchCtrl.text = p['batch'] as String? ?? studentRow?['batch_label'] as String? ?? '';
-          _sectionCtrl.text = p['section'] as String? ?? studentRow?['section'] as String? ?? '';
-          _avatarUrl = p['avatar_url'] as String?;
-          _gender = p['gender'] as String?;
-          _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? '';
-          _email = p['email'] as String? ?? '';
-          _division = p['permanent_division'] as String?;
-          _district = p['permanent_district'] as String?;
-          _upazila = p['permanent_upazila'] as String?;
-          _thana = p['permanent_thana'] as String?;
-          final teacherRow = (p['teachers'] as List?)?.firstOrNull as Map<String, dynamic>?;
-          if (teacherRow?['designation'] != null) _designationCtrl.text = teacherRow!['designation'] as String;
-          final staffRow = (p['staff'] as List?)?.firstOrNull as Map<String, dynamic>?;
-          if (staffRow?['designation'] != null) {
-            _selectedStaffDesignation = staffDesignations.where((d) => d.title == staffRow!['designation']).firstOrNull;
-          }
-          final deptCode = p['department'] as String?;
-          if (deptCode != null) {
-            _selectedDept = depts.where((d) => d.code == deptCode).firstOrNull;
-          }
+          // Every field below is independently guarded -- this used to be
+          // one unbroken run of assignments, so a single bad/unexpected
+          // value (a null cast, a missing embed row) threw partway through
+          // and silently left every field AFTER it at its blank default,
+          // even though the fields before it (name/phone) had already been
+          // set correctly. Confirmed live on a real completed account:
+          // name+phone showed up, but emergency contact/gender/permanent
+          // address/department all rendered blank despite every one of
+          // those columns having real saved values in the database.
+          try { _nameCtrl.text = (p['full_name'] as String? ?? '') == 'New User' ? '' : (p['full_name'] as String? ?? ''); } catch (_) {}
+          try { _phoneCtrl.text = p['phone'] as String? ?? ''; } catch (_) {}
+          try { _emergencyCtrl.text = p['emergency_contact'] as String? ?? ''; } catch (_) {}
+          try {
+            _isTeacher = p['role'] == 'teacher';
+            _isStaff = p['role'] == 'staff';
+            _isAdminTier = const ['admin', 'dept_admin', 'super_admin'].contains(p['role']);
+          } catch (_) {}
+          try { _sem = ((p['semester'] as int?) ?? 1).toDouble(); } catch (_) {}
+          try {
+            // profiles.batch/section are only ever populated once this exact
+            // screen (or Settings' Routine Info) has been saved at least once
+            // -- students.batch_label/section is set at signup and is the
+            // reliable source, so fall back to it rather than showing blank
+            // fields for a value that's genuinely already saved. A plain,
+            // explicit query rather than an embed on the combined select --
+            // see the comment above the profiles query itself.
+            var batch = p['batch'] as String?;
+            var section = p['section'] as String?;
+            if ((batch == null || section == null) && !_isTeacher && !_isStaff && !_isAdminTier) {
+              final studentRow = await SupabaseConfig.client.from('students')
+                  .select('batch_label,section').eq('profile_id', uid).maybeSingle();
+              batch ??= studentRow?['batch_label'] as String?;
+              section ??= studentRow?['section'] as String?;
+            }
+            _batchCtrl.text = batch ?? '';
+            _sectionCtrl.text = section ?? '';
+          } catch (_) {}
+          try { _avatarUrl = p['avatar_url'] as String?; } catch (_) {}
+          try { _gender = p['gender'] as String?; } catch (_) {}
+          try { _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? ''; } catch (_) {}
+          try { _email = p['email'] as String? ?? ''; } catch (_) {}
+          try {
+            _division = p['permanent_division'] as String?;
+            _district = p['permanent_district'] as String?;
+            _upazila = p['permanent_upazila'] as String?;
+            _thana = p['permanent_thana'] as String?;
+          } catch (_) {}
+          try {
+            if (_isTeacher) {
+              final teacherRow = await SupabaseConfig.client.from('teachers')
+                  .select('designation').eq('profile_id', uid).maybeSingle();
+              if (teacherRow?['designation'] != null) _designationCtrl.text = teacherRow!['designation'] as String;
+            }
+          } catch (_) {}
+          try {
+            if (_isStaff) {
+              final staffRow = await SupabaseConfig.client.from('staff')
+                  .select('designation,category').eq('profile_id', uid).maybeSingle();
+              if (staffRow?['designation'] != null) {
+                _selectedStaffDesignation = staffDesignations.where((d) => d.title == staffRow!['designation']).firstOrNull;
+              }
+            }
+          } catch (_) {}
+          try {
+            final deptCode = p['department'] as String?;
+            if (deptCode != null) {
+              _selectedDept = depts.where((d) => d.code == deptCode).firstOrNull;
+            }
+          } catch (_) {}
+        }
+        // Isolated in its own try/catch, deliberately -- this is a nice-to-
+        // have (skip re-confirming a location we already have), not a
+        // required field. Sharing the outer try meant ANY failure here
+        // (network hiccup, anything) silently aborted the whole _load()
+        // before `_departments` was ever assigned, leaving the required
+        // department dropdown permanently empty with zero error shown —
+        // exactly the "department can't be selected" symptom this caused.
+        try {
+          final loc = await SupabaseConfig.client.from('user_locations')
+              .select('user_id').eq('user_id', uid).maybeSingle();
+          _hasExistingLocation = loc != null;
+        } catch (_) {
+          _hasExistingLocation = false;
         }
       }
       if (mounted) setState(() { _departments = depts; _loading = false; });
@@ -127,8 +216,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   Future<void> _confirmLocation() async {
     setState(() => _capturingLocation = true);
     final pos = await LocationHelper.getCurrentPosition(onError: (msg) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg), backgroundColor: AppColors.red));
+      }
     });
     if (mounted) setState(() { _capturedPosition = pos; _capturingLocation = false; });
   }
@@ -139,7 +230,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (_isStaff && _selectedStaffDesignation == null) return;
     if (_division == null || _district == null || _upazila == null) return;
     if (BdGeography.isDhakaMahanagar(_division, _district, _upazila) && _thana == null) return;
-    if (_capturedPosition == null) {
+    if (_capturedPosition == null && !_hasExistingLocation) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Confirm your current location to continue'), backgroundColor: AppColors.red));
       return;
@@ -148,14 +239,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (uid == null) return;
     setState(() => _saving = true);
     try {
-      await SupabaseConfig.client.from('user_locations').upsert({
-        'user_id': uid,
-        'latitude': _capturedPosition!.latitude,
-        'longitude': _capturedPosition!.longitude,
-        'accuracy_m': _capturedPosition!.accuracy,
-        'sharing_enabled': true,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+      // Only re-upsert if the user actually captured a fresh position this
+      // visit — an already-confirmed location from a previous visit
+      // (_hasExistingLocation) is left untouched rather than needing to be
+      // re-captured just to satisfy this gate again.
+      if (_capturedPosition != null) {
+        await SupabaseConfig.client.from('user_locations').upsert({
+          'user_id': uid,
+          'latitude': _capturedPosition!.latitude,
+          'longitude': _capturedPosition!.longitude,
+          'accuracy_m': _capturedPosition!.accuracy,
+          'sharing_enabled': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
       await SupabaseConfig.client.from('profiles').update({
         'full_name': _nameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
@@ -211,8 +308,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       RoleSession.markProfileCompleted();
       if (mounted) context.go('/home');
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -304,7 +403,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     ]),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<DepartmentOption>(
-                      value: _selectedDept,
+                      initialValue: _selectedDept,
                       isExpanded: true,
                       decoration: InputDecoration(hintText: 'Department', filled: true,
                           fillColor: AppColors.glassFill(context),
@@ -315,6 +414,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       items: _departments.map((d) => DropdownMenuItem(value: d,
                           child: Text(d.name, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (v) => setState(() => _selectedDept = v),
+                      // Was the one required field on this whole screen with
+                      // no validator at all -- _save()'s own "if (_selectedDept
+                      // == null) return" guard then blocked the save with
+                      // zero feedback, indistinguishable from the button
+                      // simply not working.
+                      validator: (v) => v == null ? 'Select a department' : null,
                     ),
                     const SizedBox(height: 16),
                     if (_isTeacher)
@@ -324,7 +429,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       _loadingStaffDesignations
                           ? const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
                           : DropdownButtonFormField<StaffDesignationOption>(
-                              value: _selectedStaffDesignation,
+                              initialValue: _selectedStaffDesignation,
                               isExpanded: true,
                               decoration: InputDecoration(hintText: 'Designation / Job Title', filled: true,
                                   fillColor: AppColors.glassFill(context),
@@ -358,7 +463,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     Text('Required so nearby bus stops and emergency alerts can find you.',
                         style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
                     const SizedBox(height: 8),
-                    if (_capturedPosition != null)
+                    if (_capturedPosition != null || _hasExistingLocation)
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -367,7 +472,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
                         ),
                         child: Row(children: [
-                          Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18),
+                          const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18),
                           const SizedBox(width: 8),
                           Expanded(child: Text('Location confirmed',
                               style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
@@ -427,7 +532,7 @@ class _AddressDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
     return DropdownButtonFormField<String>(
-      value: items.contains(value) ? value : null,
+      initialValue: items.contains(value) ? value : null,
       isExpanded: true,
       decoration: InputDecoration(hintText: hint, filled: true,
           fillColor: AppColors.glassFill(context),

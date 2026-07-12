@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -92,7 +91,15 @@ class _ShellBody extends StatelessWidget {
           // already passed, since AppShell itself is only ever built for
           // routes inside the gated ShellRoute.
           const SosFloatingButton(),
-          // Dim + blur overlay behind the slide menu
+          // Dim overlay behind the slide menu. Used to also run a
+          // BackdropFilter blur here -- BackdropFilter is one of the most
+          // expensive operations in Flutter's rendering pipeline (a full
+          // framebuffer readback + Gaussian blur + recomposite), and this
+          // one covered the ENTIRE screen for the whole time the menu
+          // stayed open, not just a single frame -- a real, continuous
+          // rendering cost live in both debug and release builds, reported
+          // as the whole app "feeling heavy" specifically while the menu
+          // was open and being scrolled. A plain dim has no such cost.
           if(state.isOpen)
             GestureDetector(
               onTap:()=>ctx.read<ShellBloc>().add(CloseMenu()),
@@ -100,12 +107,7 @@ class _ShellBody extends StatelessWidget {
                 duration: const Duration(milliseconds:250),
                 curve: Curves.easeOutCubic,
                 opacity: state.isOpen ? 1 : 0,
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                  child: Container(
-                    color: Colors.black.withOpacity(0.45),
-                  ),
-                ),
+                child: Container(color: Colors.black.withOpacity(0.45)),
               ),
             ),
           // Slide menu

@@ -30,8 +30,12 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
   String? _error;
 
   Future<void> _pickFiles() async {
+    // withData: true -- on web, PlatformFile.path is always unavailable
+    // (accessing the getter itself throws); .bytes is the only cross-platform
+    // way to read the picked file's content, and it's only populated if
+    // requested up front here.
     final res = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: ['pdf'], allowMultiple: true);
+        type: FileType.custom, allowedExtensions: ['pdf'], allowMultiple: true, withData: true);
     if (res != null) setState(() { _files = res.files; _parsedRows = []; _error = null; });
   }
 
@@ -40,8 +44,8 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
     try {
       final allRows = <ExamRoomAllocationRow>[];
       for (final f in _files) {
-        if (f.path == null) continue;
-        final bytes = File(f.path!).readAsBytesSync();
+        final bytes = f.bytes ?? (f.path != null ? File(f.path!).readAsBytesSync() : null);
+        if (bytes == null) continue;
         allRows.addAll(ExamRoomPdfParser.parse(bytes));
       }
       if (allRows.isEmpty) {
@@ -109,8 +113,29 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
     final distinctSections = _parsedRows.map((r) => '${r.batch}_${r.section}').toSet().length;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Exam Seat Plan Upload'),
+      appBar: const AfosAppBar(title: 'Exam Seat Plan Upload'),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [AppColors.orange, AppColors.amber]),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(children: [
+            Container(padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                child: const Icon(AppIcons.examSeat, color: Colors.white, size: 24)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Exam Seat Plan Upload', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text('Publish room allocations from the official PDF',
+                  style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+            ])),
+          ]),
+        ),
         Text('Upload the official exam seat-plan PDF(s) — you can select several at once '
                 '(e.g. one per exam date). Each is parsed for room/seat allocations per batch+section.',
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
@@ -127,7 +152,7 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
         if (_parsedRows.isNotEmpty) ...[
           const SizedBox(height: 16),
           SurfaceCard(child: Row(children: [
-            Icon(AppIcons.examSeat, color: AppColors.gold, size: 18),
+            const Icon(AppIcons.examSeat, color: AppColors.gold, size: 18),
             const SizedBox(width: 8),
             Expanded(child: Text(
                 '${_parsedRows.length} room allocations · $distinctSections sections · $distinctDates exam date(s)',

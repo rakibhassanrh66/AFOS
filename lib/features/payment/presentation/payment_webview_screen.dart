@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
@@ -10,21 +12,50 @@ class PaymentWebViewScreen extends StatefulWidget {
   @override State<PaymentWebViewScreen> createState() => _PayWebViewState();
 }
 
+// webview_flutter only ships Android/iOS platform implementations here (no
+// webview_flutter_web dependency) — embedding WebViewWidget on web throws
+// "WebViewPlatform.instance null" immediately. Banking/payment gateways also
+// commonly set X-Frame-Options to block iframe embedding regardless, so on
+// web this opens the payment portal in a real browser tab instead of trying
+// to embed it, matching the kIsWeb fallback pattern used in vr_id_screen.dart.
+class _WebPaymentFallback extends StatelessWidget {
+  final String category;
+  const _WebPaymentFallback({required this.category});
+  @override
+  Widget build(BuildContext context) => Center(child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.open_in_new_rounded, color: AppColors.textSecondaryOf(context), size: 40),
+        const SizedBox(height: 16),
+        Text('Pay $category outside the app', textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600, fontSize: 16)),
+        const SizedBox(height: 8),
+        Text('The payment portal opens in a new browser tab on web.', textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 20),
+        FilledButton.icon(
+            onPressed: () => launchUrl(Uri.parse(AppConfig.diuPaymentUrl), mode: LaunchMode.externalApplication),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: const Text('Open payment portal')),
+      ])));
+}
+
 class _PayWebViewState extends State<PaymentWebViewScreen> {
-  late final WebViewController _ctrl;
+  WebViewController? _ctrl;
   int _progress = 0;
   bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = WebViewController()
+    if (kIsWeb) return;
+    final ctrl = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
         onProgress: (p) { if (!_disposed && mounted) setState(() => _progress = p); },
         onPageFinished: (_) {
           if (_disposed) return;
-          _ctrl.runJavaScript(
+          _ctrl?.runJavaScript(
               "window.afosStudentId='${SupabaseConfig.uid ?? ''}'; "
               "window.afosToken='${SupabaseConfig.jwt ?? ''}';");
         },
@@ -42,6 +73,7 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
             }
           })
       ..loadRequest(Uri.parse(AppConfig.diuPaymentUrl));
+    _ctrl = ctrl;
   }
 
   // Stopping in-flight navigation/JS before the platform view is torn down
@@ -50,7 +82,7 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
   @override
   void dispose() {
     _disposed = true;
-    _ctrl.loadRequest(Uri.parse('about:blank'));
+    _ctrl?.loadRequest(Uri.parse('about:blank'));
     super.dispose();
   }
 
@@ -101,7 +133,7 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
                 : const SizedBox.shrink(),
           ),
         ),
-        body: WebViewWidget(controller: _ctrl),
+        body: kIsWeb ? _WebPaymentFallback(category: widget.category) : WebViewWidget(controller: _ctrl!),
       )),
     );
   }

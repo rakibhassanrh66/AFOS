@@ -31,11 +31,15 @@ class _AvatarPickerState extends State<AvatarPicker> {
       await SupabaseConfig.client.from('profiles')
           .update({'avatar_url': url}).eq('id', SupabaseConfig.uid!);
       widget.onChanged(url);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo updated ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -46,11 +50,15 @@ class _AvatarPickerState extends State<AvatarPicker> {
       await SupabaseConfig.client.from('profiles')
           .update({'avatar_url': null}).eq('id', SupabaseConfig.uid!);
       widget.onChanged(null);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo removed'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -93,8 +101,8 @@ class _AvatarPickerState extends State<AvatarPicker> {
                 decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
                 child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15))),
       ]),
-      if (_saving) Padding(padding: const EdgeInsets.only(top: 8),
-          child: const SupernovaLoader(size: 28, color: AppColors.blue)),
+      if (_saving) const Padding(padding: EdgeInsets.only(top: 8),
+          child: SupernovaLoader(size: 28, color: AppColors.blue)),
     ]);
   }
 

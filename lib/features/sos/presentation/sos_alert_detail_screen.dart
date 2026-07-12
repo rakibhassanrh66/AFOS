@@ -34,7 +34,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
 
   StreamSubscription? _responsesSub;
   List<Map<String, dynamic>> _responses = [];
-  Map<String, Map<String, dynamic>> _responderProfiles = {};
+  final Map<String, Map<String, dynamic>> _responderProfiles = {};
   bool _responding = false;
 
   @override
@@ -112,8 +112,10 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         ));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _responding = false);
   }
@@ -148,8 +150,10 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
       await SosRepository.resolve(widget.alertId, status: status);
       await _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _resolving = false);
   }
@@ -179,7 +183,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'SOS Alert'),
+      appBar: const AfosAppBar(title: 'SOS Alert'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
           : _error != null || _alert == null

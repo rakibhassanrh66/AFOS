@@ -3,6 +3,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -52,11 +53,15 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
         'return_date': DateTime.now().toIso8601String().substring(0, 10),
       }).eq('id', borrow['id']);
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Book returned ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -64,12 +69,47 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Manage Library'),
+      appBar: const AfosAppBar(title: 'Manage Library'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
-            labelColor: AppColors.purple, unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.purple,
-            tabs: const [Tab(text: 'Issue Book'), Tab(text: 'Currently Borrowed')])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.purple, AppColors.indigo]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.local_library_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Manage Library', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_activeBorrows.length} books currently out',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              Expanded(child: AdminTabPill(label: 'Issue Book', icon: Icons.add_circle_outline_rounded,
+                  gradient: const LinearGradient(colors: [AppColors.purple, AppColors.indigo]),
+                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
+              const SizedBox(width: 8),
+              Expanded(child: AdminTabPill(label: 'Currently Borrowed', icon: Icons.menu_book_rounded,
+                  gradient: const LinearGradient(colors: [AppColors.purple, AppColors.indigo]),
+                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _IssueBookTab(onIssued: _load),
           _loading
@@ -83,7 +123,7 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
                       TextButton(onPressed: _load, child: const Text('Retry')),
                     ])))
                   : _activeBorrows.isEmpty
-                      ? EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
+                      ? const EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
                       : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _activeBorrows.length,
                           itemBuilder: (ctx, i) {
                             final b = _activeBorrows[i];
@@ -177,8 +217,10 @@ class _IssueBookTabState extends State<_IssueBookTab> {
       }
       widget.onIssued();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _issuing = false);
   }
@@ -240,7 +282,7 @@ class _SelectedChip extends StatelessWidget {
       decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.purple.withValues(alpha: 0.3))),
       child: Row(children: [
-        Expanded(child: Text(label, style: TextStyle(color: AppColors.purple, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(label, style: const TextStyle(color: AppColors.purple, fontWeight: FontWeight.w600))),
         IconButton(icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.purple), onPressed: onClear),
       ]));
 }

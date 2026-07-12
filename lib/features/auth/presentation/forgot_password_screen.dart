@@ -73,7 +73,7 @@ class _ForgotBodyState extends State<_ForgotBody> {
                             border: Border.all(color: AppColors.holoBlue.withOpacity(0.4)),
                           ),
                           alignment: Alignment.center,
-                          child: Icon(Icons.lock_reset, color:AppColors.holoBlue, size:28),
+                          child: const Icon(Icons.lock_reset, color:AppColors.holoBlue, size:28),
                         ).animate().scale(duration:450.ms,curve:Curves.easeOutCubic).fadeIn(duration:300.ms),
                         const SizedBox(height:24),
                         Text('Reset Password', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))

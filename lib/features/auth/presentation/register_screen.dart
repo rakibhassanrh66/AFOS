@@ -316,14 +316,14 @@ class _AccountTypeToggle extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds:220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical:12),
+          padding: const EdgeInsets.symmetric(vertical:14, horizontal:8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? AppColors.holoBlue : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: selected ? AppColors.holoBlue : border, width:0.8),
           ),
-          child: Text(label, style: TextStyle(
+          child: Text(label, textAlign: TextAlign.center, style: TextStyle(
             color: selected ? Colors.white : textSecondary,
             fontWeight: FontWeight.w600, fontSize: 13)),
         ),
@@ -389,14 +389,14 @@ class _GenderToggle extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds:220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical:12),
+          padding: const EdgeInsets.symmetric(vertical:14, horizontal:8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? AppColors.holoBlue : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: selected ? AppColors.holoBlue : border, width:0.8),
           ),
-          child: Text(label, style: TextStyle(
+          child: Text(label, textAlign: TextAlign.center, style: TextStyle(
             color: selected ? Colors.white : textSecondary,
             fontWeight: FontWeight.w600, fontSize: 13)),
         ),
@@ -468,7 +468,7 @@ class _Step2 extends StatelessWidget {
         const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
       else
         DropdownButtonFormField<DepartmentOption>(
-          value: selectedDept,
+          initialValue: selectedDept,
           isExpanded: true,
           decoration: _decoration(context, 'Department', Icons.school_outlined),
           dropdownColor: AppColors.surfaceOf(context),
@@ -483,7 +483,7 @@ class _Step2 extends StatelessWidget {
           const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
         else if(selectedDept != null)
           DropdownButtonFormField<ProgramOption>(
-            value: selectedProgram,
+            initialValue: selectedProgram,
             isExpanded: true,
             decoration: _decoration(context, 'Program', Icons.menu_book_outlined),
             dropdownColor: AppColors.surfaceOf(context),
@@ -513,7 +513,7 @@ class _Step2 extends StatelessWidget {
           const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
         else
           DropdownButtonFormField<StaffDesignationOption>(
-            value: selectedStaffDesignation,
+            initialValue: selectedStaffDesignation,
             isExpanded: true,
             decoration: _decoration(context, 'Designation / Job Title', Icons.work_outline),
             dropdownColor: AppColors.surfaceOf(context),

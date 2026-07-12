@@ -47,21 +47,71 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
     if (mounted) setState(() => _loading = false);
   }
 
+  static const _tabLabels = ['My Application', 'Apply', 'Complaints'];
+  static const _tabIcons = [Icons.assignment_turned_in_rounded, Icons.edit_document, Icons.report_problem_rounded];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Hall Allocation'),
+      appBar: const AfosAppBar(title: 'Hall Allocation'),
       body: Column(children: [
-        Container(
-          color: AppColors.surfaceOf(context),
-          child: TabBar(
-              controller: _tab,
-              labelColor: AppColors.blue,
-              unselectedLabelColor: AppColors.textSecondaryOf(context),
-              indicatorColor: AppColors.blue,
-              indicatorSize: TabBarIndicatorSize.label,
-              tabs: const [Tab(text: 'My Application'), Tab(text: 'Apply'), Tab(text: 'Complaints')])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.amber, AppColors.gold]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Hall Allocation', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : _application == null ? 'No application yet'
+                    : 'Status: ${(_application!['status'] as String? ?? 'pending').toUpperCase()}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(children: List.generate(_tabLabels.length, (i) {
+            return Expanded(child: AnimatedBuilder(
+              animation: _tab,
+              builder: (ctx, _) {
+                final sel = _tab.index == i;
+                return GestureDetector(
+                  onTap: () => _tab.animateTo(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                        gradient: sel ? const LinearGradient(colors: [AppColors.amber, AppColors.gold]) : null,
+                        color: sel ? null : AppColors.glassFill(context),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(_tabIcons[i], size: 15, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                      const SizedBox(height: 5),
+                      Text(_tabLabels[i], textAlign: TextAlign.center,
+                          textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                              fontSize: 10.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                    ]),
+                  ),
+                );
+              },
+            ));
+          })),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -83,7 +133,8 @@ class _MyApplicationTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (app == null) return Padding(
+    if (app == null) {
+      return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(children: [
         const SizedBox(height: 40),
@@ -94,10 +145,12 @@ class _MyApplicationTab extends StatelessWidget {
         Text('Apply for a hall seat from the Apply tab',
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
       ]));
+    }
 
     final status    = app!['status'] as String? ?? 'pending';
 
-    if (status == 'cancelled') return Padding(
+    if (status == 'cancelled') {
+      return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(children: [
         const SizedBox(height: 40),
@@ -108,6 +161,7 @@ class _MyApplicationTab extends StatelessWidget {
         Text('You can submit a new application from the Apply tab',
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
       ]));
+    }
 
     final stepIndex = {'pending': 0, 'reviewing': 1, 'approved': 2, 'rejected': 2}[status] ?? 0;
 
@@ -187,7 +241,7 @@ class _MyApplicationTab extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.amber.withValues(alpha: 0.3))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Cancellation requested — waiting for admin review',
+              const Text('Cancellation requested — waiting for admin review',
                   style: TextStyle(color: AppColors.amber, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               Text('Reason: ${app!['cancellation_reason'] ?? '-'}',
@@ -241,8 +295,10 @@ class _MyApplicationTab extends StatelessWidget {
           .update({'status': 'cancelled'}).eq('id', app!['id']);
       onRefresh();
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -279,8 +335,10 @@ class _MyApplicationTab extends StatelessWidget {
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                       onRefresh();
                     } catch (e) {
-                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
                           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      }
                       setSheetState(() => saving = false);
                     }
                   },
@@ -337,11 +395,13 @@ class _ApplyTabState extends State<_ApplyTab> {
       // replaces what used to be 4 hardcoded, non-DIU hall names.
       var query = SupabaseConfig.client.from('hall_availability').select();
       final res = (gender != null ? await query.eq('gender', gender) : await query) as List;
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _halls = res.cast();
         _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null;
         _hallsLoading = false;
       });
+      }
     } catch (_) {
       if (mounted) setState(() => _hallsLoading = false);
     }
@@ -384,12 +444,16 @@ class _ApplyTabState extends State<_ApplyTab> {
       _formKey.currentState!.reset();
       _reasonCtrl.clear();
       if (mounted) setState(() { _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null; _pref = 'Shared'; });
-      if (mounted && queued) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted && queued) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber));
+      }
       widget.onApplied();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -518,12 +582,16 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
       _descCtrl.clear();
       _formKey.currentState!.reset();
       if (mounted) setState(() => _category = 'Food');
-      if (mounted && queued) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted && queued) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber));
+      }
       await _loadMine();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -547,7 +615,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
           Text('Submit a Complaint', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _category,
+            initialValue: _category,
             decoration: InputDecoration(
                 labelText: 'Category', filled: true, fillColor: AppColors.surfaceOf(context),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
@@ -588,13 +656,14 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
                         child: Text(status.replaceAll('_', ' ').toUpperCase(),
-                            style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                            textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                            style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                   ]),
                   const SizedBox(height: 4),
                   Text(c['description'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                   if ((c['resolution'] as String?)?.isNotEmpty ?? false)
                     Padding(padding: const EdgeInsets.only(top: 6), child: Text('Response: ${c['resolution']}',
-                        style: TextStyle(color: AppColors.green, fontSize: 12))),
+                        style: const TextStyle(color: AppColors.green, fontSize: 12))),
                 ]),
               );
             }),

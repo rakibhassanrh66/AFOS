@@ -73,8 +73,12 @@ class _LoginBodyState extends State<_LoginBody> {
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
+                  // The middle stop was noticeably more saturated-blue than
+                  // its neighbors, which competed with holoBlue UI text
+                  // sitting on top of it (the "Forgot password?" link
+                  // specifically) instead of reading as a gentle backdrop.
                   colors: isDark
-                    ? const [Color(0xFF060D1F), Color(0xFF0D1E3A), Color(0xFF0C1526)]
+                    ? const [Color(0xFF0B1220), Color(0xFF102035), Color(0xFF121B2E)]
                     : const [Color(0xFFF0F4FF), Colors.white, Color(0xFFE8EEFC)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                 ),
@@ -121,6 +125,7 @@ class _LoginBodyState extends State<_LoginBody> {
                         hint:'Email address', controller:_emailCtrl,
                         prefixIcon:Icons.email_outlined,
                         keyboardType:TextInputType.emailAddress,
+                        autocorrect:false, enableSuggestions:false,
                         validator:AppValidators.email,
                       ).animate(delay:280.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:16),
@@ -134,7 +139,7 @@ class _LoginBodyState extends State<_LoginBody> {
                         alignment:Alignment.centerRight,
                         child: TextButton(
                           onPressed:()=>context.push('/auth/forgot-password'),
-                          child:Text('Forgot password?',
+                          child:const Text('Forgot password?',
                             style:TextStyle(color:AppColors.holoBlue, fontSize:13, fontWeight:FontWeight.w600)),
                         ),
                       ),
@@ -197,8 +202,12 @@ class _GridPainter extends CustomPainter {
     final p = Paint()
       ..color = (isDark ? const Color(0xFF1A2840) : const Color(0xFF0A1628)).withOpacity(isDark ? 1 : 0.05)
       ..strokeWidth=0.3;
-    for(double x=0;x<size.width;x+=40) canvas.drawLine(Offset(x,0),Offset(x,size.height),p);
-    for(double y=0;y<size.height;y+=40) canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
+    for(double x=0;x<size.width;x+=40) {
+      canvas.drawLine(Offset(x,0),Offset(x,size.height),p);
+    }
+    for(double y=0;y<size.height;y+=40) {
+      canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
+    }
   }
   @override bool shouldRepaint(covariant _GridPainter old)=>old.isDark!=isDark;
 }

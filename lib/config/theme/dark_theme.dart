@@ -16,10 +16,16 @@ ThemeData buildDarkTheme({Color? accent}) {
       onPrimary: Colors.white,
       onSurface: AppColors.textPrimary,
     ),
+    // displayLarge/displayMedium/headlineLarge and the AppBar title were
+    // GoogleFonts.syne -- an avant-garde display face (flat-topped rounds,
+    // very tall x-height) that clashed against the DM Sans used everywhere
+    // else, reading as an inconsistent/"weird" font on every single screen's
+    // title bar. Unified on DM Sans throughout so the whole type system is
+    // one consistent family, matching app_text_styles.dart.
     textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme).copyWith(
-      displayLarge:  GoogleFonts.syne(fontSize:32,fontWeight:FontWeight.w800,color:AppColors.textPrimary),
-      displayMedium: GoogleFonts.syne(fontSize:24,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
-      headlineLarge: GoogleFonts.syne(fontSize:20,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
+      displayLarge:  GoogleFonts.dmSans(fontSize:32,fontWeight:FontWeight.w800,color:AppColors.textPrimary,letterSpacing:-0.5),
+      displayMedium: GoogleFonts.dmSans(fontSize:24,fontWeight:FontWeight.w700,color:AppColors.textPrimary,letterSpacing:-0.3),
+      headlineLarge: GoogleFonts.dmSans(fontSize:20,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
       titleLarge:    GoogleFonts.dmSans(fontSize:16,fontWeight:FontWeight.w600,color:AppColors.textPrimary),
       bodyLarge:     GoogleFonts.dmSans(fontSize:15,color:AppColors.textPrimary),
       bodyMedium:    GoogleFonts.dmSans(fontSize:13,color:AppColors.textSecondary),
@@ -28,7 +34,7 @@ ThemeData buildDarkTheme({Color? accent}) {
       backgroundColor: Colors.transparent,
       elevation: 0,
       iconTheme: const IconThemeData(color: AppColors.textPrimary),
-      titleTextStyle: GoogleFonts.syne(fontSize:18,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
+      titleTextStyle: GoogleFonts.dmSans(fontSize:18,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
     ),
     cardTheme: CardThemeData(
       color: AppColors.card,

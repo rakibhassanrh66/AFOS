@@ -24,7 +24,7 @@ serve(async (req) => {
     if (authErr || !authData?.user) {
       return new Response(JSON.stringify({ error: "Invalid or expired session." }), { status: 401, headers: corsHeaders })
     }
-    const { data: callerProfile } = await supabase.from("profiles").select("role").eq("id", authData.user.id).maybeSingle()
+    const { data: callerProfile } = await supabase.from("profiles").select("role, department").eq("id", authData.user.id).maybeSingle()
     const uploadAuthorizedRoles = ["admin", "super_admin", "dept_admin", "teacher"]
     if (!callerProfile || !uploadAuthorizedRoles.includes(callerProfile.role)) {
       return new Response(JSON.stringify({ error: "Not authorized to upload routines." }), { status: 403, headers: corsHeaders })
@@ -42,12 +42,14 @@ serve(async (req) => {
     let rows: string[][] = []
     let lines: string[] = []
     let type = "schedule"
+    let requestedDepartment: string | null = null
 
     if (contentType.includes("application/json")) {
       const body = await req.json()
       type = (body.type || "schedule").toLowerCase()
       lines = Array.isArray(body.lines) ? body.lines.map((l: unknown) => String(l).trim()).filter(Boolean) : []
       rows = lines.map((l) => [l])
+      requestedDepartment = typeof body.department === "string" && body.department.trim() ? body.department.trim() : null
     } else {
       const formData = await req.formData()
       const file = formData.get("file") as File
@@ -58,7 +60,22 @@ serve(async (req) => {
       }
       rows = await extractRowsFromExcel(file)
       lines = rows.map((r) => r.join(" "))
+      const formDept = formData.get("department")
+      requestedDepartment = typeof formDept === "string" && formDept.trim() ? formDept.trim() : null
     }
+
+    // This used to hardcode "CSE" for every upload regardless of who
+    // uploaded it or what the file actually contained. Only super_admin can
+    // override which department an upload gets tagged as (the app's own
+    // dropdown is super_admin-only) — every other authorized role
+    // (admin/dept_admin/teacher) is locked to their OWN profile department
+    // server-side regardless of what a client sends, so a compromised or
+    // hand-crafted request from a non-super_admin account can't mislabel
+    // another department's routine either. "CSE" is only the very last
+    // resort, for an account with no department set at all.
+    const uploadDepartment =
+      (callerProfile.role === "super_admin" && requestedDepartment) ||
+      callerProfile.department || "CSE"
 
     if (rows.length === 0) {
       return new Response(JSON.stringify({ error: "Could not extract any rows from the file. For PDFs, ensure it is text-based, not scanned; for Excel, ensure the first sheet has the data." }), { status: 400, headers: corsHeaders })
@@ -117,18 +134,43 @@ serve(async (req) => {
       }
       if (scopeCombos.size === 0) scopeCombos.set("", {})
 
+      // Was previously one DELETE round-trip per obsolete row -- fine for a
+      // handful of stale rows, but a re-upload that changes the identity-key
+      // format itself (e.g. this session's room_number split, or adding
+      // lab_subgroup to the key) makes nearly every pre-existing row look
+      // "obsolete" under the new key at once. Confirmed live: a real
+      // ~1900-row class-routine re-upload under the old row-by-row loop blew
+      // straight through the edge function's time budget (HTTP 504) well
+      // before finishing. Fetching `id` alongside the key fields lets the
+      // actual deletes happen in large batched `.in('id', ...)` calls instead.
+      // PostgREST caps a single response at 1000 rows by default — a plain
+      // unpaginated .select() here silently only ever saw the FIRST 1000 of
+      // a department's existing rows, so any table already past that size
+      // left every row beyond it permanently un-inspected (never flagged
+      // obsolete, never deleted) on every future upload. Confirmed live: a
+      // real re-upload against 4249 pre-existing CSE rows only removed a
+      // fraction of the true stale set and the table grew to 5516 instead of
+      // shrinking to the new file's real ~1854 rows. Page through with
+      // .range() until a short page confirms there's nothing left, so this
+      // holds regardless of how large a department's routine ever grows.
       let deleted = 0
       for (const combo of scopeCombos.values()) {
-        let query = supabase.from(table).select(keyFields.join(","))
-        for (const f of scopeFields) query = query.eq(f, combo[f])
-        const { data: existing, error } = await query
-        if (error || !existing) continue
-        for (const row of existing as any[]) {
-          if (newKeys.has(keyOf(row))) continue
-          let delQuery = supabase.from(table).delete()
-          for (const f of keyFields) delQuery = delQuery.eq(f, row[f])
-          const { error: delErr } = await delQuery
-          if (!delErr) deleted++
+        const existing: any[] = []
+        const pageSize = 1000
+        for (let from = 0; ; from += pageSize) {
+          let query = supabase.from(table).select(["id", ...keyFields].join(",")).range(from, from + pageSize - 1)
+          for (const f of scopeFields) query = query.eq(f, combo[f])
+          const { data: page, error } = await query
+          if (error || !page) break
+          existing.push(...page)
+          if (page.length < pageSize) break
+        }
+        const obsoleteIds = existing.filter((row) => !newKeys.has(keyOf(row))).map((row) => row.id)
+        for (let i = 0; i < obsoleteIds.length; i += 500) {
+          const idBatch = obsoleteIds.slice(i, i + 500)
+          const { error: delErr, count } = await supabase.from(table).delete({ count: "exact" }).in("id", idBatch)
+          if (!delErr) deleted += count ?? idBatch.length
+          else if (batchErrors.length < 3) batchErrors.push(delErr.message)
         }
       }
       return deleted
@@ -233,28 +275,69 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, slotsInserted: inserted, slotsRemoved: removed, stopsInserted, totalParsed: routes.length, type: "transport", batchErrors }), { headers: corsHeaders })
     }
 
+    // The PDF prints its own header metadata above the first day section
+    // (confirmed against a real routine: "Class Routine for CSE Program" /
+    // "Version V5" / "Effective From: Saturday 11 July, 2026 Prepared by:
+    // Class Routine Committee, Dept. of CSE") — schedule_slots/exams only
+    // ever held per-session rows, nowhere captured this, so the app header
+    // had no real data to show. One row per (department, routine_type);
+    // a re-upload overwrites the previous header the same way it replaces
+    // the underlying rows. Best-effort only — silently no-ops if the text
+    // isn't found rather than failing the whole upload over cosmetic data.
+    async function upsertRoutineHeaderMeta(department: string, routineType: string) {
+      const meta = extractRoutineHeaderMeta(lines)
+      if (!meta.versionLabel && !meta.effectiveFromText && !meta.preparedBy) return
+      await supabase.from("routine_uploads").upsert({
+        department, routine_type: routineType,
+        version_label: meta.versionLabel, effective_from_text: meta.effectiveFromText, prepared_by: meta.preparedBy,
+        uploaded_by: authData.user.id, uploaded_at: new Date().toISOString(),
+      }, { onConflict: "department,routine_type" })
+    }
+
     if (type === "class_routine") {
-      const slots = parseClassRoutineLines(lines)
+      const slots = parseClassRoutineLines(lines, uploadDepartment)
       if (slots.length === 0) {
         return new Response(JSON.stringify({ error: "No class routine sessions recognized in file.", linesPreview: lines.slice(0, 5) }), { status: 400, headers: corsHeaders })
       }
+      await upsertRoutineHeaderMeta(uploadDepartment, "class_routine")
       const keyFields = ["subject_code", "day_of_week", "start_time", "room_number", "batch", "section", "lab_subgroup", "department", "semester"]
       const inserted = await batchUpsert("schedule_slots", slots, keyFields.join(","))
-      const removed = await deleteObsolete("schedule_slots", slots, keyFields, ["department", "semester"])
+      // Scoped by department alone, not department+semester -- one
+      // class-routine file is a full snapshot of the WHOLE department across
+      // every real batch/semester at once (semester is no longer a single
+      // hardcoded value per upload), so replacing "everything in this
+      // department not present in the new file" needs exactly one scope,
+      // not one query per distinct semester value.
+      const removed = await deleteObsolete("schedule_slots", slots, keyFields, ["department"])
       const dept = slots[0]?.department
-      const sem = slots[0]?.semester
-      const classUserIds = await resolveUserIdsByDeptSemester(dept, sem)
+      // A whole-department upload spans many real batches/semesters at
+      // once (not the single semester this used to hardcode-assume), so
+      // resolve notification recipients per distinct real batch -- the
+      // same field watchMyClassesAsStudent actually matches students by --
+      // rather than by profiles.semester, which was already a separate,
+      // independently-set field that only ever matched the one hardcoded
+      // semester value and silently missed every other batch in the upload.
+      const distinctBatches = [...new Set(slots.map((s: any) => s.batch).filter((b: string) => !/^RE$/i.test(b)))]
+      const classUserIdSets = await Promise.all(distinctBatches.map((b) => resolveUserIdsByBatch(b)))
+      const classUserIds = [...new Set(classUserIdSets.flat())]
       await notifyUsers(classUserIds, "Class routine updated",
-        `Your ${dept ?? ""} semester ${sem ?? ""} class routine has been updated.`, "/schedule")
+        `Your ${dept ?? ""} class routine has been updated.`, "/schedule")
       return new Response(JSON.stringify({ success: true, slotsInserted: inserted, slotsRemoved: removed, totalParsed: slots.length, type: "class_routine", batchErrors }), { headers: corsHeaders })
     }
 
     if (type === "exam_routine") {
-      const exams = parseExamRoutineLines(lines)
+      const exams = parseExamRoutineLines(lines, uploadDepartment)
       if (exams.length === 0) {
         return new Response(JSON.stringify({ error: "No exam routine entries recognized in file.", linesPreview: lines.slice(0, 5) }), { status: 400, headers: corsHeaders })
       }
-      const keyFields = ["subject_code", "exam_date", "start_time", "batch", "exam_type"]
+      await upsertRoutineHeaderMeta(uploadDepartment, "exam_routine")
+      // start_time deliberately excluded from the key (matches the
+      // exams_identity index) -- a subject sits exactly one exam per
+      // (date, batch, exam_type), so keying on start_time too meant a
+      // later upload that corrected a previously-unparsed start_time
+      // inserted a second row instead of updating the first. Confirmed
+      // live and cleaned up in 20260712180000_fix_exams_identity_key.sql.
+      const keyFields = ["subject_code", "exam_date", "batch", "exam_type"]
       const inserted = await batchUpsert("exams", exams, keyFields.join(","))
       const removed = await deleteObsolete("exams", exams, keyFields, ["batch", "exam_type"])
       const batch = exams[0]?.batch
@@ -264,7 +347,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, slotsInserted: inserted, slotsRemoved: removed, totalParsed: exams.length, type: "exam_routine", batchErrors }), { headers: corsHeaders })
     }
 
-    const slots = parseScheduleRows(rows)
+    const slots = parseScheduleRows(rows, uploadDepartment)
     if (slots.length < 3) {
       return new Response(JSON.stringify({ error: "Routine format not recognized. Found fewer than 3 slots.", rowsPreview: rows.slice(0, 5) }), { status: 400, headers: corsHeaders })
     }
@@ -292,7 +375,7 @@ async function extractRowsFromExcel(file: File): Promise<string[][]> {
 }
 
 
-function parseScheduleRows(rows: string[][]): any[] {
+function parseScheduleRows(rows: string[][], department: string): any[] {
   const text = rows.map((r) => r.join(" ")).join(" ")
   const slots: any[] = []
   const dayMap: Record<string, number> = { sat:0, sun:1, mon:2, tue:3, wed:4, thu:5 }
@@ -316,11 +399,11 @@ function parseScheduleRows(rows: string[][]): any[] {
       teacher_name: 'TBA',
       room_number: room || '101',
       building: `Building ${building || '4'}`,
-      start_time: times[i].start + ':00',
-      end_time: times[i].end + ':00',
+      start_time: to24Hour(times[i].start) + ':00',
+      end_time: to24Hour(times[i].end) + ':00',
       day_of_week: dayNum,
       credit_hours: 3,
-      department: 'CSE',
+      department,
       semester: 1,
       is_cancelled: false,
     })
@@ -340,6 +423,23 @@ function parseScheduleRows(rows: string[][]): any[] {
 // ---------------------------------------------------------------------
 const DAY_NAMES: Record<string, number> = {
   saturday: 0, sunday: 1, monday: 2, tuesday: 3, wednesday: 4, thursday: 5, friday: 6,
+}
+
+// The routine's own time-slot header prints in bare 12-hour style with NO
+// am/pm marker at all ("08:30-10:00 10:00-11:30 11:30-01:00 01:00-02:30
+// 02:30-04:00 04:00-05:30") — confirmed against a real routine PDF. Stored
+// literally, "01:00" et al land at 1 AM instead of 1 PM, so every afternoon
+// class (three of the six daily slots) sorted BEFORE the actual morning
+// ones once real students' schedules were checked live. DIU's whole
+// teaching day runs 08:30 AM–05:30 PM, one unbroken stretch with no
+// classes before 8 or after 7 — so within that specific known range, an
+// hour of 1–7 is unambiguously PM and 8–11 is unambiguously AM; no
+// sequential/stateful crossover tracking is needed.
+function to24Hour(hhmm: string): string {
+  const [h, m] = hhmm.split(":")
+  const hour = parseInt(h, 10)
+  const hour24 = hour >= 1 && hour <= 7 ? hour + 12 : hour
+  return `${String(hour24).padStart(2, "0")}:${m}`
 }
 const ROOM_START = /\b(?:KT|ANX\d{0,2}|G\d+|SH|CTBA|EMBEDLAB-KT|IOT LAB-KT)-?\d+[A-Za-z()]*/
 // Building codes an occupied room token can start with, longest/most-specific
@@ -363,25 +463,41 @@ function splitRoom(room: string): { building: string; roomNumber: string } {
 // (courseRegex's own capture groups, untouched) into the real signals a
 // retake or lab-subgroup class needs — a post-processing step, not a
 // regex-engine rewrite. "RE" batch + a section like "A(3C)" is a retake
-// class (section letter + credit hours); a section like "J1"/"J2" on a
-// normal batch is one half of a lab section split across two subgroups
-// (each course/batch/section caps a lab at 25 seats, half of the 50-seat
-// theory section).
+// class (section letter + credit hours); a section like "J1"/"J2" is one
+// half of a lab section split across two subgroups (each course/batch/
+// section caps a lab at 25 seats, half of the 50-seat theory section) —
+// and a retake course can ALSO be lab-split this way (e.g.
+// "CSE124(RE_A1(1.5C))" paired with "CSE124(RE_A2(1.5C))"), confirmed
+// against a real routine PDF, so the subgroup check applies either way.
 function interpretBatchSection(rawBatch: string, rawSection: string): {
   batch: string; section: string; isRetake: boolean; labSubgroup: number | null; creditHours: number | null
 } {
-  if (/^RE$/i.test(rawBatch)) {
-    const m = rawSection.match(/^([A-Za-z0-9]+)\(([0-9.]+)C?\)$/i)
-    // schedule_slots.credit_hours is an INT column — round rather than
+  const isRetake = /^RE$/i.test(rawBatch)
+  let section = rawSection
+  let creditHours: number | null = null
+  if (isRetake) {
+    // A rare handful of rows carry an extra 2-letter annotation tag after
+    // the credit-hours group whose meaning isn't confirmed from available
+    // data (e.g. "A(3C)(CN)", "A(3C)(CD)") -- strip it first (only when
+    // what's left still looks like it has its own credit-hours group) so
+    // the real section/credit-hours still parse cleanly instead of the
+    // whole thing getting stuck as one unparsed string.
+    const annotated = section.match(/^(.+)\([A-Z]{2}\)$/)
+    if (annotated && /\(\d/.test(annotated[1])) section = annotated[1]
+    // schedule_slots.credit_hours is an INT column -- round rather than
     // send a fractional value that would fail the insert outright (real
     // credit-hour values are conventionally whole numbers anyway; this is
-    // just a safety net against an unusual PDF value).
-    if (m) return { batch: rawBatch, section: m[1], isRetake: true, labSubgroup: null, creditHours: Math.round(parseFloat(m[2])) }
-    return { batch: rawBatch, section: rawSection, isRetake: true, labSubgroup: null, creditHours: null }
+    // just a safety net against an unusual PDF value). Tolerates a stray
+    // trailing period after "C" ("3C.") seen in several real rows.
+    const creditMatch = section.match(/^(.+)\(([0-9]+(?:\.[0-9]+)?)C?\.?\)$/i)
+    if (creditMatch) {
+      section = creditMatch[1]
+      creditHours = Math.round(parseFloat(creditMatch[2]))
+    }
   }
-  const lab = rawSection.match(/^([A-Za-z])([12])$/)
-  if (lab) return { batch: rawBatch, section: lab[1], isRetake: false, labSubgroup: parseInt(lab[2], 10), creditHours: null }
-  return { batch: rawBatch, section: rawSection, isRetake: false, labSubgroup: null, creditHours: null }
+  const lab = section.match(/^([A-Za-z])([12])$/)
+  if (lab) return { batch: rawBatch, section: lab[1], isRetake, labSubgroup: parseInt(lab[2], 10), creditHours }
+  return { batch: rawBatch, section, isRetake, labSubgroup: null, creditHours }
 }
 
 // Strips the stray artifacts PDF/Excel extraction tends to leave behind
@@ -404,12 +520,51 @@ function cleanName(s: string): string {
   return out.trim()
 }
 
-function parseClassRoutineLines(lines: string[]): any[] {
+// Scans only the lines BEFORE the first day-section header (SATURDAY, ...)
+// for the PDF's own printed header metadata — restricting the scan avoids
+// ever matching similar-looking text buried deeper in the actual grid.
+function extractRoutineHeaderMeta(lines: string[]): { versionLabel: string | null; effectiveFromText: string | null; preparedBy: string | null } {
+  const dayHeaderIdx = lines.findIndex((l) => Object.keys(DAY_NAMES).some((d) => new RegExp(`^${d}\\b`, "i").test(l.trim())))
+  const headerText = (dayHeaderIdx === -1 ? lines.slice(0, 10) : lines.slice(0, dayHeaderIdx)).join(" ")
+
+  const versionMatch = headerText.match(/version\s*([A-Za-z0-9.]+)/i)
+  const effFromMatch = headerText.match(/effective\s+from\s*:?\s*(.+?)(?:\s+prepared\s+by\s*:|\s*$)/i)
+  const preparedByMatch = headerText.match(/prepared\s+by\s*:?\s*(.+)$/i)
+
+  return {
+    versionLabel: versionMatch ? versionMatch[1].trim() : null,
+    effectiveFromText: effFromMatch ? effFromMatch[1].trim() : null,
+    preparedBy: preparedByMatch ? preparedByMatch[1].trim() : null,
+  }
+}
+
+function parseClassRoutineLines(lines: string[], department: string): any[] {
   const slots: any[] = []
   let currentDay: number | null = null
   let slotTimes: { start: string; end: string }[] = []
+  // A day-name word a PDF text run split across two physical lines (e.g.
+  // "THURSDAY" extracted as "THURSDA" then "Y" — confirmed against a real
+  // routine PDF), held until the next line either completes it or proves it
+  // wasn't a day name after all.
+  let pendingDayFragment: string | null = null
+  // Confirmed against a real routine PDF: 3 of the week's 5 day transitions
+  // (Sat->Sun, Sun->Mon, Tue->Wed) print NO day-header text at all before
+  // the next day's rooms start — the new day's whole room list just
+  // silently continues right after the previous day's, reusing the same
+  // slot-time columns, with the literal day name (when present at all)
+  // landing well after that data instead of before it. A room token
+  // reappearing (not just contiguing with itself) is the only reliable
+  // signal available to catch these — every room in a day's table is only
+  // ever listed once, so seeing one again means a new day has begun.
+  let seenRoomsThisDay = new Set<string>()
   const timeHeaderRegex = /(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/g
-  const courseRegex = /\b([A-Z]{2,6}\d{3})\(([A-Za-z0-9]+)_([A-Za-z0-9().]+?)\)\s+([A-Za-z_]{1,10})\b/g
+  // Teacher-initial group now allows digits/underscore ("NT_2", "EEE_11" —
+  // confirmed against a real routine PDF: several specialist retake
+  // instructors are tagged this way) and tolerates zero space before the
+  // teacher initial (some extractions show none), where the original
+  // letters-only group + required space silently dropped the whole course
+  // match for any such row.
+  const courseRegex = /\b([A-Z]{2,6}\d{3})\(([A-Za-z0-9]+)_([A-Za-z0-9().]+?)\)\s*([A-Za-z0-9_]{1,10})\b/g
 
   // Most rooms print their whole row (room repeated once per slot column,
   // with each occupied slot's course/teacher inline) on one physical PDF
@@ -423,10 +578,15 @@ function parseClassRoutineLines(lines: string[]): any[] {
   // have been parsed — a normal row is just a buffer of length 1.
   let bufferLines: string[] = []
   let bufferToken: string | null = null
-  // Captured from a "(COM LAB)"-style continuation line during buffering —
-  // structurally recognized before this, but never stored anywhere.
+  // Captured from a room's parenthetical tag line(s) during buffering --
+  // structurally recognized before this, but never stored anywhere. Not
+  // just short all-caps tags like "(COM LAB)" -- some rooms (KT-809/810/
+  // 815/816, SH-103/105) carry a full descriptive tag that wraps across
+  // several physical lines, e.g. "(Electrical" / "Circuits Lab and" /
+  // "Digital" / "Electronics Lab)" (confirmed against a real routine PDF).
   let bufferRoomTag: string | null = null
-  const roomTagRegex = /^\(([A-Z][A-Z /]{1,20})\)$/
+  let inRoomTagBlock = false
+  let roomTagAccum: string[] = []
 
   function processRow(line: string) {
     // Was previously `line.split(new RegExp('(?=' + ROOM_START.source + ')'))`
@@ -457,7 +617,22 @@ function parseClassRoutineLines(lines: string[]): any[] {
         const code = cleanName(m[1])
         const rawBatch = cleanName(m[2])
         const rawSection = cleanName(m[3])
-        const teacher = cleanName(m[4])
+        // A rare handful of source rows have a genuinely malformed course
+        // tag with a missing closing paren and no teacher printed at all
+        // (confirmed in a real routine PDF: room ANX1-103's
+        // "CSE426(RE_A(3C) ANX1-103" — note the single, not double, closing
+        // paren) — the unbalanced parens make the regex's teacher-initial
+        // group swallow the START of the NEXT room's token instead ("ANX1")
+        // rather than leaving it unmatched. A real teacher initial in this
+        // dataset is never immediately followed by "-" (only a room token
+        // is, e.g. "KT-208"/"ANX1-103"), so that combination — looks like a
+        // room-token prefix AND is glued directly to a hyphen — means this
+        // capture is misattributed room text, not a real teacher; leave it
+        // blank rather than show a wrong name.
+        const teacherRaw = m[4]
+        const misattributedRoomToken =
+          chunk[m.index! + m[0].length] === "-" && /^[A-Z]{1,6}\d{0,4}$/.test(teacherRaw)
+        const teacher = misattributedRoomToken ? "" : cleanName(teacherRaw)
         const { batch, section, isRetake, labSubgroup, creditHours } = interpretBatchSection(rawBatch, rawSection)
         slots.push({
           subject: code,
@@ -472,12 +647,16 @@ function parseClassRoutineLines(lines: string[]): any[] {
           end_time: slotTimes[i].end + ":00",
           day_of_week: currentDay,
           credit_hours: creditHours ?? 3,
-          department: "CSE",
-          semester: 1,
+          department,
           batch,
           section,
           is_retake: isRetake,
-          lab_subgroup: labSubgroup,
+          // schedule_slots.lab_subgroup is NOT NULL — 0 is the real "not a
+          // lab subgroup" sentinel (see the schema migration), so the
+          // unique index used by this upsert's ON CONFLICT can actually
+          // detect a conflict for non-lab rows instead of every one of them
+          // silently bypassing it (NULL is never equal to NULL in Postgres).
+          lab_subgroup: labSubgroup ?? 0,
           is_cancelled: false,
         })
       }
@@ -490,21 +669,59 @@ function parseClassRoutineLines(lines: string[]): any[] {
     bufferLines = []
     bufferToken = null
     bufferRoomTag = null
+    inRoomTagBlock = false
+    roomTagAccum = []
+  }
+
+  // Applies an explicitly-matched day name (whether read whole or
+  // reassembled from a split fragment). Deliberately does NOT reset
+  // seenRoomsThisDay when the matched day is the SAME value currentDay
+  // already holds — confirmed against a real routine PDF: the literal
+  // "SUNDAY" header text lands mid-sequence, partway through Sunday's OWN
+  // room list (KT-201..KT-515 print before the header, KT-516..ANX1-210
+  // after it — one continuous day's table, not two). Unconditionally wiping
+  // the seen-room set on every explicit header match — even one that isn't
+  // actually changing the day — erased the record that KT-201..KT-515
+  // already belonged to today, so those rooms' real SECOND appearance later
+  // in the file (genuinely the next day, once the room list naturally
+  // repeats) went undetected and got misattributed back to Sunday instead
+  // of rolling over.
+  function applyExplicitDay(day: number) {
+    flush()
+    if (day !== currentDay) seenRoomsThisDay = new Set()
+    currentDay = day
+    slotTimes = []
   }
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
     if (!line) continue
 
+    if (pendingDayFragment !== null) {
+      const combined = pendingDayFragment + line
+      const combinedMatch = Object.keys(DAY_NAMES).find((d) => new RegExp(`^${d}\\b`, "i").test(combined))
+      pendingDayFragment = null
+      if (combinedMatch) { applyExplicitDay(DAY_NAMES[combinedMatch]); continue }
+      // Wasn't actually a split day name after all — fall through and
+      // re-check this line normally below (the held fragment is dropped;
+      // it wasn't meaningful content on its own either way).
+    }
+
     const dayMatch = Object.keys(DAY_NAMES).find((d) => new RegExp(`^${d}\\b`, "i").test(line))
-    if (dayMatch) { flush(); currentDay = DAY_NAMES[dayMatch]; slotTimes = []; continue }
+    if (dayMatch) { applyExplicitDay(DAY_NAMES[dayMatch]); continue }
+
+    if (/^[A-Za-z]{3,8}$/.test(line) &&
+        Object.keys(DAY_NAMES).some((d) => d.startsWith(line.toLowerCase()) && d !== line.toLowerCase())) {
+      pendingDayFragment = line
+      continue
+    }
 
     if (/^room\s+course\s+teacher/i.test(line)) { flush(); continue }
 
     const timeMatches = [...line.matchAll(timeHeaderRegex)]
     if (timeMatches.length >= 4 && /^\d/.test(line)) {
       flush()
-      slotTimes = timeMatches.map((m) => ({ start: m[1], end: m[2] }))
+      slotTimes = timeMatches.map((m) => ({ start: to24Hour(m[1]), end: to24Hour(m[2]) }))
       continue
     }
 
@@ -515,21 +732,76 @@ function parseClassRoutineLines(lines: string[]): any[] {
 
     if (startsWithRoom) {
       const token = roomMatch![0]
-      if (bufferToken === null) { bufferToken = token; bufferLines = [line] }
-      else if (token === bufferToken) { bufferLines.push(line) }
-      else { flush(); bufferToken = token; bufferLines = [line] }
+      if (token === bufferToken) {
+        bufferLines.push(line)
+      } else {
+        flush()
+        // Deliberately NOT special-cased on "is bufferToken null" (i.e. "is
+        // this the very first room ever") — bufferToken also goes back to
+        // null on an UNRELATED flush, e.g. the "Room Course Teacher" column
+        // header re-printing mid-document right at one of these hidden day
+        // boundaries (confirmed against a real routine PDF). A special case
+        // there would let exactly the first room of the new day silently
+        // skip this check and roll over one room too late, misattributing
+        // that one room's whole row to the previous day. seenRoomsThisDay
+        // starts empty at a genuine day start either way, so this check
+        // alone is already correct for the true first room too — no bypass
+        // needed.
+        if (seenRoomsThisDay.has(token)) {
+          currentDay = currentDay === null ? 0 : currentDay + 1
+          seenRoomsThisDay = new Set()
+        }
+        seenRoomsThisDay.add(token)
+        bufferToken = token
+        bufferLines = [line]
+      }
     } else if (bufferToken !== null) {
-      // Continuation text for the room currently being buffered — either the
-      // "(COM LAB)" lab-tag label (captured into bufferRoomTag, not pushed
-      // into the blob — it carries no course info) or a bare
+      // Continuation text for the room currently being buffered — either a
+      // parenthetical room-type tag (captured into bufferRoomTag, not pushed
+      // into the blob — it carries no course info; may span several lines
+      // for the longer descriptive tags) or a bare
       // "<Course>(<batch>_<section>) <Teacher>" line with no room token of
       // its own.
-      const tagMatch = line.match(roomTagRegex)
-      if (tagMatch) { bufferRoomTag = tagMatch[1]; continue }
+      if (inRoomTagBlock) {
+        roomTagAccum.push(line)
+        if (line.endsWith(")")) {
+          bufferRoomTag = roomTagAccum.join(" ").replace(/^\(/, "").replace(/\)$/, "").trim()
+          inRoomTagBlock = false
+          roomTagAccum = []
+        }
+        continue
+      }
+      if (line.startsWith("(")) {
+        if (line.endsWith(")")) {
+          bufferRoomTag = line.slice(1, -1).trim()
+        } else {
+          inRoomTagBlock = true
+          roomTagAccum = [line]
+        }
+        continue
+      }
       bufferLines.push(line)
     }
   }
   flush()
+
+  // schedule_slots.semester is NOT NULL, but a whole-department routine
+  // upload spans many different real semesters (one per batch), not one
+  // fixed value -- self-calibrate from the batches actually present in
+  // THIS upload rather than a hardcoded constant that would go stale every
+  // term: DIU's batch numbers increment by 1 each trimester and the newest
+  // batch is always semester 1, so semester = (highest batch here) - batch
+  // + 1. Confirmed against a real routine's own exam-routine cross-reference
+  // (batch 72 = semester 1 down to batch 64 = semester 9). Retake rows
+  // ("RE" batch) have no single real semester -- 0 is a sentinel, never a
+  // real value, and retake lookup happens by course-code search, not by
+  // semester filtering, so it's never used for matching.
+  const numericBatches = slots.map((s) => parseInt(s.batch, 10)).filter((n) => !Number.isNaN(n))
+  const maxBatch = numericBatches.length ? Math.max(...numericBatches) : null
+  for (const s of slots) {
+    const b = parseInt(s.batch, 10)
+    s.semester = !Number.isNaN(b) && maxBatch !== null ? maxBatch - b + 1 : 0
+  }
   return slots
 }
 
@@ -541,7 +813,7 @@ function parseClassRoutineLines(lines: string[]): any[] {
 // and attach every course match found after them to that context, so
 // courses spanning multiple lines (title wraps) still resolve correctly.
 // ---------------------------------------------------------------------
-function parseExamRoutineLines(lines: string[]): any[] {
+function parseExamRoutineLines(lines: string[], department: string): any[] {
   // Titles and credit-hour brackets often wrap across several PDF text
   // lines (e.g. "CSE326\nSocial and Professional Issues\nin Computing\n
   // [730]\n\nBatch-65"), so line-by-line matching misses most courses.
@@ -562,7 +834,11 @@ function parseExamRoutineLines(lines: string[]): any[] {
     index: m.index!,
     date: `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`,
   }))
-  const slotMarkers = [...fullText.matchAll(slotTimeRegex)].map((m) => ({ index: m.index!, start: m[1] }))
+  // Same bare-hour-with-no-marker issue as the class routine's own header
+  // (see to24Hour's comment) — exam slots print in business hours too, so
+  // the same 1–7-is-PM / 8–11-is-AM rule applies regardless of whether an
+  // am/pm word happens to be present in this particular slot's text.
+  const slotMarkers = [...fullText.matchAll(slotTimeRegex)].map((m) => ({ index: m.index!, start: to24Hour(m[1]) }))
   const batchMarkers = [...fullText.matchAll(batchRegex)].map((m) => ({ index: m.index!, end: m.index! + m[0].length, batch: m[1] }))
 
   const nearestBefore = <T extends { index: number }>(markers: T[], idx: number): T | null => {
@@ -623,7 +899,7 @@ function parseExamRoutineLines(lines: string[]): any[] {
       end_time: null,
       exam_type: examType,
       batch: cleanName(batchMarker.batch),
-      department: "CSE",
+      department,
       is_retake: /^RE/i.test(batchMarker.batch),
     })
   }
@@ -837,19 +1113,27 @@ function parseTransportLinesFlattened(lines: string[]): any[] {
 
   const routes: any[] = []
   const lastNumeric: Record<string, number> = { R: 0, F: 0 }
+  const usedRouteNumbers = new Set<string>()
   for (const block of blocks) {
     let routeNumber = block.token
     const prefix = routeNumber[0]
     const numMatch = routeNumber.match(/\d+/)
     if (numMatch) {
-      lastNumeric[prefix] = parseInt(numMatch[0], 10)
-    } else {
+      lastNumeric[prefix] = Math.max(lastNumeric[prefix] ?? 0, parseInt(numMatch[0], 10))
+    }
+    if (!numMatch || usedRouteNumbers.has(routeNumber)) {
       // A bare "R"/"F" with no digit is a real extraction glitch seen in the
       // live document (one route printed as just "R") — infer the next
       // sequential number for that prefix rather than dropping the route.
+      // The same fallback also covers a genuine source-sheet typo (confirmed
+      // against a real transport schedule: the Friday shuttle section lists
+      // two entirely different routes both labeled "F4") — reusing an
+      // already-claimed number would otherwise silently drop one whole real
+      // route when the upsert's route_number conflict key collides.
       lastNumeric[prefix] = (lastNumeric[prefix] ?? 0) + 1
       routeNumber = `${prefix}${lastNumeric[prefix]}`
     }
+    usedRouteNumbers.add(routeNumber)
 
     const blob = block.lines.join(" ")
     const timeMatches = [...blob.matchAll(/\d{1,2}[:.]\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)/g)]

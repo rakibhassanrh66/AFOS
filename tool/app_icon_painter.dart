@@ -14,8 +14,8 @@ class AfosIconPainter extends CustomPainter {
 
     // Background: deep navy radial glow.
     final bgPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [const Color(0xFF0D1E3A), const Color(0xFF060D1F)],
+      ..shader = const RadialGradient(
+        colors: [Color(0xFF0D1E3A), Color(0xFF060D1F)],
         radius: 0.9,
       ).createShader(Rect.fromCircle(center: center, radius: r));
     canvas.drawRect(Rect.fromLTWH(0, 0, w, h), bgPaint);

@@ -23,26 +23,63 @@ class _GradesScreenState extends State<GradesScreen> {
   bool get _isTeacher => RoleSession.role == 'teacher';
   bool get _isPublisher => _publisherRoles.contains(RoleSession.role);
 
+  Widget _header({required String title, required String subtitle, required IconData icon}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.blue, AppColors.indigo]),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(children: [
+          Container(padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+              child: Icon(icon, color: Colors.white, size: 24)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+          ])),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isPublisher) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AfosAppBar(title: 'Publish Results'),
-        body: _PublishTab(repo: _repo),
+        appBar: const AfosAppBar(title: 'Publish Results'),
+        body: Column(children: [
+          _header(title: 'Publish Results', icon: Icons.publish_rounded,
+              subtitle: 'Review teacher-uploaded grades and release them to students'),
+          Expanded(child: _PublishTab(repo: _repo)),
+        ]),
       );
     }
     if (_isTeacher) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AfosAppBar(title: 'Upload Grades'),
-        body: _TeacherUploadTab(repo: _repo),
+        appBar: const AfosAppBar(title: 'Upload Grades'),
+        body: Column(children: [
+          _header(title: 'Upload Grades', icon: Icons.grade_rounded,
+              subtitle: 'Enter grades for your sections, then submit for department publish'),
+          Expanded(child: _TeacherUploadTab(repo: _repo)),
+        ]),
       );
     }
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'My Results'),
-      body: _StudentResultsTab(repo: _repo),
+      appBar: const AfosAppBar(title: 'My Results'),
+      body: Column(children: [
+        _header(title: 'My Results', icon: Icons.school_rounded,
+            subtitle: 'Your published grades, organized by semester'),
+        Expanded(child: _StudentResultsTab(repo: _repo)),
+      ]),
     );
   }
 }
@@ -67,8 +104,10 @@ class _StudentResultsTabState extends State<_StudentResultsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_results.isEmpty) return EmptyState(icon: Icons.assignment_turned_in_outlined,
+    if (_results.isEmpty) {
+      return const EmptyState(icon: Icons.assignment_turned_in_outlined,
         title: 'No published results yet', subtitle: 'Results appear here once your department publishes them');
+    }
     final bySemester = <int, List<Map<String, dynamic>>>{};
     for (final r in _results) {
       (bySemester[r['semester'] as int? ?? 0] ??= []).add(r);
@@ -87,9 +126,15 @@ class _StudentResultsTabState extends State<_StudentResultsTab> {
                     Text(g['course_title'] ?? g['course_code'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                     Text(g['course_code'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                   ])),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Text(g['grade_letter'] ?? '', style: const TextStyle(color: AppColors.blue, fontWeight: FontWeight.w800, fontSize: 16))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                              colors: [AppColors.blue, AppColors.indigo]),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
+                      child: Text(g['grade_letter'] ?? '',
+                          textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 16))),
                 ]));
           }
         }).toList()));
@@ -145,11 +190,15 @@ class _TeacherUploadTabState extends State<_TeacherUploadTab> {
           gradeLetter: grade,
         );
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Grades submitted — waiting for department publish ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -157,8 +206,10 @@ class _TeacherUploadTabState extends State<_TeacherUploadTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_sections.isEmpty) return EmptyState(icon: Icons.class_outlined,
+    if (_sections.isEmpty) {
+      return const EmptyState(icon: Icons.class_outlined,
         title: 'No classes found', subtitle: 'Set your teacher initials in Settings so we can find your sections');
+    }
     return Column(children: [
       Padding(padding: const EdgeInsets.all(16), child: DropdownButtonFormField<Map<String, String>>(
           initialValue: _selectedSection,
@@ -172,7 +223,7 @@ class _TeacherUploadTabState extends State<_TeacherUploadTab> {
           onChanged: (v) { if (v != null) _selectSection(v); })),
       if (_selectedSection != null)
         Expanded(child: _students.isEmpty
-            ? EmptyState(icon: Icons.people_outline, title: 'No students found', subtitle: 'No students are set to this batch/section yet')
+            ? const EmptyState(icon: Icons.people_outline, title: 'No students found', subtitle: 'No students are set to this batch/section yet')
             : Column(children: [
                 Expanded(child: ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _students.length,
                     itemBuilder: (ctx, i) {
@@ -218,11 +269,15 @@ class _PublishTabState extends State<_PublishTab> {
     try {
       await widget.repo.publishGrades(_selected.toList());
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Results published ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _publishing = false);
   }
@@ -230,7 +285,7 @@ class _PublishTabState extends State<_PublishTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_pending.isEmpty) return EmptyState(icon: Icons.publish_outlined, title: 'Nothing waiting to publish', subtitle: 'Teacher-uploaded results will show up here');
+    if (_pending.isEmpty) return const EmptyState(icon: Icons.publish_outlined, title: 'Nothing waiting to publish', subtitle: 'Teacher-uploaded results will show up here');
     return Column(children: [
       Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _pending.length,
           itemBuilder: (ctx, i) {

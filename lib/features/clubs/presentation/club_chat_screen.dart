@@ -40,10 +40,12 @@ class _ClubChatState extends State<ClubChatScreen> {
     try {
       final res = await SupabaseConfig.client.from('club_members')
           .select('member_id, role').eq('club_id', widget.clubId) as List;
-      if (mounted) setState(() => _designationByMember = {
+      if (mounted) {
+        setState(() => _designationByMember = {
         for (final r in res.cast<Map<String, dynamic>>())
           r['member_id'] as String: r['role'] as String? ?? 'member',
       });
+      }
     } catch (_) {}
   }
 
@@ -93,10 +95,12 @@ class _ClubChatState extends State<ClubChatScreen> {
       final row = await SupabaseConfig.client.from('club_messages').insert({
         'club_id': widget.clubId, 'sender_id': SupabaseConfig.uid, 'content': text,
       }).select('*, profiles(full_name,avatar_url,role,university_id,department,students(batch_label,section))').single();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         final idx = _messages.indexWhere((m) => m['id'] == tempId);
         if (idx != -1) _messages[idx] = row;
       });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _messages.removeWhere((m) => m['id'] == tempId));
@@ -108,8 +112,10 @@ class _ClubChatState extends State<ClubChatScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
     });
   }
 
@@ -192,7 +198,7 @@ class _ClubMsgBubble extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-            gradient: isMe ? LinearGradient(colors: [AppColors.pink, AppColors.pink.withValues(alpha: 0.7)]) : null,
+            gradient: isMe ? AppColors.pinkGradient : null,
             color: isMe ? null : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
@@ -264,7 +270,7 @@ class _ClubInputBar extends StatelessWidget {
         GestureDetector(
           onTap: onSend,
           child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(color: AppColors.pink, shape: BoxShape.circle),
+              decoration: const BoxDecoration(gradient: AppColors.pinkGradient, shape: BoxShape.circle),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 20)),
         ),
       ]),
