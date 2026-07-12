@@ -35,6 +35,7 @@ import '../../features/schedule/presentation/schedule_screen.dart';
 import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
 import '../../features/schedule/presentation/room_availability_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/releases_screen.dart';
 import '../../features/feedback/presentation/feedback_screen.dart';
 import '../../features/shell/presentation/app_shell.dart';
 import '../../features/sos/presentation/manage_sos_screen.dart';
@@ -168,6 +169,7 @@ class AppRouter {
           GoRoute(path: '/vr-id',         pageBuilder: (c,s) => slideRightPage(const VrIdScreen(), s)),
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
+          GoRoute(path: '/releases',      pageBuilder: (c,s) => slideRightPage(const ReleasesScreen(), s)),
           GoRoute(path: '/feedback',      pageBuilder: (c,s) => slideRightPage(const FeedbackScreen(), s)),
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
           GoRoute(path: '/room-availability', pageBuilder: (c,s) => slideRightPage(const RoomAvailabilityScreen(), s)),
