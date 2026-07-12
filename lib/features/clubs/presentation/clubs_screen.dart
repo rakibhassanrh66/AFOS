@@ -95,7 +95,8 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
               .inFilter('club_id', presidentClubIds).eq('status', 'pending') as List;
         }
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _clubs = (clubs as List).cast();
         _events = (events as List).cast();
         _myClubs = myClubs.cast();
@@ -104,6 +105,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         _presidingRequests = presidingRequests.cast();
         _myEventRegistrations = myRegistrations.cast<Map<String, dynamic>>().map((r) => r['event_id'] as String).toSet();
       });
+      }
     } catch (e) {
       // Previously swallowed silently — a real load failure rendered
       // identically to "no clubs/events", same class of bug found and
@@ -148,12 +150,16 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         'club_name': _anyClubNameFor(clubId),
       });
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(queued
           ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
           : const SnackBar(content: Text('Membership requested ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -171,11 +177,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         );
       }
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post application submitted ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -187,8 +197,10 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
           {'event_id': eventId, 'student_id': uid});
       if (mounted) setState(() => _myEventRegistrations = {..._myEventRegistrations, eventId});
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -221,11 +233,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         );
       }
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Member approved ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _processingRequestIds.remove(requestId));
   }
@@ -246,11 +262,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         );
       }
       _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Request rejected'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _processingRequestIds.remove(requestId));
   }
@@ -369,11 +389,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
                       });
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                       _load();
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Event created ✓'), backgroundColor: AppColors.green));
+                      }
                     } catch (e) {
-                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
                           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      }
                       setSheetState(() => saving = false);
                     }
                   },
@@ -419,7 +443,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     final pendingPostClubIds = _myPostRequests.map((r) => r['club_id'] as String).toSet();
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Clubs'),
+      appBar: const AfosAppBar(title: 'Clubs'),
       body: Column(children: [
         Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
             labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
@@ -476,11 +500,28 @@ class _FilterBar extends StatelessWidget {
           return Padding(padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(onTap: () => onSelect(f),
                   child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(color: sel ? AppColors.pink : AppColors.surfaceOf(context),
+                      // This chip is a direct child of a horizontally-
+                      // scrolling ListView -- unlike Row/Column (which
+                      // center children on the cross axis by default),
+                      // ListView's sliver layout stretches each item to the
+                      // viewport's full cross-axis extent (its 56px height,
+                      // minus the ListView's own 8+8px padding). Without an
+                      // explicit alignment, this Container's padding only
+                      // insets from the top, leaving the real cause of what
+                      // looked like a font-metrics issue: dead, unfilled
+                      // space below the text with nothing pushing it down
+                      // to center. Every other badge in the app sits inside
+                      // a Row/Wrap instead, which is why only this specific
+                      // filter-chip row showed the symptom.
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: sel ? null : AppColors.surfaceOf(context),
+                          gradient: sel ? AppColors.pinkGradient : null,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: sel ? AppColors.pink : AppColors.borderOf(context), width: 0.5)),
-                      child: Text(f, style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
-                          fontSize: 12, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)))));
+                          border: Border.all(color: sel ? Colors.transparent : AppColors.borderOf(context), width: 0.5)),
+                      child: Text(f, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                          fontSize: 12, height: 1.0, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)))));
         }).toList()),
   );
 }
@@ -492,7 +533,7 @@ class _ClubList extends StatelessWidget {
   const _ClubList({required this.clubs, required this.myClubs, required this.pendingClubIds, required this.onJoin});
   @override
   Widget build(BuildContext context) {
-    if (clubs.isEmpty) return EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
+    if (clubs.isEmpty) return const EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
     final canJoin = RoleSession.role == 'student';
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: clubs.length,
@@ -507,7 +548,8 @@ class _ClubList extends StatelessWidget {
                   border: Border.all(color: AppColors.pink.withValues(alpha: 0.25), width: 0.8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(height: 80, decoration: BoxDecoration(
-                    color: AppColors.pink.withValues(alpha: 0.15),
+                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [AppColors.pink.withValues(alpha: 0.18), AppColors.holoviolet.withValues(alpha: 0.12)]),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
                     child: Center(child: Icon(categoryIcon(c['category'] as String?), color: AppColors.pink, size: 36))),
                 Padding(padding: const EdgeInsets.all(14), child: Row(children: [
@@ -518,18 +560,22 @@ class _ClubList extends StatelessWidget {
                     const SizedBox(height: 6),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                        child: Text(c['category'] ?? '', style: const TextStyle(color: AppColors.pink, fontSize: 11, fontWeight: FontWeight.w600))),
+                        child: Text(c['category'] ?? '', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                            style: const TextStyle(color: AppColors.pink, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600))),
                   ])),
                   const SizedBox(width: 12),
                   if (canJoin || joined)
                     GestureDetector(onTap: (joined || pending || clubId == null) ? null : () => onJoin(clubId),
                         child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(color: joined ? AppColors.green.withValues(alpha: 0.1)
-                                : pending ? AppColors.amber.withValues(alpha: 0.1) : AppColors.pink,
+                            decoration: BoxDecoration(
+                                color: joined ? AppColors.green.withValues(alpha: 0.1)
+                                    : pending ? AppColors.amber.withValues(alpha: 0.1) : null,
+                                gradient: (joined || pending) ? null : AppColors.pinkGradient,
                                 borderRadius: BorderRadius.circular(20)),
                             child: Text(joined ? 'Joined ✓' : pending ? 'Pending' : 'Join',
+                                textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                                 style: TextStyle(color: joined ? AppColors.green : pending ? AppColors.amber : Colors.white,
-                                    fontSize: 13, fontWeight: FontWeight.w600)))),
+                                    fontSize: 13, height: 1.0, fontWeight: FontWeight.w600)))),
                 ])),
               ])).animate(delay: Duration(milliseconds: i * 60)).fadeIn().slideY(begin: 0.05);
         });
@@ -554,8 +600,10 @@ class _MyClubsTab extends StatelessWidget {
       required this.onApproveRequest, required this.onRejectRequest});
   @override
   Widget build(BuildContext context) {
-    if (myClubs.isEmpty) return EmptyState(icon: Icons.group_add_rounded,
+    if (myClubs.isEmpty) {
+      return const EmptyState(icon: Icons.group_add_rounded,
         title: 'No clubs joined', subtitle: 'Discover and request to join clubs from the Discover tab');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: myClubs.length,
         itemBuilder: (ctx, i) {
           final m = myClubs[i];
@@ -583,7 +631,8 @@ class _MyClubsTab extends StatelessWidget {
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                       child: Text(role.replaceAll('_', ' ').toUpperCase(),
-                          style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, fontWeight: FontWeight.w700))),
+                          textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                   if (user != null)
                     IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.pink, size: 20),
                         onPressed: () => Navigator.push(context, MaterialPageRoute(
@@ -601,7 +650,7 @@ class _MyClubsTab extends StatelessWidget {
                       icon: const Icon(Icons.event_rounded, size: 16),
                       label: const Text('Create Event'))),
                 ] else if (hasPendingPost)
-                  Text('Post application pending approval', style: TextStyle(color: AppColors.amber, fontSize: 12))
+                  const Text('Post application pending approval', style: TextStyle(color: AppColors.amber, fontSize: 12))
                 else
                   SizedBox(width: double.infinity, child: OutlinedButton(
                       onPressed: () => onApplyPost(clubId, role),
@@ -654,8 +703,10 @@ class _EventsTab extends StatelessWidget {
   const _EventsTab({required this.events, required this.registeredIds, required this.onRegister});
   @override
   Widget build(BuildContext context) {
-    if (events.isEmpty) return EmptyState(icon: Icons.event_rounded,
+    if (events.isEmpty) {
+      return const EmptyState(icon: Icons.event_rounded,
         title: 'No upcoming events', subtitle: 'Events will appear here');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: events.length,
         itemBuilder: (ctx, i) {
           final e = events[i];

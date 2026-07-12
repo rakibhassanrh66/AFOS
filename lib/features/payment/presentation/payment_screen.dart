@@ -57,24 +57,81 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
     _PayCat('Other',         Icons.more_horiz_rounded,      AppColors.textSecondary, 'other'),
   ];
 
+  static const _tabLabels = ['Pay Now', 'History'];
+  static const _tabIcons = [Icons.payments_rounded, Icons.receipt_long_rounded];
+
+  double get _totalPaid => _history.where((p) => p['status'] == 'paid')
+      .fold<double>(0, (sum, p) => sum + ((p['amount'] as num?)?.toDouble() ?? 0));
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
-      appBar: AfosAppBar(title: 'Payment'),
+      appBar: const AfosAppBar(title: 'Payment'),
       body: Column(children: [
-        Container(
-          color: AppColors.surfaceOf(context),
-          child: TabBar(
-            controller: _tab,
-            labelColor: AppColors.holoBlue,
-            unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.holoBlue,
-            tabs: const [Tab(text: 'Pay Now'), Tab(text: 'History')],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: AppColors.goldGradient,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.payments_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Payments', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text('${_categories.length} fee categories', style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+              if (!_loading && _totalPaid > 0) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text('৳${_totalPaid.toStringAsFixed(0)}', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                      style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.0, fontWeight: FontWeight.w800)),
+                  Text('total paid', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 10, height: 1.0)),
+                ]),
+              ),
+            ]),
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: List.generate(_tabLabels.length, (i) {
+              final sel = _tab.index == i;
+              return Expanded(child: GestureDetector(
+                onTap: () => _tab.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                      gradient: sel ? AppColors.goldGradient : null,
+                      color: sel ? null : AppColors.glassFill(context),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                    const SizedBox(width: 6),
+                    Text(_tabLabels[i],
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                            fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+                ),
+              ));
+            })),
           ),
         ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
-          _PayNowTab(categories: _categories),
+          const _PayNowTab(categories: _categories),
           _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _error != null
@@ -137,8 +194,11 @@ class _PayCard extends StatelessWidget {
               Container(
                 width: 52, height: 52,
                 decoration: BoxDecoration(
-                  color: cat.color.withOpacity(0.15), borderRadius: BorderRadius.circular(14)),
-                child: Icon(cat.icon, color: cat.color, size: 26),
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [cat.color, cat.color.withValues(alpha: 0.7)]),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: cat.color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                child: Icon(cat.icon, color: Colors.white, size: 26),
               ),
               const SizedBox(height: 12),
               Text(cat.label,
@@ -192,7 +252,7 @@ class _HistoryTab extends StatelessWidget {
                 width: 40, height: 40,
                 decoration: BoxDecoration(
                     color: AppColors.holoBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
+                child: const Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

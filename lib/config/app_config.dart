@@ -14,18 +14,16 @@ class AppConfig {
     'CSE','EEE','BBA','English','Law','Architecture',
     'Pharmacy','Textile','Civil','ICE','MCJ','Mathematics',
   ];
-  // Mirrors supabase/migrations/20260702_auth_registration_overhaul.sql's
-  // auth_email_domain_allowlist table — bootstrap accounts that bypass the
-  // edu.bd-only email restriction. Client-side check only; the DB trigger
-  // is the authoritative enforcement.
+  // Mirrors the auth_email_domain_allowlist DB table — bootstrap accounts
+  // that bypass the @diu.edu.bd-only email restriction. This is the
+  // client-side form-message gate; enforce_email_domain (restored in
+  // 20260712135746_restore_diu_email_restriction.sql, keeping this exact
+  // list in sync with the DB table) is the authoritative server-side
+  // enforcement.
   static const List<String> emailDomainAllowlist = [
     'rakibhassan.rh68@gmail.com',
     // Persistent QA accounts for integration_test/overflow_smoke_test.dart
-    // (see the plan file for the full rationale) — this is a client-side
-    // form-message gate only (the DB-level enforce_email_domain trigger was
-    // already dropped in 20260703030000_remove_email_domain_restriction.sql),
-    // not a real security boundary, so adding test accounts here carries no
-    // more risk than the existing super_admin entry above.
+    // (see the plan file for the full rationale).
     'qa_student@afos.test',
     'qa_teacher@afos.test',
     'qa_staff@afos.test',

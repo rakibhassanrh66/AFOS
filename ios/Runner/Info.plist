@@ -41,6 +41,16 @@
 	<!-- For the SOS floating button's optional voice note. -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>AFOS can record a short voice note to attach to an emergency SOS alert.</string>
+	<!-- Android gets this permission for free via mobile_scanner's own
+	     manifest merge, but iOS has no such merging -- without this key,
+	     the VR-ID QR scanner terminates the app on iOS the instant it
+	     tries to open the camera. -->
+	<key>NSCameraUsageDescription</key>
+	<string>AFOS uses your camera to scan QR codes for VR-ID verification.</string>
+	<!-- Same gap for image_picker's gallery access (avatar photo, Lost &
+	     Found attachment) -- iOS terminates the app without this key. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AFOS uses your photo library to set a profile picture and attach photos to Lost &amp; Found posts.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

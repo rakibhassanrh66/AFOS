@@ -77,27 +77,52 @@ class _ExamSeatState extends State<ExamSeatScreen> {
     final sessions = _sessions;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Exam Seat Plan'),
-      body: _loading
-          ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-          : _error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                  const SizedBox(height: 12),
-                  Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                  const SizedBox(height: 12),
-                  TextButton(onPressed: _load, child: const Text('Retry')),
-                ])))
-              : sessions.isEmpty
-              ? EmptyState(icon: AppIcons.examSeat,
-                  title: 'No seat plan yet', subtitle: 'Room allocations will appear here once published')
-              : RefreshIndicator(
-                  onRefresh: _load, color: AppColors.blue,
-                  child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: sessions.length,
-                      itemBuilder: (ctx, i) => _SessionCard(session: sessions[i], index: i))),
+      appBar: const AfosAppBar(title: 'Exam Seat Plan'),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.orange, AppColors.amber]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(AppIcons.examSeat, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Exam Seat Plan', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${sessions.length} upcoming session${sessions.length == 1 ? '' : 's'}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        Expanded(child: _loading
+            ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+            : _error != null
+                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
+                    const SizedBox(height: 12),
+                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondaryOf(context))),
+                    const SizedBox(height: 12),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ])))
+                : sessions.isEmpty
+                ? const EmptyState(icon: AppIcons.examSeat,
+                    title: 'No seat plan yet', subtitle: 'Room allocations will appear here once published')
+                : RefreshIndicator(
+                    onRefresh: _load, color: AppColors.blue,
+                    child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        itemCount: sessions.length,
+                        itemBuilder: (ctx, i) => _SessionCard(session: sessions[i], index: i)))),
+      ]),
     );
   }
 }
@@ -125,12 +150,25 @@ class _SessionCard extends StatelessWidget {
       decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(height: 4, decoration: BoxDecoration(
-            color: AppColors.blue, borderRadius: const BorderRadius.vertical(top: Radius.circular(15)))),
+        Container(height: 4, decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [AppColors.orange, AppColors.amber]),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(15)))),
         Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(session.courseTitle ?? 'Exam', style: AppTextStyles.titleLarge.copyWith(color: textPrimary)),
-          if ((session.courseCode ?? '').isNotEmpty)
-            Text(session.courseCode!, style: AppTextStyles.monoSmall.copyWith(color: textSecondary)),
+          Row(children: [
+            Container(width: 40, height: 40,
+                decoration: BoxDecoration(
+                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [AppColors.orange, AppColors.amber]),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [BoxShadow(color: AppColors.orange.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                child: const Icon(Icons.event_note_rounded, color: Colors.white, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(session.courseTitle ?? 'Exam', style: AppTextStyles.titleLarge.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+              if ((session.courseCode ?? '').isNotEmpty)
+                Text(session.courseCode!, style: AppTextStyles.monoSmall.copyWith(color: textSecondary)),
+            ])),
+          ]),
           const SizedBox(height: 12),
           if (session.examDate != null) Row(children: [
             Icon(Icons.calendar_today_rounded, size: 14, color: textSecondary),

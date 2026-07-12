@@ -52,17 +52,40 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
             child:Icon(state.isOpen?Icons.close:Icons.menu_rounded,
               key:ValueKey(state.isOpen),color:textPrimary))),
-        onPressed:()=>context.read<ShellBloc>().add(ToggleMenu()),
+        // Dismiss any open keyboard first -- opening the menu while a
+        // TextField still holds focus (e.g. mid-search on Class Schedule)
+        // raced the keyboard's close animation against the menu's slide-in,
+        // producing a white, half-shifted frame. Confirmed live.
+        onPressed:() { FocusScope.of(context).unfocus(); context.read<ShellBloc>().add(ToggleMenu()); },
       ),
-      title: Row(children: [
+      // A fixed-height row alone wasn't the fix -- AppBar's title slot itself
+      // can be taller than that row and doesn't necessarily CENTER a shorter
+      // child within it (it can top-align), which is exactly why the row sat
+      // near the top of the bar with empty space below rather than centered
+      // on "Dashboard". Center forces vertical centering within whatever
+      // space AppBar actually hands the title, regardless of that slot's own
+      // height or alignment behavior. The badge itself keeps its explicit
+      // height so its own `alignment: center` stays unconditionally safe.
+      title: Center(child: SizedBox(height: 34, child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Flexible(child: Text(title, style:AppTextStyles.headlineMed.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
+        // Fixed height + Container alignment still left the text sitting
+        // high with a gap below -- that's because only the descent side
+        // (applyHeightToLastDescent) was trimmed from the text's line box;
+        // the font's default ASCENT reservation above the actual cap-height
+        // glyphs was still being centered as if it were real content,
+        // pushing the visible ink up. Trimming both ascent and descent makes
+        // the line box tightly hug the glyphs themselves, so plain symmetric
+        // padding (no explicit height, no Container alignment needed at all)
+        // centers the visible text correctly.
         if (_isSuperAdmin) Padding(padding: const EdgeInsets.only(left: 8), child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [AppColors.holoviolet, AppColors.holoviolet.withValues(alpha: 0.6)]),
                 borderRadius: BorderRadius.circular(20)),
-            child: const Text('SUPER ADMIN', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)))),
-      ]),
+            child: const Text('SUPER ADMIN',
+                textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                style: TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: 0.5)))),
+      ]))),
       actions: [
         ...?actions,
         _NotificationBell(color: textPrimary),
@@ -83,6 +106,7 @@ class _NotificationBell extends StatefulWidget {
 
 class _NotificationBellState extends State<_NotificationBell> {
   int _unread = 0;
+  int _loadGen = 0;
   RealtimeChannel? _sub;
 
   @override
@@ -111,10 +135,20 @@ class _NotificationBellState extends State<_NotificationBell> {
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return;
+    // Realtime fires one event per row change, so marking several
+    // notifications read in quick succession (or one bulk "mark all
+    // read") queues up several overlapping _load() calls. Their network
+    // responses can resolve out of order -- an older call (queried before
+    // a later update landed) finishing AFTER a newer, already-correct one
+    // would overwrite the right count with a stale higher one, which read
+    // as "the badge won't clear until I tap it 3-4 more times." This
+    // generation guard only ever applies the result of the most recently
+    // *issued* query.
+    final gen = ++_loadGen;
     try {
       final res = await SupabaseConfig.client.from('user_notifications')
           .select('id').eq('user_id', uid).eq('is_read', false) as List;
-      if (mounted) setState(() => _unread = res.length);
+      if (mounted && gen == _loadGen) setState(() => _unread = res.length);
     } catch (_) {}
   }
 
@@ -135,13 +169,20 @@ class _NotificationBellState extends State<_NotificationBell> {
         onPressed: () => context.push('/notifications'),
       ),
       if (hasUnread)
+        // alignment intentionally omitted -- a Positioned child that doesn't
+        // pin both opposite edges (only right+top here) sizes itself loosely
+        // rather than being stretched by the Stack, but that sizing still
+        // interacts with Container's own bounded-constraints-plus-alignment
+        // expand rule unpredictably; height:1.0 + textHeightBehavior below
+        // centers the count text without touching how this Container sizes.
         Positioned(right: 6, top: 6, child: IgnorePointer(child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
             decoration: BoxDecoration(color: AppColors.red, shape: BoxShape.circle,
                 border: Border.all(color: AppColors.surfaceOf(context), width: 1.5)),
             child: Text(_unread > 9 ? '9+' : '$_unread', textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)))
+                textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w700)))
             .animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(end: 1.15, duration: 700.ms))),
     ]);
   }

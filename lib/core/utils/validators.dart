@@ -9,8 +9,14 @@ class AppValidators {
     final e = v.trim();
     if(!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,10}$').hasMatch(e)) return 'Invalid email';
     final isAllowlisted = AppConfig.emailDomainAllowlist.contains(e.toLowerCase());
-    if(!e.toLowerCase().endsWith('edu.bd') && !isAllowlisted) {
-      return 'Only university (edu.bd) email addresses can register';
+    // 'edu.bd' with no leading dot matched anything ending in that literal
+    // string ("fake-edu.bd", another university's "buet.edu.bd") -- not
+    // just DIU. This is also just the form-message gate now; the real
+    // boundary is the enforce_email_domain DB trigger (restored in
+    // 20260712135746_restore_diu_email_restriction.sql), which enforces
+    // the same '@diu.edu.bd' + allowlist rule server-side.
+    if(!e.toLowerCase().endsWith('@diu.edu.bd') && !isAllowlisted) {
+      return 'Only DIU (@diu.edu.bd) email addresses can register';
     }
     return null;
   }
@@ -40,7 +46,12 @@ class AppValidators {
     return null;
   }
   static String? required(String? v,{String f='Field'}) {
-    if(v==null||v.trim().isEmpty) return '\$f is required';
+    // Escaped '\$f' printed the literal text "$f is required" to every
+    // user who left any required field blank across the whole app (Batch,
+    // Section, Designation, Full name, Phone, etc. all use this) instead of
+    // the actual field name -- meaningless to anyone who isn't reading the
+    // source.
+    if(v==null||v.trim().isEmpty) return '$f is required';
     return null;
   }
   static String? confirmPassword(String? v,String original) {

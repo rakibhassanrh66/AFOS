@@ -17,7 +17,7 @@ class ScheduleRepository {
           .from('schedule_slots')
           .stream(primaryKey: ['id'])
           .eq('department', dept)
-          .order('start_time')
+          .order('start_time', ascending: true)
           .map((list) => list
               .where((s) =>
                   s['semester'] == semester &&
@@ -30,18 +30,33 @@ class ScheduleRepository {
   /// Stream only the classes belonging to this student's own batch+section
   /// (from PDF-imported class routine data), so they don't see every other
   /// section's classes in the department.
+  ///
+  /// Filters the SERVER-side stream by `batch`, not `department` — Supabase's
+  /// realtime .stream() only supports a single .eq() (confirmed by reading
+  /// the SDK source: SupabaseStreamFilterBuilder holds one `_streamFilter`,
+  /// each further .eq() call overwrites rather than AND-combines the
+  /// previous one). Filtering by department alone pulled the WHOLE
+  /// department's rows over the wire before narrowing client-side — with
+  /// PostgREST's default 1,000-row response cap, a department once it grows
+  /// past that (CSE already has 1,854) silently truncates, sorted by
+  /// start_time ascending, so LATER time slots across the whole department
+  /// are the first to go missing. Confirmed live: a real batch's own
+  /// Monday lab (a 02:30 slot) never reached the student's device even
+  /// though the row was correctly in the database. `batch` alone is a far
+  /// narrower scope (one intake's rows across every department, not one
+  /// department's rows across every intake) and stays well under the cap.
   Stream<List<ClassSlot>> watchMyClassesAsStudent(String dept, String batch, String section, int day) {
     return cachedListStream(
       cacheKey: 'schedule_slots_student_${dept}_${batch}_${section}_$day',
       liveStream: () => _client
           .from('schedule_slots')
           .stream(primaryKey: ['id'])
-          .eq('department', dept)
-          .order('start_time')
+          .eq('batch', batch)
+          .order('start_time', ascending: true)
           .map((list) => list
               .where((s) =>
                   s['day_of_week'] == day &&
-                  (s['batch'] as String?)?.toLowerCase() == batch.toLowerCase() &&
+                  (s['department'] as String?)?.toLowerCase() == dept.toLowerCase() &&
                   (s['section'] as String?)?.toLowerCase() == section.toLowerCase())
               .map((s) => Map<String, dynamic>.from(s))
               .toList()),
@@ -57,7 +72,7 @@ class ScheduleRepository {
           .from('schedule_slots')
           .stream(primaryKey: ['id'])
           .eq('teacher_initial', teacherInitial)
-          .order('start_time')
+          .order('start_time', ascending: true)
           .map((list) => list
               .where((s) => s['day_of_week'] == day)
               .map((s) => Map<String, dynamic>.from(s))
@@ -73,7 +88,7 @@ class ScheduleRepository {
           .select()
           .eq('department', dept)
           .eq('semester', semester)
-          .order('exam_date') as List;
+          .order('exam_date', ascending: true) as List;
       return res.cast<Map<String, dynamic>>();
     },
   );
@@ -86,7 +101,7 @@ class ScheduleRepository {
     liveFetch: () async {
       var q = _client.from('exams').select().eq('department', dept);
       if (batch != null && batch.isNotEmpty) q = q.eq('batch', batch);
-      final res = await q.order('exam_date') as List;
+      final res = await q.order('exam_date', ascending: true) as List;
       return res.cast<Map<String, dynamic>>();
     },
   );
@@ -131,7 +146,7 @@ class ScheduleRepository {
     if (code.trim().isEmpty) return [];
     final res = await _client.from('schedule_slots').select()
         .ilike('subject_code', '%${code.trim()}%').eq('department', department)
-        .order('day_of_week').order('start_time') as List;
+        .order('day_of_week', ascending: true).order('start_time', ascending: true) as List;
     return res.map((s) => ClassSlot.fromJson(Map<String, dynamic>.from(s))).toList();
   }
 
@@ -167,11 +182,32 @@ class ScheduleRepository {
         .eq('user_id', uid).eq('schedule_slot_id', scheduleSlotId);
   }
 
+  /// Pages through every schedule_slots row for a department, `select`ing
+  /// only the given columns — see fetchDistinctRooms's comment for why this
+  /// can't be a single unbounded .select().
+  Future<List<Map<String, dynamic>>> _fetchAllRows(String columns, String department) async {
+    final all = <Map<String, dynamic>>[];
+    const pageSize = 1000;
+    for (var from = 0; ; from += pageSize) {
+      final page = await _client.from('schedule_slots').select(columns)
+          .eq('department', department).range(from, from + pageSize - 1) as List;
+      all.addAll(page.cast<Map<String, dynamic>>());
+      if (page.length < pageSize) break;
+    }
+    return all;
+  }
+
   /// Every distinct (building, room_number) in this department's routine —
   /// the room axis for the empty-room-availability view.
+  ///
+  /// Paginates via .range() rather than one unbounded .select() — PostgREST
+  /// caps a single response at 1,000 rows by default, and a real
+  /// department's routine (CSE alone is 1,854 rows) exceeds that, which
+  /// silently dropped every room that only appeared in rows past the cutoff
+  /// (same root cause as the routine-slot fetch fix in
+  /// watchMyClassesAsStudent above).
   Future<List<Map<String, String>>> fetchDistinctRooms(String department) async {
-    final res = await _client.from('schedule_slots').select('building, room_number')
-        .eq('department', department) as List;
+    final res = await _fetchAllRows('building, room_number', department);
     final seen = <String>{};
     final rooms = <Map<String, String>>[];
     for (final r in res.cast<Map<String, dynamic>>()) {
@@ -190,8 +226,7 @@ class ScheduleRepository {
   /// if the university's period times ever change, rather than a hardcoded
   /// constant).
   Future<List<({String start, String end})>> fetchDistinctPeriods(String department) async {
-    final res = await _client.from('schedule_slots').select('start_time, end_time')
-        .eq('department', department) as List;
+    final res = await _fetchAllRows('start_time, end_time', department);
     final seen = <String>{};
     final periods = <({String start, String end})>[];
     for (final r in res.cast<Map<String, dynamic>>()) {
@@ -228,6 +263,20 @@ class ScheduleRepository {
       'day_of_week': dayOfWeek, 'start_time': startTime, 'end_time': endTime, 'purpose': purpose,
     });
   }
+
+  /// The PDF's own printed header (Version / Effective From / Prepared By),
+  /// captured by parse-routine at upload time — one row per department+type.
+  /// Null if nothing's ever been uploaded yet, or the uploaded file didn't
+  /// print this metadata in a recognizable form.
+  Future<Map<String, dynamic>?> fetchRoutineHeader(String department, String routineType) => cachedMapFetch(
+    cacheKey: 'routine_header_${department}_$routineType',
+    liveFetch: () async {
+      final res = await _client.from('routine_uploads').select()
+          .eq('department', department).eq('routine_type', routineType).maybeSingle();
+      if (res == null) throw StateError('no routine header yet');
+      return res;
+    },
+  );
 
   Stream<List<ClassSlot>> watchMyPinnedSlots() {
     final uid = SupabaseConfig.uid;

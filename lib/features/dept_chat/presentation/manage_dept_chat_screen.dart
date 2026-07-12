@@ -41,13 +41,37 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Moderate Dept Chats'),
-      body: _loading
+      appBar: const AfosAppBar(title: 'Moderate Dept Chats'),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.indigo, AppColors.blue]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.forum_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Moderate Dept Chats', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_channels.length} channels across all departments',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _channels.isEmpty
-              ? EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No channels', subtitle: 'Nothing to moderate yet')
+              ? const EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No channels', subtitle: 'Nothing to moderate yet')
               : ListView.builder(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   itemCount: _channels.length,
                   itemBuilder: (ctx, i) {
                     final ch = _channels[i];
@@ -66,8 +90,12 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                         onTap: () => Navigator.push(context, MaterialPageRoute(
                             builder: (_) => _ModerateChatRoomScreen(channel: ch))),
                         child: Row(children: [
-                          Container(width: 8, height: 40, decoration: BoxDecoration(
-                              color: AppColors.indigo, borderRadius: BorderRadius.circular(4))),
+                          Container(width: 40, height: 40,
+                              decoration: BoxDecoration(
+                                  gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                      colors: [AppColors.indigo, AppColors.blue]),
+                                  borderRadius: BorderRadius.circular(10)),
+                              child: const Icon(Icons.tag_rounded, color: Colors.white, size: 20)),
                           const SizedBox(width: 12),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${ch['department'] ?? ''} · #${ch['channel_name'] ?? ''}',
@@ -78,7 +106,8 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                         ]),
                       ),
                     );
-                  }),
+                  })),
+      ]),
     );
   }
 }
@@ -134,7 +163,7 @@ class _ModerateChatRoomState extends State<_ModerateChatRoomScreen> {
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _messages.isEmpty
-              ? EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No messages', subtitle: 'Nothing posted here yet')
+              ? const EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No messages', subtitle: 'Nothing posted here yet')
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _messages.length,

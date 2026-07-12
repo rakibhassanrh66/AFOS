@@ -2,24 +2,39 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   AppColors._();
-  static const Color background    = Color(0xFF060D1F);
-  static const Color surface       = Color(0xFF0C1526);
-  static const Color card          = Color(0xFF111827);
-  static const Color cardHover     = Color(0xFF162035);
-  static const Color border        = Color(0xFF1E2D42);
-  static const Color borderLight   = Color(0xFF2A3F5A);
-  static const Color blue          = Color(0xFF1E6FFF);
-  static const Color blueLight     = Color(0xFF5294FF);
-  static const Color gold          = Color(0xFFFFD700);
-  static const Color green         = Color(0xFF00D084);
-  static const Color red           = Color(0xFFFF4D6A);
-  static const Color amber         = Color(0xFFFF9D00);
-  static const Color purple        = Color(0xFF8B5CF6);
-  static const Color teal          = Color(0xFF06B6D4);
-  static const Color coral         = Color(0xFFFF6B8A);
-  static const Color pink          = Color(0xFFEC4899);
-  static const Color indigo        = Color(0xFF6366F1);
-  static const Color orange        = Color(0xFFF97316);
+  // Lifted a step from near-black -- the previous values (#060D1F down to
+  // #111827) sat close enough to pure black that several feature accent
+  // colors lost visible separation from their own background, reading as
+  // "too dark to make things out" rather than a deliberate dark theme. Kept
+  // the same relative ordering (background < surface < card < cardHover)
+  // so every screen's existing layering still reads correctly, just softer.
+  static const Color background    = Color(0xFF0B1220);
+  static const Color surface       = Color(0xFF121B2E);
+  static const Color card          = Color(0xFF182236);
+  static const Color cardHover     = Color(0xFF1D2A42);
+  static const Color border        = Color(0xFF283A54);
+  static const Color borderLight   = Color(0xFF34496A);
+  // Recalibrated from the original fully-saturated "neon sign" set
+  // (#1E6FFF, #FFD700, #00D084...) to muted jewel tones -- Material's own
+  // dark-theme guidance specifically recommends desaturating colors placed
+  // on dark surfaces (a saturated hue at full strength against near-black
+  // produces much more simultaneous-contrast glare than the same hue does
+  // on a light surface), which is exactly the "too funky, hurts my eyes in
+  // a dark room" symptom being fixed here. Kept the same hue identity per
+  // color (blue is still recognizably blue) so nothing keyed off "the blue
+  // one" / "the gold one" elsewhere in the app needs to change.
+  static const Color blue          = Color(0xFF3E6FE0);
+  static const Color blueLight     = Color(0xFF6F94EE);
+  static const Color gold          = Color(0xFFD4AF37);
+  static const Color green         = Color(0xFF2FA876);
+  static const Color red           = Color(0xFFD9576D);
+  static const Color amber         = Color(0xFFD68A34);
+  static const Color purple        = Color(0xFF7C6FD1);
+  static const Color teal          = Color(0xFF2E9CB0);
+  static const Color coral         = Color(0xFFD97690);
+  static const Color pink          = Color(0xFFC65C93);
+  static const Color indigo        = Color(0xFF5B5FCF);
+  static const Color orange        = Color(0xFFD97A3D);
   // textSecondary/textMuted were previously #6B7E99 (4.4:1 contrast against
   // the dark surface — just under the 4.5:1 WCAG AA minimum for normal
   // text) and #3D5070 (2.24:1 — badly failing). Brightened to comfortably
@@ -36,30 +51,43 @@ class AppColors {
 
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [Color(0xFF060D1F), Color(0xFF0D1E3A)]);
+    colors: [Color(0xFF0B1220), Color(0xFF13284A)]);
   static const LinearGradient blueGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [Color(0xFF1E6FFF), Color(0xFF1455CC)]);
+    colors: [blue, Color(0xFF2C4FAE)]);
   static const LinearGradient goldGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [Color(0xFFFFD700), Color(0xFFFF9D00)]);
+    colors: [gold, amber]);
   static const LinearGradient cardGlass = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
     colors: [Color(0x14FFFFFF), Color(0x05FFFFFF)]);
+  // Clubs' flat AppColors.pink fill (a fully-saturated magenta) read as
+  // harsh/gaudy on large areas (the club-card banner, the Join button) --
+  // pairing it toward violet gives the same accent family the rest of the
+  // app's gradients use, without touching the many small icon/border
+  // accents elsewhere that were fine at full saturation.
+  static const LinearGradient pinkGradient = LinearGradient(
+    begin: Alignment.topLeft, end: Alignment.bottomRight,
+    colors: [pink, Color(0xFFA84A78)]);
 
+  // Was hardcoding its own duplicate hex value per module instead of
+  // referencing the constants above -- silently drifted out of sync the
+  // moment those constants were recalibrated, so every module icon on the
+  // Dashboard kept showing the old fully-saturated color even after this
+  // whole pass.
   static const Map<String, Color> moduleColors = {
-    'schedule': Color(0xFF1E6FFF), 'hall': Color(0xFFFF9D00),
-    'transport': Color(0xFF06B6D4), 'payment': Color(0xFFFFD700),
-    'library': Color(0xFF8B5CF6), 'lost_found': Color(0xFFFF6B8A),
-    'clubs': Color(0xFFEC4899), 'mentorship': Color(0xFF60A5FA),
-    'exam_seat': Color(0xFFF97316), 'dept_chat': Color(0xFF6366F1),
-    'vr_id': Color(0xFF00D084), 'notices': Color(0xFFFF4D6A),
+    'schedule': blue, 'hall': amber,
+    'transport': teal, 'payment': gold,
+    'library': purple, 'lost_found': coral,
+    'clubs': pink, 'mentorship': blueLight,
+    'exam_seat': orange, 'dept_chat': indigo,
+    'vr_id': green, 'notices': red,
   };
 
   // --- Holographic accent set (sci-fi glass signature) ---
-  static const Color holoBlue   = Color(0xFF1E6FFF);
-  static const Color holoviolet = Color(0xFF8B5CF6);
-  static const Color holoTeal   = Color(0xFF06B6D4);
+  static const Color holoBlue   = blue;
+  static const Color holoviolet = purple;
+  static const Color holoTeal   = teal;
 
   static const LinearGradient holoGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,

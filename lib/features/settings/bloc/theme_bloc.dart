@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../config/supabase_config.dart';
+import '../../../config/theme/app_colors.dart';
 
 // ── Events ──────────────────────────────────────────────────────────────────
 abstract class ThemeEvent {}
@@ -15,7 +16,7 @@ class _ThemeLoaded extends ThemeEvent { final ThemeMode mode; final Color accent
 class ThemeState {
   final ThemeMode mode;
   final Color accentColor;
-  const ThemeState(this.mode, [this.accentColor = const Color(0xFF1E6FFF)]);
+  const ThemeState(this.mode, [this.accentColor = AppColors.blue]);
 }
 
 // ── Bloc ─────────────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
     final box   = await Hive.openBox(_boxKey);
     final saved = box.get(_themeKey, defaultValue: 'dark') as String;
     final savedAccent = box.get(_accentKey) as String?;
-    var accent = savedAccent != null ? Color(int.parse(savedAccent, radix: 16)) : const Color(0xFF1E6FFF);
+    var accent = savedAccent != null ? Color(int.parse(savedAccent, radix: 16)) : AppColors.blue;
 
     final uid = SupabaseConfig.uid;
     if (uid != null) {

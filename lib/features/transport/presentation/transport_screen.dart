@@ -73,6 +73,15 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
   late TabController _tab;
   final _repo = TransportRepository();
   String? _selectedRouteId;
+  // Created once and reused across rebuilds -- calling _repo.watchRoutes()/
+  // watchLiveStatus() fresh inline inside build() (as StreamBuilder's
+  // `stream:` argument) handed a brand new Stream to StreamBuilder on every
+  // unrelated setState (e.g. _viewOnMap), which raced the old subscription's
+  // teardown against the new one's setup and could throw "Bad state: Stream
+  // has already been listened to." (same root cause fixed in
+  // schedule_screen.dart's _classesStream()).
+  late final Stream<List<Map<String,dynamic>>> _routesStream = _repo.watchRoutes();
+  late final Stream<Map<String, Map<String, dynamic>>> _liveStatusStream = _repo.watchLiveStatus();
 
   @override
   void initState() {
@@ -85,30 +94,95 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
     _tab.animateTo(3);
   }
 
+  static const _tabLabels = ['Find Route', 'My Route', 'All Routes', 'Map'];
+  static const _tabIcons = [Icons.alt_route_rounded, Icons.person_pin_circle_rounded, Icons.list_alt_rounded, Icons.map_rounded];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor:AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
-      appBar:AfosAppBar(title:'Transport'),
+      appBar:const AfosAppBar(title:'Transport'),
       body:Column(children:[
-        Container(color:AppColors.surfaceOf(context),child:TabBar(controller:_tab,
-          labelColor:AppColors.holoTeal,unselectedLabelColor:AppColors.textSecondaryOf(context),
-          indicatorColor:AppColors.holoTeal,
-          tabs:const [Tab(text:'Find Route'),Tab(text:'My Route'),Tab(text:'All Routes'),Tab(text:'Map')])),
         Expanded(child: StreamBuilder<List<Map<String,dynamic>>>(
-          stream: _repo.watchRoutes(),
+          stream: _routesStream,
           builder: (ctx, snap) {
             final loading = snap.connectionState==ConnectionState.waiting;
             final routes = snap.data ?? const <Map<String,dynamic>>[];
             return StreamBuilder<Map<String, Map<String, dynamic>>>(
-              stream: _repo.watchLiveStatus(),
+              stream: _liveStatusStream,
               builder: (ctx2, statusSnap) {
                 final liveStatus = statusSnap.data ?? const <String, Map<String, dynamic>>{};
-                return TabBarView(controller:_tab,children:[
-                  loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_FindRouteTab(routes:routes, liveStatus: liveStatus),
-                  loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_MyRouteTab(routes:routes, liveStatus: liveStatus),
-                  loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_AllRoutesTab(routes:routes, liveStatus: liveStatus, repo: _repo, onViewOnMap: _viewOnMap),
-                  _MapTab(selectedRouteId: _selectedRouteId, repo: _repo),
+                final liveCount = liveStatus.values.where((s) => s['status'] != 'departed' && s['status'] != 'cancelled').length;
+                return Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                            colors: [AppColors.holoTeal, AppColors.holoBlue]),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(children: [
+                        Container(padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), shape: BoxShape.circle),
+                            child: const Icon(Icons.directions_bus_filled_rounded, color: Colors.white, size: 24)),
+                        const SizedBox(width: 14),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Campus Transport', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 3),
+                          Text(loading ? 'Loading routes…' : '${routes.length} routes available',
+                              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.85))),
+                        ])),
+                        if (!loading && liveCount > 0) Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                            Text('$liveCount', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                                style: const TextStyle(color: Colors.white, fontSize: 20, height: 1.0, fontWeight: FontWeight.w800)),
+                            Text('live now', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 10, height: 1.0)),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+                  AnimatedBuilder(
+                    animation: _tab,
+                    builder: (ctx3, _) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(children: List.generate(_tabLabels.length, (i) {
+                        final sel = _tab.index == i;
+                        return Expanded(child: GestureDetector(
+                          onTap: () => _tab.animateTo(i),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                                gradient: sel ? const LinearGradient(colors: [AppColors.holoTeal, AppColors.holoBlue]) : null,
+                                color: sel ? null : AppColors.glassFill(context),
+                                borderRadius: BorderRadius.circular(20)),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                              const SizedBox(height: 5),
+                              Text(_tabLabels[i], textAlign: TextAlign.center,
+                                  textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                                  style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                                      fontSize: 11, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                            ]),
+                          ),
+                        ));
+                      })),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(child: TabBarView(controller:_tab,children:[
+                    loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_FindRouteTab(routes:routes, liveStatus: liveStatus),
+                    loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_MyRouteTab(routes:routes, liveStatus: liveStatus),
+                    loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_AllRoutesTab(routes:routes, liveStatus: liveStatus, repo: _repo, onViewOnMap: _viewOnMap),
+                    _MapTab(selectedRouteId: _selectedRouteId, repo: _repo),
+                  ])),
                 ]);
               },
             );
@@ -149,8 +223,11 @@ class _LiveStatusBadge extends StatelessWidget {
 }
 
 /// Lets a user pick where they are and where they want to go, then shows
-/// every route whose stop list contains both (origin appearing before
-/// destination) along with the boarding/arrival time at each stop.
+/// every route whose stop list contains both stops — a route's `stops` array
+/// is stored in a single fixed physical order, but the bus itself runs both
+/// directions along it (see to_dsc_times/from_dsc_times), so which stop
+/// happens to come first in that stored order says nothing about whether
+/// the trip is possible.
 class _FindRouteTab extends StatefulWidget {
   final List<Map<String,dynamic>> routes;
   final Map<String, Map<String, dynamic>> liveStatus;
@@ -182,7 +259,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
           .cast<Map>().map((s) => s['name'] as String?).toList();
       final fromIdx = stops.indexWhere((s) => s == _from);
       final toIdx = stops.indexWhere((s) => s == _to);
-      if (fromIdx == -1 || toIdx == -1 || fromIdx >= toIdx) continue;
+      if (fromIdx == -1 || toIdx == -1) continue;
       // The sheet gives per-trip times to/from DSC, not per-stop times, so
       // we surface the route's daily trip schedule rather than a single
       // board/arrive time we don't actually have data for.
@@ -205,31 +282,63 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     final textSecondary = AppColors.textSecondaryOf(context);
     final stopNames = _stopNames;
     if (stopNames.isEmpty) {
-      return Center(child: Text('No stop data uploaded yet',
-          style: TextStyle(color: textSecondary)));
+      return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.signpost_outlined, size: 40, color: textSecondary),
+        const SizedBox(height: 12),
+        Text('No stop data uploaded yet', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
+      ])));
     }
     final matches = _matches;
     return ListView(padding: const EdgeInsets.all(16), children: [
       Text('Where are you, and where are you going?',
           style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 16),
-      _StopDropdown(label: 'From', value: _from, options: stopNames,
-          onChanged: (v) => setState(() => _from = v)),
-      const SizedBox(height: 12),
-      _StopDropdown(label: 'To', value: _to, options: stopNames,
-          onChanged: (v) => setState(() => _to = v)),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
+        child: Column(children: [
+          _StopDropdown(label: 'From', icon: Icons.trip_origin_rounded, value: _from, options: stopNames,
+              onChanged: (v) => setState(() => _from = v)),
+          Row(children: [
+            const SizedBox(width: 30),
+            Expanded(child: Divider(height: 1, color: AppColors.borderOf(context))),
+            GestureDetector(
+              onTap: () => setState(() { final t = _from; _from = _to; _to = t; }),
+              child: Container(margin: const EdgeInsets.symmetric(horizontal: 10),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.swap_vert_rounded, size: 16, color: AppColors.holoTeal)),
+            ),
+            Expanded(child: Divider(height: 1, color: AppColors.borderOf(context))),
+            const SizedBox(width: 30),
+          ]),
+          _StopDropdown(label: 'To', icon: Icons.location_on_rounded, value: _to, options: stopNames,
+              onChanged: (v) => setState(() => _to = v)),
+        ]),
+      ),
       const SizedBox(height: 20),
       if (_from != null && _to != null && _from == _to)
         Text('Pick two different stops', style: TextStyle(color: textSecondary))
       else if (_from != null && _to != null && matches.isEmpty)
-        Text('No route covers that trip', style: TextStyle(color: textSecondary))
+        Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.route_outlined, size: 34, color: textSecondary),
+          const SizedBox(height: 10),
+          Text('No route covers that trip', style: TextStyle(color: textSecondary)),
+        ])))
       else
         ...matches.map((m) => SurfaceCard(
           margin: const EdgeInsets.only(bottom: 12),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(width: 40, height: 40,
-              decoration: BoxDecoration(color: AppColors.holoTeal.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-              child: Center(child: Text(m.routeNumber, style: const TextStyle(color: AppColors.holoTeal, fontWeight: FontWeight.bold)))),
+              decoration: BoxDecoration(
+                  gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [AppColors.holoTeal, AppColors.holoBlue]),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
+              child: Center(child: Text(m.routeNumber,
+                  textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                  style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.bold)))),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -269,22 +378,47 @@ class _TimeChipsRow extends StatelessWidget {
 
 class _StopDropdown extends StatelessWidget {
   final String label;
+  final IconData icon;
   final String? value;
   final List<String> options;
   final ValueChanged<String?> onChanged;
-  const _StopDropdown({required this.label, required this.value, required this.options, required this.onChanged});
+  const _StopDropdown({required this.label, required this.icon, required this.value, required this.options, required this.onChanged});
   @override
+  // Was a DropdownButtonFormField relying on Material's floating-label
+  // InputDecorator -- several rounds of contentPadding tweaks still left the
+  // label/value text sitting hard against the left edge (an
+  // EdgeInsets.only(top:..,bottom:..) leaves left/right at zero, and the
+  // decorator's internal label layout doesn't respect the icon+gap that
+  // precedes it in the Row the way a plain block layout would). Rebuilt on
+  // a plain DropdownButton with an always-visible label above it instead of
+  // a floating one -- full explicit control over every side's spacing, no
+  // InputDecorator internals to fight.
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      isExpanded: true,
-      decoration: InputDecoration(hintText: label, filled: true, fillColor: AppColors.glassFill(context),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.glassBorder(context)))),
-      dropdownColor: AppColors.surfaceOf(context),
-      style: TextStyle(color: AppColors.textPrimaryOf(context)),
-      items: options.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
-      onChanged: onChanged,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(children: [
+        Container(width: 36, height: 36, alignment: Alignment.center,
+            decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
+            child: Icon(icon, size: 18, color: AppColors.holoTeal)),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+              style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10.5, height: 1.0,
+                  fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+          const SizedBox(height: 5),
+          DropdownButtonHideUnderline(child: DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            isDense: true,
+            hint: Text('Select a stop', style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 15)),
+            dropdownColor: AppColors.surfaceOf(context),
+            style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600, fontSize: 15),
+            icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondaryOf(context)),
+            items: options.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
+            onChanged: onChanged,
+          )),
+        ])),
+      ]),
     );
   }
 }
@@ -319,8 +453,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
           .whereType<String>().where((s) => s.isNotEmpty).map((s) => s.toLowerCase()).toList();
       if (needles.isEmpty) return;
       for (final r in widget.routes) {
-        final haystack = ((r['route_name'] as String? ?? '') + ' '
-            + ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').join(' '))
+        final haystack = ('${r['route_name'] as String? ?? ''} ${((r['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').join(' ')}')
             .toLowerCase();
         if (needles.any((n) => haystack.contains(n))) {
           if (mounted) setState(() { _selectedRoute = r['id'] as String; _autoSuggested = true; });
@@ -346,8 +479,13 @@ class _MyRouteTabState extends State<_MyRouteTab> {
 
   @override
   Widget build(BuildContext context) {
-    if(widget.routes.isEmpty) return Center(
-      child:Text('No routes available',style:TextStyle(color:AppColors.textSecondaryOf(context))));
+    if(widget.routes.isEmpty) {
+      return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.directions_bus_outlined, size: 40, color: AppColors.textSecondaryOf(context)),
+        const SizedBox(height: 12),
+        Text('No routes available', style: TextStyle(color: AppColors.textSecondaryOf(context))),
+      ])));
+    }
     final selected = widget.routes.where((r) => r['id'] == _selectedRoute).firstOrNull;
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
     final toDsc = ((selected?['to_dsc_times'] as List?) ?? const []).cast<String>();
@@ -361,16 +499,34 @@ class _MyRouteTabState extends State<_MyRouteTab> {
             style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
       ],
       const SizedBox(height:12),
-      DropdownButtonFormField<String>(
-        value:_selectedRoute,
-        isExpanded: true,
-        decoration:InputDecoration(hintText:'Choose route',filled:true,fillColor:AppColors.glassFill(context),
-          border:OutlineInputBorder(borderRadius:BorderRadius.circular(12),
-            borderSide:BorderSide(color:AppColors.glassBorder(context)))),
-        dropdownColor:AppColors.surfaceOf(context),style:TextStyle(color:AppColors.textPrimaryOf(context)),
-        items:widget.routes.map((r)=>DropdownMenuItem(value:r['id'] as String,
-          child:Text('${r['route_number']} — ${r['route_name'] ?? 'Route'}', overflow: TextOverflow.ellipsis))).toList(),
-        onChanged:(v)=>setState(() { _selectedRoute=v; _autoSuggested = false; }),
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
+        child: Row(children: [
+          Container(width: 36, height: 36, alignment: Alignment.center,
+              decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: const Icon(Icons.directions_bus_filled_rounded, size: 18, color: AppColors.holoTeal)),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('ROUTE', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10.5, height: 1.0,
+                    fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+            const SizedBox(height: 5),
+            DropdownButtonHideUnderline(child: DropdownButton<String>(
+              value: _selectedRoute,
+              isExpanded: true,
+              isDense: true,
+              hint: Text('Choose route', style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 15)),
+              dropdownColor: AppColors.surfaceOf(context),
+              style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600, fontSize: 15),
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondaryOf(context)),
+              items: widget.routes.map((r) => DropdownMenuItem(value: r['id'] as String,
+                  child: Text('${r['route_number']} — ${r['route_name'] ?? 'Route'}', overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) => setState(() { _selectedRoute = v; _autoSuggested = false; }),
+            )),
+          ])),
+        ]),
       ),
       if(selected!=null) ...[
         const SizedBox(height:16),
@@ -387,7 +543,11 @@ class _MyRouteTabState extends State<_MyRouteTab> {
             decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Route Path', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
+              Row(children: [
+                const Icon(Icons.alt_route_rounded, size: 14, color: AppColors.holoTeal),
+                const SizedBox(width: 6),
+                Text('ROUTE PATH', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+              ]),
               const SizedBox(height: 8),
               Text(stops.join('  →  '), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context))),
               const SizedBox(height: 12),
@@ -437,9 +597,9 @@ class _NextDepartureCard extends StatelessWidget {
         border: Border.all(color: AppColors.holoTeal.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.directions_bus_filled_rounded, color: AppColors.holoTeal, size: 18),
-          const SizedBox(width: 8),
+        const Row(children: [
+          Icon(Icons.directions_bus_filled_rounded, color: AppColors.holoTeal, size: 18),
+          SizedBox(width: 8),
           Text('NEXT BUS', style: TextStyle(
               color: AppColors.holoTeal, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
         ]),
@@ -526,8 +686,10 @@ class _AllRoutesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if(routes.isEmpty) return Center(
+    if(routes.isEmpty) {
+      return Center(
         child:Text('No routes',style:TextStyle(color:AppColors.textSecondaryOf(context))));
+    }
     return ListView.builder(padding:const EdgeInsets.all(16),itemCount:routes.length,
       itemBuilder:(ctx,i){
         final r = routes[i];
@@ -539,27 +701,48 @@ class _AllRoutesTab extends StatelessWidget {
         return Padding(padding: const EdgeInsets.only(bottom:12), child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             onTap: () => _showRouteDetail(ctx, r),
             child: RepaintBoundary(
               child: Container(
-                padding:const EdgeInsets.all(14),
-                decoration:BoxDecoration(color:AppColors.surfaceOf(context),borderRadius:BorderRadius.circular(14),
-                  border:Border.all(color:AppColors.borderOf(context),width:0.5)),
-                child:Row(children:[
-                  Container(width:40,height:40,decoration:BoxDecoration(color:AppColors.holoTeal.withOpacity(0.15),borderRadius:BorderRadius.circular(10)),
-                    child:Center(child:Text(r['route_number']??'?',style:const TextStyle(color:AppColors.holoTeal,fontWeight:FontWeight.bold)))),
-                  const SizedBox(width:12),
-                  Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                    Row(children: [
-                      Expanded(child: Text(r['route_name']??'',style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      const SizedBox(width: 6),
-                      _LiveStatusBadge(status: liveStatus[r['id']]),
-                    ]),
-                    Text(subtitle,style:AppTextStyles.bodyMedium.copyWith(color:AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ])),
-                  Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
-                ])),
+                padding: const EdgeInsets.all(1.2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [AppColors.holoTeal.withValues(alpha: AppColors.isDark(context) ? 0.3 : 0.2),
+                               AppColors.holoBlue.withValues(alpha: 0.12)]),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(15)),
+                  child: Row(children: [
+                    Container(width: 44, height: 44,
+                        decoration: BoxDecoration(
+                            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                colors: [AppColors.holoTeal.withValues(alpha: 0.85), AppColors.holoBlue.withValues(alpha: 0.65)]),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                        child: Center(child: Text(r['route_number']??'?',
+                            textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                            style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 15)))),
+                    const SizedBox(width:12),
+                    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                      Row(children: [
+                        Expanded(child: Text(r['route_name']??'',style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        const SizedBox(width: 6),
+                        _LiveStatusBadge(status: liveStatus[r['id']]),
+                      ]),
+                      const SizedBox(height: 2),
+                      Row(children: [
+                        Icon(Icons.route_rounded, size: 12, color: AppColors.textSecondaryOf(context)),
+                        const SizedBox(width: 4),
+                        Expanded(child: Text(subtitle,style:AppTextStyles.bodyMedium.copyWith(color:AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      ]),
+                    ])),
+                    Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
+                  ]),
+                ),
+              ),
             ),
           ),
         )).animate(delay: Duration(milliseconds: i * 50))
@@ -637,8 +820,8 @@ class _MapTabState extends State<_MapTab> {
             Polyline(points: routePoints, strokeWidth: 4, color: AppColors.holoTeal),
           ]),
           MarkerLayer(markers:[
-            Marker(point:const LatLng(_diuLat,_diuLng), width:40, height:40,
-              child:const Icon(Icons.school_rounded,color:AppColors.holoBlue,size:36)),
+            const Marker(point:LatLng(_diuLat,_diuLng), width:40, height:40,
+              child:Icon(Icons.school_rounded,color:AppColors.holoBlue,size:36)),
             ...routePoints.map((p) => Marker(point: p, width: 14, height: 14,
                 child: Container(decoration: BoxDecoration(
                     color: AppColors.holoTeal, shape: BoxShape.circle,
@@ -657,7 +840,7 @@ class _MapTabState extends State<_MapTab> {
           onPressed: _requestingLocation ? null : _enableLocation,
           child: _requestingLocation
               ? const SupernovaLoader(size: 20, color: AppColors.holoTeal)
-              : Icon(Icons.my_location_rounded, color: AppColors.holoTeal))),
+              : const Icon(Icons.my_location_rounded, color: AppColors.holoTeal))),
       if (_locationError != null) Positioned(left: 16, right: 90, top: 16, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),

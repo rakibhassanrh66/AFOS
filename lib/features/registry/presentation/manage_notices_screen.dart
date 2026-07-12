@@ -89,7 +89,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                     style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
                 const SizedBox(height: 20),
                 DropdownButtonFormField<String>(
-                  value: category,
+                  initialValue: category,
                   decoration: InputDecoration(hintText: 'Category', filled: true,
                       fillColor: AppColors.glassFill(sheetCtx),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
@@ -107,7 +107,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                 if (existing == null) ...[
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String?>(
-                    value: notifyRole,
+                    initialValue: notifyRole,
                     decoration: InputDecoration(hintText: 'Notify', filled: true,
                         fillColor: AppColors.glassFill(sheetCtx),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
@@ -152,8 +152,10 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                       }
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
-                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
                           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                      }
                       setSheetState(() => saving = false);
                     }
                   },
@@ -168,16 +170,40 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Notices & Rules'),
+      appBar: const AfosAppBar(title: 'Notices & Rules'),
       floatingActionButton: FloatingActionButton.extended(
           onPressed: () => _openForm(),
           backgroundColor: AppColors.blue,
           icon: const Icon(Icons.add, color: Colors.white),
           label: const Text('New', style: TextStyle(color: Colors.white))),
-      body: _loading
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.red, AppColors.coral]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.campaign_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Notices & Rules', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_notices.length} published',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _notices.isEmpty
-              ? EmptyState(icon: Icons.campaign_outlined, title: 'Nothing published yet',
+              ? const EmptyState(icon: Icons.campaign_outlined, title: 'Nothing published yet',
                   subtitle: 'Create a notice, rule, or announcement')
               : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _notices.length,
                   itemBuilder: (ctx, i) {
@@ -204,7 +230,8 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                           Text(n['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
                               maxLines: 3, overflow: TextOverflow.ellipsis),
                         ]));
-                  }),
+                  })),
+      ]),
     );
   }
 }

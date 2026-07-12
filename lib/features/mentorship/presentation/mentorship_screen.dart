@@ -56,10 +56,12 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
               .eq('mentor_id', SupabaseConfig.uid ?? '').order('created_at', ascending: false) as Future,
           SupabaseConfig.client.from('mentors').select().eq('id', SupabaseConfig.uid ?? '').maybeSingle() as Future,
         ]);
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _incomingRequests = (results[0] as List).cast();
           _myMentorProfile = results[1] as Map<String, dynamic>?;
         });
+        }
       } else {
         // Only show mentors relevant to this student — never expose the
         // whole faculty roster. Matched by department for now (the
@@ -80,10 +82,12 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
           SupabaseConfig.client.from('mentorship_bookings').select('*, mentors(*, profiles(full_name))')
               .eq('student_id', SupabaseConfig.uid ?? '').order('created_at', ascending: false) as Future,
         ]);
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _mentors = (results[0] as List).cast();
           _sessions = (results[1] as List).cast();
         });
+        }
       }
     } catch (e) {
       // Previously swallowed silently — a load failure (network blip, a
@@ -108,17 +112,46 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
         TextButton(onPressed: _load, child: const Text('Retry')),
       ])));
 
+  Widget _heroHeader(BuildContext context, {required String title, required String subtitle, required IconData icon}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.blueLight, AppColors.blue]),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(children: [
+          Container(padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+              child: Icon(icon, color: Colors.white, size: 24)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+          ])),
+        ]),
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isSuperAdmin) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AfosAppBar(title: 'Mentorship Oversight'),
-        body: _loading
-            ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-            : _error != null
-                ? _errorView(context)
-                : _OversightTab(bookings: _allBookings, onRefresh: _load),
+        appBar: const AfosAppBar(title: 'Mentorship Oversight'),
+        body: Column(children: [
+          _heroHeader(context, title: 'Mentorship Oversight', icon: Icons.visibility_rounded,
+              subtitle: _loading ? 'Loading…' : '${_allBookings.length} bookings across the system'),
+          Expanded(child: _loading
+              ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+              : _error != null
+                  ? _errorView(context)
+                  : _OversightTab(bookings: _allBookings, onRefresh: _load)),
+        ]),
       );
     }
     if (!_isTeacher && !_isStudent) {
@@ -128,21 +161,53 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
       // (oversight), matching schedule_screen.dart's not-applicable pattern.
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AfosAppBar(title: 'Mentorship'),
-        body: EmptyState(icon: AppIcons.mentorship, title: 'Not applicable for your role',
+        appBar: const AfosAppBar(title: 'Mentorship'),
+        body: const EmptyState(icon: AppIcons.mentorship, title: 'Not applicable for your role',
             subtitle: 'Mentorship is for students and teachers only'),
       );
     }
+    final tabLabels = _isTeacher ? const ['Requests', 'My Profile'] : const ['Find Mentor', 'My Sessions'];
+    final tabIcons = _isTeacher
+        ? const [Icons.inbox_rounded, Icons.badge_rounded]
+        : const [Icons.explore_rounded, Icons.event_available_rounded];
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Mentorship'),
+      appBar: const AfosAppBar(title: 'Mentorship'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
-            labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.blue,
-            tabs: _isTeacher
-                ? const [Tab(text: 'Requests'), Tab(text: 'My Mentor Profile')]
-                : const [Tab(text: 'Find Mentor'), Tab(text: 'My Sessions')])),
+        _heroHeader(context, title: 'Mentorship', icon: AppIcons.mentorship,
+            subtitle: _isTeacher
+                ? (_loading ? 'Loading…' : '${_incomingRequests.length} requests received')
+                : (_loading ? 'Loading…' : '${_mentors.length} mentors available')),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: List.generate(tabLabels.length, (i) {
+              final sel = _tab.index == i;
+              return Expanded(child: GestureDetector(
+                onTap: () => _tab.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                      gradient: sel ? const LinearGradient(colors: [AppColors.blueLight, AppColors.blue]) : null,
+                      color: sel ? null : AppColors.glassFill(context),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                    const SizedBox(width: 6),
+                    Text(tabLabels[i],
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                            fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+                ),
+              ));
+            })),
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: _error != null
             ? _errorView(context)
             : TabBarView(controller: _tab, children: _isTeacher
@@ -187,12 +252,16 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                     'topic': topicCtrl.text.trim(),
                   });
                   _load();
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(queued
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(queued
                       ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
                       : const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
+                  }
                 } catch (e) {
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                 }
               }),
             ])));
@@ -206,8 +275,10 @@ class _MentorList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (mentors.isEmpty) return EmptyState(icon: AppIcons.mentorship,
+    if (mentors.isEmpty) {
+      return const EmptyState(icon: AppIcons.mentorship,
         title: 'No mentors available', subtitle: 'Mentors will appear here once faculty register');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: mentors.length,
         itemBuilder: (ctx, i) {
           final m = mentors[i];
@@ -219,9 +290,11 @@ class _MentorList extends StatelessWidget {
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(width: 56, height: 56, decoration: BoxDecoration(
-                    shape: BoxShape.circle, border: Border.all(color: AppColors.blue.withOpacity(0.3), width: 2),
-                    color: AppColors.blue.withOpacity(0.1)),
-                    child: const Center(child: Icon(Icons.person_rounded, color: AppColors.blue, size: 28))),
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [AppColors.blueLight, AppColors.blue]),
+                    boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    child: const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 28))),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(profile['full_name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -266,8 +339,10 @@ class _SessionsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (sessions.isEmpty) return EmptyState(icon: Icons.event_note_rounded,
+    if (sessions.isEmpty) {
+      return const EmptyState(icon: Icons.event_note_rounded,
         title: 'No sessions yet', subtitle: 'Book your first mentorship session');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: sessions.length,
         itemBuilder: (ctx, i) {
           final s = sessions[i];
@@ -289,8 +364,8 @@ class _SessionsTab extends StatelessWidget {
                 ])),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                    child: Text(status.toUpperCase(),
-                        style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                    child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
               ]));
         });
   }
@@ -326,8 +401,10 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
       }
       widget.onRefresh();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -339,8 +416,10 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.requests.isEmpty) return EmptyState(icon: Icons.inbox_outlined,
+    if (widget.requests.isEmpty) {
+      return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No requests yet', subtitle: 'Student mentorship requests addressed to you will appear here');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: widget.requests.length,
         itemBuilder: (ctx, i) {
           final r = widget.requests[i];
@@ -357,7 +436,8 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
                       maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Text(status.toUpperCase(), style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                      child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
                 if ((student['department'] as String? ?? '').isNotEmpty)
                   Text(student['department'], style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
@@ -411,11 +491,15 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
         'is_accepting_bookings': _accepting,
       });
       widget.onSaved();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mentor profile saved ✓'), backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -439,7 +523,7 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
       Row(children: [
         Text('Accepting new requests', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
         const Spacer(),
-        Switch(value: _accepting, activeColor: AppColors.blue,
+        Switch(value: _accepting, activeThumbColor: AppColors.blue,
             onChanged: (v) => setState(() => _accepting = v)),
       ]),
       const SizedBox(height: 16),
@@ -476,8 +560,10 @@ class _OversightTab extends StatelessWidget {
       await SupabaseConfig.client.from('mentors').delete().eq('id', mentorId);
       onRefresh();
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -485,8 +571,10 @@ class _OversightTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
-    if (bookings.isEmpty) return EmptyState(icon: Icons.school_outlined,
+    if (bookings.isEmpty) {
+      return const EmptyState(icon: Icons.school_outlined,
         title: 'No mentorship activity yet', subtitle: 'Every booking across the system will show up here');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: bookings.length,
         itemBuilder: (ctx, i) {
           final b = bookings[i];
@@ -504,7 +592,8 @@ class _OversightTab extends StatelessWidget {
                       style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Text(status.toUpperCase(), style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                      child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
                 Text('${student['department'] ?? ''} · ${mentorProfile['department'] ?? ''}',
                     style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),

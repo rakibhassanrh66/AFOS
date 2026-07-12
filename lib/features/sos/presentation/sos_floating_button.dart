@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -9,6 +10,7 @@ import 'package:record/record.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/services/blob_bytes.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/location_helper.dart';
 import '../data/repositories/sos_repository.dart';
@@ -68,8 +70,10 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
     final pos = await LocationHelper.getCurrentPosition(
       accuracy: LocationAccuracy.best,
       onError: (msg) {
-        if (rootCtx.mounted) ScaffoldMessenger.of(rootCtx).showSnackBar(
+        if (rootCtx.mounted) {
+          ScaffoldMessenger.of(rootCtx).showSnackBar(
             SnackBar(content: Text(msg), backgroundColor: AppColors.red));
+        }
       },
     );
     if (pos == null) return;
@@ -78,10 +82,14 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
     if (voicePath != null) {
       try {
         final uid = SupabaseConfig.uid;
-        final ext = voicePath.split('.').last;
+        // On web, voicePath is a blob: URL from record_web (dart:io.File
+        // can't read it, and it has no meaningful "extension" to split on)
+        // rather than a real filesystem path.
+        final ext = kIsWeb ? 'webm' : voicePath.split('.').last;
         voiceStoragePath = '$uid/${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final bytes = kIsWeb ? await fetchBlobBytes(voicePath) : await File(voicePath).readAsBytes();
         await SupabaseConfig.client.storage.from('sos-voice')
-            .uploadBinary(voiceStoragePath, await File(voicePath).readAsBytes());
+            .uploadBinary(voiceStoragePath, bytes);
       } catch (_) {
         // Best-effort -- a failed voice upload shouldn't block the alert
         // itself from going out.
@@ -93,12 +101,16 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
       final result = await SosRepository.triggerAlert(
         latitude: pos.latitude, longitude: pos.longitude, voicePath: voiceStoragePath,
       );
-      if (rootCtx.mounted) ScaffoldMessenger.of(rootCtx).showSnackBar(SnackBar(
+      if (rootCtx.mounted) {
+        ScaffoldMessenger.of(rootCtx).showSnackBar(SnackBar(
           content: Text('Alert sent to ${result['recipientCount'] ?? 0} people nearby'),
           backgroundColor: AppColors.green));
+      }
     } catch (e) {
-      if (rootCtx.mounted) ScaffoldMessenger.of(rootCtx).showSnackBar(
+      if (rootCtx.mounted) {
+        ScaffoldMessenger.of(rootCtx).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -178,8 +190,13 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
       return;
     }
     if (!await _recorder.hasPermission()) return;
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/sos_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    // path_provider has no web platform implementation at all --
+    // getTemporaryDirectory() throws on web. record's web backend records
+    // to an in-memory Blob via MediaRecorder and ignores this path
+    // argument entirely, so any placeholder string is fine there.
+    final path = kIsWeb
+        ? 'sos_voice_${DateTime.now().millisecondsSinceEpoch}.webm'
+        : '${(await getTemporaryDirectory()).path}/sos_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _recorder.start(const RecordConfig(), path: path);
     setState(() { _recording = true; _recordSeconds = 0; _recordedPath = null; });
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -215,7 +232,7 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.sos_rounded, color: AppColors.red, size: 40),
+          const Icon(Icons.sos_rounded, color: AppColors.red, size: 40),
           const SizedBox(height: 12),
           Text('Sending SOS in $_remaining s', style: AppTextStyles.headlineMed.copyWith(color: textPrimary)),
           const SizedBox(height: 6),

@@ -86,6 +86,6 @@ class SosRepository {
 
   static Stream<List<Map<String, dynamic>>> watchResponses(String alertId) {
     return SupabaseConfig.client.from('sos_responses').stream(primaryKey: ['id'])
-        .eq('alert_id', alertId).order('created_at');
+        .eq('alert_id', alertId).order('created_at').asBroadcastStream();
   }
 }

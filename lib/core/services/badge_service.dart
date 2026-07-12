@@ -11,6 +11,7 @@ import '../../config/supabase_config.dart';
 class BadgeService {
   BadgeService._();
   static RealtimeChannel? _sub;
+  static int _refreshGen = 0;
 
   static Future<void> start() async {
     await _refresh();
@@ -32,10 +33,16 @@ class BadgeService {
   static Future<void> _refresh() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return;
+    // Same out-of-order-response race as _NotificationBellState._load():
+    // marking several notifications read in quick succession queues up
+    // overlapping _refresh() calls whose network responses can resolve
+    // out of order, letting a stale higher count overwrite a fresher
+    // lower one. Only apply the result of the most recently issued query.
+    final gen = ++_refreshGen;
     try {
       final res = await SupabaseConfig.client.from('user_notifications')
           .select('id').eq('user_id', uid).eq('is_read', false) as List;
-      await AppBadgePlus.updateBadge(res.length);
+      if (gen == _refreshGen) await AppBadgePlus.updateBadge(res.length);
     } catch (_) {}
   }
 }

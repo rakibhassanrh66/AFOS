@@ -93,7 +93,7 @@ class SupernovaBusy extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      SupernovaLoader(size: 64, color: AppColors.holoBlue),
+      const SupernovaLoader(size: 64, color: AppColors.holoBlue),
       const SizedBox(height: 16),
       Text(label, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 13, fontWeight: FontWeight.w600)),
     ]);

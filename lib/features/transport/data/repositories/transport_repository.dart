@@ -26,6 +26,11 @@ class TransportRepository {
   /// "current" flag on transport_live_status, so the most recently
   /// updated row per route is treated as the live one.
   Stream<Map<String, Map<String, dynamic>>> watchLiveStatus() {
+    // .asBroadcastStream() -- this bypasses cachedListStream (deliberately,
+    // see the comment above watchRoutes), so it doesn't get that helper's
+    // broadcast wrapping; a raw Supabase .stream() is single-subscription,
+    // same class of "already listened to" risk fixed at the root in
+    // offline_cache.dart's cachedListStream.
     return _client
         .from('transport_live_status')
         .stream(primaryKey: ['id'])
@@ -37,7 +42,7 @@ class TransportRepository {
         if (routeId != null && !byRoute.containsKey(routeId)) byRoute[routeId] = r;
       }
       return byRoute;
-    });
+    }).asBroadcastStream();
   }
 
   Future<List<Map<String, dynamic>>> fetchStops(String routeId) async {

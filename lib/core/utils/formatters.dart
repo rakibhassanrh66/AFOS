@@ -4,6 +4,16 @@ class AppFormatters {
   static String date(DateTime d) => DateFormat('dd MMM yyyy').format(d);
   static String dateTime(DateTime d) => DateFormat('dd MMM yyyy, hh:mm a').format(d);
   static String time(DateTime d) => DateFormat('hh:mm a').format(d);
+  /// Formats a raw 24-hour "HH:MM" or "HH:MM:SS" string (as stored in a
+  /// Postgres `time` column) as 12-hour "h:mm a", e.g. "13:00:00" -> "1:00 PM".
+  static String time12(String hhmmss) {
+    final parts = hhmmss.split(':');
+    if (parts.length < 2) return hhmmss;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return hhmmss;
+    return DateFormat('h:mm a').format(DateTime(2000, 1, 1, h, m));
+  }
   static String currency(double amount,{String symbol='\u09F3'}) =>
     '$symbol${amount.toStringAsFixed(2)}';
   static String greeting() {

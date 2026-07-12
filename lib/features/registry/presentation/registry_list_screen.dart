@@ -63,12 +63,14 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
       if (_isDepartments) {
         faculties = (await Supabase.instance.client.from('faculties').select('id,name').order('name') as List).cast();
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _items = res.cast();
         _faculties = faculties;
         _loading = false;
         _error = null;
       });
+      }
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = friendlyError(e); });
     }
@@ -130,8 +132,10 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                   }
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e) {
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                  if (sheetCtx.mounted) {
+                    ScaffoldMessenger.of(sheetCtx).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                   setSheetState(() => saving = false);
                 }
               },
@@ -159,8 +163,10 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
     try {
       await Supabase.instance.client.from(widget.tableName).delete().eq('id', item['id']);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -171,7 +177,31 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: widget.title),
-      body: _loading
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.indigo, AppColors.blue]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: Icon(_isDepartments ? Icons.school_rounded : Icons.account_balance_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.title, style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_items.length} ${widget.title.toLowerCase()}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _error != null
               ? Center(child: Padding(padding: const EdgeInsets.all(24),
@@ -181,7 +211,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                   ? EmptyState(icon: Icons.account_balance_outlined, title: 'No ${widget.title.toLowerCase()} yet',
                       subtitle: _canWrite ? 'Tap + to add one' : 'Nothing has been added yet')
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                       itemCount: _items.length,
                       itemBuilder: (context, i) {
                         final item = _items[i];
@@ -189,12 +219,18 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                             ? [item['code'], _facultyName(item['faculty_id'] as String?)].where((s) => (s ?? '').toString().isNotEmpty).join(' · ')
                             : (item['code'] as String? ?? '');
                         return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          margin: const EdgeInsets.symmetric(vertical: 4),
                           decoration: BoxDecoration(
                               color: AppColors.surfaceOf(context),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                           child: ListTile(
+                            leading: Container(width: 40, height: 40,
+                                decoration: BoxDecoration(
+                                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                        colors: [AppColors.indigo, AppColors.blue]),
+                                    borderRadius: BorderRadius.circular(10)),
+                                child: Icon(_isDepartments ? Icons.school_rounded : Icons.account_balance_rounded, color: Colors.white, size: 20)),
                             title: Text(item['name'] as String? ?? 'No Name',
                                 style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -210,7 +246,8 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                           ),
                         );
                       },
-                    ),
+                    )),
+      ]),
       floatingActionButton: _canWrite
           ? FloatingActionButton(
               backgroundColor: AppColors.blue,

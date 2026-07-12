@@ -79,8 +79,10 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                   );
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e) {
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                  if (sheetCtx.mounted) {
+                    ScaffoldMessenger.of(sheetCtx).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                   setSheetState(() => saving = false);
                 }
               }),
@@ -116,8 +118,10 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                   );
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e) {
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                  if (sheetCtx.mounted) {
+                    ScaffoldMessenger.of(sheetCtx).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                   setSheetState(() => saving = false);
                 }
               }),
@@ -129,7 +133,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Conference Rooms'),
+      appBar: const AfosAppBar(title: 'Conference Rooms'),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),

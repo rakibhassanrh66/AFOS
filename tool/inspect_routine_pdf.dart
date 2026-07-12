@@ -10,9 +10,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final files = <String, String>{
-    'class_routine': r'C:\Users\Rakib Hassan\Downloads\Documents\CSE Class Routine V4.2 Summer-2026_2.pdf',
-    'exam_routine': r'C:\Users\Rakib Hassan\Downloads\Documents\CSE Exam Routine Mid Semester Summer 2026_2.pdf',
-    'transport': r'C:\Users\Rakib Hassan\Downloads\Documents\Transport Schedule Mid-term Exam  Semester- Summer-2026. .xlsx - Transport Schedule Mid-term Exam _ Summer-2026.pdf',
+    'class_routine_v5': r'C:\Users\Rakib Hassan\Downloads\Documents\CSE Class Routine V5 Summer-2026.pdf',
   };
 
   final out = StringBuffer();
@@ -21,11 +19,16 @@ void main() async {
     final bytes = File(entry.value).readAsBytesSync();
     final doc = PdfDocument(inputBytes: bytes);
     try {
-      final textLines = PdfTextExtractor(doc).extractTextLines();
-      final lines = textLines.map((l) => l.text.trim()).where((t) => t.isNotEmpty).toList();
-      out.writeln('LINE_COUNT: ${lines.length}');
-      for (var i = 0; i < lines.length; i++) {
-        out.writeln('$i: ${lines[i]}');
+      out.writeln('PAGE_COUNT: ${doc.pages.count}');
+      var globalIdx = 0;
+      for (var p = 0; p < doc.pages.count; p++) {
+        final textLines = PdfTextExtractor(doc).extractTextLines(startPageIndex: p, endPageIndex: p);
+        final lines = textLines.map((l) => l.text.trim()).where((t) => t.isNotEmpty).toList();
+        out.writeln('--- PAGE $p : ${lines.length} lines ---');
+        for (final l in lines) {
+          out.writeln('$globalIdx: $l');
+          globalIdx++;
+        }
       }
     } finally {
       doc.dispose();
@@ -33,7 +36,7 @@ void main() async {
     out.writeln();
   }
 
-  final outFile = File(r'E:\FYDP\AFOS\tool\routine_pdf_dump.txt');
+  final outFile = File(r'E:\FYDP\AFOS\tool\routine_pdf_dump_v5_paged.txt');
   await outFile.writeAsString(out.toString());
   // ignore: avoid_print
   print('WROTE_DUMP_OK: ${await outFile.length()} bytes');

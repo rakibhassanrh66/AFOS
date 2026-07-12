@@ -6,6 +6,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -93,8 +94,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         category: 'general',
       );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -125,8 +128,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     category: 'general',
                   );
                 } catch (e) {
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                  }
                 }
               }),
             ])));
@@ -160,8 +165,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         category: 'general',
       );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -193,12 +200,16 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
       final res = await SupabaseConfig.client.functions.invoke('delete-user', body: {'targetUserId': user['id']});
       final data = res.data;
       if (data is Map && data['error'] != null) throw Exception(data['error']);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${user['full_name']} deleted'), backgroundColor: AppColors.green));
+      }
       _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -218,7 +229,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Manage Users'),
+      appBar: const AfosAppBar(title: 'Manage Users'),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -237,19 +248,30 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
             ),
           ),
         ),
-        Container(color: AppColors.surfaceOf(context), child: TabBar(
-            controller: _tab, labelColor: AppColors.holoviolet,
-            unselectedLabelColor: AppColors.textSecondaryOf(context), indicatorColor: AppColors.holoviolet,
-            tabs: [
-              Tab(text: 'Pending (${_pending.length})'),
-              Tab(text: 'CR Requests (${_crRequests.length})'),
-              const Tab(text: 'All Users'),
-            ])),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              Expanded(child: AdminTabPill(label: 'Pending (${_pending.length})',
+                  icon: Icons.how_to_reg_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
+                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
+              const SizedBox(width: 6),
+              Expanded(child: AdminTabPill(label: 'CR Requests (${_crRequests.length})',
+                  icon: Icons.badge_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
+                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
+              const SizedBox(width: 6),
+              Expanded(child: AdminTabPill(label: 'All Users',
+                  icon: Icons.people_alt_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
+                  selected: _tab.index == 2, onTap: () => _tab.animateTo(2))),
+            ]),
+          ),
+        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : TabBarView(controller: _tab, children: [
                 _pending.isEmpty
-                    ? EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
+                    ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _pending.length,
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
@@ -257,7 +279,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                             onReject: () => _rejectAndDelete(_pending[i]),
                             onDelete: () => _confirmDelete(_pending[i]))),
                 _crRequests.isEmpty
-                    ? EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
+                    ? const EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
                         subtitle: 'Student requests to become Class Representative will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _crRequests.length,
                         itemBuilder: (ctx, i) {
@@ -302,7 +324,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       }).toList())),
                   const SizedBox(height: 8),
                   Expanded(child: _filtered.isEmpty
-                      ? EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
+                      ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
                       : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _filtered.length,
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
                               onDelete: () => _confirmDelete(_filtered[i])))),

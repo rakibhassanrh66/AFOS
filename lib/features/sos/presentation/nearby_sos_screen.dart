@@ -54,8 +54,32 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Nearby SOS Alerts'),
-      body: RefreshIndicator(
+      appBar: const AfosAppBar(title: 'Nearby SOS Alerts'),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.red, AppColors.coral]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Nearby SOS Alerts', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_alerts.length} active within 5km',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        Expanded(child: RefreshIndicator(
         onRefresh: _load,
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
@@ -94,7 +118,8 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                             ),
                           );
                         }),
-      ),
+      )),
+      ]),
     );
   }
 }

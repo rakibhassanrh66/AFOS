@@ -42,21 +42,75 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> with Single
       await SupabaseConfig.client.from('conference_room_requests').update({'status': 'cancelled'}).eq('id', id);
       _load();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
+
+  static const _tabLabels = ['My Requests', 'New Request'];
+  static const _tabIcons = [Icons.event_note_rounded, Icons.add_circle_outline_rounded];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Conference Room'),
+      appBar: const AfosAppBar(title: 'Conference Room'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(controller: _tab,
-            labelColor: AppColors.holoTeal, unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.holoTeal,
-            tabs: const [Tab(text: 'My Requests'), Tab(text: 'New Request')])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.holoTeal, AppColors.holoBlue]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.meeting_room_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Conference Room', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_requests.length} of your requests',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: List.generate(_tabLabels.length, (i) {
+              final sel = _tab.index == i;
+              return Expanded(child: GestureDetector(
+                onTap: () => _tab.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                      gradient: sel ? const LinearGradient(colors: [AppColors.holoTeal, AppColors.holoBlue]) : null,
+                      color: sel ? null : AppColors.glassFill(context),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                    const SizedBox(width: 6),
+                    Text(_tabLabels[i],
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                            fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+                ),
+              ));
+            })),
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _RequestsList(requests: _requests, onCancel: _cancel),
@@ -78,8 +132,10 @@ class _RequestsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (requests.isEmpty) return EmptyState(icon: Icons.meeting_room_outlined,
+    if (requests.isEmpty) {
+      return const EmptyState(icon: Icons.meeting_room_outlined,
         title: 'No requests yet', subtitle: 'Submit a new request from the other tab');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: requests.length,
         itemBuilder: (ctx, i) {
           final r = requests[i];
@@ -92,7 +148,8 @@ class _RequestsList extends StatelessWidget {
                   Expanded(child: Text(r['purpose'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Text(status.toUpperCase(), style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.w700))),
+                      child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
                 Text('${r['requested_date']} · ${r['start_time']}–${r['end_time']}',
                     style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
@@ -133,7 +190,11 @@ class _NewRequestFormState extends State<_NewRequestForm> {
   Future<void> _pickTime(bool isStart) async {
     final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
     if (t == null) return;
-    setState(() { if (isStart) _start = t; else _end = t; });
+    setState(() { if (isStart) {
+      _start = t;
+    } else {
+      _end = t;
+    } });
   }
 
   Future<void> _submit() async {
@@ -157,8 +218,10 @@ class _NewRequestFormState extends State<_NewRequestForm> {
       setState(() { _date = null; _start = null; _end = null; });
       widget.onSubmitted();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _saving = false);
   }

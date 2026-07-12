@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
@@ -62,19 +63,68 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
     if (mounted) setState(() => _loading = false);
   }
 
+  static const _tabLabels = ['Feed', 'Post', 'My Posts', 'My Claims'];
+  static const _tabIcons = [Icons.dynamic_feed_rounded, Icons.add_circle_outline_rounded, Icons.inventory_2_outlined, Icons.assignment_ind_outlined];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AfosAppBar(title: 'Lost & Found'),
+      appBar: const AfosAppBar(title: 'Lost & Found'),
       body: Column(children: [
-        Container(color: AppColors.surfaceOf(context), child: TabBar(
-            controller: _tab,
-            labelColor: AppColors.blue,
-            unselectedLabelColor: AppColors.textSecondaryOf(context),
-            indicatorColor: AppColors.blue,
-            isScrollable: true,
-            tabs: const [Tab(text: 'Feed'), Tab(text: 'Post'), Tab(text: 'My Posts'), Tab(text: 'My Claims')])),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.coral, AppColors.red]),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: const Icon(Icons.find_in_page_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Lost & Found', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(_loading ? 'Loading…' : '${_posts.length} active ${_posts.length == 1 ? 'post' : 'posts'}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
+              ])),
+            ]),
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: List.generate(_tabLabels.length, (i) {
+              final sel = _tab.index == i;
+              return Expanded(child: GestureDetector(
+                onTap: () => _tab.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                      gradient: sel ? const LinearGradient(colors: [AppColors.coral, AppColors.red]) : null,
+                      color: sel ? null : AppColors.glassFill(context),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(_tabIcons[i], size: 15, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
+                    const SizedBox(height: 5),
+                    Text(_tabLabels[i], textAlign: TextAlign.center,
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
+                            fontSize: 10.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  ]),
+                ),
+              ));
+            })),
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _FeedTab(posts: _posts, loading: _loading, error: _error, filter: _filter,
               onFilter: (f) { setState(() => _filter = f); _load(); },
@@ -127,7 +177,7 @@ class _FeedTab extends StatelessWidget {
                   TextButton(onPressed: onRefresh, child: const Text('Retry')),
                 ])))
               : posts.isEmpty
-              ? EmptyState(icon: Icons.search_off_rounded, title: 'No posts yet',
+              ? const EmptyState(icon: Icons.search_off_rounded, title: 'No posts yet',
                   subtitle: 'Be the first to report a lost or found item')
               : RefreshIndicator(onRefresh: () async => onRefresh(), color: AppColors.blue,
                   child: GridView.builder(
@@ -168,8 +218,10 @@ class _PostCard extends StatelessWidget {
       await SupabaseConfig.client.from('lost_found_posts').delete().eq('id', post['id']);
       onDeleted();
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -207,11 +259,15 @@ class _PostCard extends StatelessWidget {
           category: 'lost_found',
         );
       }
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Claim sent to poster for review')));
+      }
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
@@ -239,7 +295,8 @@ class _PostCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: typeColor, borderRadius: BorderRadius.circular(10)),
               child: Text(type.toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)))),
+                  textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                  style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800)))),
           if (RoleSession.role == 'super_admin') Positioned(top: 6, left: 6, child: GestureDetector(
               onTap: () => _superAdminDelete(context),
               child: Container(padding: const EdgeInsets.all(5),
@@ -312,8 +369,10 @@ class _PostTabState extends State<_PostTab> {
       if (mounted) setState(() { _type = 'lost'; _category = 'Electronics'; _image = null; });
       widget.onPosted();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -343,8 +402,16 @@ class _PostTabState extends State<_PostTab> {
             decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _image != null ? AppColors.green : AppColors.borderOf(context))),
             child: _image != null
+                // dart:io's File doesn't work on Flutter Web at all -- the
+                // actual upload already goes through XFile.readAsBytes()
+                // (web-safe), but this preview still built a File from the
+                // path directly. On web, XFile.path is a blob: URL that
+                // Image.network can load directly; only native platforms
+                // get a real filesystem path Image.file can use.
                 ? ClipRRect(borderRadius: BorderRadius.circular(12),
-                    child: Image.file(File(_image!.path), fit: BoxFit.cover))
+                    child: kIsWeb
+                        ? Image.network(_image!.path, fit: BoxFit.cover)
+                        : Image.file(File(_image!.path), fit: BoxFit.cover))
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.add_photo_alternate_outlined, color: AppColors.textSecondaryOf(context), size: 32),
                     const SizedBox(height: 6),
@@ -401,8 +468,10 @@ class _MyPostsTabState extends State<_MyPostsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_myPosts.isEmpty) return EmptyState(icon: Icons.post_add_rounded,
+    if (_myPosts.isEmpty) {
+      return const EmptyState(icon: Icons.post_add_rounded,
         title: 'No posts yet', subtitle: 'Post a lost or found item from the Post tab');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _myPosts.length,
         itemBuilder: (ctx, i) {
           final p = _myPosts[i];
@@ -586,16 +655,20 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
           ]),
           actions: [TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Close'))]));
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_claims.isEmpty) return EmptyState(icon: Icons.inbox_outlined,
+    if (_claims.isEmpty) {
+      return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No claims filed', subtitle: 'Claims you send from the Feed tab will appear here');
+    }
     return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _claims.length,
         itemBuilder: (ctx, i) {
           final c = _claims[i];
@@ -614,7 +687,8 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
                       maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Text(status.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700))),
+                      child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: statusColor, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
                 const SizedBox(height: 4),
                 Text(c['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
