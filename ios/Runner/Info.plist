@@ -51,6 +51,20 @@
 	     Found attachment) -- iOS terminates the app without this key. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>AFOS uses your photo library to set a profile picture and attach photos to Lost &amp; Found posts.</string>
+	<!-- Password-reset deep link -- without this, the emailed link had
+	     nowhere to land on iOS except a browser opening the web build,
+	     even when the request came from this native app. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.afos.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>afos</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

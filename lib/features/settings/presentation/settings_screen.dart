@@ -432,9 +432,11 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 16),
 
               // ── App Info ─────────────────────────────────────────────────
-              const _Section(title: 'App Info', children: [
+              _Section(title: 'App Info', children: [
                 _InfoTile('Version', 'AFOS v${AppConfig.appVersion}', Icons.info_outline_rounded),
-                _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
+                _ActionTile('What\'s New', Icons.new_releases_outlined, AppColors.holoBlue,
+                    () => context.push('/releases')),
+                const _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
               ]),
 
               const SizedBox(height: 24),
