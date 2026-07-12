@@ -9,6 +9,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/services/web_title.dart';
 
 class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -21,6 +22,13 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
+    // AfosAppBar must stay a bare PreferredSizeWidget (Scaffold.appBar
+    // requires it), so it can't be wrapped in Flutter's Title widget the
+    // usual way -- every screen already passes its own meaningful title
+    // here, so this is the one place that already knows "what's actually
+    // on screen" to drive the browser tab title with it. No-op on
+    // Android/iOS (web_title_io.dart).
+    setWebTitle('$title - AFOS');
     return AppBar(
       backgroundColor: AppColors.surfaceOf(context),
       elevation: 0,

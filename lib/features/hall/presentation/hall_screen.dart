@@ -390,11 +390,17 @@ class _ApplyTabState extends State<_ApplyTab> {
         final p = await SupabaseConfig.client.from('profiles').select('gender').eq('id', uid).maybeSingle();
         gender = p?['gender'] as String?;
       }
-      // hall_availability computes live seats-left per hall (capacity minus
-      // everyone currently holding/awaiting release of a seat there) —
-      // replaces what used to be 4 hardcoded, non-DIU hall names.
-      var query = SupabaseConfig.client.from('hall_availability').select();
-      final res = (gender != null ? await query.eq('gender', gender) : await query) as List;
+      // get_hall_availability() computes live seats-left per hall (capacity
+      // minus everyone currently holding/awaiting release of a seat there)
+      // — replaces what used to be 4 hardcoded, non-DIU hall names. A
+      // SECURITY DEFINER function rather than a plain view/table, since it
+      // legitimately needs to aggregate across hall_applications rows RLS
+      // would otherwise restrict each student to only their own row of —
+      // see the migration for why. RPC results aren't further filterable
+      // server-side the way from().select() is, so gender filtering
+      // happens client-side here instead.
+      final all = await SupabaseConfig.client.rpc('get_hall_availability') as List;
+      final res = gender != null ? all.where((h) => h['gender'] == gender).toList() : all;
       if (mounted) {
         setState(() {
         _halls = res.cast();

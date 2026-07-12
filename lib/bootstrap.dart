@@ -161,6 +161,14 @@ Future<void> bootstrap() async {
     } else {
       BadgeService.stop();
     }
+    // Clicking the emailed password-reset link establishes a real session
+    // and fires this event exactly once -- there was previously nothing
+    // listening for it at all, so the recovery token in the link just sat
+    // there unused and the user landed "logged in" with no way to actually
+    // set a new password.
+    if (data.event == AuthChangeEvent.passwordRecovery) {
+      AppRouter.router.push('/reset-password');
+    }
   });
 
   configureDependencies();

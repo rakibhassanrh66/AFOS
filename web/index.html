@@ -23,13 +23,18 @@
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="afos_v7">
+  <meta name="apple-mobile-web-app-title" content="AFOS">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>afos_v7</title>
+  <!-- Was the raw project name ("afos_v7") -- showed as the tab title for
+       the moment before Flutter boots and JS takes over, then visibly
+       flashed/changed to "AFOS" once it did. Matching it here removes the
+       flash; AfosAppBar (web_title.dart) takes over with the actual
+       per-screen title once the app is running. -->
+  <title>AFOS</title>
   <link rel="manifest" href="manifest.json">
 
   <!-- Passkeys Web SDK -- supabase_flutter transitively depends on the
