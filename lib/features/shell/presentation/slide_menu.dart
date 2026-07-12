@@ -12,7 +12,12 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 
 class SlideMenu extends StatefulWidget {
-  const SlideMenu({super.key});
+  // True when rendered as the permanent desktop nav rail (app_shell.dart,
+  // >=1024px) instead of the mobile/tablet hide-show overlay drawer -- a
+  // permanent rail has nothing to "close" (no close button) and sits
+  // narrower/more compact than the touch-sized mobile drawer.
+  final bool permanent;
+  const SlideMenu({super.key, this.permanent = false});
   @override State<SlideMenu> createState() => _SlideMenuState();
 }
 
@@ -230,11 +235,16 @@ class _SlideMenuState extends State<SlideMenu> {
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
         Row(children:[
           GestureDetector(
-            onTap: () { ctx.read<ShellBloc>().add(CloseMenu()); ctx.push('/complete-profile'); },
+            onTap: () {
+              if (!widget.permanent) ctx.read<ShellBloc>().add(CloseMenu());
+              ctx.push('/complete-profile');
+            },
             child: _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?', isSuperAdmin: isSuperAdmin)),
           const Spacer(),
-          IconButton(icon:Icon(AppIcons.close,color:textSecondary),
-            onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
+          // A permanent rail has nothing to close.
+          if (!widget.permanent)
+            IconButton(icon:Icon(AppIcons.close,color:textSecondary),
+              onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
         ]),
         const SizedBox(height:14),
         Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge.copyWith(color: textPrimary),
@@ -343,42 +353,77 @@ class _SlideMenuState extends State<SlideMenu> {
   }
 }
 
-class _MenuTile extends StatelessWidget {
+class _MenuTile extends StatefulWidget {
   final _MenuItem item;
   final bool isActive;
   final int index, delay;
   const _MenuTile({required this.item,required this.isActive,required this.index,required this.delay});
+  @override State<_MenuTile> createState() => _MenuTileState();
+}
+
+class _MenuTileState extends State<_MenuTile> {
+  bool _hover = false;
+
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final isActive = widget.isActive;
     final textPrimary = AppColors.textPrimaryOf(context);
     return Padding(
       padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),
-      child: Material(
-        color:isActive?item.color.withOpacity(0.12):Colors.transparent,
+      // MouseRegion is a no-op on touch (Android/iOS), so this only ever
+      // fires with an actual mouse on web/desktop -- no platform branching
+      // needed for the hover glow to stay touch-safe.
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: isActive
+                ? item.color.withValues(alpha: 0.12)
+                : (_hover ? item.color.withValues(alpha: 0.07) : Colors.transparent),
+            border: _hover && !isActive
+                ? Border.all(color: item.color.withValues(alpha: 0.25))
+                : Border.all(color: Colors.transparent),
+          ),
+          child: Material(
+        color: Colors.transparent,
         borderRadius:BorderRadius.circular(10),
         child: InkWell(
           borderRadius:BorderRadius.circular(10),
           onTap:(){
-            context.read<ShellBloc>().add(SelectItem(index));
+            context.read<ShellBloc>().add(SelectItem(widget.index));
             context.push(item.route);
           },
-          child: Container(
-            padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+                .add(EdgeInsets.only(left: _hover && !isActive ? 2 : 0)),
             decoration:isActive?BoxDecoration(
               border:Border(left:BorderSide(color:item.color,width:3)),
             ):null,
             child: Row(children:[
-              Container(width:34,height:34, alignment: Alignment.center,
+              AnimatedScale(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                scale: _hover && !isActive ? 1.08 : 1.0,
+                child: Container(width:34,height:34, alignment: Alignment.center,
                 decoration: isActive
                     ? BoxDecoration(
                         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                            colors: [item.color, item.color.withOpacity(0.7)]),
+                            colors: [item.color, item.color.withValues(alpha: 0.7)]),
                         borderRadius:BorderRadius.circular(10),
-                        boxShadow: [BoxShadow(color: item.color.withOpacity(0.35), blurRadius: 8, offset: const Offset(0, 3))])
+                        boxShadow: [BoxShadow(color: item.color.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))])
                     : BoxDecoration(
-                        color:item.color.withOpacity(0.15),
+                        color:item.color.withValues(alpha: _hover ? 0.22 : 0.15),
                         borderRadius:BorderRadius.circular(10)),
                 child:Icon(item.icon,color: isActive ? Colors.white : item.color,size:18)),
+              ),
               const SizedBox(width:12),
               Text(item.label, style:TextStyle(
                 color:isActive?item.color:textPrimary,
@@ -387,7 +432,9 @@ class _MenuTile extends StatelessWidget {
           ),
         ),
       ),
-    ).animate(delay:Duration(milliseconds:delay))
+        ),
+      ),
+    ).animate(delay:Duration(milliseconds:widget.delay))
       .fadeIn(duration:140.ms,curve:Curves.easeOutCubic)
       .slideX(begin:-0.05,duration:140.ms,curve:Curves.easeOutCubic);
   }

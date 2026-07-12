@@ -14,6 +14,8 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/utils/responsive.dart';
+import 'widgets/auth_brand_panel.dart';
 
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
@@ -135,8 +137,10 @@ class _RegisterBodyState extends State<_RegisterBody> {
           elevation: 0,
           title:Text('Create Account', style: AppTextStyles.headlineMed.copyWith(color: textPrimary)),
           leading:IconButton(icon:Icon(Icons.arrow_back, color: textPrimary),onPressed:()=>context.pop())),
-        body: SafeArea(
-          child: Padding(
+        body: LayoutBuilder(
+          builder: (context, outer) {
+            final wizard = SafeArea(
+              child: Padding(
             padding:const EdgeInsets.symmetric(horizontal:20, vertical:8),
             child: Column(children:[
               const SizedBox(height:8),
@@ -260,7 +264,19 @@ class _RegisterBodyState extends State<_RegisterBody> {
               ),
               const SizedBox(height:12),
             ]),
-          ),
+              ),
+            );
+            if (outer.maxWidth >= Responsive.expandedBreakpoint) {
+              return Row(children: [
+                const Expanded(flex: 5, child: AuthBrandPanel()),
+                Expanded(flex: 4, child: Center(child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520), child: wizard))),
+              ]);
+            }
+            return Center(child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 540 : double.infinity),
+                child: wizard));
+          },
         ),
       ),
     );

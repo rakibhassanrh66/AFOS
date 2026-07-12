@@ -22,4 +22,22 @@ jobs:
       # this step fail on every push/PR regardless of real correctness.
       - run: flutter analyze --no-fatal-infos
 
+  # No Mac in this project's dev environment (Windows), so this is the only
+  # way to know an iOS-breaking change shipped -- macos-latest runners
+  # ship Xcode, so this actually compiles the app for iOS (catching missing
+  # platform implementations, iOS-specific API breakage, plugin
+  # incompatibilities) on every push/PR. --no-codesign skips certificate/
+  # provisioning-profile signing entirely, since that needs a paid Apple
+  # Developer account this project doesn't have -- it can't produce an
+  # installable .ipa, only prove the app still builds for iOS.
+  build_ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign
+
   # Add staging deployment/test steps after DB schema is reconciled

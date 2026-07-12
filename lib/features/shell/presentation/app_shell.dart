@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../core/navigation/back_press_tracker.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/offline_banner.dart';
 import '../../sos/presentation/sos_floating_button.dart';
 import '../bloc/shell_bloc.dart';
@@ -82,10 +84,38 @@ class _ShellBody extends StatelessWidget {
         _handleBack(context);
       },
       child: BlocBuilder<ShellBloc,ShellState>(
-      builder:(ctx,state) => Scaffold(
+      builder:(ctx,state) {
+        // Web-only: a tablet or a foldable running the native Android/iOS
+        // app should still get the normal touch drawer at any width -- this
+        // is specifically about a mouse-and-keyboard browser window, not
+        // "wide screen" in general.
+        final isDesktop = kIsWeb && Responsive.isExpanded(context);
+        final content = OfflineBanner(child: AdaptiveContentWidth(child: child));
+        // On a desktop-width browser window, the hide/show drawer pattern
+        // (a slide-in panel over a dimmed scrim, meant for a hand reaching
+        // across a phone screen) doesn't make sense with a mouse and a
+        // window that's wide enough to just show it permanently -- it read
+        // as the app "shrinking to phone size and blocking the rest of the
+        // screen" rather than actually using the space. >=1024px on web
+        // gets a fixed nav rail sitting beside the content instead; native
+        // apps and narrower widths keep the original overlay drawer exactly
+        // as it was.
+        if (isDesktop) {
+          return Scaffold(
+            backgroundColor: AppColors.surfaceOf(context),
+            body: Row(children: [
+              const SizedBox(width: 248, child: SlideMenu(permanent: true)),
+              Expanded(child: Stack(children: [
+                content,
+                const SosFloatingButton(),
+              ])),
+            ]),
+          );
+        }
+        return Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
         body: Stack(children:[
-          OfflineBanner(child: child),
+          content,
           // Persistent across every authenticated screen -- only reachable
           // once the router's profile-completed/verified gates have
           // already passed, since AppShell itself is only ever built for
@@ -107,7 +137,7 @@ class _ShellBody extends StatelessWidget {
                 duration: const Duration(milliseconds:250),
                 curve: Curves.easeOutCubic,
                 opacity: state.isOpen ? 1 : 0,
-                child: Container(color: Colors.black.withOpacity(0.45)),
+                child: Container(color: Colors.black.withValues(alpha: 0.45)),
               ),
             ),
           // Slide menu
@@ -119,7 +149,8 @@ class _ShellBody extends StatelessWidget {
             child: const SlideMenu(),
           ),
         ]),
-      ),
+        );
+      },
       ),
     );
   }

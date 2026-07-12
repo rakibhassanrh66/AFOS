@@ -14,6 +14,8 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/pending_credentials_store.dart';
+import '../../../core/utils/responsive.dart';
+import 'widgets/auth_brand_panel.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -67,7 +69,51 @@ class _LoginBodyState extends State<_LoginBody> {
       },
       child: Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
-        body: Stack(children:[
+        // The form card had no width limit anywhere in its tree (GlassCard
+        // doesn't impose one, and the form fields inside fill whatever
+        // width they're offered), so on a desktop-width browser window it
+        // stretched to fill nearly the whole screen -- fine on a 390px
+        // phone, "super weird" on a 1920px monitor. >=1024px now gets a
+        // proper two-pane layout instead: a branding panel explaining what
+        // AFOS actually is on the left, the same login form -- just
+        // width-capped -- on the right. 600-1024px (tablet / a narrower
+        // desktop window) is too tight to fit both panes comfortably, so it
+        // just gets the width cap without the branding panel.
+        body: LayoutBuilder(
+          builder: (context, outer) {
+            if (outer.maxWidth >= Responsive.expandedBreakpoint) {
+              return Row(children: [
+                const Expanded(flex: 5, child: AuthBrandPanel()),
+                Expanded(flex: 4, child: _FormPane(
+                    isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary,
+                    formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl, cardMaxWidth: 440)),
+              ]);
+            }
+            return _FormPane(
+                isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary,
+                formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl,
+                cardMaxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FormPane extends StatelessWidget {
+  final bool isDark;
+  final Color textPrimary, textSecondary;
+  final GlobalKey<FormState> formKey;
+  final TextEditingController emailCtrl, passCtrl;
+  final double cardMaxWidth;
+  const _FormPane({
+    required this.isDark, required this.textPrimary, required this.textSecondary,
+    required this.formKey, required this.emailCtrl, required this.passCtrl, required this.cardMaxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children:[
           // Background gradient — holographic hero backdrop, theme-aware
           RepaintBoundary(
             child: Container(
@@ -93,12 +139,20 @@ class _LoginBodyState extends State<_LoginBody> {
                 padding: const EdgeInsets.symmetric(horizontal:28, vertical:24),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Center(child: GlassCard(
+                  child: Center(child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: cardMaxWidth),
+                    child: GlassCard(
                 glowColor: AppColors.holoBlue,
+                // A slow rotating shimmer costs a continuous Gaussian blur
+                // recompute -- not something to turn on for a list of
+                // cards, but login is a single, brief, high-visibility
+                // hero moment where that cost is worth the "more animated"
+                // feel.
+                animated: true,
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Form(
-                    key: _formKey,
+                    key: formKey,
                     child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
                       const SizedBox(height:16),
                       // Logo
@@ -122,7 +176,7 @@ class _LoginBodyState extends State<_LoginBody> {
                         .animate(delay:200.ms).fadeIn(duration:350.ms),
                       const SizedBox(height:32),
                       AfosTextField(
-                        hint:'Email address', controller:_emailCtrl,
+                        hint:'Email address', controller:emailCtrl,
                         prefixIcon:Icons.email_outlined,
                         keyboardType:TextInputType.emailAddress,
                         autocorrect:false, enableSuggestions:false,
@@ -130,7 +184,7 @@ class _LoginBodyState extends State<_LoginBody> {
                       ).animate(delay:280.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:16),
                       AfosTextField(
-                        hint:'Password', controller:_passCtrl,
+                        hint:'Password', controller:passCtrl,
                         prefixIcon:Icons.lock_outline, obscure:true,
                         validator:AppValidators.password,
                       ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
@@ -149,9 +203,9 @@ class _LoginBodyState extends State<_LoginBody> {
                           label:'Sign in to AFOS',
                           loading:state is AuthLoading,
                           onTap:(){
-                            if(_formKey.currentState!.validate()) {
+                            if(formKey.currentState!.validate()) {
                               ctx.read<AuthBloc>().add(
-                                AuthLoginRequested(_emailCtrl.text.trim(),_passCtrl.text));
+                                AuthLoginRequested(emailCtrl.text.trim(),passCtrl.text));
                             }
                           },
                         ),
@@ -172,27 +226,25 @@ class _LoginBodyState extends State<_LoginBody> {
                     ]),
                   ),
                 ),
-              )),
+              ))),
                 ),
               ),
             ),
           ),
-        ]),
-      ),
-    );
+        ]);
   }
+}
 
-  Widget _logoLetter(String l, Color c, BuildContext context) => Container(
+Widget _logoLetter(String l, Color c, BuildContext context) => Container(
     width:44, height:44,
     decoration:BoxDecoration(
       borderRadius:BorderRadius.circular(10),
-      border:Border.all(color:c.withOpacity(0.5)),
-      color:c.withOpacity(0.12),
+      border:Border.all(color:c.withValues(alpha: 0.5)),
+      color:c.withValues(alpha: 0.12),
     ),
     alignment:Alignment.center,
     child:Text(l,style:TextStyle(color:c,fontSize:22,fontWeight:FontWeight.w900)),
   );
-}
 
 class _GridPainter extends CustomPainter {
   final bool isDark;

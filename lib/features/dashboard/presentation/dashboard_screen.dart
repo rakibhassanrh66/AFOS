@@ -747,20 +747,52 @@ class _LiteCard extends StatelessWidget {
   }
 }
 
-class _ModuleCard extends StatelessWidget {
+class _ModuleCard extends StatefulWidget {
   final _Module m; final int index;
   const _ModuleCard({required this.m, required this.index});
+  @override State<_ModuleCard> createState() => _ModuleCardState();
+}
+
+class _ModuleCardState extends State<_ModuleCard> {
+  bool _hover = false;
+  bool _pressed = false;
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push(m.route),
-      child: _LiteCard(
+    final m = widget.m;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => context.push(m.route),
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          scale: _pressed ? 0.97 : (_hover ? 1.02 : 1.0),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: _hover ? [
+                BoxShadow(color: m.color.withValues(alpha: 0.28), blurRadius: 22, spreadRadius: -4, offset: const Offset(0, 8)),
+              ] : null,
+            ),
+            child: _LiteCard(
         accent: m.color,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Container(
+              AnimatedScale(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                scale: _hover ? 1.08 : 1.0,
+                child: Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
                     gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -768,8 +800,15 @@ class _ModuleCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(13),
                     boxShadow: [BoxShadow(color: m.color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Icon(m.icon, color: Colors.white, size: 22)),
+              ),
               const Spacer(),
-              Icon(Icons.arrow_outward_rounded, size: 15, color: m.color.withValues(alpha: 0.5)),
+              AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                offset: _hover ? const Offset(0.12, -0.12) : Offset.zero,
+                child: Icon(Icons.arrow_outward_rounded, size: 15,
+                    color: m.color.withValues(alpha: _hover ? 0.9 : 0.5)),
+              ),
             ]),
             const Spacer(),
             Text(m.title, style: AppTextStyles.titleMedium
@@ -781,8 +820,11 @@ class _ModuleCard extends StatelessWidget {
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ]),
         ),
+            ),
+          ),
+        ),
       ),
-    ).animate(delay: Duration(milliseconds: index * 60))
+    ).animate(delay: Duration(milliseconds: widget.index * 60))
         .fadeIn(curve: Curves.easeOutCubic)
         .scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutCubic);
   }
