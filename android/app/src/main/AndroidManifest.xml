@@ -36,7 +36,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Password-reset deep link -- without this, the emailed link had
+            <!-- Password-reset deep link — without this, the emailed link had
                  nowhere to land on Android except a browser opening the web
                  build, even when the request came from this native app. -->
             <intent-filter>
