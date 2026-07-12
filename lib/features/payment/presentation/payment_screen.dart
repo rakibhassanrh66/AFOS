@@ -158,8 +158,11 @@ class _PayNowTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return GridView.builder(
       padding: const EdgeInsets.all(20),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 1.1),
+      // Fixed 2-column count stretched into 2 giant tiles on a wide desktop
+      // browser window; max-extent keeps each tile a consistent size and
+      // adds columns as space allows instead (see dashboard_screen.dart).
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 200, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 1.1),
       itemCount: categories.length,
       itemBuilder: (ctx, i) => _PayCard(cat: categories[i], index: i),
     );

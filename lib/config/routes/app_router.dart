@@ -12,6 +12,7 @@ import '../../features/auth/presentation/pending_approval_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
 import '../../features/conference_room/presentation/conference_room_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
@@ -61,6 +62,13 @@ class AppRouter {
       final session = Supabase.instance.client.auth.currentSession;
       final loc = state.matchedLocation;
       if (loc == '/splash') return null;
+      // Reachable regardless of session/profile/verification state -- a
+      // Supabase password-recovery link establishes a real session (so the
+      // `session == null` branch below wouldn't apply), but this route
+      // sits outside the /auth prefix specifically so the "already logged
+      // in, /auth/* bounces to /home" rule two lines down doesn't also
+      // catch it and skip the password-reset step entirely.
+      if (loc == '/reset-password') return null;
       if (session == null) {
         RoleSession.clear();
         return loc.startsWith('/auth') ? null : '/auth/login';
@@ -133,6 +141,8 @@ class AppRouter {
         pageBuilder: (c, s) => slideUpPage(const RegisterScreen(), s)),
       GoRoute(path: '/auth/forgot-password',
         pageBuilder: (c, s) => slideUpPage(const ForgotPasswordScreen(), s)),
+      GoRoute(path: '/reset-password',
+        pageBuilder: (c, s) => slideUpPage(const ResetPasswordScreen(), s)),
       GoRoute(path: '/complete-profile',
         pageBuilder: (c, s) => fadeScalePage(const CompleteProfileScreen(), s)),
       GoRoute(path: '/pending-approval',

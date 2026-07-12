@@ -388,9 +388,15 @@ class _DashboardState extends State<DashboardScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 24),
                         child: Center(child: Text('No facilities match "$_search"',
                             style: TextStyle(color: AppColors.textSecondaryOf(context))))))
+                    // A fixed 2-column count looked right at phone widths,
+                    // but stretched to fill AdaptiveContentWidth's wider
+                    // desktop container it meant exactly 2 giant columns
+                    // instead of more, reasonably-sized ones -- a max-extent
+                    // delegate keeps each tile a consistent size and adds
+                    // columns as space allows instead.
                     : SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2, crossAxisSpacing: 12,
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 190, crossAxisSpacing: 12,
                             mainAxisSpacing: 12, childAspectRatio: 1.1),
                         delegate: SliverChildBuilderDelegate(
                             (ctx, i) => _ModuleCard(m: _visibleModules[i], index: i),
@@ -786,8 +792,21 @@ class _ModuleCardState extends State<_ModuleCard> {
         accent: m.color,
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
+          // Was icon pinned to the top + Spacer() pushing title/subtitle to
+          // the bottom -- on a small phone-width card the gap was modest,
+          // but the same layout on a much bigger/wider card (or just a
+          // squarer aspect ratio) left the icon stranded near the top with
+          // a large dead gap below it, reading as "icon too high" /
+          // uncentered. A single centered group reads right at any tile
+          // size, on every platform (not just web).
+          child: Stack(children: [
+            Positioned(top: 0, right: 0, child: AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                offset: _hover ? const Offset(0.12, -0.12) : Offset.zero,
+                child: Icon(Icons.arrow_outward_rounded, size: 15,
+                    color: m.color.withValues(alpha: _hover ? 0.9 : 0.5)))),
+            Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               AnimatedScale(
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOutCubic,
@@ -801,23 +820,15 @@ class _ModuleCardState extends State<_ModuleCard> {
                     boxShadow: [BoxShadow(color: m.color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Icon(m.icon, color: Colors.white, size: 22)),
               ),
-              const Spacer(),
-              AnimatedSlide(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                offset: _hover ? const Offset(0.12, -0.12) : Offset.zero,
-                child: Icon(Icons.arrow_outward_rounded, size: 15,
-                    color: m.color.withValues(alpha: _hover ? 0.9 : 0.5)),
-              ),
-            ]),
-            const Spacer(),
-            Text(m.title, style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(m.subtitle, style: AppTextStyles.bodyMedium
-                    .copyWith(color: AppColors.textSecondaryOf(context)),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 10),
+              Text(m.title, textAlign: TextAlign.center, style: AppTextStyles.titleMedium
+                      .copyWith(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(m.subtitle, textAlign: TextAlign.center, style: AppTextStyles.bodyMedium
+                      .copyWith(color: AppColors.textSecondaryOf(context)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ])),
           ]),
         ),
             ),

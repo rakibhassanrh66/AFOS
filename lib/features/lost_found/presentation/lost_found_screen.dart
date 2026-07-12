@@ -182,13 +182,14 @@ class _FeedTab extends StatelessWidget {
               : RefreshIndicator(onRefresh: () async => onRefresh(), color: AppColors.blue,
                   child: GridView.builder(
                       padding: const EdgeInsets.all(16),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12,
-                          // A fixed aspect ratio undersized the cell for posts that
-                          // show the "Claim" button (title + 2-line description +
-                          // location row + button routinely needs ~250px, but 0.78
-                          // only yields ~220px on typical phone widths) — a fixed
-                          // pixel extent sized for the worst case avoids that.
+                      // Fixed 2-column count stretched into 2 wide tiles on a
+                      // desktop browser window instead of more, reasonably-sized
+                      // ones (see dashboard_screen.dart) -- max-extent keeps the
+                      // same fixed height (still sized for the worst case: title +
+                      // 2-line description + location row + Claim button) while
+                      // adding columns as space allows.
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 220, crossAxisSpacing: 12, mainAxisSpacing: 12,
                           mainAxisExtent: 260),
                       itemCount: posts.length,
                       itemBuilder: (ctx, i) => _PostCard(post: posts[i], index: i, onDeleted: onRefresh)))),
