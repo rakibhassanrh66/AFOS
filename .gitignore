@@ -57,3 +57,6 @@ android/app/google-services.json
 
 # Supabase CLI local state (per-machine, not project config)
 supabase/.temp/
+
+# Playwright MCP tool output
+.playwright-mcp/
