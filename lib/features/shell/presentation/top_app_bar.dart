@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/supabase_config.dart';
@@ -10,6 +9,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/services/web_title.dart';
+import '../../notifications/presentation/notification_popover.dart';
 
 class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -174,7 +174,10 @@ class _NotificationBellState extends State<_NotificationBell> {
                 color: (hasUnread ? AppColors.holoBlue : widget.color).withValues(alpha: 0.1)),
             child: Icon(hasUnread ? AppIcons.notifications : Icons.notifications_none_rounded,
                 color: hasUnread ? AppColors.holoBlue : widget.color, size: 19)),
-        onPressed: () => context.push('/notifications'),
+        // The bell opens a compact floating tray on every platform; the
+        // full-window Notification Center stays reachable via the slide
+        // menu's Notifications entry (and the tray's "See all" footer).
+        onPressed: () => showNotificationPopover(context),
       ),
       if (hasUnread)
         // alignment intentionally omitted -- a Positioned child that doesn't

@@ -425,9 +425,14 @@ class _MenuTileState extends State<_MenuTile> {
                 child:Icon(item.icon,color: isActive ? Colors.white : item.color,size:18)),
               ),
               const SizedBox(width:12),
-              Text(item.label, style:TextStyle(
+              // Expanded + ellipsis, not a bare Text: long labels ("Upload
+              // Routine/Transport", "Feedback & Contributions") were
+              // painting straight past the rounded hover/active box.
+              Expanded(child: Text(item.label,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style:TextStyle(
                 color:isActive?item.color:textPrimary,
-                fontSize:14, fontWeight:isActive?FontWeight.w600:FontWeight.w400)),
+                fontSize:14, fontWeight:isActive?FontWeight.w600:FontWeight.w400))),
             ]),
           ),
         ),
