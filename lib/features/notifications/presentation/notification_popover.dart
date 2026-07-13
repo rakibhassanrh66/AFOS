@@ -6,6 +6,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_theme.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 
 /// Compact floating notification panel, anchored under the app-bar bell.
@@ -69,6 +70,7 @@ class _NotificationPopover extends StatefulWidget {
 class _NotificationPopoverState extends State<_NotificationPopover> {
   List<Map<String, dynamic>> _notifs = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -89,8 +91,11 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
           .eq('user_id', uid)
           .order('received_at', ascending: false)
           .limit(20) as List;
-      if (mounted) setState(() => _notifs = res.cast());
-    } catch (_) {}
+      if (mounted) setState(() { _notifs = res.cast(); _error = null; });
+    } catch (e) {
+      // Silent failure looked identical to "all caught up".
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -205,6 +210,21 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2))),
                   )
+                : _error != null
+                    ? Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.error_outline_rounded,
+                              size: 34, color: AppColors.red),
+                          const SizedBox(height: 8),
+                          Text(_error!,
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.textSecondaryOf(context))),
+                          TextButton(onPressed: () { setState(() => _loading = true); _load(); },
+                              child: const Text('Retry')),
+                        ]),
+                      )
                 : _notifs.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(28),

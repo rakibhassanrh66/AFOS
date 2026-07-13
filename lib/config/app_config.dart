@@ -3,7 +3,10 @@ class AppConfig {
   static const String appName       = 'AFOS';
   static const String appFullName   = 'All Facilities One System';
   static const String university    = 'Daffodil International University';
-  static const String appVersion    = '1.0.0';
+  // Set from PackageInfo during bootstrap so it can never drift from
+  // pubspec.yaml again (the old '1.0.0' const was stale for months).
+  // The literal here is only the pre-bootstrap fallback.
+  static String appVersion          = '1.1.1';
   static const String oneSignalAppId= '2ae8d7b3-8999-4054-b185-2256b290993c';
   static const String diuPaymentUrl = 'https://studentportal.diu.edu.bd/payment';
   static const String diuLibraryUrl = 'https://library.daffodilvarsity.edu.bd';

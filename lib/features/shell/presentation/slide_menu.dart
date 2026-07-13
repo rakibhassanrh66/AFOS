@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
+import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -345,7 +346,7 @@ class _SlideMenuState extends State<SlideMenu> {
     return Container(
       padding:const EdgeInsets.all(16),
       child:Column(children:[
-        Text('AFOS v1.0.0', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
+        Text('AFOS v${AppConfig.appVersion}', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
         const SizedBox(height:2),
         Text('Daffodil International University', style:AppTextStyles.labelSmall.copyWith(color: textSecondary)),
       ]),

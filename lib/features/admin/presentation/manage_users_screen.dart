@@ -10,6 +10,7 @@ import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
@@ -32,6 +33,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _crRequests = [];
   bool _loading = true;
+  String? _error;
+  String? _crError;
   String _search = '';
   String _roleFilter = 'all';
   RealtimeChannel? _sub;
@@ -64,9 +67,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
           .select('id, full_name, email, phone, role, university_id, department, batch, section, '
               'teacher_initial, gender, emergency_contact, avatar_url, is_verified, created_at')
           .order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _users = res.cast(); _loading = false; });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _users = res.cast(); _error = null; _loading = false; });
+    } catch (e) {
+      // A silent failure here rendered as "No pending approvals"/"No users
+      // found" — the approval queue looking empty is exactly the wrong
+      // thing to fake when the load actually failed.
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 
@@ -75,8 +81,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
       final res = await SupabaseConfig.client.from('cr_requests')
           .select('*, profiles!student_id(full_name, university_id, avatar_url), departments!department_id(name)')
           .eq('status', 'pending').order('created_at', ascending: false) as List;
-      if (mounted) setState(() => _crRequests = res.cast());
-    } catch (_) {}
+      if (mounted) setState(() { _crRequests = res.cast(); _crError = null; });
+    } catch (e) {
+      if (mounted) setState(() => _crError = friendlyError(e));
+    }
   }
 
   Future<void> _approveCr(Map<String, dynamic> req) async {
@@ -270,7 +278,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : TabBarView(controller: _tab, children: [
-                _pending.isEmpty
+                _error != null
+                    ? ErrorView(message: _error!, onRetry: _load)
+                    : _pending.isEmpty
                     ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _pending.length,
@@ -278,7 +288,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                             onApprove: () => _approve(_pending[i]),
                             onReject: () => _rejectAndDelete(_pending[i]),
                             onDelete: () => _confirmDelete(_pending[i]))),
-                _crRequests.isEmpty
+                _crError != null
+                    ? ErrorView(message: _crError!, onRetry: _loadCrRequests)
+                    : _crRequests.isEmpty
                     ? const EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
                         subtitle: 'Student requests to become Class Representative will show up here')
                     : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _crRequests.length,
@@ -323,7 +335,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                             labelStyle: TextStyle(color: sel ? AppColors.holoviolet : AppColors.textSecondaryOf(context))));
                       }).toList())),
                   const SizedBox(height: 8),
-                  Expanded(child: _filtered.isEmpty
+                  Expanded(child: _error != null
+                      ? ErrorView(message: _error!, onRetry: _load)
+                      : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
                       : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _filtered.length,
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,

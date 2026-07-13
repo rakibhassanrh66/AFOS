@@ -92,7 +92,7 @@ class _ForgotBodyState extends State<_ForgotBody> {
                               const SizedBox(height:32),
                               AfosTextField(hint:'Email address', controller:_ctrl,
                                 prefixIcon:Icons.email_outlined, keyboardType:TextInputType.emailAddress,
-                                validator:AppValidators.email)
+                                validator:AppValidators.loginEmail)
                                 .animate(delay:260.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                               const SizedBox(height:24),
                               BlocBuilder<AuthBloc,AuthState>(
