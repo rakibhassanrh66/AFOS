@@ -5,6 +5,15 @@ import * as XLSX from "https://esm.sh/xlsx@0.18.5"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!
 const SERVICE_ROLE  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!
 
+// Server-side upload bounds. Even though callers are already restricted to
+// upload-authorized roles, the client is not trusted to have enforced size
+// limits — a hand-crafted request could otherwise ship an arbitrarily large
+// Excel file or `lines` array and exhaust the function's compute budget.
+// A full department routine is ~600-900 rows and well under 1MB, so these
+// caps are generous headroom, not a real-world constraint.
+const MAX_EXCEL_BYTES = 15 * 1024 * 1024   // 15 MB
+const MAX_LINES = 20000
+
 serve(async (req) => {
   const corsHeaders = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
@@ -47,6 +56,9 @@ serve(async (req) => {
     if (contentType.includes("application/json")) {
       const body = await req.json()
       type = (body.type || "schedule").toLowerCase()
+      if (Array.isArray(body.lines) && body.lines.length > MAX_LINES) {
+        return new Response(JSON.stringify({ error: `Too many lines (max ${MAX_LINES}).` }), { status: 413, headers: corsHeaders })
+      }
       lines = Array.isArray(body.lines) ? body.lines.map((l: unknown) => String(l).trim()).filter(Boolean) : []
       rows = lines.map((l) => [l])
       requestedDepartment = typeof body.department === "string" && body.department.trim() ? body.department.trim() : null
@@ -57,6 +69,9 @@ serve(async (req) => {
       if (!file) return new Response(JSON.stringify({ error: "No file provided" }), { status: 400, headers: corsHeaders })
       if (!/\.(xlsx|xls)$/i.test(file.name)) {
         return new Response(JSON.stringify({ error: "This endpoint only accepts Excel files directly. PDFs must be sent as extracted text (the app does this automatically)." }), { status: 400, headers: corsHeaders })
+      }
+      if (file.size > MAX_EXCEL_BYTES) {
+        return new Response(JSON.stringify({ error: `File too large (max ${MAX_EXCEL_BYTES / (1024 * 1024)} MB).` }), { status: 413, headers: corsHeaders })
       }
       rows = await extractRowsFromExcel(file)
       lines = rows.map((r) => r.join(" "))
