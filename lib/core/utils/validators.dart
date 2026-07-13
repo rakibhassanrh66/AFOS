@@ -4,10 +4,23 @@ enum AccountType { student, teacher, staff }
 
 class AppValidators {
   AppValidators._();
+  // Shape-only check, shared by both validators. Allows '+' aliasing in the
+  // local part (RFC-valid, common for Gmail) — Supabase Auth accepts these.
+  static final RegExp _emailShape = RegExp(r'^[\w\-\.\+]+@([\w-]+\.)+[\w-]{2,10}$');
+
+  /// For sign-in / forgot-password: an existing account may legitimately be
+  /// outside the registration domain rule (allowlisted bootstrap accounts,
+  /// admin-created accounts), so only the shape is checked here.
+  static String? loginEmail(String? v) {
+    if(v==null||v.trim().isEmpty) return 'Email required';
+    if(!_emailShape.hasMatch(v.trim())) return 'Invalid email';
+    return null;
+  }
+
   static String? email(String? v) {
     if(v==null||v.trim().isEmpty) return 'Email required';
     final e = v.trim();
-    if(!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,10}$').hasMatch(e)) return 'Invalid email';
+    if(!_emailShape.hasMatch(e)) return 'Invalid email';
     final isAllowlisted = AppConfig.emailDomainAllowlist.contains(e.toLowerCase());
     // 'edu.bd' with no leading dot matched anything ending in that literal
     // string ("fake-edu.bd", another university's "buet.edu.bd") -- not
@@ -20,6 +33,14 @@ class AppValidators {
     }
     return null;
   }
+  /// For sign-in only: the complexity rules below are a registration policy;
+  /// enforcing them at login can lock out accounts whose password was set
+  /// through another channel. The server is the real credential check.
+  static String? loginPassword(String? v) {
+    if(v==null||v.isEmpty) return 'Password required';
+    return null;
+  }
+
   static String? password(String? v) {
     if(v==null||v.isEmpty) return 'Password required';
     if(v.length<8) return 'Minimum 8 characters';

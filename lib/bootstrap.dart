@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
@@ -33,6 +34,12 @@ bool get _isMobile =>
 Future<void> bootstrap() async {
   await SystemChrome.setPreferredOrientations(
       [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+
+  // Real installed version, so UI/feedback metadata can't drift from
+  // pubspec.yaml. Best-effort: keep the compiled-in fallback on failure.
+  try {
+    AppConfig.appVersion = (await PackageInfo.fromPlatform()).version;
+  } catch (_) {}
 
   await Hive.initFlutter();
   await Hive.openBox(LocalCacheService.boxName);

@@ -180,13 +180,13 @@ class _FormPane extends StatelessWidget {
                         prefixIcon:Icons.email_outlined,
                         keyboardType:TextInputType.emailAddress,
                         autocorrect:false, enableSuggestions:false,
-                        validator:AppValidators.email,
+                        validator:AppValidators.loginEmail,
                       ).animate(delay:280.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:16),
                       AfosTextField(
                         hint:'Password', controller:passCtrl,
                         prefixIcon:Icons.lock_outline, obscure:true,
-                        validator:AppValidators.password,
+                        validator:AppValidators.loginPassword,
                       ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:8),
                       Align(

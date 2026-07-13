@@ -7,6 +7,7 @@ import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -20,6 +21,7 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
   late TabController _tab;
   Map<String,dynamic>? _application;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    setState(() => _error = null);
     try {
       // A student can end up with more than one row here (e.g. an older
       // rejected/cancelled application plus a new one) — take the most
@@ -43,7 +46,11 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
           .from('hall_applications').select().eq('student_id', uid)
           .order('created_at', ascending: false).limit(1) as List;
       if (mounted) setState(() => _application = res.isNotEmpty ? res.first as Map<String, dynamic> : null);
-    } catch (_) {}
+    } catch (e) {
+      // A failed load must not render as "No application yet" — that
+      // invites a duplicate application.
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -73,7 +80,8 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Hall Allocation', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 3),
-                Text(_loading ? 'Loading…' : _application == null ? 'No application yet'
+                Text(_loading ? 'Loading…' : _error != null ? 'Status unavailable'
+                    : _application == null ? 'No application yet'
                     : 'Status: ${(_application!['status'] as String? ?? 'pending').toUpperCase()}',
                     style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
               ])),
@@ -115,7 +123,9 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
         Expanded(child: TabBarView(controller: _tab, children: [
           _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-              : _MyApplicationTab(app: _application, onRefresh: _load),
+              : _error != null
+                  ? ErrorView(message: _error!, onRetry: _load)
+                  : _MyApplicationTab(app: _application, onRefresh: _load),
           _ApplyTab(onApplied: () { _load(); _tab.animateTo(0); }),
           const _ComplaintsTab(),
         ])),

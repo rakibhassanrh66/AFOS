@@ -27,9 +27,21 @@ class ShimmerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: List.generate(count, (i) =>
-      Padding(padding:const EdgeInsets.only(bottom:12),
-        child:ShimmerCard(height:itemHeight))));
+    // A ListView (a clipping viewport) rather than a raw Column so this
+    // placeholder can't throw a RenderFlex overflow when a parent bounds it
+    // to less than count*(itemHeight+12) -- e.g. a TabBarView tab or an
+    // Expanded slot on a short screen. shrinkWrap keeps it sizing to its
+    // content in unbounded/scrollable parents; NeverScrollable keeps it from
+    // stealing scroll gestures. Under-tight constraints it simply clips the
+    // extra shimmer rows instead of painting the yellow/black overflow stripe.
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      children: List.generate(count, (i) =>
+        Padding(padding:const EdgeInsets.only(bottom:12),
+          child:ShimmerCard(height:itemHeight))),
+    );
   }
 }
 

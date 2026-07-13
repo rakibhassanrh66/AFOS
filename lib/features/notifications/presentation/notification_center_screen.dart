@@ -5,8 +5,10 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -18,6 +20,7 @@ class NotificationCenterScreen extends StatefulWidget {
 class _NotifState extends State<NotificationCenterScreen> {
   List<Map<String, dynamic>> _notifs = [];
   bool _loading = true;
+  String? _error;
   int _loadGen = 0;
 
   @override
@@ -36,8 +39,11 @@ class _NotifState extends State<NotificationCenterScreen> {
           .select()
           .eq('user_id', uid)
           .order('received_at', ascending: false) as List;
-      if (mounted && gen == _loadGen) setState(() => _notifs = res.cast());
-    } catch (_) {}
+      if (mounted && gen == _loadGen) setState(() { _notifs = res.cast(); _error = null; });
+    } catch (e) {
+      // Silent failure looked identical to "no notifications yet".
+      if (mounted && gen == _loadGen) setState(() => _error = friendlyError(e));
+    }
     if (mounted && gen == _loadGen) setState(() => _loading = false);
   }
 
@@ -136,7 +142,9 @@ class _NotifState extends State<NotificationCenterScreen> {
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
-          : _notifs.isEmpty
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _notifs.isEmpty
               ? const EmptyState(
                   icon: Icons.notifications_none_rounded,
                   title: 'No notifications',
