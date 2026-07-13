@@ -45,6 +45,18 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
   int _progress = 0;
   bool _disposed = false;
 
+  // The only origin allowed to receive the injected Supabase identity/token
+  // and the only host this webview is permitted to navigate to. Anything
+  // else (a redirect off-portal, an XSS-driven navigation, a crafted link)
+  // is blocked so the user's live JWT can never be handed to another origin.
+  static final String _trustedHost = Uri.parse(AppConfig.diuPaymentUrl).host;
+
+  bool _isTrusted(String url) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    // Exact host or a subdomain of the trusted payment host.
+    return host == _trustedHost || host.endsWith('.$_trustedHost');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -52,9 +64,21 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
     final ctrl = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (req) {
+          // about:blank is used on dispose; everything else must be the
+          // trusted payment host.
+          if (req.url == 'about:blank' || _isTrusted(req.url)) {
+            return NavigationDecision.navigate;
+          }
+          return NavigationDecision.prevent;
+        },
         onProgress: (p) { if (!_disposed && mounted) setState(() => _progress = p); },
-        onPageFinished: (_) {
+        onPageFinished: (url) {
           if (_disposed) return;
+          // Only hand the student id + live session token to the genuine
+          // DIU portal origin — never to any page that a redirect or
+          // injection could have steered the webview onto.
+          if (!_isTrusted(url)) return;
           _ctrl?.runJavaScript(
               "window.afosStudentId='${SupabaseConfig.uid ?? ''}'; "
               "window.afosToken='${SupabaseConfig.jwt ?? ''}';");
