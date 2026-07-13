@@ -45,7 +45,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
   void dispose() { _sub?.cancel(); super.dispose(); }
 
   Color _categoryColor(String c) => switch (c) {
-    'RULE' => AppColors.purple,
+    'RULE' => AppColors.teal,
     'ANNOUNCEMENT' => AppColors.holoTeal,
     'URGENT' => AppColors.red,
     'EXAM' => AppColors.orange,

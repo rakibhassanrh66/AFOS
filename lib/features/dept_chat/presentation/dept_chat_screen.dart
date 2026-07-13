@@ -124,7 +124,7 @@ class _ChannelTile extends StatelessWidget {
 
   static const _channelColors = {
     'general': AppColors.blue, 'notices': AppColors.red,
-    'academic': AppColors.green, 'events': AppColors.purple,
+    'academic': AppColors.green, 'events': AppColors.teal,
     'student-lounge': AppColors.teal, 'faculty-room': AppColors.gold,
   };
 

@@ -43,7 +43,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.purple, AppColors.indigo]),
+                  colors: [AppColors.blue, AppColors.indigo]),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Row(children: [

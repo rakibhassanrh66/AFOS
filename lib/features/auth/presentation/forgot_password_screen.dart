@@ -63,7 +63,7 @@ class _ForgotBodyState extends State<_ForgotBody> {
                 child: Center(child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity),
                   child: GlassCard(
-                    glowColor: AppColors.holoviolet,
+                    glowColor: AppColors.teal,
                     animated: true,
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),

@@ -1,27 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'liquid_glass_theme.dart';
+import 'liquid_glass_tokens.dart';
 
 ThemeData buildDarkTheme({Color? accent}) {
-  final primary = accent ?? AppColors.blue;
+  // Brand teal is the Liquid Glass primary; the user's saved accent-color
+  // setting still overrides it (DB-synced via user_settings — keep working).
+  final primary = accent ?? AppColors.green;
+  // Teal (and several user-pickable accents) are light hues — white text on
+  // them fails contrast, so the foreground is chosen by luminance instead
+  // of hardcoding white.
+  final onPrimary =
+      primary.computeLuminance() > 0.45 ? const Color(0xFF072A1C) : Colors.white;
+  const signatureShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.only(
+      topLeft: Radius.circular(LiquidGlass.radiusCard),
+      topRight: Radius.circular(LiquidGlass.radiusCut),
+      bottomLeft: Radius.circular(LiquidGlass.radiusCard),
+      bottomRight: Radius.circular(LiquidGlass.radiusCard),
+    ),
+    side: BorderSide(color: LiquidGlass.glassBorderDark, width: 1),
+  );
   return ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.background,
     primaryColor: primary,
+    extensions: const [LiquidGlassTheme.dark],
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: LiquidPageTransitionsBuilder(),
+      TargetPlatform.iOS: LiquidPageTransitionsBuilder(),
+      TargetPlatform.windows: LiquidPageTransitionsBuilder(),
+      TargetPlatform.macOS: LiquidPageTransitionsBuilder(),
+      TargetPlatform.linux: LiquidPageTransitionsBuilder(),
+    }),
     colorScheme: ColorScheme.dark(
       primary: primary,
-      secondary: AppColors.gold,
+      secondary: AppColors.blueLight,
       surface: AppColors.surface,
       error: AppColors.red,
-      onPrimary: Colors.white,
+      onPrimary: onPrimary,
       onSurface: AppColors.textPrimary,
     ),
-    // displayLarge/displayMedium/headlineLarge and the AppBar title were
-    // GoogleFonts.syne -- an avant-garde display face (flat-topped rounds,
-    // very tall x-height) that clashed against the DM Sans used everywhere
-    // else, reading as an inconsistent/"weird" font on every single screen's
-    // title bar. Unified on DM Sans throughout so the whole type system is
-    // one consistent family, matching app_text_styles.dart.
     textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme).copyWith(
       displayLarge:  GoogleFonts.dmSans(fontSize:32,fontWeight:FontWeight.w800,color:AppColors.textPrimary,letterSpacing:-0.5),
       displayMedium: GoogleFonts.dmSans(fontSize:24,fontWeight:FontWeight.w700,color:AppColors.textPrimary,letterSpacing:-0.3),
@@ -36,35 +56,33 @@ ThemeData buildDarkTheme({Color? accent}) {
       iconTheme: const IconThemeData(color: AppColors.textPrimary),
       titleTextStyle: GoogleFonts.dmSans(fontSize:18,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
     ),
-    cardTheme: CardThemeData(
+    cardTheme: const CardThemeData(
       color: AppColors.card,
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
+      shape: signatureShape,
     ),
+    dialogTheme: const DialogThemeData(shape: signatureShape),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.card,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+        borderSide: const BorderSide(color: LiquidGlass.glassBorderDark, width: 1),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+        borderSide: const BorderSide(color: LiquidGlass.glassBorderDark, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
         borderSide: BorderSide(color: primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
         borderSide: const BorderSide(color: AppColors.red, width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
         borderSide: const BorderSide(color: AppColors.red, width: 1.5),
       ),
       hintStyle: GoogleFonts.dmSans(color: AppColors.textMuted, fontSize: 14),
@@ -73,9 +91,9 @@ ThemeData buildDarkTheme({Color? accent}) {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: primary,
-        foregroundColor: Colors.white,
+        foregroundColor: onPrimary,
         minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusControl)),
         textStyle: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
         elevation: 0,
       ),
@@ -85,21 +103,21 @@ ThemeData buildDarkTheme({Color? accent}) {
         foregroundColor: primary,
         side: BorderSide(color: primary),
         minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusControl)),
         textStyle: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     dividerTheme: const DividerThemeData(color: AppColors.border, thickness: 0.5),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.card,
-      side: const BorderSide(color: AppColors.border, width: 0.5),
+      side: const BorderSide(color: LiquidGlass.glassBorderDark, width: 1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       labelStyle: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textPrimary),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(LiquidGlass.radiusSheet))),
     ),
     useMaterial3: true,
   );

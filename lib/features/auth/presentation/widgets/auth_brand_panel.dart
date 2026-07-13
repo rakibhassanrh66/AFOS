@@ -37,7 +37,7 @@ class AuthBrandPanel extends StatelessWidget {
             .animate(onPlay: (c) => c.repeat(reverse: true))
             .moveY(begin: 0, end: 26, duration: 5200.ms, curve: Curves.easeInOutSine)
             .moveX(begin: 0, end: -18, duration: 5200.ms, curve: Curves.easeInOutSine)),
-        Positioned(bottom: -100, left: -60, child: _glowBlob(AppColors.holoviolet)
+        Positioned(bottom: -100, left: -60, child: _glowBlob(AppColors.teal)
             .animate(onPlay: (c) => c.repeat(reverse: true))
             .moveY(begin: 0, end: -22, duration: 6400.ms, curve: Curves.easeInOutSine)
             .moveX(begin: 0, end: 20, duration: 6400.ms, curve: Curves.easeInOutSine)),
@@ -95,7 +95,7 @@ class _SmartFrame extends StatelessWidget {
       borderRadius: BorderRadius.circular(22),
       gradient: const LinearGradient(
         begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [AppColors.holoBlue, AppColors.holoviolet, AppColors.holoTeal],
+        colors: [AppColors.holoBlue, AppColors.teal, AppColors.holoTeal],
       ),
       boxShadow: [BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.35), blurRadius: 22, spreadRadius: -4)],
     ),

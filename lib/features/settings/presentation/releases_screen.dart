@@ -97,7 +97,7 @@ class _HeroLatest extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.holoBlue, AppColors.holoviolet]),
+                gradient: const LinearGradient(colors: [AppColors.holoBlue, AppColors.teal]),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Text('LATEST',

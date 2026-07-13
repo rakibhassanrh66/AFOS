@@ -86,7 +86,7 @@ class _NotifState extends State<NotificationCenterScreen> {
     'schedule'    => AppColors.red,
     'transport'   => AppColors.amber,
     'payment'     => AppColors.gold,
-    'library'     => AppColors.purple,
+    'library'     => AppColors.indigo,
     'lost_found'  => AppColors.coral,
     'club'        => AppColors.pink,
     'message'     => AppColors.blue,

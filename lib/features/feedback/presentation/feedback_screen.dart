@@ -129,11 +129,11 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       appBar: const AfosAppBar(title: 'Feedback & Ideas'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showSubmitSheet,
-        backgroundColor: AppColors.holoviolet,
+        backgroundColor: AppColors.teal,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text('Share an idea', style: TextStyle(color: Colors.white)),
       ),
-      body: RefreshIndicator(onRefresh: _load, color: AppColors.holoviolet,
+      body: RefreshIndicator(onRefresh: _load, color: AppColors.teal,
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
@@ -141,7 +141,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: [AppColors.holoviolet, AppColors.indigo]),
+                        colors: [AppColors.teal, AppColors.indigo]),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Row(children: [

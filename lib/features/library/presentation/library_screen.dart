@@ -120,7 +120,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.holoviolet, AppColors.indigo]),
+                  colors: [AppColors.blue, AppColors.indigo]),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Row(children: [
@@ -160,7 +160,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                      gradient: sel ? const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]) : null,
+                      gradient: sel ? const LinearGradient(colors: [AppColors.blue, AppColors.indigo]) : null,
                       color: sel ? null : AppColors.glassFill(context),
                       borderRadius: BorderRadius.circular(20)),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -211,7 +211,7 @@ class _BorrowedTab extends StatelessWidget {
     }
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
-      color: AppColors.holoviolet,
+      color: AppColors.blue,
       child: ListView(padding: const EdgeInsets.all(16), children: [
         if (fine > 0) RepaintBoundary(
           child: Container(
@@ -271,9 +271,9 @@ class _BookCard extends StatelessWidget {
             Container(width: 48, height: 64,
                 decoration: BoxDecoration(
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: [AppColors.holoviolet, AppColors.indigo]),
+                        colors: [AppColors.blue, AppColors.indigo]),
                     borderRadius: BorderRadius.circular(10),
-                    boxShadow: [BoxShadow(color: AppColors.holoviolet.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
                 child: const Icon(Icons.book_rounded, color: Colors.white, size: 28)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -345,10 +345,10 @@ class _SearchTab extends StatelessWidget {
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: AppColors.glassBorder(context), width: 0.5)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.holoviolet, width: 1))),
+                borderSide: const BorderSide(color: AppColors.blue, width: 1))),
       )),
       if (searching) LinearProgressIndicator(
-          color: AppColors.holoviolet, backgroundColor: AppColors.borderOf(context)),
+          color: AppColors.blue, backgroundColor: AppColors.borderOf(context)),
       Expanded(child: results.isEmpty && ctrl.text.isNotEmpty && !searching
           ? const EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
@@ -374,9 +374,9 @@ class _SearchTab extends StatelessWidget {
                       Container(width: 44, height: 60,
                           decoration: BoxDecoration(
                               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                  colors: [AppColors.holoviolet, AppColors.indigo]),
+                                  colors: [AppColors.blue, AppColors.indigo]),
                               borderRadius: BorderRadius.circular(9),
-                              boxShadow: [BoxShadow(color: AppColors.holoviolet.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
+                              boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
                           child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -424,13 +424,13 @@ class _SearchTab extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 64, height: 88,
-                      decoration: BoxDecoration(color: AppColors.holoviolet.withValues(alpha: 0.15),
+                      decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10)),
                       child: (book['cover_url'] as String?)?.isNotEmpty == true
                           ? ClipRRect(borderRadius: BorderRadius.circular(10),
                               child: Image.network(book['cover_url'] as String, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)))
-                          : const Icon(Icons.book_rounded, color: AppColors.holoviolet, size: 28)),
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)))
+                          : const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(book['title'] ?? '', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
