@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../core/navigation/back_press_tracker.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../shared/widgets/liquid_backdrop.dart';
 import '../../../shared/widgets/offline_banner.dart';
 import '../../sos/presentation/sos_floating_button.dart';
 import '../bloc/shell_bloc.dart';
@@ -103,18 +104,18 @@ class _ShellBody extends StatelessWidget {
         if (isDesktop) {
           return Scaffold(
             backgroundColor: AppColors.surfaceOf(context),
-            body: Row(children: [
+            body: LiquidBackdrop(child: Row(children: [
               const SizedBox(width: 248, child: SlideMenu(permanent: true)),
               Expanded(child: Stack(children: [
                 content,
                 const SosFloatingButton(),
               ])),
-            ]),
+            ])),
           );
         }
         return Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
-        body: Stack(children:[
+        body: LiquidBackdrop(child: Stack(children:[
           content,
           // Persistent across every authenticated screen -- only reachable
           // once the router's profile-completed/verified gates have
@@ -148,7 +149,7 @@ class _ShellBody extends StatelessWidget {
             top:0, bottom:0, width:300,
             child: const SlideMenu(),
           ),
-        ]),
+        ])),
         );
       },
       ),

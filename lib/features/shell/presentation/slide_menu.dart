@@ -66,12 +66,12 @@ class _SlideMenuState extends State<SlideMenu> {
   // (which every role branch below inserts more items after) -- the user
   // asked for it at the true end of the menu, not buried in the middle.
   static const _feedbackItem =
-    _MenuItem('Feedback & Ideas', Icons.lightbulb_outline_rounded, '/feedback', AppColors.holoviolet);
+    _MenuItem('Feedback & Ideas', Icons.lightbulb_outline_rounded, '/feedback', AppColors.teal);
 
   // Student-only: hall allocation, payment, exam seating, and library are
   // student-personal records — a teacher/staff member has none of their own.
   static const _studentOnlyItems = [
-    _MenuItem('Library',        AppIcons.library,     '/library',       AppColors.purple),
+    _MenuItem('Library',        AppIcons.library,     '/library',       AppColors.indigo),
     _MenuItem('Hall Allocation',AppIcons.hall,         '/hall',          AppColors.amber),
     _MenuItem('Payment',        AppIcons.payment,      '/payment',       AppColors.gold),
     _MenuItem('Exam Seat Plan', AppIcons.examSeat,     '/exam-seat',     AppColors.orange),

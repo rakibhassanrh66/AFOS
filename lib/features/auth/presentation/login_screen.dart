@@ -162,7 +162,7 @@ class _FormPane extends StatelessWidget {
                             const SizedBox(width:8),
                             _logoLetter('F', AppColors.gold, context),
                             const SizedBox(width:8),
-                            _logoLetter('O', AppColors.holoviolet, context),
+                            _logoLetter('O', AppColors.teal, context),
                             const SizedBox(width:8),
                             _logoLetter('S', AppColors.holoTeal, context),
                           ])))

@@ -1,11 +1,11 @@
 {
-    "name": "afos_v7",
-    "short_name": "afos_v7",
+    "name": "AFOS — All Facilities One System",
+    "short_name": "AFOS",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#060D1F",
-    "theme_color": "#060D1F",
-    "description": "A new Flutter project.",
+    "background_color": "#0B1120",
+    "theme_color": "#0B1120",
+    "description": "Daffodil International University's all-in-one campus companion.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

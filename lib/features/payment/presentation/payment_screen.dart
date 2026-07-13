@@ -51,7 +51,7 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
   static const _categories = [
     _PayCat('Tuition Fee',   Icons.school_rounded,         AppColors.blue,   'tuition'),
     _PayCat('Hall Fee',      AppIcons.hall,                  AppColors.amber,  'hall'),
-    _PayCat('Library Fine',  AppIcons.library,               AppColors.purple, 'library'),
+    _PayCat('Library Fine',  AppIcons.library,               AppColors.indigo, 'library'),
     _PayCat('Exam Fee',      Icons.assignment_rounded,      AppColors.orange, 'exam'),
     _PayCat('Admission Fee', Icons.badge_rounded,           AppColors.green,  'admission'),
     _PayCat('Other',         Icons.more_horiz_rounded,      AppColors.textSecondary, 'other'),

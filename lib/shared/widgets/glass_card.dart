@@ -1,119 +1,139 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
+import '../../config/theme/liquid_glass_theme.dart';
+import '../../config/theme/liquid_glass_tokens.dart';
 
-/// Premium holographic glass surface: frosted blur + gradient edge + soft
-/// glow bloom. This is the app's signature surface — reused everywhere
-/// instead of plain Containers/Cards.
+/// Liquid Glass depth tiers.
 ///
-/// [animated] defaults to false: BackdropFilter's blur is re-sampled and
-/// re-composited on every repaint of anything in its subtree (this is
-/// documented, unavoidable Flutter engine behavior, not a bug we can tune
-/// away), so a perpetually-repeating rotation here means every screen with
-/// a GlassCard pays a full Gaussian blur recompute 60 times a second,
-/// forever, even while completely idle. None of the 14 call sites across
-/// the app opted into the animation explicitly — they all inherited it
-/// silently from this default — so turning it off by default removes a
-/// continuous, unbounded GPU cost (a likely contributor to reported app-wide
-/// jank) while any screen that actually wants the shimmer can still pass
-/// `animated: true`.
+/// [base] is cheap enough for repeated tiles; [raised] is the default hero
+/// card; [floating] is reserved for one-off overlays (modals, the VR-ID
+/// card) — it carries the heaviest blur and an entrance scale-in, so never
+/// put it inside a scrolling list (this app has a documented jank history
+/// around per-row BackdropFilters).
+enum GlassTier { base, raised, floating }
+
+/// The app's signature surface: frosted blur + saturation boost behind a
+/// translucent fill, a tinted (never grey) hairline border, an ambient
+/// tinted glow (never a black drop shadow), and the AFOS silhouette — three
+/// large corners with the top-right cut tight.
+///
+/// [animated] previously drove a perpetual sweep-gradient rotation (a
+/// continuous GPU cost); it now opts into the floating-tier entrance
+/// animation instead, honoring `MediaQuery.disableAnimations`.
 class GlassCard extends StatefulWidget {
   final Widget child;
   final double borderRadius;
   final Color? glowColor;
   final bool animated;
   final EdgeInsetsGeometry? padding;
+  final GlassTier tier;
+  final VoidCallback? onTap;
 
   const GlassCard({
     super.key,
     required this.child,
-    this.borderRadius = 20,
+    this.borderRadius = LiquidGlass.radiusCard,
     this.glowColor,
     this.animated = false,
     this.padding,
+    this.tier = GlassTier.raised,
+    this.onTap,
   });
 
   @override
   State<GlassCard> createState() => _GlassCardState();
 }
 
-class _GlassCardState extends State<GlassCard>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _controller;
+class _GlassCardState extends State<GlassCard> {
+  bool _pressed = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.animated) {
-      _controller = AnimationController(
-        vsync: this,
-        duration: const Duration(seconds: 6),
-      )..repeat();
-    }
-  }
+  double get _sigma => switch (widget.tier) {
+        GlassTier.base => LiquidGlass.blurBase,
+        GlassTier.raised => LiquidGlass.blurRaised,
+        GlassTier.floating => LiquidGlass.blurFloating,
+      };
 
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
+  void _setPressed(bool v) {
+    if (widget.onTap == null) return;
+    setState(() => _pressed = v);
   }
 
   @override
   Widget build(BuildContext context) {
-    final glow = widget.glowColor ?? AppColors.holoBlue;
-    final radius = BorderRadius.circular(widget.borderRadius);
+    final glass = LiquidGlassTheme.of(context);
+    final radius = LiquidGlass.signatureRadius(widget.borderRadius);
+    final tint = widget.glowColor;
+    final border = tint?.withValues(alpha: 0.35) ?? glass.glassBorder;
+    final glow = tint?.withValues(alpha: 0.18) ?? glass.ambientShadow;
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
 
-    Widget buildGlass(double t) {
-      final gradient = SweepGradient(
-        transform: GradientRotation(t * 6.283185307),
-        colors: [
-          glow.withOpacity(0.55),
-          AppColors.holoviolet.withOpacity(0.35),
-          AppColors.holoTeal.withOpacity(0.35),
-          glow.withOpacity(0.55),
-        ],
-      );
+    // Press adds +4 blur per the Liquid Glass motion spec.
+    final sigma = _pressed ? _sigma + 4 : _sigma;
 
-      return Container(
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          boxShadow: [
-            BoxShadow(
-              color: glow.withOpacity(0.16),
-              blurRadius: 24,
-              spreadRadius: -4,
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              padding: const EdgeInsets.all(1.2),
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                gradient: gradient,
-              ),
-              child: Container(
-                padding: widget.padding,
-                decoration: BoxDecoration(
-                  color: AppColors.glassFill(context),
-                  borderRadius: BorderRadius.circular(widget.borderRadius - 1),
+    Widget glassBody = Container(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: widget.tier == GlassTier.base
+            ? null
+            : [
+                BoxShadow(
+                  color: glow,
+                  blurRadius: widget.tier == GlassTier.floating ? 48 : 40,
+                  offset: const Offset(0, 12),
                 ),
-                child: widget.child,
-              ),
+              ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: LiquidGlass.frost(sigma),
+          child: Container(
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: AppColors.glassFill(context),
+              borderRadius: radius,
+              border: Border.all(color: border, width: 1),
             ),
+            child: widget.child,
           ),
         ),
+      ),
+    );
+
+    if (widget.onTap != null) {
+      glassBody = GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        child: reduceMotion
+            ? glassBody
+            : AnimatedScale(
+                scale: _pressed ? LiquidGlass.pressScale : 1.0,
+                duration: LiquidGlass.pressDuration,
+                curve: Curves.easeOut,
+                child: glassBody,
+              ),
       );
     }
 
-    if (_controller == null) return buildGlass(0);
+    final wantsEntrance =
+        (widget.animated || widget.tier == GlassTier.floating) && !reduceMotion;
+    if (!wantsEntrance) return glassBody;
 
-    return AnimatedBuilder(
-      animation: _controller!,
-      builder: (context, _) => buildGlass(_controller!.value),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: LiquidGlass.entranceDuration,
+      curve: Curves.easeOut,
+      child: glassBody,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.scale(
+          scale: LiquidGlass.entranceScaleFrom +
+              (1 - LiquidGlass.entranceScaleFrom) * t,
+          child: child,
+        ),
+      ),
     );
   }
 }
