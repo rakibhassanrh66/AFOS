@@ -394,10 +394,24 @@ class _DashboardState extends State<DashboardScreen> {
                     // instead of more, reasonably-sized ones -- a max-extent
                     // delegate keeps each tile a consistent size and adds
                     // columns as space allows instead.
+                    //
+                    // Height must NOT be width-derived (childAspectRatio):
+                    // the tile content -- 44px icon + gaps + two one-line
+                    // labels + 28px padding -- is a constant ~122px, but an
+                    // aspect-ratio height shrinks with column width and
+                    // under-provides at narrow widths (or when the runtime
+                    // Google-Fonts fetch falls back to taller system font
+                    // metrics), which is exactly the "RenderFlex overflowed
+                    // by 10px" the overflow smoke test kept catching on
+                    // /home. A fixed extent scaled by the user's text size
+                    // fits the content at every width and accessibility
+                    // scale.
                     : SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 190, crossAxisSpacing: 12,
-                            mainAxisSpacing: 12, childAspectRatio: 1.1),
+                            mainAxisSpacing: 12,
+                            mainAxisExtent:
+                                90 + MediaQuery.textScalerOf(context).scale(44)),
                         delegate: SliverChildBuilderDelegate(
                             (ctx, i) => _ModuleCard(m: _visibleModules[i], index: i),
                             childCount: _visibleModules.length)),

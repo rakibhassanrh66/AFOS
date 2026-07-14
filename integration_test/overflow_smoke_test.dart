@@ -79,12 +79,6 @@ void main() {
     await settle(tester, cycles: 25);
   }
 
-  Future<Object?> visitRoute(WidgetTester tester, String route) async {
-    AppRouter.router.go(route);
-    await settle(tester);
-    return tester.takeException();
-  }
-
   Future<void> runRoleSmoke(WidgetTester tester, String role) async {
     final (email, password) = credentials[role]!;
     if (password.isEmpty) {
@@ -108,15 +102,44 @@ void main() {
     await settle(tester, cycles: 30);
     expect(find.byType(LoginScreen), findsOneWidget, reason: 'expected to land on login screen');
 
-    await loginAs(tester, email, password);
-    expect(find.byType(DashboardScreen), findsOneWidget,
-        reason: 'login as $role did not land on the dashboard -- check credentials/gates');
-
-    final routes = [...commonRoutes, ...?roleExtraRoutes[role]];
+    // takeException() alone yields only the one-line summary ("A RenderFlex
+    // overflowed by 10.0 pixels on the bottom") with no pointer to WHICH
+    // widget -- useless for actually fixing a failure. It also attributes an
+    // exception to whichever route happens to call takeException() first,
+    // even if it was thrown earlier (e.g. during the post-login dashboard
+    // layout). Tapping FlutterError.onError for the whole role walk captures
+    // every FlutterErrorDetails at the moment it fires, tagged with the
+    // phase (login / current route), and details.toString() carries the
+    // "relevant error-causing widget" file:line block from the console dump.
     final failures = <String>[];
-    for (final route in routes) {
-      final exception = await visitRoute(tester, route);
-      if (exception != null) failures.add('$route: $exception');
+    var phase = 'login';
+    final prevOnError = FlutterError.onError;
+    FlutterError.onError = (d) {
+      final full = d.toString();
+      // Keep the useful head of the block (summary + causing widget); the
+      // trailing render-tree dump is noise at this altitude.
+      final lines = full.split('\n');
+      failures.add('[$phase] ${lines.take(28).join('\n')}');
+      prevOnError?.call(d);
+    };
+    try {
+      await loginAs(tester, email, password);
+      // Clear any exception stored during login so it can't leak into the
+      // per-route accounting below; it is already in `failures` with detail.
+      tester.takeException();
+      expect(find.byType(DashboardScreen), findsOneWidget,
+          reason: 'login as $role did not land on the dashboard -- check credentials/gates');
+
+      final routes = [...commonRoutes, ...?roleExtraRoutes[role]];
+      for (final route in routes) {
+        phase = route;
+        AppRouter.router.go(route);
+        await settle(tester);
+        tester.takeException();
+      }
+    } finally {
+      // The test binding asserts its own handler is back in place at test end.
+      FlutterError.onError = prevOnError;
     }
 
     expect(failures, isEmpty, reason: failures.join('\n\n'));
