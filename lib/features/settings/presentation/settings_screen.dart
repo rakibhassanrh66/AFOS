@@ -19,6 +19,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -442,29 +443,7 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 24),
 
               // ── Logout ───────────────────────────────────────────────────
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _logout,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(colors: [AppColors.red.withValues(alpha:0.14), AppColors.red.withValues(alpha:0.05)]),
-                        border: Border.all(color: AppColors.red.withValues(alpha:0.25))),
-                    child: Row(children: [
-                      Container(width: 38, height: 38,
-                          decoration: BoxDecoration(color: AppColors.red.withValues(alpha:0.16), shape: BoxShape.circle),
-                          child: const Icon(AppIcons.logout, color: AppColors.red, size: 19)),
-                      const SizedBox(width: 14),
-                      const Text('Log Out', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700, fontSize: 15)),
-                      const Spacer(),
-                      Icon(Icons.chevron_right_rounded, color: AppColors.red.withValues(alpha:0.6), size: 20),
-                    ]),
-                  ),
-                ),
-              ),
+              LogoutTile(onTap: _logout),
               const SizedBox(height: 40),
             ]),
     );
@@ -525,18 +504,18 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 20),
               AfosButton(label: 'Update Password', onTap: () async {
                 if (newCtrl.text.length < 8) return;
+                // Capture the root messenger before popping the sheet + the
+                // await, so we never touch a defunct sheet BuildContext after
+                // the async gap.
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
                 try {
                   await Supabase.instance.client.auth.updateUser(UserAttributes(password: newCtrl.text));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Password updated ✓'), backgroundColor: AppColors.green));
-                  }
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Password updated ✓'), backgroundColor: AppColors.green));
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                 }
               }),
             ])));

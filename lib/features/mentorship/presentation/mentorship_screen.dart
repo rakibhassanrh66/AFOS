@@ -244,6 +244,9 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
               const SizedBox(height: 16),
               AfosButton(label: 'Request Session', onTap: () async {
                 if (topicCtrl.text.trim().isEmpty) return;
+                // Capture the messenger before popping the sheet + awaiting, so
+                // no defunct sheet BuildContext is touched after the async gap.
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(ctx);
                 try {
                   final queued = await OutboxService.instance.submitOrQueue('mentorship_booking_request', {
@@ -252,16 +255,12 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                     'topic': topicCtrl.text.trim(),
                   });
                   _load();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(queued
-                      ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
-                      : const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
-                  }
+                  messenger.showSnackBar(queued
+                    ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
+                    : const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                 }
               }),
             ])));

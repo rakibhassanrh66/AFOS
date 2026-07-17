@@ -164,8 +164,15 @@ class _PayNowTab extends StatelessWidget {
       // Fixed 2-column count stretched into 2 giant tiles on a wide desktop
       // browser window; max-extent keeps each tile a consistent size and
       // adds columns as space allows instead (see dashboard_screen.dart).
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 200, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 1.1),
+      //
+      // Height must NOT be width-derived (childAspectRatio): the tile content
+      // (52px icon + gaps + two labels) is a constant, but an aspect-ratio
+      // height shrinks with column width and under-provides at narrow widths
+      // or large accessibility text scale, overflowing vertically. A fixed
+      // extent scaled by the user's text size fits the content at every width.
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 200, crossAxisSpacing: 14, mainAxisSpacing: 14,
+          mainAxisExtent: 92 + MediaQuery.textScalerOf(context).scale(44)),
       itemCount: categories.length,
       itemBuilder: (ctx, i) => _PayCard(cat: categories[i], index: i),
     );
