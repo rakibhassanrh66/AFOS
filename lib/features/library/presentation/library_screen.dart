@@ -303,11 +303,20 @@ class _BookCard extends StatelessWidget {
                 child: const Text('Renew'))),
             if (isOverdue) ...[
               const SizedBox(width: 10),
-              Expanded(child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.red, minimumSize: const Size(0, 40)),
-                  child: const Text('Pay Fine'))),
+              // Online fine payment isn't wired yet — shown disabled with a
+              // "Coming soon" label rather than a button that silently does
+              // nothing when tapped.
+              Expanded(child: Tooltip(
+                message: 'Online fine payment is coming soon',
+                child: ElevatedButton(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.red.withValues(alpha: 0.4),
+                        disabledBackgroundColor: AppColors.red.withValues(alpha: 0.18),
+                        disabledForegroundColor: AppColors.textSecondaryOf(context),
+                        minimumSize: const Size(0, 40)),
+                    child: const Text('Pay Fine · Soon',
+                        maxLines: 1, overflow: TextOverflow.ellipsis)))),
             ],
           ]),
         ]),
