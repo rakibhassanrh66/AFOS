@@ -6,6 +6,8 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'payment_webview_screen.dart';
@@ -72,64 +74,35 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: const AfosAppBar(title: 'Payment'),
       body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: AppColors.goldGradient,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.payments_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Payments', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text('${_categories.length} fee categories', style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-              if (!_loading && _totalPaid > 0) Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('৳${_totalPaid.toStringAsFixed(0)}', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                      style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.0, fontWeight: FontWeight.w800)),
-                  Text('total paid', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 10, height: 1.0)),
-                ]),
-              ),
-            ]),
-          ),
+        FeatureHeader(
+          title: 'Payments',
+          subtitle: '${_categories.length} fee categories',
+          icon: Icons.payments_rounded,
+          gradient: AppColors.goldGradient,
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          trailing: (!_loading && _totalPaid > 0)
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text('৳${_totalPaid.toStringAsFixed(0)}', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.0, fontWeight: FontWeight.w800)),
+                    Text('total paid', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 10, height: 1.0)),
+                  ]),
+                )
+              : null,
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: List.generate(_tabLabels.length, (i) {
-              final sel = _tab.index == i;
-              return Expanded(child: GestureDetector(
-                onTap: () => _tab.animateTo(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                      gradient: sel ? AppColors.goldGradient : null,
-                      color: sel ? null : AppColors.glassFill(context),
-                      borderRadius: BorderRadius.circular(20)),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
-                    const SizedBox(width: 6),
-                    Text(_tabLabels[i],
-                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
-                            fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
-                  ]),
-                ),
-              ));
-            })),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: [
+              for (var i = 0; i < _tabLabels.length; i++)
+                GlassTab(_tabLabels[i], icon: _tabIcons[i]),
+            ],
           ),
         ),
         const SizedBox(height: 10),

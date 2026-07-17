@@ -67,13 +67,27 @@ class _Segment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = selected ? Colors.white : AppColors.textSecondaryOf(context);
+    final label = Text(
+      tab.label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      textHeightBehavior: const TextHeightBehavior(
+          applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+      style: TextStyle(
+        color: fg,
+        fontSize: 12,
+        height: 1.0,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      ),
+    );
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
         decoration: BoxDecoration(
           gradient: selected ? AppColors.holoGradient : null,
           borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
@@ -87,31 +101,15 @@ class _Segment extends StatelessWidget {
                 ]
               : null,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (tab.icon != null) ...[
-              Icon(tab.icon, size: 16, color: fg),
-              const SizedBox(width: 6),
-            ],
-            Flexible(
-              child: Text(
-                tab.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                textHeightBehavior: const TextHeightBehavior(
-                    applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 12.5,
-                  height: 1.0,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
+        // Icon stacked over label (the app's established feature-pill style),
+        // so 3–4 tabs with longer labels stay readable in a narrow split.
+        child: tab.icon == null
+            ? Center(child: label)
+            : Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(tab.icon, size: 16, color: fg),
+                const SizedBox(height: 4),
+                label,
+              ]),
       ),
     );
   }
