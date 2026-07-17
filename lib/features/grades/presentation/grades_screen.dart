@@ -6,6 +6,7 @@ import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/grades_repository.dart';
@@ -24,27 +25,13 @@ class _GradesScreenState extends State<GradesScreen> {
   bool get _isPublisher => _publisherRoles.contains(RoleSession.role);
 
   Widget _header({required String title, required String subtitle, required IconData icon}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [AppColors.blue, AppColors.indigo]),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(children: [
-          Container(padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-              child: Icon(icon, color: Colors.white, size: 24)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 3),
-            Text(subtitle, style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-          ])),
-        ]),
-      ),
+    return FeatureHeader(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [AppColors.blue, AppColors.indigo]),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
     );
   }
 
