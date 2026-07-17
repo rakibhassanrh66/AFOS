@@ -7,6 +7,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -436,16 +437,16 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Column(children: [
-        SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
+        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             children: _filters.map((f) {
               final sel = f == _filter;
-              return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                  label: Text(_filterLabel(f)),
+              return Padding(padding: const EdgeInsets.only(right: 8),
+                child: Center(child: GlassChip(
+                  label: _filterLabel(f),
                   selected: sel,
-                  onSelected: (_) => setState(() => _filter = f),
-                  selectedColor: AppColors.blue.withValues(alpha: 0.2),
-                  labelStyle: TextStyle(color: sel ? AppColors.blue : textSecondary, fontWeight: FontWeight.w600)));
+                  color: AppColors.blue,
+                  onTap: () => setState(() => _filter = f))));
             }).toList())),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -530,16 +531,16 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Column(children: [
-      SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
+      SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           children: _complaintFilters.map((f) {
             final sel = f == _complaintFilter;
-            return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                label: Text(f.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ')),
+            return Padding(padding: const EdgeInsets.only(right: 8),
+              child: Center(child: GlassChip(
+                label: f.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' '),
                 selected: sel,
-                onSelected: (_) => setState(() => _complaintFilter = f),
-                selectedColor: AppColors.blue.withValues(alpha: 0.2),
-                labelStyle: TextStyle(color: sel ? AppColors.blue : textSecondary, fontWeight: FontWeight.w600)));
+                color: AppColors.blue,
+                onTap: () => setState(() => _complaintFilter = f))));
           }).toList())),
       Expanded(child: _complaintsLoading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())

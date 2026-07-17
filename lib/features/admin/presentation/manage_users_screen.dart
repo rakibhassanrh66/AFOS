@@ -12,6 +12,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -123,6 +124,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
               AfosTextField(hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
               const SizedBox(height: 20),
               AfosButton(label: 'Confirm Rejection', onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(sheetCtx);
                 try {
                   await SupabaseConfig.client.from('cr_requests').update({
@@ -136,10 +138,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     category: 'general',
                   );
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
                 }
               }),
             ])));
@@ -324,15 +324,16 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       decoration: InputDecoration(hintText: 'Search name, email, ID', prefixIcon: const Icon(Icons.search),
                           filled: true, fillColor: AppColors.glassFill(context),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))),
-                  SizedBox(height: 40, child: ListView(scrollDirection: Axis.horizontal,
+                  SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       children: _roles.map((r) {
                         final sel = r == _roleFilter;
-                        return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                            label: Text(r == 'all' ? 'All' : r),
-                            selected: sel, onSelected: (_) => setState(() => _roleFilter = r),
-                            selectedColor: AppColors.holoviolet.withValues(alpha: 0.2),
-                            labelStyle: TextStyle(color: sel ? AppColors.holoviolet : AppColors.textSecondaryOf(context))));
+                        return Padding(padding: const EdgeInsets.only(right: 8),
+                          child: Center(child: GlassChip(
+                            label: r == 'all' ? 'All' : r,
+                            selected: sel,
+                            color: AppColors.holoviolet,
+                            onTap: () => setState(() => _roleFilter = r))));
                       }).toList())),
                   const SizedBox(height: 8),
                   Expanded(child: _error != null

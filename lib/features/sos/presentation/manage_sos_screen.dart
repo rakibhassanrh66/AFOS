@@ -6,6 +6,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
@@ -83,16 +84,17 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
             ]),
           ),
         ),
-        SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
+        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             children: _filters.map((f) {
               final sel = f == _filter;
-              return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                  label: Text(f.replaceAll('_', ' ')[0].toUpperCase() + f.replaceAll('_', ' ').substring(1)),
+              final txt = f.replaceAll('_', ' ');
+              return Padding(padding: const EdgeInsets.only(right: 8),
+                child: Center(child: GlassChip(
+                  label: txt[0].toUpperCase() + txt.substring(1),
                   selected: sel,
-                  onSelected: (_) => setState(() => _filter = f),
-                  selectedColor: AppColors.red.withValues(alpha: 0.2),
-                  labelStyle: TextStyle(color: sel ? AppColors.red : textSecondary, fontWeight: FontWeight.w600)));
+                  color: AppColors.red,
+                  onTap: () => setState(() => _filter = f))));
             }).toList())),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())

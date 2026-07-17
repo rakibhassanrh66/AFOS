@@ -8,6 +8,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -154,15 +155,16 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
             ),
           ),
         ),
-        SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
+        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             children: _filters.map((f) {
               final sel = f == _filter;
-              return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                  label: Text(f[0].toUpperCase() + f.substring(1)),
-                  selected: sel, onSelected: (_) => setState(() => _filter = f),
-                  selectedColor: AppColors.holoviolet.withValues(alpha: 0.2),
-                  labelStyle: TextStyle(color: sel ? AppColors.holoviolet : textSecondary, fontWeight: FontWeight.w600)));
+              return Padding(padding: const EdgeInsets.only(right: 8),
+                child: Center(child: GlassChip(
+                  label: f[0].toUpperCase() + f.substring(1),
+                  selected: sel,
+                  color: AppColors.holoviolet,
+                  onTap: () => setState(() => _filter = f))));
             }).toList())),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
