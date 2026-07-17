@@ -6,6 +6,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
@@ -449,19 +450,26 @@ class _RoutineHeaderBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(gradient: AppColors.holoGradient, borderRadius: BorderRadius.circular(18)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Text(
-          'Class Routine for $department Program${version != null ? '\nVersion $version' : ''}',
-          textAlign: TextAlign.center,
-          style: AppTextStyles.headlineLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.3),
+      child: Stack(children: [
+        Positioned.fill(child: IgnorePointer(child: DecoratedBox(
+            decoration: BoxDecoration(gradient: LiquidGlass.sheen(isDark: true))))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Text(
+              'Class Routine for $department Program${version != null ? '\nVersion $version' : ''}',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.headlineLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.3),
+            ),
+            if (subLine.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(subLine, textAlign: TextAlign.center,
+                  style: AppTextStyles.labelSmall.copyWith(color: Colors.white.withValues(alpha: 0.85))),
+            ],
+          ]),
         ),
-        if (subLine.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(subLine, textAlign: TextAlign.center,
-              style: AppTextStyles.labelSmall.copyWith(color: Colors.white.withValues(alpha: 0.85))),
-        ],
       ]),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic);
   }
