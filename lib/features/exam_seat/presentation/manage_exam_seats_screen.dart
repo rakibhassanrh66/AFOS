@@ -7,6 +7,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -115,26 +116,13 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Exam Seat Plan Upload'),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [AppColors.orange, AppColors.amber]),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(children: [
-            Container(padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                child: const Icon(AppIcons.examSeat, color: Colors.white, size: 24)),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Exam Seat Plan Upload', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 3),
-              Text('Publish room allocations from the official PDF',
-                  style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-            ])),
-          ]),
+        const FeatureHeader(
+          title: 'Exam Seat Plan Upload',
+          subtitle: 'Publish room allocations from the official PDF',
+          icon: AppIcons.examSeat,
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.orange, AppColors.amber]),
+          margin: EdgeInsets.only(bottom: 16),
         ),
         Text('Upload the official exam seat-plan PDF(s) — you can select several at once '
                 '(e.g. one per exam date). Each is parsed for room/seat allocations per batch+section.',
