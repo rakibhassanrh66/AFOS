@@ -6,6 +6,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -61,28 +62,13 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Manage SOS Alerts'),
       body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.red, AppColors.coral]),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.sos_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Manage SOS Alerts', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(_loading ? 'Loading…' : '$activeCount active system-wide',
-                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-            ]),
-          ),
+        FeatureHeader(
+          title: 'Manage SOS Alerts',
+          subtitle: _loading ? 'Loading…' : '$activeCount active system-wide',
+          icon: Icons.sos_rounded,
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.red, AppColors.coral]),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ),
         SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

@@ -6,6 +6,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -71,28 +72,13 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Manage Library'),
       body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.purple, AppColors.indigo]),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.local_library_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Manage Library', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(_loading ? 'Loading…' : '${_activeBorrows.length} books currently out',
-                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-            ]),
-          ),
+        FeatureHeader(
+          title: 'Manage Library',
+          subtitle: _loading ? 'Loading…' : '${_activeBorrows.length} books currently out',
+          icon: Icons.local_library_rounded,
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.purple, AppColors.indigo]),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ),
         AnimatedBuilder(
           animation: _tab,
