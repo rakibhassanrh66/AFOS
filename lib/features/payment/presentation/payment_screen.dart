@@ -28,6 +28,9 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
     _loadHistory();
   }
 
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
   Future<void> _loadHistory() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }

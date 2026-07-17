@@ -25,10 +25,10 @@ class GlassSheet extends StatelessWidget {
 
     final body = ClipRRect(
       borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
       child: BackdropFilter(
         filter: LiquidGlass.frost(LiquidGlass.blurFloating),
-        child: Container(
-          width: double.infinity,
+        child: DecoratedBox(
           decoration: BoxDecoration(
             // Sheets sit over dimmed content, so the fill leans on the
             // canvas color for legibility instead of pure translucency.

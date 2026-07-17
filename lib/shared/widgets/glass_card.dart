@@ -61,6 +61,7 @@ class _GlassCardState extends State<GlassCard> {
   @override
   Widget build(BuildContext context) {
     final glass = LiquidGlassTheme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final radius = LiquidGlass.signatureRadius(widget.borderRadius);
     final tint = widget.glowColor;
     final border = tint?.withValues(alpha: 0.35) ?? glass.glassBorder;
@@ -85,16 +86,35 @@ class _GlassCardState extends State<GlassCard> {
       ),
       child: ClipRRect(
         borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
         child: BackdropFilter(
           filter: LiquidGlass.frost(sigma),
-          child: Container(
-            padding: widget.padding,
+          child: DecoratedBox(
             decoration: BoxDecoration(
               color: AppColors.glassFill(context),
               borderRadius: radius,
               border: Border.all(color: border, width: 1),
             ),
-            child: widget.child,
+            child: Stack(
+              children: [
+                // Glossy sheen: light catching the glass, painted over the
+                // fill and behind the content (never intercepts pointers).
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: radius,
+                        gradient: LiquidGlass.sheen(isDark: isDark),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: widget.padding ?? EdgeInsets.zero,
+                  child: widget.child,
+                ),
+              ],
+            ),
           ),
         ),
       ),

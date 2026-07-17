@@ -340,6 +340,9 @@ class _PostTabState extends State<_PostTab> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _locCtrl = TextEditingController();
+
+  @override
+  void dispose() { _titleCtrl.dispose(); _descCtrl.dispose(); _locCtrl.dispose(); super.dispose(); }
   String _type = 'lost', _category = 'Electronics';
   XFile? _image;
   bool _loading = false;

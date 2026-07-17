@@ -177,6 +177,9 @@ class _NewRequestForm extends StatefulWidget {
 
 class _NewRequestFormState extends State<_NewRequestForm> {
   final _purposeCtrl = TextEditingController();
+
+  @override
+  void dispose() { _purposeCtrl.dispose(); super.dispose(); }
   DateTime? _date;
   TimeOfDay? _start, _end;
   bool _saving = false;

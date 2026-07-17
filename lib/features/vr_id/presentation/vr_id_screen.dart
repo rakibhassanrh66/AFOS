@@ -220,6 +220,9 @@ class _ScanTabState extends State<_ScanTab> {
   Map<String, dynamic>? _scannedUser;
   bool _verified = false, _expired = false, _scanning = true;
 
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
   Future<void> _onDetect(BarcodeCapture barcodes) async {
     if (!_scanning) return;
     final raw = barcodes.barcodes.firstOrNull?.rawValue;

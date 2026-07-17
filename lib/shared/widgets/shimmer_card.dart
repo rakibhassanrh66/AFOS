@@ -1,20 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../config/theme/app_colors.dart';
+import '../../config/theme/liquid_glass_tokens.dart';
 
 class ShimmerCard extends StatelessWidget {
   final double width, height;
   final double radius;
-  const ShimmerCard({super.key, this.width=double.infinity, this.height=80, this.radius=16});
+  const ShimmerCard({super.key, this.width=double.infinity, this.height=80, this.radius=LiquidGlass.radiusCard});
 
   @override
   Widget build(BuildContext context) {
+    // Glass-tinted skeleton: the shimmer sweep runs across a translucent
+    // glass fill with the signature tinted hairline border, so a loading
+    // placeholder reads as the same material as the card it stands in for.
+    final base = Color.alphaBlend(AppColors.glassFill(context), AppColors.surfaceOf(context));
     return Shimmer.fromColors(
-      baseColor: AppColors.surfaceOf(context),
-      highlightColor: AppColors.borderOf(context),
+      baseColor: base,
+      highlightColor: AppColors.glassBorder(context),
+      period: const Duration(milliseconds: 1400),
       child: Container(
         width: width, height: height,
-        decoration: BoxDecoration(color:AppColors.surfaceOf(context), borderRadius:BorderRadius.circular(radius)),
+        decoration: BoxDecoration(
+          color: base,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: AppColors.glassBorder(context), width: 0.5),
+        ),
       ),
     );
   }
