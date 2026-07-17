@@ -11,6 +11,8 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -72,56 +74,24 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Lost & Found'),
       body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.coral, AppColors.red]),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.find_in_page_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Lost & Found', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(_loading ? 'Loading…' : '${_posts.length} active ${_posts.length == 1 ? 'post' : 'posts'}',
-                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-            ]),
-          ),
+        FeatureHeader(
+          title: 'Lost & Found',
+          subtitle: _loading ? 'Loading…' : '${_posts.length} active ${_posts.length == 1 ? 'post' : 'posts'}',
+          icon: Icons.find_in_page_rounded,
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.coral, AppColors.red]),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: List.generate(_tabLabels.length, (i) {
-              final sel = _tab.index == i;
-              return Expanded(child: GestureDetector(
-                onTap: () => _tab.animateTo(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                      gradient: sel ? const LinearGradient(colors: [AppColors.coral, AppColors.red]) : null,
-                      color: sel ? null : AppColors.glassFill(context),
-                      borderRadius: BorderRadius.circular(20)),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(_tabIcons[i], size: 15, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
-                    const SizedBox(height: 5),
-                    Text(_tabLabels[i], textAlign: TextAlign.center,
-                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
-                            fontSize: 10.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
-                  ]),
-                ),
-              ));
-            })),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: [
+              for (var i = 0; i < _tabLabels.length; i++)
+                GlassTab(_tabLabels[i], icon: _tabIcons[i]),
+            ],
           ),
         ),
         const SizedBox(height: 10),

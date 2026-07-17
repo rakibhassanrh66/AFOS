@@ -10,6 +10,8 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -113,27 +115,13 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
       ])));
 
   Widget _heroHeader(BuildContext context, {required String title, required String subtitle, required IconData icon}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [AppColors.blueLight, AppColors.blue]),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(children: [
-          Container(padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-              child: Icon(icon, color: Colors.white, size: 24)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 3),
-            Text(subtitle, style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-          ])),
-        ]),
-      ),
+    return FeatureHeader(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [AppColors.blueLight, AppColors.blue]),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic);
   }
 
@@ -180,31 +168,14 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                 : (_loading ? 'Loading…' : '${_mentors.length} mentors available')),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: List.generate(tabLabels.length, (i) {
-              final sel = _tab.index == i;
-              return Expanded(child: GestureDetector(
-                onTap: () => _tab.animateTo(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                      gradient: sel ? const LinearGradient(colors: [AppColors.blueLight, AppColors.blue]) : null,
-                      color: sel ? null : AppColors.glassFill(context),
-                      borderRadius: BorderRadius.circular(20)),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
-                    const SizedBox(width: 6),
-                    Text(tabLabels[i],
-                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
-                            fontSize: 12.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
-                  ]),
-                ),
-              ));
-            })),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: [
+              for (var i = 0; i < tabLabels.length; i++)
+                GlassTab(tabLabels[i], icon: tabIcons[i]),
+            ],
           ),
         ),
         const SizedBox(height: 10),

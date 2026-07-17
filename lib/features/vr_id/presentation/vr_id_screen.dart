@@ -14,6 +14,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -85,31 +86,14 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
         const SizedBox(height: 12),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: List.generate(_tabLabels.length, (i) {
-              final sel = _tab.index == i;
-              return Expanded(child: GestureDetector(
-                onTap: () => _tab.animateTo(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                      gradient: sel ? AppColors.holoGradient : null,
-                      color: sel ? null : AppColors.glassFill(context),
-                      borderRadius: BorderRadius.circular(20)),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(_tabIcons[i], size: 16, color: sel ? Colors.white : AppColors.textSecondaryOf(context)),
-                    const SizedBox(height: 5),
-                    Text(_tabLabels[i], textAlign: TextAlign.center,
-                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                        style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
-                            fontSize: 10.5, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
-                  ]),
-                ),
-              ));
-            })),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: [
+              for (var i = 0; i < _tabLabels.length; i++)
+                GlassTab(_tabLabels[i], icon: _tabIcons[i]),
+            ],
           ),
         ),
         const SizedBox(height: 10),
