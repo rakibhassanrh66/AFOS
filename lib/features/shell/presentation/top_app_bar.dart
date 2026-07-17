@@ -43,9 +43,9 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
             gradient: _isSuperAdmin
               ? LinearGradient(colors: [AppColors.holoviolet, AppColors.holoviolet.withValues(alpha: 0.4)])
               : LinearGradient(colors:[
-                  AppColors.holoBlue.withOpacity(0.35),
-                  AppColors.holoviolet.withOpacity(0.25),
-                  AppColors.holoTeal.withOpacity(0.35),
+                  AppColors.holoBlue.withValues(alpha:0.35),
+                  AppColors.holoviolet.withValues(alpha:0.25),
+                  AppColors.holoTeal.withValues(alpha:0.35),
                 ]),
           ),
         )),

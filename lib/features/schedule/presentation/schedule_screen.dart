@@ -395,10 +395,10 @@ class _ExamCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.3), width: 0.7)),
+          border: Border.all(color: color.withValues(alpha:0.3), width: 0.7)),
       child: Row(children: [
         Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
             child: Text(examType.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800))),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -593,8 +593,8 @@ class _ClassCard extends StatelessWidget {
           borderRadius:BorderRadius.circular(16),
           gradient: LinearGradient(
             begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [AppColors.holoBlue.withOpacity(AppColors.isDark(context)?0.3:0.2),
-                     AppColors.holoTeal.withOpacity(0.12)]),
+            colors: [AppColors.holoBlue.withValues(alpha:AppColors.isDark(context)?0.3:0.2),
+                     AppColors.holoTeal.withValues(alpha:0.12)]),
         ),
         padding: const EdgeInsets.all(1),
         child: Container(
@@ -637,7 +637,7 @@ class _ClassCard extends StatelessWidget {
                   ],
                   const SizedBox(height:5),
                   Row(children:[
-                    CircleAvatar(radius:9, backgroundColor:AppColors.holoBlue.withOpacity(0.15),
+                    CircleAvatar(radius:9, backgroundColor:AppColors.holoBlue.withValues(alpha:0.15),
                       backgroundImage: teacherAvatar!=null ? CachedNetworkImageProvider(teacherAvatar) : null,
                       child: teacherAvatar==null
                         ? const Icon(Icons.person_outline, size:11, color:AppColors.holoBlue)
@@ -649,7 +649,7 @@ class _ClassCard extends StatelessWidget {
                 ])),
                 Container(
                   padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),
-                  decoration:BoxDecoration(color:AppColors.holoBlue.withOpacity(0.12),borderRadius:BorderRadius.circular(6)),
+                  decoration:BoxDecoration(color:AppColors.holoBlue.withValues(alpha:0.12),borderRadius:BorderRadius.circular(6)),
                   child:Text('${slot.creditHours}cr',style:const TextStyle(color:AppColors.holoBlue,fontSize:11,fontWeight:FontWeight.w600))),
                 if (isPinnable && onPin != null)
                   IconButton(icon: const Icon(Icons.add_circle_outline_rounded, size: 20, color: AppColors.green),
@@ -664,7 +664,7 @@ class _ClassCard extends StatelessWidget {
             ),
             if(slot.isCancelled) Positioned.fill(
               child:Container(
-                decoration:BoxDecoration(color:AppColors.red.withOpacity(0.88),borderRadius:BorderRadius.circular(15)),
+                decoration:BoxDecoration(color:AppColors.red.withValues(alpha:0.88),borderRadius:BorderRadius.circular(15)),
                 alignment:Alignment.center,
                 child:Column(mainAxisSize:MainAxisSize.min,children:[
                   const Icon(Icons.cancel_rounded,color:Colors.white,size:32),

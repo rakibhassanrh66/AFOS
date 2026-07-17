@@ -7,10 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import 'dart:ui' show ImageFilter;
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/logout_tile.dart';
 
 class SlideMenu extends StatefulWidget {
   // True when rendered as the permanent desktop nav rail (app_shell.dart,
@@ -188,34 +191,44 @@ class _SlideMenuState extends State<SlideMenu> {
       // whatever was fetched once at app start.
       listenWhen: (prev, curr) => !prev.isOpen && curr.isOpen,
       listener: (ctx, state) => _loadUser(),
-      builder:(ctx,state) => Container(
-        decoration: BoxDecoration(
-          color: surface,
-          border: Border(right:BorderSide(color:border,width:0.5)),
-          boxShadow: [
-            BoxShadow(color: AppColors.holoBlue.withOpacity(0.08), blurRadius:24, spreadRadius:-4),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(children:[
-            _buildHeader(ctx),
-            Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
-              // Capped, not i*40 uncapped -- a role with a long menu (25
-              // items for super_admin) meant the last tile's fade-in didn't
-              // even START until ~960ms after the menu opened. Scrolling
-              // down before that elapsed (easy to do in under a second)
-              // caught later items still invisible/mid-fade, reading as
-              // "icons take time to load" rather than a deliberate
-              // animation. Capping keeps the same staggered-entrance feel
-              // for the first several tiles while guaranteeing the whole
-              // list finishes animating well within any real scroll.
-              ...List.generate(_effectiveItems.length, (i) =>
-                _MenuTile(item:_effectiveItems[i], isActive:state.selectedIndex==i, index:i, delay:(i*15).clamp(0,90))),
-              Divider(color:border, height:24),
-              _buildLogout(ctx),
-            ])),
-            _buildFooter(context),
-          ]),
+      builder:(ctx,state) => ClipRRect(
+        // Frosted glass drawer — real blur behind a translucent fill so the
+        // dimmed content shows through as glass; tinted (never grey) hairline.
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: LiquidGlass.blurRaised, sigmaY: LiquidGlass.blurRaised),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(AppColors.glassFill(context), surface.withValues(alpha: 0.88)),
+              border: Border(right:BorderSide(color:AppColors.glassBorder(context),width:1)),
+              boxShadow: [
+                BoxShadow(color: AppColors.holoBlue.withValues(alpha:0.08), blurRadius:24, spreadRadius:-4),
+              ],
+            ),
+            child: SafeArea(
+              child: Column(children:[
+                _buildHeader(ctx),
+                Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
+                  // Capped, not i*40 uncapped -- a role with a long menu (25
+                  // items for super_admin) meant the last tile's fade-in didn't
+                  // even START until ~960ms after the menu opened. Scrolling
+                  // down before that elapsed (easy to do in under a second)
+                  // caught later items still invisible/mid-fade, reading as
+                  // "icons take time to load" rather than a deliberate
+                  // animation. Capping keeps the same staggered-entrance feel
+                  // for the first several tiles while guaranteeing the whole
+                  // list finishes animating well within any real scroll.
+                  ...List.generate(_effectiveItems.length, (i) =>
+                    _MenuTile(item:_effectiveItems[i], isActive:state.selectedIndex==i, index:i, delay:(i*15).clamp(0,90))),
+                  Divider(color:border, height:24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: LogoutTile(label: 'Logout', onTap: () => _confirmLogout(ctx)),
+                  ),
+                ])),
+                _buildFooter(context),
+              ]),
+            ),
+          ),
         ),
       ),
     );
@@ -230,7 +243,7 @@ class _SlideMenuState extends State<SlideMenu> {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
       decoration: BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [ringColor.withOpacity(0.14), Colors.transparent]),
+            colors: [ringColor.withValues(alpha:0.14), Colors.transparent]),
         border: Border(bottom: BorderSide(color: AppColors.borderOf(ctx), width: 0.5)),
       ),
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
@@ -266,55 +279,23 @@ class _SlideMenuState extends State<SlideMenu> {
             width: double.infinity,
             padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),
             decoration:BoxDecoration(
-              border:Border.all(color:AppColors.gold.withOpacity(0.4)),
+              border:Border.all(color:AppColors.gold.withValues(alpha:0.4)),
               borderRadius:BorderRadius.circular(12),
               gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors:[
-                AppColors.gold.withOpacity(0.12), Colors.transparent,
+                AppColors.gold.withValues(alpha:0.12), Colors.transparent,
               ]),
             ),
             child: Row(children:[
               Container(width: 28, height: 28, alignment: Alignment.center,
-                  decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.16), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.16), shape: BoxShape.circle),
                   child: const Icon(AppIcons.vrId,color:AppColors.gold,size:15)),
               const SizedBox(width:10),
               Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:AppColors.gold, fontWeight: FontWeight.w700))),
-              Icon(Icons.chevron_right_rounded, color: AppColors.gold.withOpacity(0.6), size: 18),
+              Icon(Icons.chevron_right_rounded, color: AppColors.gold.withValues(alpha:0.6), size: 18),
             ]),
           ),
         ),
       ]),
-    );
-  }
-
-  Widget _buildLogout(BuildContext ctx) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => _confirmLogout(ctx),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                gradient: LinearGradient(colors: [
-                  AppColors.red.withOpacity(0.14),
-                  AppColors.red.withOpacity(0.05),
-                ]),
-                border: Border.all(color: AppColors.red.withOpacity(0.25))),
-            child: Row(children: [
-              Container(width: 36, height: 36,
-                  decoration: BoxDecoration(color: AppColors.red.withOpacity(0.16), shape: BoxShape.circle),
-                  child: const Icon(AppIcons.logout, color: AppColors.red, size: 18)),
-              const SizedBox(width: 12),
-              const Text('Logout', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700, fontSize: 14)),
-              const Spacer(),
-              Icon(Icons.chevron_right_rounded, color: AppColors.red.withOpacity(0.6), size: 20),
-            ]),
-          ),
-        ),
-      ),
     );
   }
 
@@ -403,8 +384,8 @@ class _MenuTileState extends State<_MenuTile> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOutCubic,
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)
-                .add(EdgeInsets.only(left: _hover && !isActive ? 2 : 0)),
+            padding: EdgeInsets.fromLTRB(
+                _hover && !isActive ? 14 : 12, 10, 12, 10),
             decoration:isActive?BoxDecoration(
               border:Border(left:BorderSide(color:item.color,width:3)),
             ):null,
@@ -455,8 +436,8 @@ class _Avatar extends StatelessWidget {
     return Container(
       width:52,height:52,
       decoration:BoxDecoration(shape:BoxShape.circle,
-        border:Border.all(color:ringColor.withOpacity(0.6),width: isSuperAdmin ? 3 : 2),
-        boxShadow:[BoxShadow(color:ringColor.withOpacity(0.25),blurRadius:12,spreadRadius:-2)]),
+        border:Border.all(color:ringColor.withValues(alpha:0.6),width: isSuperAdmin ? 3 : 2),
+        boxShadow:[BoxShadow(color:ringColor.withValues(alpha:0.25),blurRadius:12,spreadRadius:-2)]),
       child: ClipOval(child: url!=null && url!.isNotEmpty
         ? CachedNetworkImage(imageUrl:url!,fit:BoxFit.cover,
             errorWidget:(_,__,___)=>_initials(context, initials))
@@ -483,8 +464,8 @@ class _Chip extends StatelessWidget {
   // wrapped around their text.
   Widget build(BuildContext context) => Container(
     padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
-    decoration:BoxDecoration(color:color.withOpacity(0.15),borderRadius:BorderRadius.circular(20),
-      border:Border.all(color:color.withOpacity(0.3))),
+    decoration:BoxDecoration(color:color.withValues(alpha:0.15),borderRadius:BorderRadius.circular(20),
+      border:Border.all(color:color.withValues(alpha:0.3))),
     child:Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
       style:TextStyle(color:color,fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
       maxLines:1,overflow:TextOverflow.ellipsis),

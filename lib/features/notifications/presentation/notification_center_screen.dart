@@ -169,7 +169,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
                           decoration: BoxDecoration(
-                              color: AppColors.red.withOpacity(0.8),
+                              color: AppColors.red.withValues(alpha:0.8),
                               borderRadius: BorderRadius.circular(14)),
                           child: const Icon(Icons.delete_outline_rounded,
                               color: Colors.white)),
@@ -198,7 +198,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                               Container(
                                 width: 40, height: 40,
                                 decoration: BoxDecoration(
-                                    color: color.withOpacity(0.15),
+                                    color: color.withValues(alpha:0.15),
                                     borderRadius: BorderRadius.circular(10)),
                                 child: Icon(_catIcon(cat), color: color, size: 20),
                               ),
