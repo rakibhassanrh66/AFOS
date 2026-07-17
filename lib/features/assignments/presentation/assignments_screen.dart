@@ -10,6 +10,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../grades/data/repositories/grades_repository.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -63,9 +64,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   }
 
   void _openCreate(BuildContext context) {
-    showModalBottomSheet(context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(context,
         builder: (sheetCtx) => _CreateAssignmentSheet(repo: _repo, onCreated: () => setState(() {})));
   }
 }
@@ -252,8 +251,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
 
   Future<void> _submit(BuildContext context, Map<String, dynamic> a) async {
     final ctrl = TextEditingController();
-    await showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [

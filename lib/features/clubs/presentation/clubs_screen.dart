@@ -13,6 +13,7 @@ import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -279,10 +280,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   Future<void> _sendClubNotice(String clubId, String clubName) async {
     final titleCtrl = TextEditingController();
     final msgCtrl = TextEditingController();
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -332,10 +330,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       return DateTime(date.year, date.month, date.day, time.hour, time.minute);
     }
 
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
@@ -411,8 +406,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
 
   void _showPostDialog(BuildContext ctx, String clubId, String currentRole) {
     final options = ['secretary', 'vice_president', 'president'].where((r) => r != currentRole).toList();
-    showModalBottomSheet(context: ctx, backgroundColor: AppColors.surfaceOf(ctx),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(ctx,
         builder: (sheetCtx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(padding: const EdgeInsets.all(16), child: Text('Apply for a post',
               style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),

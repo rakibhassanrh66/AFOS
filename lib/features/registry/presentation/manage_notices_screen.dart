@@ -10,6 +10,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 
 /// Super Admin / admin / teacher content management for notices, rules,
@@ -77,10 +78,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
     String? notifyRole; // null = everyone
     bool saving = false;
 
-    showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(

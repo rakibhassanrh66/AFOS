@@ -9,6 +9,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_chip.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -98,10 +99,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
   Future<void> _resolveComplaint(Map<String, dynamic> complaint, String status) async {
     final responseCtrl = TextEditingController(text: complaint['resolution'] as String? ?? '');
     bool saving = false;
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
@@ -176,10 +174,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     final floorCtrl = TextEditingController();
     final buildingCtrl = TextEditingController(text: app['preferred_hall'] as String? ?? '');
     bool saving = false;
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
@@ -238,10 +233,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
   Future<void> _reject(Map<String, dynamic> app) async {
     final reasonCtrl = TextEditingController();
     bool saving = false;
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(

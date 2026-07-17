@@ -5,6 +5,7 @@ import '../../config/supabase_config.dart';
 import '../../config/theme/app_colors.dart';
 import '../../core/network/storage_upload_service.dart';
 import '../../core/utils/error_formatter.dart';
+import 'glass_sheet.dart';
 import 'supernova_loader.dart';
 
 /// Shared avatar upload/display widget — pulled out of Settings so the
@@ -64,18 +65,15 @@ class _AvatarPickerState extends State<AvatarPicker> {
   }
 
   void _showOptions() {
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (sheetCtx) => SafeArea(child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose new photo'),
-              onTap: () { Navigator.pop(sheetCtx); _pickAndUpload(); }),
-          if (widget.avatarUrl != null) ListTile(
-              leading: const Icon(Icons.delete_outline_rounded, color: AppColors.red),
-              title: const Text('Remove photo', style: TextStyle(color: AppColors.red)),
-              onTap: () { Navigator.pop(sheetCtx); _remove(); }),
-          const SizedBox(height: 8),
-        ]))));
+    showGlassSheet(context, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      ListTile(leading: const Icon(Icons.photo_library_outlined),
+          title: const Text('Choose new photo'),
+          onTap: () { Navigator.pop(context); _pickAndUpload(); }),
+      if (widget.avatarUrl != null) ListTile(
+          leading: const Icon(Icons.delete_outline_rounded, color: AppColors.red),
+          title: const Text('Remove photo', style: TextStyle(color: AppColors.red)),
+          onTap: () { Navigator.pop(context); _remove(); }),
+    ]));
   }
 
   @override

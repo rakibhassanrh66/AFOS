@@ -8,6 +8,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -385,10 +386,7 @@ class _SearchTab extends StatelessWidget {
 
   void _showBookDetail(BuildContext context, Map<String, dynamic> book) {
     final avail = (book['available_copies'] as int? ?? 0) > 0;
-    showModalBottomSheet(
-        context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(context,
         builder: (sheetCtx) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           final textSecondary = AppColors.textSecondaryOf(sheetCtx);

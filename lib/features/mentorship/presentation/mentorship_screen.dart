@@ -11,6 +11,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -200,9 +201,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
 
   void _showBookingDialog(BuildContext ctx, Map<String, dynamic> mentor) {
     final topicCtrl = TextEditingController();
-    showModalBottomSheet(context: ctx, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(ctx),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(ctx,
         builder: (_) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [

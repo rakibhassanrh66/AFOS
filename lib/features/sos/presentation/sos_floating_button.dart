@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/services/blob_bytes.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -51,12 +52,10 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
   }
 
   void _showConfirmSheet() {
-    showModalBottomSheet(
-      context: context,
+    showGlassModal(
+      context,
       isDismissible: false,
       enableDrag: false,
-      backgroundColor: AppColors.surfaceOf(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheetCtx) => _SosConfirmSheet(onSend: () => _sendAlert(sheetCtx)),
     );
   }
