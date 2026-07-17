@@ -293,16 +293,18 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
               const SizedBox(height: 20),
               AfosButton(label: 'Send to All Members', onTap: () async {
                 if (titleCtrl.text.trim().isEmpty || msgCtrl.text.trim().isEmpty) return;
+                // Capture the messenger before popping the sheet + awaiting so
+                // no defunct sheet BuildContext is used after the async gap.
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(sheetCtx);
                 final reached = await NotificationService.notifyClub(
                     clubId: clubId, title: titleCtrl.text.trim(), message: msgCtrl.text.trim());
-                if (!context.mounted) return;
                 if (reached == 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                       const SnackBar(content: Text('No other members to notify yet — nobody has joined this club besides you.'),
                           backgroundColor: AppColors.amber));
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                       SnackBar(content: Text('Notice sent to $reached member${reached == 1 ? '' : 's'} ✓'), backgroundColor: AppColors.green));
                 }
               }),
