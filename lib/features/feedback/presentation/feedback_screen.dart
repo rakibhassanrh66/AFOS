@@ -11,6 +11,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -137,25 +138,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: [AppColors.teal, AppColors.indigo]),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(children: [
-                    Container(padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                        child: const Icon(Icons.lightbulb_rounded, color: Colors.white, size: 24)),
-                    const SizedBox(width: 14),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Feedback & Ideas', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 3),
-                      Text('Anyone can share one — a super admin reviews every submission',
-                          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-                    ])),
-                  ]),
+                const FeatureHeader(
+                  title: 'Feedback & Ideas',
+                  subtitle: 'Anyone can share one — a super admin reviews every submission',
+                  icon: Icons.lightbulb_rounded,
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [AppColors.teal, AppColors.indigo]),
                 ),
                 const SizedBox(height: 20),
                 Text('Your submissions', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
