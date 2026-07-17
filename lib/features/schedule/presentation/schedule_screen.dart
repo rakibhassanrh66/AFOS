@@ -10,6 +10,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -231,15 +232,14 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
         const SizedBox(height: 10),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: [
-              Expanded(child: _ScheduleTabPill(label: 'Class Routine', icon: Icons.event_note_rounded,
-                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
-              const SizedBox(width: 8),
-              Expanded(child: _ScheduleTabPill(label: 'Exam Routine', icon: Icons.assignment_rounded,
-                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
-            ]),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: const [
+              GlassTab('Class Routine', icon: Icons.event_note_rounded),
+              GlassTab('Exam Routine', icon: Icons.assignment_rounded),
+            ],
           ),
         ),
         const SizedBox(height: 10),
@@ -465,30 +465,6 @@ class _RoutineHeaderBanner extends StatelessWidget {
       ]),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic);
   }
-}
-
-class _ScheduleTabPill extends StatelessWidget {
-  final String label; final IconData icon; final bool selected; final VoidCallback onTap;
-  const _ScheduleTabPill({required this.label, required this.icon, required this.selected, required this.onTap});
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-          gradient: selected ? AppColors.holoGradient : null,
-          color: selected ? null : AppColors.glassFill(context),
-          borderRadius: BorderRadius.circular(20)),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, size: 16, color: selected ? Colors.white : AppColors.textSecondaryOf(context)),
-        const SizedBox(width: 6),
-        Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-            style: TextStyle(color: selected ? Colors.white : AppColors.textSecondaryOf(context),
-                fontSize: 12.5, height: 1.0, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
-      ]),
-    ),
-  );
 }
 
 class _DaySelector extends StatelessWidget {
