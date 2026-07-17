@@ -75,11 +75,19 @@ class LiquidGlass {
   static Color rimHighlight(bool isDark) =>
       isDark ? const Color(0x1FFFFFFF) : const Color(0x59FFFFFF);
 
-  // --- Motion ---
+  // --- Motion (single source of truth) ---
+  // One curve + a tiny duration ladder drives EVERY transition in the app
+  // (page routes, tab-indicator slide, sheet open/close, drawer, splash exit)
+  // so motion reads as one consistent, "buttery" system, not a grab-bag of
+  // per-widget durations.
+  static const Curve motionCurve = Curves.easeOutCubic;
+  static const Duration motionFast = Duration(milliseconds: 200);
+  static const Duration motionStandard = Duration(milliseconds: 280);
   static const Duration pressDuration = Duration(milliseconds: 120);
-  static const Duration entranceDuration = Duration(milliseconds: 200);
+  static const Duration entranceDuration = motionFast;
   static const double pressScale = 0.97;
-  static const double entranceScaleFrom = 0.96;
+  // Standardized entrance scale-from for page/sheet/card entrances.
+  static const double entranceScaleFrom = 0.97;
 
   /// The signature AFOS silhouette: three corners large, top-right cut
   /// tight. Radii at or below the cut stay symmetric (chips, tiny tiles).

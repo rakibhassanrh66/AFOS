@@ -9,6 +9,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -637,8 +638,8 @@ class _MyClubsTab extends StatelessWidget {
                           style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                   if (user != null)
                     IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.pink, size: 20),
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(
-                            builder: (_) => ClubChatScreen(clubId: clubId, clubName: clubName, user: user!)))),
+                        onPressed: () => Navigator.push(context,
+                            appPageRoute(ClubChatScreen(clubId: clubId, clubName: clubName, user: user!)))),
                 ]),
                 const SizedBox(height: 10),
                 if (isPresident) ...[

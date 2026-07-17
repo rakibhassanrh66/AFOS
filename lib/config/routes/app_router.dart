@@ -187,9 +187,11 @@ class AppRouter {
               SosAlertDetailScreen(alertId: s.pathParameters['id']!), s)),
           GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
           GoRoute(path: '/manage-exam-seats', pageBuilder: (c,s) => slideRightPage(const ManageExamSeatsScreen(), s)),
-          // Registry Module Routes
-          GoRoute(path: '/admin/faculties', builder: (c, s) => const RegistryListScreen(tableName: 'faculties', title: 'Faculties')),
-          GoRoute(path: '/admin/departments', builder: (c, s) => const RegistryListScreen(tableName: 'departments', title: 'Departments', displayFields: ['name', 'code'])),
+          // Registry Module Routes — same slide transition as their shell siblings.
+          GoRoute(path: '/admin/faculties',
+              pageBuilder: (c, s) => slideRightPage(const RegistryListScreen(tableName: 'faculties', title: 'Faculties'), s)),
+          GoRoute(path: '/admin/departments',
+              pageBuilder: (c, s) => slideRightPage(const RegistryListScreen(tableName: 'departments', title: 'Departments', displayFields: ['name', 'code']), s)),
         ],
       ),
     ],
