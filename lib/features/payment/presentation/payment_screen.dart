@@ -188,8 +188,8 @@ class _PayCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [cat.color.withOpacity(AppColors.isDark(context)?0.32:0.22),
-                       AppColors.holoTeal.withOpacity(0.12)]),
+              colors: [cat.color.withValues(alpha:AppColors.isDark(context)?0.32:0.22),
+                       AppColors.holoTeal.withValues(alpha:0.12)]),
           ),
           padding: const EdgeInsets.all(1),
           child: Container(
@@ -257,7 +257,7 @@ class _HistoryTab extends StatelessWidget {
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                    color: AppColors.holoBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                    color: AppColors.holoBlue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
               ),
               const SizedBox(width: 12),
@@ -275,7 +275,7 @@ class _HistoryTab extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                      color: statusColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
                   child: Text(status.toUpperCase(),
                       style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
                 ),

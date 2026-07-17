@@ -303,7 +303,7 @@ class _MentorList extends StatelessWidget {
                   const SizedBox(height: 8),
                   if (specs.isNotEmpty) Wrap(spacing: 6, runSpacing: 4, children: specs.map((s) =>
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
                           child: Text(s, style: const TextStyle(color: AppColors.blue, fontSize: 10)))).toList()),
                   const SizedBox(height: 12),
                   Row(children: [
@@ -354,7 +354,7 @@ class _SessionsTab extends StatelessWidget {
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 44, height: 44, decoration: BoxDecoration(
-                    color: AppColors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(10),
+                    color: AppColors.blue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10),
                     shape: BoxShape.rectangle),
                     child: const Icon(AppIcons.mentorship, color: AppColors.blue, size: 22)),
                 const SizedBox(width: 12),
@@ -363,7 +363,7 @@ class _SessionsTab extends StatelessWidget {
                   Text(s['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ])),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: _statusColor(status).withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
                     child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                         style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
               ]));

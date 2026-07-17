@@ -160,8 +160,8 @@ class _MyVrIdTab extends StatelessWidget {
             ]),
             const SizedBox(height: 16),
             Container(width: 64, height: 64, decoration: BoxDecoration(
-                shape: BoxShape.circle, color: AppColors.blue.withOpacity(0.1),
-                border: Border.all(color: AppColors.blue.withOpacity(0.4), width: 2)),
+                shape: BoxShape.circle, color: AppColors.blue.withValues(alpha:0.1),
+                border: Border.all(color: AppColors.blue.withValues(alpha:0.4), width: 2)),
                 child: ClipOval(child: (user!.avatarUrl?.isNotEmpty ?? false)
                     ? CachedNetworkImage(imageUrl: user!.avatarUrl!, fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))
@@ -205,8 +205,8 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3))),
+    decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha:0.3))),
     child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
         maxLines: 1, overflow: TextOverflow.ellipsis));
 }
@@ -286,8 +286,8 @@ class _VerifiedView extends StatelessWidget {
     if (verified) ...[
       const SizedBox(height: 20),
       Container(width: 84, height: 84, decoration: BoxDecoration(
-          shape: BoxShape.circle, color: AppColors.green.withOpacity(0.1),
-          border: Border.all(color: AppColors.green.withOpacity(0.4), width: 2)),
+          shape: BoxShape.circle, color: AppColors.green.withValues(alpha:0.1),
+          border: Border.all(color: AppColors.green.withValues(alpha:0.4), width: 2)),
           child: ClipOval(child: (user.avatarUrl?.isNotEmpty ?? false)
               ? CachedNetworkImage(imageUrl: user.avatarUrl!, fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.green, size: 44))
@@ -370,7 +370,7 @@ class _AccessLogTabState extends State<_AccessLogTab> {
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 36, height: 36, decoration: BoxDecoration(
-                    color: AppColors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    color: AppColors.green.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
                     child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.green, size: 18)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

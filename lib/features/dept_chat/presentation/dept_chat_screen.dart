@@ -160,7 +160,7 @@ class _ChannelTile extends StatelessWidget {
             Text(channel['description'] ?? 'Department channel', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
             const SizedBox(height: 4),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
                 child: Text(audienceLabel, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
           ])),
           Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
@@ -331,7 +331,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
             child: Divider(height: 0.5, color: AppColors.borderOf(context))),
       ),
       body: Column(children: [
-        Container(width: double.infinity, color: AppColors.blue.withOpacity(0.06),
+        Container(width: double.infinity, color: AppColors.blue.withValues(alpha:0.06),
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Text('Messages disappear automatically after 24 hours',
                 textAlign: TextAlign.center,
@@ -405,7 +405,7 @@ class _MsgBubble extends StatelessWidget {
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
               if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.15), borderRadius: BorderRadius.circular(6)),
                   child: const Text('Faculty', style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w700))),
             ]),
           )),
@@ -424,7 +424,7 @@ class _MsgBubble extends StatelessWidget {
         if (showAvatar) Padding(padding: const EdgeInsets.only(right: 8, bottom: 20),
             child: GestureDetector(
               onTap: () => showUserDetailsSheet(context, profile),
-              child: CircleAvatar(radius: 14, backgroundColor: AppColors.blue.withOpacity(0.15),
+              child: CircleAvatar(radius: 14, backgroundColor: AppColors.blue.withValues(alpha:0.15),
                 backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
                 child: avatarUrl == null
                     ? Text(((profile['full_name'] as String?)?.isNotEmpty == true

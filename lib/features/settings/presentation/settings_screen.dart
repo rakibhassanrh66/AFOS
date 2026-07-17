@@ -451,16 +451,16 @@ class _SettingsState extends State<SettingsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(colors: [AppColors.red.withOpacity(0.14), AppColors.red.withOpacity(0.05)]),
-                        border: Border.all(color: AppColors.red.withOpacity(0.25))),
+                        gradient: LinearGradient(colors: [AppColors.red.withValues(alpha:0.14), AppColors.red.withValues(alpha:0.05)]),
+                        border: Border.all(color: AppColors.red.withValues(alpha:0.25))),
                     child: Row(children: [
                       Container(width: 38, height: 38,
-                          decoration: BoxDecoration(color: AppColors.red.withOpacity(0.16), shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: AppColors.red.withValues(alpha:0.16), shape: BoxShape.circle),
                           child: const Icon(AppIcons.logout, color: AppColors.red, size: 19)),
                       const SizedBox(width: 14),
                       const Text('Log Out', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700, fontSize: 15)),
                       const Spacer(),
-                      Icon(Icons.chevron_right_rounded, color: AppColors.red.withOpacity(0.6), size: 20),
+                      Icon(Icons.chevron_right_rounded, color: AppColors.red.withValues(alpha:0.6), size: 20),
                     ]),
                   ),
                 ),
@@ -677,7 +677,7 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     leading: Container(width: 36, height: 36, alignment: Alignment.center,
-        decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(9)),
+        decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(9)),
         child: Icon(icon, color: color, size: 18)),
     title: Text(label, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context), size: 18),
@@ -692,7 +692,7 @@ class _ThemeChip extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(onTap: onTap,
       child: Container(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
           decoration: BoxDecoration(
-              color: selected ? AppColors.blue.withOpacity(0.12) : AppColors.surfaceOf(context),
+              color: selected ? AppColors.blue.withValues(alpha:0.12) : AppColors.surfaceOf(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: selected ? AppColors.blue : AppColors.borderOf(context))),
           child: Center(child: Text(label, textAlign: TextAlign.center,

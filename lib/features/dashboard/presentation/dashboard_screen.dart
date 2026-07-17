@@ -751,8 +751,8 @@ class _LiteCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(borderRadius),
           gradient: LinearGradient(
             begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [accent.withOpacity(AppColors.isDark(context) ? 0.35 : 0.25),
-                     AppColors.holoTeal.withOpacity(0.15)]),
+            colors: [accent.withValues(alpha:AppColors.isDark(context) ? 0.35 : 0.25),
+                     AppColors.holoTeal.withValues(alpha:0.15)]),
         ),
         padding: const EdgeInsets.all(1),
         child: Container(

@@ -278,11 +278,11 @@ class _PostCard extends StatelessWidget {
     final typeColor = type == 'lost' ? AppColors.red : AppColors.green;
     return Container(
       decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: typeColor.withOpacity(0.3), width: 0.7)),
+          border: Border.all(color: typeColor.withValues(alpha:0.3), width: 0.7)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Stack(children: [
           Container(height: 110, decoration: BoxDecoration(
-              color: typeColor.withOpacity(0.1),
+              color: typeColor.withValues(alpha:0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
               child: post['photo_url'] != null
                   ? ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -301,7 +301,7 @@ class _PostCard extends StatelessWidget {
           if (RoleSession.role == 'super_admin') Positioned(top: 6, left: 6, child: GestureDetector(
               onTap: () => _superAdminDelete(context),
               child: Container(padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha:0.55), shape: BoxShape.circle),
                   child: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 16)))),
         ]),
         Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -319,7 +319,7 @@ class _PostCard extends StatelessWidget {
             SizedBox(width: double.infinity, height: 30, child: OutlinedButton(
                 onPressed: () => _openClaimDialog(context),
                 style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
-                    side: BorderSide(color: typeColor.withOpacity(0.5))),
+                    side: BorderSide(color: typeColor.withValues(alpha:0.5))),
                 child: Text('Claim', style: TextStyle(color: typeColor, fontSize: 11, fontWeight: FontWeight.w700)))),
           ],
         ])),
@@ -438,7 +438,7 @@ class _TypeChip extends StatelessWidget {
     final color = value == 'lost' ? AppColors.red : AppColors.green;
     return GestureDetector(onTap: () => onTap(value), child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(color: sel ? color.withOpacity(0.15) : AppColors.surfaceOf(context),
+        decoration: BoxDecoration(color: sel ? color.withValues(alpha:0.15) : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: sel ? color : AppColors.borderOf(context))),
         child: Center(child: Text(label,

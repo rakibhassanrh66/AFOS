@@ -218,8 +218,8 @@ class _BorrowedTab extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-                color: AppColors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.red.withOpacity(0.3))),
+                color: AppColors.red.withValues(alpha:0.1), borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.red.withValues(alpha:0.3))),
             child: Row(children: [
               const Icon(Icons.warning_amber_rounded, color: AppColors.red),
               const SizedBox(width: 10),
@@ -386,7 +386,7 @@ class _SearchTab extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                              color: (avail ? AppColors.green : AppColors.red).withOpacity(0.12),
+                              color: (avail ? AppColors.green : AppColors.red).withValues(alpha:0.12),
                               borderRadius: BorderRadius.circular(10)),
                           child: Text(avail ? 'Available' : 'Checked Out',
                               style: TextStyle(color: avail ? AppColors.green : AppColors.red,

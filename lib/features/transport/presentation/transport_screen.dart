@@ -214,8 +214,8 @@ class _LiveStatusBadge extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.4))),
+      decoration: BoxDecoration(color: color.withValues(alpha:0.15), borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha:0.4))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 5),
@@ -373,7 +373,7 @@ class _TimeChipsRow extends StatelessWidget {
           style: TextStyle(fontSize: 11, color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w600))),
       Expanded(child: Wrap(spacing: 6, runSpacing: 4, children: times.map((t) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: AppColors.holoTeal.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
           child: Text(t, style: const TextStyle(fontSize: 11, color: AppColors.holoTeal)))).toList())),
     ]);
   }
@@ -836,7 +836,7 @@ class _MapTabState extends State<_MapTab> {
                 child: Container(decoration: BoxDecoration(
                     color: AppColors.holoTeal, shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [BoxShadow(color: AppColors.holoTeal.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)]))),
+                    boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha:0.5), blurRadius: 10, spreadRadius: 2)]))),
           ]),
         ],
       ),
