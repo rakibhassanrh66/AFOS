@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -73,8 +74,8 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                       decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                       child: InkWell(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(
-                            builder: (_) => _ModerateChatRoomScreen(channel: ch))),
+                        onTap: () => Navigator.push(context,
+                            appPageRoute(_ModerateChatRoomScreen(channel: ch))),
                         child: Row(children: [
                           Container(width: 40, height: 40,
                               decoration: BoxDecoration(

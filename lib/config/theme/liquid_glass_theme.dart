@@ -18,11 +18,11 @@ class LiquidPageTransitionsBuilder extends PageTransitionsBuilder {
     Widget child,
   ) {
     if (MediaQuery.of(context).disableAnimations) return child;
-    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    final curved = CurvedAnimation(parent: animation, curve: LiquidGlass.motionCurve);
     return FadeTransition(
       opacity: curved,
       child: ScaleTransition(
-        scale: Tween<double>(begin: 0.985, end: 1.0).animate(curved),
+        scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1.0).animate(curved),
         child: child,
       ),
     );

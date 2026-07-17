@@ -9,6 +9,7 @@ import '../../../core/utils/chat_naming.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
@@ -124,8 +125,8 @@ class _ChannelTile extends StatelessWidget {
       _ => 'Everyone',
     };
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => _ChatRoomScreen(channel: channel, user: user))),
+      onTap: () => Navigator.push(context,
+          appPageRoute(_ChatRoomScreen(channel: channel, user: user))),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),

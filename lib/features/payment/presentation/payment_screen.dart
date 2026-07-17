@@ -6,6 +6,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -161,7 +162,7 @@ class _PayCard extends StatelessWidget {
     final textPrimary = AppColors.textPrimaryOf(context);
     return GestureDetector(
       onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => PaymentWebViewScreen(category: cat.label))),
+          appPageRoute(PaymentWebViewScreen(category: cat.label))),
       child: RepaintBoundary(
         child: Container(
           decoration: BoxDecoration(
