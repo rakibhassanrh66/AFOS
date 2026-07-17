@@ -252,7 +252,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color = (isDark ? const Color(0xFF1A2840) : const Color(0xFF0A1628)).withOpacity(isDark ? 1 : 0.05)
+      ..color = (isDark ? const Color(0xFF1A2840) : const Color(0xFF0A1628)).withValues(alpha: isDark ? 1 : 0.05)
       ..strokeWidth=0.3;
     for(double x=0;x<size.width;x+=40) {
       canvas.drawLine(Offset(x,0),Offset(x,size.height),p);

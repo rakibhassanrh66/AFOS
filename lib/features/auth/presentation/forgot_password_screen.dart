@@ -137,8 +137,8 @@ class _SuccessView extends StatelessWidget {
         width:72, height:72,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppColors.green.withOpacity(0.12),
-          border: Border.all(color: AppColors.green.withOpacity(0.4)),
+          color: AppColors.green.withValues(alpha: 0.12),
+          border: Border.all(color: AppColors.green.withValues(alpha: 0.4)),
         ),
         alignment: Alignment.center,
         child: const Icon(Icons.mark_email_read_outlined, color:AppColors.green, size:36),

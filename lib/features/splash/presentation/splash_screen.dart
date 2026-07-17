@@ -1,9 +1,12 @@
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../config/app_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/last_route.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -17,6 +20,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late AnimationController _scanCtrl;
   final List<_Particle> _particles = [];
   bool _showTagline = false, _showSub = false, _showTeam = false;
+
+  // Brand teal→blue duo only (the two-accent cap) — the old per-letter
+  // teal/indigo/violet/red set was off-palette.
+  static const _letterColors = [
+    AppColors.green,      // A — brand teal
+    AppColors.teal,       // F — cyan bridge
+    AppColors.blueLight,  // O — blue
+    AppColors.blue,       // S — deep blue
+  ];
 
   @override
   void initState() {
@@ -69,6 +81,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(children:[
+        // Ambient teal/blue washes so the glass tiles have something to refract.
+        const _AmbientWash(),
         RepaintBoundary(
           child: AnimatedBuilder(animation:_particleCtrl, builder:(_,__)=>
             CustomPaint(painter:_ParticlePainter(_particles,_particleCtrl.value),
@@ -79,11 +93,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           child: AnimatedBuilder(
             animation: _glowCtrl,
             builder: (_, __) => Container(
-              width: 260, height: 260,
+              width: 300, height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors:[
-                  AppColors.holoBlue.withOpacity(0.10 + _glowCtrl.value*0.10),
+                  AppColors.holoBlue.withValues(alpha: 0.10 + _glowCtrl.value*0.12),
                   Colors.transparent,
                 ]),
               ),
@@ -92,21 +106,21 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         ),
         Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
           Row(mainAxisSize:MainAxisSize.min, children:[
-            _letter('A', const Color.fromARGB(255, 34, 129, 117), 0),
-            const SizedBox(width:10),
-            _letter('F', const Color.fromARGB(255, 87, 95, 199), 300),
-            const SizedBox(width:10),
-            _letter('O', const Color.fromARGB(255, 109, 47, 253), 600),
-            const SizedBox(width:10),
-            _letter('S', const Color.fromARGB(255, 187, 88, 88), 900),
+            _letter('A', _letterColors[0], 0),
+            const SizedBox(width:12),
+            _letter('F', _letterColors[1], 300),
+            const SizedBox(width:12),
+            _letter('O', _letterColors[2], 600),
+            const SizedBox(width:12),
+            _letter('S', _letterColors[3], 900),
           ]),
-          const SizedBox(height:24),
+          const SizedBox(height:28),
           AnimatedOpacity(opacity:_showTagline?1:0, duration:600.ms, curve: Curves.easeOutCubic,
             child: ShaderMask(
               shaderCallback: (rect) => AppColors.holoGradient.createShader(rect),
               child: const Text('All Facilities One System',
                 style: TextStyle(color:Colors.white, fontSize:16,
-                  letterSpacing:1.5, fontWeight:FontWeight.w300)),
+                  letterSpacing:1.5, fontWeight:FontWeight.w400)),
             )),
           const SizedBox(height:6),
           AnimatedOpacity(opacity:_showSub?1:0, duration:600.ms, curve: Curves.easeOutCubic,
@@ -120,7 +134,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                 builder: (_, __) => CustomPaint(painter: _ScanBarPainter(t: _scanCtrl.value)),
               )),
               const SizedBox(height:12),
-              const Text('AFOS v7.2.9', style:TextStyle(color:AppColors.textMuted,fontSize:11,
+              Text('AFOS v${AppConfig.appVersion}', style: const TextStyle(color:AppColors.textMuted,fontSize:11,
                 fontFamily:'monospace', letterSpacing:1)),
             ])),
         ])),
@@ -128,21 +142,55 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
   }
 
+  /// Frosted glass letter tile — brand-colored glow + glossy sheen, with the
+  /// signature top-right corner cut.
   Widget _letter(String l, Color c, int delayMs) {
-    return Container(
-      width:64, height:64,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color:c.withOpacity(0.4), width:1),
-        gradient: RadialGradient(colors:[c.withOpacity(0.15),Colors.transparent],radius:1),
+    final radius = LiquidGlass.signatureRadius(18);
+    return ClipRRect(
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          width:70, height:70,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(color:c.withValues(alpha: 0.5), width:1),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors:[c.withValues(alpha: 0.22), c.withValues(alpha: 0.06)]),
+            boxShadow: [BoxShadow(color:c.withValues(alpha: 0.35), blurRadius: 18, spreadRadius: -4)],
+          ),
+          alignment: Alignment.center,
+          child: Stack(alignment: Alignment.center, children: [
+            Positioned.fill(child: IgnorePointer(child: DecoratedBox(
+              decoration: BoxDecoration(gradient: LiquidGlass.sheen(isDark: true))))),
+            Text(l, style:TextStyle(color:c,fontSize:32,fontWeight:FontWeight.w900)),
+          ]),
+        ),
       ),
-      alignment: Alignment.center,
-      child: Text(l, style:TextStyle(color:c,fontSize:30,fontWeight:FontWeight.w900)),
     )
     .animate(delay:Duration(milliseconds:delayMs))
-    .slideY(begin:-0.5,end:0,duration:500.ms,curve:Curves.easeOutBack)
-    .fadeIn(duration:400.ms);
+    .slideY(begin:-0.5,end:0,duration:520.ms,curve:Curves.easeOutBack)
+    .fadeIn(duration:420.ms)
+    .then()
+    .shimmer(duration:1200.ms, color: Colors.white.withValues(alpha: 0.25));
   }
+}
+
+class _AmbientWash extends StatelessWidget {
+  const _AmbientWash();
+  @override
+  Widget build(BuildContext context) => const IgnorePointer(
+    child: Stack(fit: StackFit.expand, children: [
+      DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
+        center: Alignment(-0.8, -0.8), radius: 1.1,
+        colors: [Color(0x1A3ECF8E), Color(0x003ECF8E)]))),
+      DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
+        center: Alignment(0.9, 0.9), radius: 1.2,
+        colors: [Color(0x1A5AB8FF), Color(0x005AB8FF)]))),
+    ]),
+  );
 }
 
 class _Particle { double x,y,r,dx,dy,opacity;
@@ -160,7 +208,7 @@ class _ParticlePainter extends CustomPainter {
     for(final p in particles) {
       p.x = (p.x + p.dx) % 1.0;
       p.y = (p.y + p.dy) % 1.0;
-      paint.color = AppColors.blue.withOpacity(p.opacity);
+      paint.color = AppColors.blueLight.withValues(alpha: p.opacity);
       canvas.drawCircle(Offset(p.x*size.width, p.y*size.height), p.r, paint);
     }
   }
@@ -186,9 +234,9 @@ class _ScanBarPainter extends CustomPainter {
     final center = pos * size.width;
     final rect = Rect.fromCenter(center: Offset(center, size.height / 2), width: sweepWidth, height: size.height);
     final gradient = LinearGradient(colors: [
-      AppColors.holoBlue.withOpacity(0),
+      AppColors.holoBlue.withValues(alpha: 0),
       AppColors.holoBlue,
-      AppColors.holoBlue.withOpacity(0),
+      AppColors.holoBlue.withValues(alpha: 0),
     ]).createShader(rect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(size.height / 2)),
