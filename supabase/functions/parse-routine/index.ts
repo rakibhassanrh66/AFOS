@@ -34,10 +34,13 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Invalid or expired session." }), { status: 401, headers: corsHeaders })
     }
     const { data: callerProfile } = await supabase.from("profiles").select("role, department").eq("id", authData.user.id).maybeSingle()
-    const uploadAuthorizedRoles = ["admin", "super_admin", "dept_admin", "teacher"]
-    if (!callerProfile || !uploadAuthorizedRoles.includes(callerProfile.role)) {
-      return new Response(JSON.stringify({ error: "Not authorized to upload routines." }), { status: 403, headers: corsHeaders })
+    if (!callerProfile) {
+      return new Response(JSON.stringify({ error: "No profile found for caller." }), { status: 403, headers: corsHeaders })
     }
+    // Capability authorization is deferred until `type` is known (below),
+    // since routine / exam_seat / transport uploads require different
+    // capabilities. Legacy admin/dept_admin/teacher roles keep full upload
+    // access; delegated grantees are restricted to exactly what they hold.
 
     const contentType = req.headers.get("content-type") || ""
     // Two input shapes:
