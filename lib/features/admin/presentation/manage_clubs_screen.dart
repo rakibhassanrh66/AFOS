@@ -4,12 +4,12 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
-import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_sheet.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -223,17 +223,14 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
         ),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(children: [
-              Expanded(child: AdminTabPill(label: 'Membership (${_membershipRequests.length})',
-                  icon: Icons.group_add_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
-                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
-              const SizedBox(width: 8),
-              Expanded(child: AdminTabPill(label: 'Post Requests (${_postRequests.length})',
-                  icon: Icons.post_add_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
-                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
-            ]),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: [
+              GlassTab('Membership (${_membershipRequests.length})', icon: Icons.group_add_rounded),
+              GlassTab('Post Requests (${_postRequests.length})', icon: Icons.post_add_rounded),
+            ],
           ),
         ),
         Expanded(child: _loading

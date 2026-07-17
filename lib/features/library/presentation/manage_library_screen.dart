@@ -3,10 +3,10 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
-import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -82,17 +82,13 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
         ),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: [
-              Expanded(child: AdminTabPill(label: 'Issue Book', icon: Icons.add_circle_outline_rounded,
-                  gradient: const LinearGradient(colors: [AppColors.purple, AppColors.indigo]),
-                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
-              const SizedBox(width: 8),
-              Expanded(child: AdminTabPill(label: 'Currently Borrowed', icon: Icons.menu_book_rounded,
-                  gradient: const LinearGradient(colors: [AppColors.purple, AppColors.indigo]),
-                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
-            ]),
+          builder: (ctx, _) => GlassTabBar(
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: const [
+              GlassTab('Issue Book', icon: Icons.add_circle_outline_rounded),
+              GlassTab('Currently Borrowed', icon: Icons.menu_book_rounded),
+            ],
           ),
         ),
         const SizedBox(height: 10),

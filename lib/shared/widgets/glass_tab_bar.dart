@@ -9,15 +9,12 @@ class GlassTab {
   const GlassTab(this.label, {this.icon});
 }
 
-/// The app's standard pill tab-bar — one component replacing the ~12
-/// hand-rolled `TabController` + `AnimatedBuilder` + custom pill `Row`s
-/// (`_ScheduleTabPill`, and the transport/hall/library/payment/vr_id/…
-/// header pill rows). Drive it from any index source (including a
-/// `TabController.index` + `animateTo`). Selected pill is glossy-filled;
-/// labels are overflow-safe.
-///
-/// Wrapped in a glass "track" so the whole control reads as one frosted
-/// segmented control.
+/// The app's standard floating pill tab-bar — a frosted glass track with a
+/// SINGLE sliding "rolling" indicator that glides between segments (motion
+/// tokens) instead of segments cross-fading their own fills. Detached from the
+/// screen edges (via [margin]) with a fully-rounded track. Drive it from any
+/// index source (e.g. a `TabController.index` + `animateTo`). Labels are
+/// overflow-safe; icons stack over labels to stay readable at 3–4 tabs.
 class GlassTabBar extends StatelessWidget {
   final List<GlassTab> tabs;
   final int currentIndex;
@@ -29,11 +26,12 @@ class GlassTabBar extends StatelessWidget {
     required this.tabs,
     required this.currentIndex,
     required this.onChanged,
-    this.margin = EdgeInsets.zero,
+    this.margin = const EdgeInsets.symmetric(horizontal: 12),
   });
 
   @override
   Widget build(BuildContext context) {
+    final n = tabs.length;
     return Padding(
       padding: margin,
       child: Container(
@@ -43,15 +41,47 @@ class GlassTabBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
           border: Border.all(color: AppColors.glassBorder(context), width: 0.5),
         ),
-        child: Row(
-          children: [
-            for (var i = 0; i < tabs.length; i++)
-              Expanded(child: _Segment(
-                tab: tabs[i],
-                selected: i == currentIndex,
-                onTap: () => onChanged(i),
-              )),
-          ],
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final segW = n == 0 ? 0.0 : c.maxWidth / n;
+            final idx = currentIndex.clamp(0, n - 1);
+            return Stack(
+              children: [
+                // The one rolling indicator — slides between segments.
+                AnimatedPositioned(
+                  duration: LiquidGlass.motionStandard,
+                  curve: LiquidGlass.motionCurve,
+                  left: idx * segW,
+                  top: 0,
+                  bottom: 0,
+                  width: segW,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: AppColors.holoGradient,
+                      borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.holoTeal.withValues(alpha: 0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    for (var i = 0; i < n; i++)
+                      Expanded(child: _Segment(
+                        tab: tabs[i],
+                        selected: i == idx,
+                        onTap: () => onChanged(i),
+                      )),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -66,47 +96,41 @@ class _Segment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Text/icon colour cross-fades with the indicator slide so the passing
+    // segment lights up as the pill arrives.
     final fg = selected ? Colors.white : AppColors.textSecondaryOf(context);
-    final label = Text(
-      tab.label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      textHeightBehavior: const TextHeightBehavior(
-          applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+    final label = AnimatedDefaultTextStyle(
+      duration: LiquidGlass.motionStandard,
+      curve: LiquidGlass.motionCurve,
       style: TextStyle(
         color: fg,
         fontSize: 12,
         height: 1.0,
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
       ),
+      child: Text(
+        tab.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        textHeightBehavior: const TextHeightBehavior(
+            applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+      ),
     );
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
+      child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-        decoration: BoxDecoration(
-          gradient: selected ? AppColors.holoGradient : null,
-          borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppColors.holoTeal.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        // Icon stacked over label (the app's established feature-pill style),
-        // so 3–4 tabs with longer labels stay readable in a narrow split.
         child: tab.icon == null
             ? Center(child: label)
             : Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(tab.icon, size: 16, color: fg),
+                AnimatedScale(
+                  duration: LiquidGlass.motionStandard,
+                  curve: LiquidGlass.motionCurve,
+                  scale: selected ? 1.05 : 1.0,
+                  child: Icon(tab.icon, size: 16, color: fg),
+                ),
                 const SizedBox(height: 4),
                 label,
               ]),
