@@ -19,6 +19,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -490,9 +491,7 @@ class _SettingsState extends State<SettingsScreen> {
 
   void _showChangePassword() {
     final oldCtrl = TextEditingController(), newCtrl = TextEditingController();
-    showModalBottomSheet(context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -548,9 +547,7 @@ class _SettingsState extends State<SettingsScreen> {
     final ctrl = TextEditingController();
     PlatformFile? attachment;
     bool saving = false;
-    showModalBottomSheet(context: context, isScrollControlled: true,
-        backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -3,6 +3,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import '../../config/theme/app_colors.dart';
 import '../../core/services/connectivity_service.dart';
 import '../../core/services/outbox_service.dart';
+import 'glass_sheet.dart';
 
 class OfflineBanner extends StatefulWidget {
   final Widget child;
@@ -30,13 +31,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
   }
 
   void _showPendingActions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surfaceOf(context),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetCtx) => const _PendingActionsSheet(),
-    );
+    showGlassSheet(context, child: const _PendingActionsSheet());
   }
 
   @override
@@ -113,10 +108,7 @@ class _PendingActionsSheetState extends State<_PendingActionsSheet> {
     final items = OutboxService.instance.pending;
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Queued actions', style: TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text("Sent automatically once you're back online.",
@@ -158,8 +150,6 @@ class _PendingActionsSheetState extends State<_PendingActionsSheet> {
                 },
               ),
             ),
-        ]),
-      ),
-    );
+        ]);
   }
 }

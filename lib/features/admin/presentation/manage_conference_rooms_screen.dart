@@ -9,6 +9,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_chip.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -54,9 +55,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
   Future<void> _approve(Map<String, dynamic> req) async {
     final roomCtrl = TextEditingController();
     bool saving = false;
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true, backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -93,9 +92,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
   Future<void> _reject(Map<String, dynamic> req) async {
     final reasonCtrl = TextEditingController();
     bool saving = false;
-    await showModalBottomSheet(
-        context: context, isScrollControlled: true, backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [

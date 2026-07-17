@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
+import 'glass_sheet.dart';
 
 /// Tap-to-reveal identity card shown from a chat bubble's sender name/avatar
 /// -- the bubble itself keeps its anonymized display string (see
@@ -12,12 +13,7 @@ import '../../config/theme/app_text_styles.dart';
 /// `profiles(...)` embed; [designation] is an optional extra label (e.g. a
 /// club officer's `club_members.role`) not carried on the profile row itself.
 void showUserDetailsSheet(BuildContext context, Map<String, dynamic> profile, {String? designation}) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: AppColors.surfaceOf(context),
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (sheetCtx) => UserDetailsSheet(profile: profile, designation: designation),
-  );
+  showGlassSheet(context, child: UserDetailsSheet(profile: profile, designation: designation));
 }
 
 class UserDetailsSheet extends StatelessWidget {
@@ -65,10 +61,7 @@ class UserDetailsSheet extends StatelessWidget {
 
     final textPrimary = AppColors.textPrimaryOf(context);
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Column(children: [
             CircleAvatar(
               radius: 36,
@@ -100,9 +93,7 @@ class UserDetailsSheet extends StatelessWidget {
             value: isVerified ? 'Verified by authority' : 'Pending verification',
             valueColor: isVerified ? AppColors.green : AppColors.amber,
           ),
-        ]),
-      ),
-    );
+        ]);
   }
 }
 
