@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/navigation/back_press_tracker.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/liquid_backdrop.dart';
@@ -135,16 +136,16 @@ class _ShellBody extends StatelessWidget {
             GestureDetector(
               onTap:()=>ctx.read<ShellBloc>().add(CloseMenu()),
               child: AnimatedOpacity(
-                duration: const Duration(milliseconds:250),
-                curve: Curves.easeOutCubic,
+                duration: LiquidGlass.motionStandard,
+                curve: LiquidGlass.motionCurve,
                 opacity: state.isOpen ? 1 : 0,
                 child: Container(color: Colors.black.withValues(alpha: 0.45)),
               ),
             ),
           // Slide menu
           AnimatedPositioned(
-            duration: const Duration(milliseconds:300),
-            curve: Curves.easeOutCubic,
+            duration: LiquidGlass.motionStandard,
+            curve: LiquidGlass.motionCurve,
             left: state.isOpen ? 0 : -320,
             top:0, bottom:0, width:300,
             child: const SlideMenu(),

@@ -6,7 +6,6 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../shared/widgets/admin_tab_pill.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -14,6 +13,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/glass_sheet.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -256,21 +256,15 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         ),
         AnimatedBuilder(
           animation: _tab,
-          builder: (ctx, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(children: [
-              Expanded(child: AdminTabPill(label: 'Pending (${_pending.length})',
-                  icon: Icons.how_to_reg_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
-                  selected: _tab.index == 0, onTap: () => _tab.animateTo(0))),
-              const SizedBox(width: 6),
-              Expanded(child: AdminTabPill(label: 'CR Requests (${_crRequests.length})',
-                  icon: Icons.badge_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
-                  selected: _tab.index == 1, onTap: () => _tab.animateTo(1))),
-              const SizedBox(width: 6),
-              Expanded(child: AdminTabPill(label: 'All Users',
-                  icon: Icons.people_alt_rounded, gradient: const LinearGradient(colors: [AppColors.holoviolet, AppColors.indigo]),
-                  selected: _tab.index == 2, onTap: () => _tab.animateTo(2))),
-            ]),
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            currentIndex: _tab.index,
+            onChanged: (i) => _tab.animateTo(i),
+            tabs: [
+              GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
+              GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
+              const GlassTab('All Users', icon: Icons.people_alt_rounded),
+            ],
           ),
         ),
         Expanded(child: _loading

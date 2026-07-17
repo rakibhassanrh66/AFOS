@@ -7,6 +7,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/services/web_title.dart';
 import '../../notifications/presentation/notification_popover.dart';
@@ -15,7 +16,9 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
   const AfosAppBar({super.key, required this.title, this.actions});
-  @override Size get preferredSize => const Size.fromHeight(60);
+  // Toolbar area for the floating pill (AppBar adds the status-bar inset on
+  // top of this at runtime).
+  @override Size get preferredSize => const Size.fromHeight(70);
 
   bool get _isSuperAdmin => RoleSession.role == 'super_admin';
 
@@ -29,76 +32,71 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
     // on screen" to drive the browser tab title with it. No-op on
     // Android/iOS (web_title_io.dart).
     setWebTitle('$title - AFOS');
+    // Super admin keeps its unmistakable signal as a solid violet rim on the
+    // floating pill (replacing the old edge-to-edge underline).
+    final borderColor = _isSuperAdmin ? AppColors.holoviolet : AppColors.glassBorder(context);
     return AppBar(
-      backgroundColor: AppColors.surfaceOf(context),
+      backgroundColor: Colors.transparent,
       elevation: 0,
-      // Super admin gets a persistent, unmistakable visual signal across
-      // every screen in the app (not just its own dedicated tools) — a
-      // bolder solid violet underline plus a badge, rather than the thin
-      // blended tri-color line every other role sees.
-      bottom: PreferredSize(preferredSize: Size.fromHeight(_isSuperAdmin ? 2.5 : 1),
-        child:Container(
-          height: _isSuperAdmin ? 2.5 : 1,
+      scrolledUnderElevation: 0,
+      automaticallyImplyLeading: false,
+      titleSpacing: 0,
+      toolbarHeight: 70,
+      // The bar is now a floating, rounded glass pill detached from the screen
+      // edges — not an edge-to-edge Material bar.
+      title: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Container(
+          height: 54,
           decoration: BoxDecoration(
-            gradient: _isSuperAdmin
-              ? LinearGradient(colors: [AppColors.holoviolet, AppColors.holoviolet.withValues(alpha: 0.4)])
-              : LinearGradient(colors:[
-                  AppColors.holoBlue.withValues(alpha:0.35),
-                  AppColors.holoviolet.withValues(alpha:0.25),
-                  AppColors.holoTeal.withValues(alpha:0.35),
-                ]),
+            color: Color.alphaBlend(AppColors.glassFill(context), AppColors.surfaceOf(context)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor, width: _isSuperAdmin ? 1.5 : 1),
+            boxShadow: [
+              BoxShadow(
+                color: (_isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue).withValues(alpha: 0.12),
+                blurRadius: 18,
+                spreadRadius: -4,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        )),
-      leading: IconButton(
-        icon: BlocBuilder<ShellBloc,ShellState>(
-          builder:(_,state) => AnimatedSwitcher(
-            duration:const Duration(milliseconds:200),
-            switchInCurve: Curves.easeOutCubic,
-            transitionBuilder: (child, anim) => RotationTransition(
-              turns: Tween(begin: 0.75, end: 1.0).animate(anim),
-              child: FadeTransition(opacity: anim, child: child),
+          child: Row(children: [
+            const SizedBox(width: 4),
+            IconButton(
+              icon: BlocBuilder<ShellBloc,ShellState>(
+                builder:(_,state) => AnimatedSwitcher(
+                  duration: LiquidGlass.motionFast,
+                  switchInCurve: LiquidGlass.motionCurve,
+                  transitionBuilder: (child, anim) => RotationTransition(
+                    turns: Tween(begin: 0.75, end: 1.0).animate(anim),
+                    child: FadeTransition(opacity: anim, child: child),
+                  ),
+                  child:Icon(state.isOpen?Icons.close:Icons.menu_rounded,
+                    key:ValueKey(state.isOpen),color:textPrimary))),
+              // Dismiss any open keyboard first -- opening the menu while a
+              // TextField still holds focus (e.g. mid-search on Class
+              // Schedule) raced the keyboard's close animation against the
+              // menu's slide-in, producing a white, half-shifted frame.
+              onPressed:() { FocusScope.of(context).unfocus(); context.read<ShellBloc>().add(ToggleMenu()); },
             ),
-            child:Icon(state.isOpen?Icons.close:Icons.menu_rounded,
-              key:ValueKey(state.isOpen),color:textPrimary))),
-        // Dismiss any open keyboard first -- opening the menu while a
-        // TextField still holds focus (e.g. mid-search on Class Schedule)
-        // raced the keyboard's close animation against the menu's slide-in,
-        // producing a white, half-shifted frame. Confirmed live.
-        onPressed:() { FocusScope.of(context).unfocus(); context.read<ShellBloc>().add(ToggleMenu()); },
+            Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Flexible(child: Text(title, style:AppTextStyles.headlineMed.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
+              if (_isSuperAdmin) Padding(padding: const EdgeInsets.only(left: 8), child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [AppColors.holoviolet, AppColors.holoviolet.withValues(alpha: 0.6)]),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: const Text('SUPER ADMIN',
+                      textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                      style: TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: 0.5)))),
+            ])),
+            ...?actions,
+            _NotificationBell(color: textPrimary),
+            const SizedBox(width: 6),
+          ]),
+        ),
       ),
-      // A fixed-height row alone wasn't the fix -- AppBar's title slot itself
-      // can be taller than that row and doesn't necessarily CENTER a shorter
-      // child within it (it can top-align), which is exactly why the row sat
-      // near the top of the bar with empty space below rather than centered
-      // on "Dashboard". Center forces vertical centering within whatever
-      // space AppBar actually hands the title, regardless of that slot's own
-      // height or alignment behavior. The badge itself keeps its explicit
-      // height so its own `alignment: center` stays unconditionally safe.
-      title: Center(child: SizedBox(height: 34, child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Flexible(child: Text(title, style:AppTextStyles.headlineMed.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
-        // Fixed height + Container alignment still left the text sitting
-        // high with a gap below -- that's because only the descent side
-        // (applyHeightToLastDescent) was trimmed from the text's line box;
-        // the font's default ASCENT reservation above the actual cap-height
-        // glyphs was still being centered as if it were real content,
-        // pushing the visible ink up. Trimming both ascent and descent makes
-        // the line box tightly hug the glyphs themselves, so plain symmetric
-        // padding (no explicit height, no Container alignment needed at all)
-        // centers the visible text correctly.
-        if (_isSuperAdmin) Padding(padding: const EdgeInsets.only(left: 8), child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [AppColors.holoviolet, AppColors.holoviolet.withValues(alpha: 0.6)]),
-                borderRadius: BorderRadius.circular(20)),
-            child: const Text('SUPER ADMIN',
-                textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                style: TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: 0.5)))),
-      ]))),
-      actions: [
-        ...?actions,
-        _NotificationBell(color: textPrimary),
-        const SizedBox(width:8),
-      ],
     );
   }
 }
