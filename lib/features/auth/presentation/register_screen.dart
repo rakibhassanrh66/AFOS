@@ -300,7 +300,7 @@ class _StepIndicator extends StatelessWidget {
           color: i<=step ? AppColors.holoBlue : Colors.transparent,
           border:Border.all(color:i<=step?AppColors.holoBlue:border),
           boxShadow: i<=step ? [
-            BoxShadow(color: AppColors.holoBlue.withOpacity(0.35), blurRadius:10, spreadRadius:0),
+            BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.35), blurRadius:10, spreadRadius:0),
           ] : null,
         ),
         alignment:Alignment.center,
