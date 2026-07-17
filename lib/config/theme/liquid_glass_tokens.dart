@@ -46,11 +46,34 @@ class LiquidGlass {
   static const double blurFloating = 24;
   static const double saturationBoost = 1.6;
 
-  // --- Radii ---
+  // --- Radii (single source of truth for the whole app) ---
   static const double radiusCard = 22;
   static const double radiusCut = 8; // the signature corner
   static const double radiusSheet = 28;
   static const double radiusControl = 14;
+  static const double radiusPill = 999; // fully-rounded chips/pills
+
+  // --- Glossy sheen ("wet glass" top highlight) ---
+  // A thin white gradient painted over the fill, inside the clip, so the
+  // surface reads as light catching glass rather than a flat translucent box.
+  static const Color glossHighlightDark = Color(0x1FFFFFFF); // white ~12%
+  static const Color glossHighlightLight = Color(0x40FFFFFF); // white ~25%
+
+  /// Diagonal top-left → transparent sheen overlay for glass surfaces.
+  static LinearGradient sheen({required bool isDark}) => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          isDark ? glossHighlightDark : glossHighlightLight,
+          const Color(0x00FFFFFF),
+          const Color(0x00FFFFFF),
+        ],
+        stops: const [0.0, 0.42, 1.0],
+      );
+
+  /// A crisp 1px inner top highlight line (the lit rim of the glass).
+  static Color rimHighlight(bool isDark) =>
+      isDark ? const Color(0x1FFFFFFF) : const Color(0x59FFFFFF);
 
   // --- Motion ---
   static const Duration pressDuration = Duration(milliseconds: 120);

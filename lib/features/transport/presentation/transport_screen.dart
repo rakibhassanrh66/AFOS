@@ -89,6 +89,9 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
     _tab = TabController(length:4,vsync:this);
   }
 
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
   void _viewOnMap(String routeId) {
     setState(() => _selectedRouteId = routeId);
     _tab.animateTo(3);
@@ -775,6 +778,9 @@ class _MapTabState extends State<_MapTab> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedRouteId != widget.selectedRouteId) _loadStops();
   }
+
+  @override
+  void dispose() { _mapController.dispose(); super.dispose(); }
 
   Future<void> _loadStops() async {
     final routeId = widget.selectedRouteId;

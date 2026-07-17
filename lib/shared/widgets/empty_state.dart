@@ -18,9 +18,9 @@ class EmptyState extends StatelessWidget {
         child: Column(mainAxisSize:MainAxisSize.min, children:[
           Container(width:80, height:80,
             decoration:BoxDecoration(
-              color: AppColors.blue.withOpacity(0.1),
+              color: AppColors.blue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color:AppColors.blue.withOpacity(0.2)),
+              border: Border.all(color:AppColors.blue.withValues(alpha: 0.2)),
             ),
             child: Icon(icon, color:AppColors.blue, size:36),
           ),

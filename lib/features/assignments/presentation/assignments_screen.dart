@@ -101,6 +101,9 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   @override
   void initState() { super.initState(); _init(); }
 
+  @override
+  void dispose() { _titleCtrl.dispose(); _descCtrl.dispose(); super.dispose(); }
+
   Future<void> _init() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
