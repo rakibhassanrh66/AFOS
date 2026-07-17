@@ -9,6 +9,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 
 /// Super Admin / admin / teacher content management for notices, rules,
@@ -177,28 +178,13 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
           icon: const Icon(Icons.add, color: Colors.white),
           label: const Text('New', style: TextStyle(color: Colors.white))),
       body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.red, AppColors.coral]),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.campaign_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Notices & Rules', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(_loading ? 'Loading…' : '${_notices.length} published',
-                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-            ]),
-          ),
+        FeatureHeader(
+          title: 'Notices & Rules',
+          subtitle: _loading ? 'Loading…' : '${_notices.length} published',
+          icon: Icons.campaign_rounded,
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.red, AppColors.coral]),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
