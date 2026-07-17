@@ -9,6 +9,7 @@ import '../../../core/utils/chat_naming.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -59,28 +60,12 @@ class _DeptChatState extends State<DeptChatScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: _user != null ? '${_user!.department} Channels' : 'Dept Chat'),
       body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: AppColors.holoGradient,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.forum_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_user != null ? '${_user!.department} Channels' : 'Department Chat',
-                    style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text(_loading ? 'Loading…' : '${_channels.length} channel${_channels.length == 1 ? '' : 's'} available',
-                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-            ]),
-          ),
+        FeatureHeader(
+          title: _user != null ? '${_user!.department} Channels' : 'Department Chat',
+          subtitle: _loading ? 'Loading…' : '${_channels.length} channel${_channels.length == 1 ? '' : 's'} available',
+          icon: Icons.forum_rounded,
+          gradient: AppColors.holoGradient,
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
