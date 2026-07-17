@@ -9,6 +9,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -117,28 +118,13 @@ class _NotifState extends State<NotificationCenterScreen> {
         ],
       ),
       body: Column(children: [
-        if (!_loading && _notifs.isNotEmpty) Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [AppColors.indigo, AppColors.blue]),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(children: [
-              Container(padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Notifications', style: AppTextStyles.titleLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 3),
-                Text('$unread unread of ${_notifs.length}',
-                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-              ])),
-            ]),
-          ),
+        if (!_loading && _notifs.isNotEmpty) FeatureHeader(
+          title: 'Notifications',
+          subtitle: '$unread unread of ${_notifs.length}',
+          icon: Icons.notifications_active_rounded,
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.indigo, AppColors.blue]),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))

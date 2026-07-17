@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -210,7 +211,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
     return ListView(padding: const EdgeInsets.all(16), children: [
       Row(children: [
         CircleAvatar(radius: 24, backgroundColor: AppColors.red.withValues(alpha: 0.15),
-            backgroundImage: sender['avatar_url'] != null ? NetworkImage(sender['avatar_url']) : null,
+            backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url']) : null,
             child: sender['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.red) : null),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -295,7 +296,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
           final p = _responderProfiles[r['responder_id']];
           return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
             CircleAvatar(radius: 14, backgroundColor: AppColors.holoTeal.withValues(alpha: 0.15),
-                backgroundImage: p?['avatar_url'] != null ? NetworkImage(p!['avatar_url']) : null,
+                backgroundImage: p?['avatar_url'] != null ? CachedNetworkImageProvider(p!['avatar_url']) : null,
                 child: p?['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.holoTeal, size: 14) : null),
             const SizedBox(width: 10),
             Text(p?['full_name'] as String? ?? 'Someone', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
