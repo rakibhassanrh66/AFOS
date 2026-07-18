@@ -171,7 +171,17 @@ class TransportGridParser {
 
   static List<String> _parseStops(String details) {
     if (details.trim().isEmpty) return const [];
-    final parts = details.split(RegExp(r'\s*<?>\s*')).map(_norm).where((p) => p.isNotEmpty).toList();
+    // Stops are separated by "<>" in the source, but real routes are
+    // inconsistent — some use a bare ">" and at least one a lone "<" (which the
+    // old `<?>` pattern never matched, leaking a stray "<" into the stop name).
+    // Split on ANY run of </> delimiters, then strip any residual </> that
+    // survived so no delimiter character can ever reach a rendered widget.
+    final parts = details
+        .split(RegExp(r'\s*[<>]+\s*'))
+        .map(_norm)
+        .map((s) => s.replaceAll(RegExp(r'[<>]'), '').trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
     final stops = <String>[];
     for (final p in parts) {
       final canon = _isDsc(p) ? kCanonicalDestination : p;

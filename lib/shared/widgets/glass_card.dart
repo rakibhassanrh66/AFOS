@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_theme.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import 'signature_shape.dart';
 
 /// Liquid Glass depth tiers.
 ///
@@ -62,7 +63,7 @@ class _GlassCardState extends State<GlassCard> {
   Widget build(BuildContext context) {
     final glass = LiquidGlassTheme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final radius = LiquidGlass.signatureRadius(widget.borderRadius);
+    final shape = SignatureBorder(radius: widget.borderRadius);
     final tint = widget.glowColor;
     final border = tint?.withValues(alpha: 0.35) ?? glass.glassBorder;
     final glow = tint?.withValues(alpha: 0.18) ?? glass.ambientShadow;
@@ -71,10 +72,11 @@ class _GlassCardState extends State<GlassCard> {
     // Press adds +4 blur per the Liquid Glass motion spec.
     final sigma = _pressed ? _sigma + 4 : _sigma;
 
-    Widget glassBody = Container(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: widget.tier == GlassTier.base
+    Widget glassBody = DecoratedBox(
+      // Ambient tinted glow (shape-matched), never a black drop shadow.
+      decoration: ShapeDecoration(
+        shape: shape,
+        shadows: widget.tier == GlassTier.base
             ? null
             : [
                 BoxShadow(
@@ -84,16 +86,17 @@ class _GlassCardState extends State<GlassCard> {
                 ),
               ],
       ),
-      child: ClipRRect(
-        borderRadius: radius,
+      child: ClipPath(
+        clipper: ShapeBorderClipper(shape: shape),
         clipBehavior: Clip.antiAlias,
         child: BackdropFilter(
           filter: LiquidGlass.frost(sigma),
+          // Fill + hairline border from the SAME shape as the clip, so the
+          // border can never mis-nest against the clipped edge.
           child: DecoratedBox(
-            decoration: BoxDecoration(
+            decoration: ShapeDecoration(
               color: AppColors.glassFill(context),
-              borderRadius: radius,
-              border: Border.all(color: border, width: 1),
+              shape: shape.copyWith(side: BorderSide(color: border, width: 1)),
             ),
             child: Stack(
               children: [
@@ -102,8 +105,8 @@ class _GlassCardState extends State<GlassCard> {
                 Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: radius,
+                      decoration: ShapeDecoration(
+                        shape: shape,
                         gradient: LiquidGlass.sheen(isDark: isDark),
                       ),
                     ),

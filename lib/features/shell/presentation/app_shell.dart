@@ -120,7 +120,7 @@ class _ShellBody extends StatelessWidget {
               const SizedBox(width: 248, child: SlideMenu(permanent: true)),
               Expanded(child: Stack(children: [
                 content,
-                const SosFloatingButton(),
+                const SosGate(),
               ])),
             ])),
           );
@@ -131,9 +131,16 @@ class _ShellBody extends StatelessWidget {
         final loc = GoRouterState.of(context).matchedLocation;
         final navIndex = kQuickNavDestinations.indexWhere((d) => loc == d.route);
         final mq = MediaQuery.of(context);
+        // Systemic clearance for the floating bottom nav: PHYSICAL bottom
+        // padding on the routed content so every screen — including ones that
+        // never read the inset (e.g. a plain ListView with fixed padding) —
+        // keeps its last element above the bar. This replaces the old
+        // MediaQuery-inset-only reservation that naive screens silently ignored
+        // (the Settings "Log out" regression). barSpace = bar height + its
+        // floating margin; + safe-area so it also clears the gesture bar.
         const barSpace = GlassBottomNav.barHeight + 22;
-        final mobileContent = MediaQuery(
-          data: mq.copyWith(padding: mq.padding.copyWith(bottom: mq.padding.bottom + barSpace)),
+        final mobileContent = Padding(
+          padding: EdgeInsets.only(bottom: barSpace + mq.padding.bottom),
           child: content,
         );
         return Scaffold(
@@ -144,7 +151,7 @@ class _ShellBody extends StatelessWidget {
           // once the router's profile-completed/verified gates have
           // already passed, since AppShell itself is only ever built for
           // routes inside the gated ShellRoute.
-          const SosFloatingButton(),
+          const SosGate(),
           // Floating quick-access bottom nav (mobile/tablet). Placed before
           // the scrim + drawer so an open drawer overlays it.
           Positioned(
