@@ -145,7 +145,9 @@ class _GlassCardState extends State<GlassCard> {
       tween: Tween(begin: 0, end: 1),
       duration: LiquidGlass.entranceDuration,
       curve: Curves.easeOut,
-      child: glassBody,
+      // Isolate the per-frame Opacity/scale repaint (over an expensive
+      // BackdropFilter) from the rest of the screen during the entrance.
+      child: RepaintBoundary(child: glassBody),
       builder: (context, t, child) => Opacity(
         opacity: t,
         child: Transform.scale(

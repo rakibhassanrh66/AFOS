@@ -42,15 +42,19 @@ class _LoginBodyState extends State<_LoginBody> {
   final _emailCtrl = TextEditingController();
   final _passCtrl  = TextEditingController();
 
-  // True only when this device can do biometrics AND a session was previously
-  // stored on-device (quick-login enabled) — gates the visible unlock button.
-  bool _biometricAvailable = false;
+  // A real secure-storage lookup done on screen entry (not a cached flag):
+  // whether this device can do biometrics, and which account's session is
+  // stored for quick-login. The in-field fingerprint icon only appears when the
+  // typed email matches that account.
+  bool _biometricUsable = false;
+  String? _biometricEmail;
+  String? _biometricMsg; // inline message shown under the password field
 
   @override
   void initState() {
     super.initState();
     _prefillFromRegistration();
-    _refreshBiometricAvailability();
+    _loadBiometricState();
   }
 
   Future<void> _prefillFromRegistration() async {
@@ -62,38 +66,60 @@ class _LoginBodyState extends State<_LoginBody> {
     });
   }
 
-  Future<void> _refreshBiometricAvailability() async {
+  /// Real lookup against secure storage every time the login screen mounts:
+  /// can this device do biometrics, and (if a quick-login session is stored)
+  /// which account's email does it belong to. The stored blob is the Supabase
+  /// session JSON, which carries `user.email`.
+  Future<void> _loadBiometricState() async {
     final can = await BiometricAuth.canUse();
-    final enabled = await BiometricTokenStore.isEnabled();
+    String? email;
+    if (await BiometricTokenStore.isEnabled()) {
+      final raw = await BiometricTokenStore.readSession();
+      if (raw != null) {
+        try {
+          final j = jsonDecode(raw) as Map<String, dynamic>;
+          email = (j['user'] as Map?)?['email'] as String?;
+        } catch (_) {/* corrupt stored blob — treat as no session */}
+      }
+    }
     if (!can) {
       debugPrint('[biometric] unavailable on this device '
-          '(unsupported or no enrolled fingerprint/face) — unlock button hidden');
+          '(unsupported or no enrolled fingerprint/face) — fingerprint icon hidden');
     }
-    if (mounted) setState(() => _biometricAvailable = can && enabled);
+    if (mounted) setState(() { _biometricUsable = can; _biometricEmail = email; });
   }
 
-  /// The always-visible fingerprint / Face ID button on the login form: gates
-  /// local retrieval of a session a previous password login already produced —
-  /// it never mints or validates a session itself. On failure it shows a
-  /// visible message and leaves the password form fully usable.
-  Future<void> _biometricLogin(BuildContext ctx) async {
+  // Show the in-field fingerprint icon only when this device can do biometrics,
+  // a session is stored, and the typed email matches that account.
+  bool get _showFingerprint {
+    final e = _biometricEmail;
+    return _biometricUsable && e != null &&
+        _emailCtrl.text.trim().toLowerCase() == e.toLowerCase();
+  }
+
+  /// Fingerprint trigger — the icon tap, or "Sign In" with an empty password +
+  /// a matching stored session. Gates local retrieval of a session a previous
+  /// password login already produced; never mints or validates a session. On
+  /// failure it shows an inline message and leaves the password form usable.
+  Future<void> _runBiometric(BuildContext ctx) async {
+    setState(() => _biometricMsg = null);
     final ok = await BiometricAuth.authenticate('Sign in to AFOS');
     if (!ctx.mounted) return;
     if (!ok) {
-      ctx.showSnack('Fingerprint not recognized — try again or use your password', isError: true);
+      setState(() => _biometricMsg = "Fingerprint didn't match — try again or enter your password");
       return;
     }
     try {
       if (Supabase.instance.client.auth.currentSession == null) {
         final stored = await BiometricTokenStore.readSession();
         if (stored == null) {
-          if (ctx.mounted) ctx.showSnack('Saved session expired — please sign in with your password', isError: true);
+          setState(() => _biometricMsg = 'Saved session expired — please enter your password');
           return;
         }
         await Supabase.instance.client.auth.recoverSession(stored);
       }
     } catch (_) {
-      if (ctx.mounted) ctx.showSnack("Couldn't restore your session — please sign in with your password", isError: true);
+      if (ctx.mounted) setState(() => _biometricMsg = "Couldn't restore your session — please enter your password");
       return;
     }
     if (!ctx.mounted) return;
@@ -183,14 +209,16 @@ class _LoginBodyState extends State<_LoginBody> {
                 Expanded(flex: 4, child: _FormPane(
                     isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary,
                     formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl, cardMaxWidth: 440,
-                    showBiometric: _biometricAvailable, onBiometric: () => _biometricLogin(context))),
+                    showFingerprint: _showFingerprint, onFingerprint: () => _runBiometric(context),
+                    biometricMsg: _biometricMsg, onEmailChanged: () => setState(() {}))),
               ]);
             }
             return _FormPane(
                 isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary,
                 formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl,
                 cardMaxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity,
-                showBiometric: _biometricAvailable, onBiometric: () => _biometricLogin(context));
+                showFingerprint: _showFingerprint, onFingerprint: () => _runBiometric(context),
+                biometricMsg: _biometricMsg, onEmailChanged: () => setState(() {}));
           },
         ),
       ),
@@ -204,12 +232,19 @@ class _FormPane extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController emailCtrl, passCtrl;
   final double cardMaxWidth;
-  final bool showBiometric;
-  final VoidCallback onBiometric;
+  // Fingerprint quick-login (in the password field's suffix). Only shown when a
+  // matching stored session exists for the typed email; onFingerprint runs the
+  // OS biometric prompt; biometricMsg is the inline status under the field;
+  // onEmailChanged lets the parent re-evaluate showFingerprint as the user types.
+  final bool showFingerprint;
+  final VoidCallback onFingerprint;
+  final String? biometricMsg;
+  final VoidCallback onEmailChanged;
   const _FormPane({
     required this.isDark, required this.textPrimary, required this.textSecondary,
     required this.formKey, required this.emailCtrl, required this.passCtrl, required this.cardMaxWidth,
-    required this.showBiometric, required this.onBiometric,
+    required this.showFingerprint, required this.onFingerprint,
+    required this.biometricMsg, required this.onEmailChanged,
   });
 
   @override
@@ -282,13 +317,33 @@ class _FormPane extends StatelessWidget {
                         keyboardType:TextInputType.emailAddress,
                         autocorrect:false, enableSuggestions:false,
                         validator:AppValidators.loginEmail,
+                        // Re-evaluate whether the fingerprint icon should show:
+                        // it only appears when the typed email matches the
+                        // account whose session is stored on this device.
+                        onChanged:(_) => onEmailChanged(),
                       ).animate(delay:280.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:16),
                       AfosTextField(
                         hint:'Password', controller:passCtrl,
                         prefixIcon:Icons.lock_outline, obscure:true,
                         validator:AppValidators.loginPassword,
+                        // Fingerprint quick-login sits in the password field's
+                        // suffix, beside the show/hide eye. Only rendered when a
+                        // stored session matches the typed email.
+                        trailingIcon: showFingerprint ? Icons.fingerprint_rounded : null,
+                        onTrailingIconTap: showFingerprint ? onFingerprint : null,
+                        trailingTooltip: 'Sign in with fingerprint / Face ID',
                       ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      if (biometricMsg != null) ...[
+                        const SizedBox(height:10),
+                        Row(crossAxisAlignment:CrossAxisAlignment.start, children:[
+                          const Padding(padding: EdgeInsets.only(top:1),
+                              child: Icon(Icons.info_outline, size:15, color: AppColors.holoBlue)),
+                          const SizedBox(width:6),
+                          Expanded(child: Text(biometricMsg!,
+                              style: AppTextStyles.labelSmall.copyWith(color: AppColors.holoBlue))),
+                        ]),
+                      ],
                       const SizedBox(height:8),
                       Align(
                         alignment:Alignment.centerRight,
@@ -304,6 +359,14 @@ class _FormPane extends StatelessWidget {
                           label:'Sign in to AFOS',
                           loading:state is AuthLoading,
                           onTap:(){
+                            // Trigger 2: pressing Sign In with an empty password
+                            // when a matching biometric session exists runs the
+                            // fingerprint prompt instead of a "password required"
+                            // error. Otherwise, normal password auth is untouched.
+                            if (showFingerprint && passCtrl.text.isEmpty) {
+                              onFingerprint();
+                              return;
+                            }
                             if(formKey.currentState!.validate()) {
                               ctx.read<AuthBloc>().add(
                                 AuthLoginRequested(emailCtrl.text.trim(),passCtrl.text));
@@ -311,31 +374,6 @@ class _FormPane extends StatelessWidget {
                           },
                         ),
                       ).animate(delay:420.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
-                      // Always-visible biometric unlock — shown only when this
-                      // device supports biometrics AND a session was previously
-                      // stored (quick-login enabled). Never relies on an
-                      // automatic prompt that can silently fail to appear.
-                      if (showBiometric) ...[
-                        const SizedBox(height:18),
-                        Row(children:[
-                          Expanded(child: Divider(color: textSecondary.withValues(alpha:0.25))),
-                          Padding(padding: const EdgeInsets.symmetric(horizontal:12),
-                              child: Text('or', style: AppTextStyles.labelSmall.copyWith(color: textSecondary))),
-                          Expanded(child: Divider(color: textSecondary.withValues(alpha:0.25))),
-                        ]),
-                        const SizedBox(height:18),
-                        SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                          onPressed: onBiometric,
-                          icon: const Icon(Icons.fingerprint_rounded, color: AppColors.holoBlue),
-                          label: Text('Sign in with fingerprint / Face ID',
-                              style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical:14),
-                            side: BorderSide(color: AppColors.holoBlue.withValues(alpha:0.5)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                        )).animate(delay:460.ms).fadeIn(duration:300.ms),
-                      ],
                       const SizedBox(height:28),
                       Row(mainAxisAlignment:MainAxisAlignment.center, children:[
                         Text("Don't have an account?", style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),

@@ -240,6 +240,10 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
+    // Department scopes class/exam/legacy routine uploads only; transport is
+    // university-wide. Hide the whole department section unless at least one
+    // queued file is a non-transport type.
+    final showDept = _pending.any((p) => p.mode != 'transport');
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AppBar(
@@ -248,7 +252,10 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
         iconTheme: IconThemeData(color: textPrimary),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        // Bottom inset so the "Upload All" button clears the floating bottom
+        // nav bar (this screen is inside the shell). MediaQuery.padding.bottom
+        // already carries the shell's reserved bar space (app_shell.dart).
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           RepaintBoundary(
             child: GlassCard(
@@ -270,8 +277,9 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          if (_loadingDepts)
+          if (showDept) ...[
+            const SizedBox(height: 20),
+            if (_loadingDepts)
             const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
           else if (_isSuperAdmin) ...[
             Text('Department', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
@@ -311,6 +319,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
                     style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
               ]),
             ),
+          ],
           const SizedBox(height: 20),
           GestureDetector(
             onTap: _pickFiles,
