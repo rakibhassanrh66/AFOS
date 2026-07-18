@@ -48,10 +48,14 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
   static final SpringDescription _spring =
       SpringDescription.withDampingRatio(mass: 1, stiffness: 380, ratio: 0.62);
 
+  // When the active route isn't one of the 4 bar destinations (currentIndex
+  // out of range), the blob hides and no item is highlighted.
+  bool get _hasSelection => widget.currentIndex >= 0 && widget.currentIndex < widget.destinations.length;
+
   @override
   void initState() {
     super.initState();
-    _pos = widget.currentIndex.toDouble();
+    _pos = (_hasSelection ? widget.currentIndex : 0).toDouble();
     _ctrl = AnimationController.unbounded(vsync: this)..addListener(() {
       setState(() => _pos = _ctrl.value);
     });
@@ -60,7 +64,9 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
   @override
   void didUpdateWidget(covariant GlassBottomNav old) {
     super.didUpdateWidget(old);
-    if (old.currentIndex != widget.currentIndex) _springTo(widget.currentIndex.toDouble());
+    if (old.currentIndex != widget.currentIndex && _hasSelection) {
+      _springTo(widget.currentIndex.toDouble());
+    }
   }
 
   void _springTo(double target) {
@@ -115,29 +121,31 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
                 const blobW = 46.0;
                 final blobLeft = segW * _pos + (segW - blobW) / 2;
                 return Stack(children: [
-                  // The one spring-driven sliding blob.
-                  Positioned(
-                    left: blobLeft,
-                    top: (GlassBottomNav.barHeight - 40) / 2,
-                    width: blobW,
-                    height: 40,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: AppColors.holoGradient,
-                        borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
-                        boxShadow: [
-                          BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 4)),
-                        ],
+                  // The one spring-driven sliding blob (hidden when no bar
+                  // destination is active).
+                  if (_hasSelection)
+                    Positioned(
+                      left: blobLeft,
+                      top: (GlassBottomNav.barHeight - 40) / 2,
+                      width: blobW,
+                      height: 40,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: AppColors.holoGradient,
+                          borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 4)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   Row(children: [
                     for (var i = 0; i < n; i++)
                       Expanded(child: _NavItem(
                         dest: widget.destinations[i],
                         // Icon lights up as the blob arrives (based on the live
                         // animated position, so passing items flash briefly).
-                        selectedness: (1 - (_pos - i).abs()).clamp(0.0, 1.0),
+                        selectedness: _hasSelection ? (1 - (_pos - i).abs()).clamp(0.0, 1.0) : 0.0,
                         selected: i == widget.currentIndex,
                         onTap: () => _handleTap(i),
                       )),

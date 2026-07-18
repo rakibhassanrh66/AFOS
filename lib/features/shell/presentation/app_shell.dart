@@ -4,14 +4,25 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/navigation/back_press_tracker.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../shared/widgets/liquid_backdrop.dart';
 import '../../../shared/widgets/offline_banner.dart';
 import '../../sos/presentation/sos_floating_button.dart';
 import '../bloc/shell_bloc.dart';
 import 'slide_menu.dart';
+
+/// The 4 quick-access destinations shown in the floating bottom nav (mobile/
+/// tablet) and pinned at the top of the web nav rail.
+const List<BottomNavDest> kQuickNavDestinations = [
+  BottomNavDest(label: 'Home', icon: Icons.home_outlined, activeIcon: AppIcons.dashboard, route: '/home'),
+  BottomNavDest(label: 'Search', icon: Icons.search_rounded, route: '/search'),
+  BottomNavDest(label: 'Profile', icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, route: '/profile'),
+  BottomNavDest(label: 'Settings', icon: Icons.settings_outlined, activeIcon: AppIcons.settings, route: '/settings'),
+];
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -114,15 +125,39 @@ class _ShellBody extends StatelessWidget {
             ])),
           );
         }
+        // Mobile/tablet: reserve space at the bottom (via a MediaQuery inset)
+        // so screens that honor bottom padding clear the floating bar, and
+        // highlight whichever of the 4 quick destinations is the active route.
+        final loc = GoRouterState.of(context).matchedLocation;
+        final navIndex = kQuickNavDestinations.indexWhere((d) => loc == d.route);
+        final mq = MediaQuery.of(context);
+        const barSpace = GlassBottomNav.barHeight + 22;
+        final mobileContent = MediaQuery(
+          data: mq.copyWith(padding: mq.padding.copyWith(bottom: mq.padding.bottom + barSpace)),
+          child: content,
+        );
         return Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
         body: LiquidBackdrop(child: Stack(children:[
-          content,
+          mobileContent,
           // Persistent across every authenticated screen -- only reachable
           // once the router's profile-completed/verified gates have
           // already passed, since AppShell itself is only ever built for
           // routes inside the gated ShellRoute.
           const SosFloatingButton(),
+          // Floating quick-access bottom nav (mobile/tablet). Placed before
+          // the scrim + drawer so an open drawer overlays it.
+          Positioned(
+            left: 0, right: 0, bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: GlassBottomNav(
+                destinations: kQuickNavDestinations,
+                currentIndex: navIndex,
+                onTap: (i) => ctx.go(kQuickNavDestinations[i].route),
+              ),
+            ),
+          ),
           // Dim overlay behind the slide menu. Used to also run a
           // BackdropFilter blur here -- BackdropFilter is one of the most
           // expensive operations in Flutter's rendering pipeline (a full
