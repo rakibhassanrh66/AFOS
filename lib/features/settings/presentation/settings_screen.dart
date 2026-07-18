@@ -17,8 +17,6 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
-import '../../../shared/widgets/avatar_picker.dart';
-import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -261,36 +259,9 @@ class _SettingsState extends State<SettingsScreen> {
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
           : ListView(padding: const EdgeInsets.all(16), children: [
 
-              // ── Profile Section ─────────────────────────────────────────
-              RepaintBoundary(
-                child: GlassCard(
-                  glowColor: AppColors.blue,
-                  padding: const EdgeInsets.all(16),
-                  child: Column(children: [
-                Center(child: AvatarPicker(
-                    avatarUrl: _user?.avatarUrl,
-                    initials: _user?.initials ?? '?',
-                    onChanged: (url) => _load())),
-                const SizedBox(height: 16),
-                _InfoTile('Name', _user?.fullName ?? '', Icons.person_outline_rounded),
-                _InfoTile('Student ID', _user?.studentId ?? '', Icons.badge_outlined),
-                _InfoTile('Email', _user?.email ?? '', AppIcons.emailOutline),
-                _InfoTile('Department', _user?.department ?? '', AppIcons.schoolOutline),
-                if (_user?.isStudent == true)
-                  _InfoTile('Semester', 'Semester ${_user?.semester ?? 1}', Icons.calendar_today_outlined)
-                else if (_user?.designation != null)
-                  _InfoTile('Designation', _user!.designation!, Icons.work_outline_rounded),
-                _InfoTile('Role', _user?.role ?? '', Icons.admin_panel_settings_outlined),
-                const SizedBox(height: 12),
-                SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                    onPressed: () async { await context.push('/complete-profile'); _load(); },
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Edit Profile'))),
-                  ]),
-                ),
-              ),
-
-              const SizedBox(height: 16),
+              // Profile identity now lives on its own /profile screen (bottom
+              // nav) so it isn't shown in two places — Settings keeps only
+              // settings.
 
               // ── Class / Exam Routine Info ─────────────────────────────────
               if (_routineApplicable) ...[
