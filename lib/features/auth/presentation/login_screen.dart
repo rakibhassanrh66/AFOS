@@ -17,6 +17,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/pending_credentials_store.dart';
+import '../../../core/utils/last_route.dart';
 import '../../../core/utils/responsive.dart';
 import 'widgets/auth_brand_panel.dart';
 
@@ -41,10 +42,15 @@ class _LoginBodyState extends State<_LoginBody> {
   final _emailCtrl = TextEditingController();
   final _passCtrl  = TextEditingController();
 
+  // True only when this device can do biometrics AND a session was previously
+  // stored on-device (quick-login enabled) — gates the visible unlock button.
+  bool _biometricAvailable = false;
+
   @override
   void initState() {
     super.initState();
     _prefillFromRegistration();
+    _refreshBiometricAvailability();
   }
 
   Future<void> _prefillFromRegistration() async {
@@ -56,6 +62,45 @@ class _LoginBodyState extends State<_LoginBody> {
     });
   }
 
+  Future<void> _refreshBiometricAvailability() async {
+    final can = await BiometricAuth.canUse();
+    final enabled = await BiometricTokenStore.isEnabled();
+    if (!can) {
+      debugPrint('[biometric] unavailable on this device '
+          '(unsupported or no enrolled fingerprint/face) — unlock button hidden');
+    }
+    if (mounted) setState(() => _biometricAvailable = can && enabled);
+  }
+
+  /// The always-visible fingerprint / Face ID button on the login form: gates
+  /// local retrieval of a session a previous password login already produced —
+  /// it never mints or validates a session itself. On failure it shows a
+  /// visible message and leaves the password form fully usable.
+  Future<void> _biometricLogin(BuildContext ctx) async {
+    final ok = await BiometricAuth.authenticate('Sign in to AFOS');
+    if (!ctx.mounted) return;
+    if (!ok) {
+      ctx.showSnack('Fingerprint not recognized — try again or use your password', isError: true);
+      return;
+    }
+    try {
+      if (Supabase.instance.client.auth.currentSession == null) {
+        final stored = await BiometricTokenStore.readSession();
+        if (stored == null) {
+          if (ctx.mounted) ctx.showSnack('Saved session expired — please sign in with your password', isError: true);
+          return;
+        }
+        await Supabase.instance.client.auth.recoverSession(stored);
+      }
+    } catch (_) {
+      if (ctx.mounted) ctx.showSnack("Couldn't restore your session — please sign in with your password", isError: true);
+      return;
+    }
+    if (!ctx.mounted) return;
+    final target = await loadLastRoute() ?? '/home';
+    if (ctx.mounted) ctx.go(target);
+  }
+
   @override
   void dispose() { _emailCtrl.dispose(); _passCtrl.dispose(); super.dispose(); }
 
@@ -65,11 +110,15 @@ class _LoginBodyState extends State<_LoginBody> {
   /// local unlock — it never changes how Supabase issues/validates sessions.
   Future<void> _afterLogin(BuildContext ctx) async {
     final session = Supabase.instance.client.auth.currentSession;
+    final canUse = await BiometricAuth.canUse();
+    if (!canUse) {
+      debugPrint('[biometric] device cannot use biometrics '
+          '(unsupported or none enrolled) — enable prompt skipped');
+    }
     if (session != null &&
-        await BiometricAuth.canUse() &&
+        canUse &&
         !await BiometricTokenStore.isEnabled() &&
         !await BiometricTokenStore.wasPrompted()) {
-      await BiometricTokenStore.markPrompted();
       if (!ctx.mounted) return;
       final enable = await showDialog<bool>(
         context: ctx,
@@ -93,6 +142,11 @@ class _LoginBodyState extends State<_LoginBody> {
       );
       if (enable == true) {
         await BiometricTokenStore.enable(jsonEncode(session.toJson()));
+      } else if (enable == false) {
+        // Only remember the decline on an explicit "Not now" — an accidental
+        // dismiss (barrier tap / back) re-offers on the next login rather than
+        // killing the prompt forever.
+        await BiometricTokenStore.markPrompted();
       }
     }
     if (ctx.mounted) ctx.go('/home');
@@ -128,13 +182,15 @@ class _LoginBodyState extends State<_LoginBody> {
                 const Expanded(flex: 5, child: AuthBrandPanel()),
                 Expanded(flex: 4, child: _FormPane(
                     isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary,
-                    formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl, cardMaxWidth: 440)),
+                    formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl, cardMaxWidth: 440,
+                    showBiometric: _biometricAvailable, onBiometric: () => _biometricLogin(context))),
               ]);
             }
             return _FormPane(
                 isDark: isDark, textPrimary: textPrimary, textSecondary: textSecondary,
                 formKey: _formKey, emailCtrl: _emailCtrl, passCtrl: _passCtrl,
-                cardMaxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity);
+                cardMaxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity,
+                showBiometric: _biometricAvailable, onBiometric: () => _biometricLogin(context));
           },
         ),
       ),
@@ -148,9 +204,12 @@ class _FormPane extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController emailCtrl, passCtrl;
   final double cardMaxWidth;
+  final bool showBiometric;
+  final VoidCallback onBiometric;
   const _FormPane({
     required this.isDark, required this.textPrimary, required this.textSecondary,
     required this.formKey, required this.emailCtrl, required this.passCtrl, required this.cardMaxWidth,
+    required this.showBiometric, required this.onBiometric,
   });
 
   @override
@@ -252,6 +311,31 @@ class _FormPane extends StatelessWidget {
                           },
                         ),
                       ).animate(delay:420.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      // Always-visible biometric unlock — shown only when this
+                      // device supports biometrics AND a session was previously
+                      // stored (quick-login enabled). Never relies on an
+                      // automatic prompt that can silently fail to appear.
+                      if (showBiometric) ...[
+                        const SizedBox(height:18),
+                        Row(children:[
+                          Expanded(child: Divider(color: textSecondary.withValues(alpha:0.25))),
+                          Padding(padding: const EdgeInsets.symmetric(horizontal:12),
+                              child: Text('or', style: AppTextStyles.labelSmall.copyWith(color: textSecondary))),
+                          Expanded(child: Divider(color: textSecondary.withValues(alpha:0.25))),
+                        ]),
+                        const SizedBox(height:18),
+                        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                          onPressed: onBiometric,
+                          icon: const Icon(Icons.fingerprint_rounded, color: AppColors.holoBlue),
+                          label: Text('Sign in with fingerprint / Face ID',
+                              style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical:14),
+                            side: BorderSide(color: AppColors.holoBlue.withValues(alpha:0.5)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        )).animate(delay:460.ms).fadeIn(duration:300.ms),
+                      ],
                       const SizedBox(height:28),
                       Row(mainAxisAlignment:MainAxisAlignment.center, children:[
                         Text("Don't have an account?", style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),

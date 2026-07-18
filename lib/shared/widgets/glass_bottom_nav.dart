@@ -32,7 +32,12 @@ class GlassBottomNav extends StatefulWidget {
     required this.onTap,
   });
 
-  static const double barHeight = 64;
+  static const double barHeight = 68;
+  // The selection blob is a "ball" that hugs the icon ONLY; the label sits in
+  // its own zone below it, so label text never crosses the blob's border.
+  static const double blobTop = 8;
+  static const double blobH = 38;
+  static const double blobW = 44;
 
   @override
   State<GlassBottomNav> createState() => _GlassBottomNavState();
@@ -116,23 +121,23 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
               ),
               child: LayoutBuilder(builder: (context, c) {
                 final segW = c.maxWidth / n;
-                // Indicator blob is a bit narrower than a full segment, centred
-                // on the animated position.
-                const blobW = 46.0;
-                final blobLeft = segW * _pos + (segW - blobW) / 2;
+                // The blob is a "ball" hugging the icon only, centred
+                // horizontally on the animated position; the label lives in its
+                // own zone below it (see _NavItem) so text never crosses it.
+                final blobLeft = segW * _pos + (segW - GlassBottomNav.blobW) / 2;
                 return Stack(children: [
                   // The one spring-driven sliding blob (hidden when no bar
                   // destination is active).
                   if (_hasSelection)
                     Positioned(
                       left: blobLeft,
-                      top: (GlassBottomNav.barHeight - 40) / 2,
-                      width: blobW,
-                      height: 40,
+                      top: GlassBottomNav.blobTop,
+                      width: GlassBottomNav.blobW,
+                      height: GlassBottomNav.blobH,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: AppColors.holoGradient,
-                          borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
+                          borderRadius: BorderRadius.circular(GlassBottomNav.blobH / 2),
                           boxShadow: [
                             BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 4)),
                           ],
@@ -175,16 +180,26 @@ class _NavItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         height: GlassBottomNav.barHeight,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          // Icon bounces up slightly as it becomes selected.
-          Transform.translate(
-            offset: Offset(0, -2 * selectedness),
-            child: Transform.scale(
-              scale: 1 + 0.14 * selectedness,
-              child: Icon(selected ? dest.activeIcon : dest.icon, size: 22, color: fg),
+        child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
+          // Icon sits in its own fixed zone that the blob exactly overlays, so
+          // the label below can never cross the blob's border.
+          Padding(
+            padding: const EdgeInsets.only(top: GlassBottomNav.blobTop),
+            child: SizedBox(
+              height: GlassBottomNav.blobH,
+              // Icon bounces up slightly as it becomes selected.
+              child: Center(
+                child: Transform.translate(
+                  offset: Offset(0, -1.5 * selectedness),
+                  child: Transform.scale(
+                    scale: 1 + 0.14 * selectedness,
+                    child: Icon(selected ? dest.activeIcon : dest.icon, size: 22, color: fg),
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           Text(
             dest.label,
             maxLines: 1,

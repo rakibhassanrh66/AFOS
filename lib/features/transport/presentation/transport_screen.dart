@@ -10,6 +10,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
@@ -74,6 +75,84 @@ Future<void> _openInGoogleMaps(List<String> stopNames) async {
       '&origin=$origin&destination=$destination'
       '${waypoints.isNotEmpty ? '&waypoints=$waypoints' : ''}&travelmode=driving');
   await launchUrl(url, mode: LaunchMode.externalApplication);
+}
+
+typedef _PickerOption<T> = ({String label, T value});
+
+/// Opens a floating glass bottom-sheet picker with a **searchable** list —
+/// replaces the cramped Material `DropdownButton` overlay, which positions
+/// badly and is painful for the 170+ transport stops. Returns the chosen
+/// value, or null if dismissed.
+Future<T?> _showOptionPicker<T>(BuildContext context, {
+  required String title,
+  required List<_PickerOption<T>> options,
+  T? selected,
+}) => showGlassSheet<T>(context, child: _PickerSheet<T>(title: title, options: options, selected: selected));
+
+class _PickerSheet<T> extends StatefulWidget {
+  final String title;
+  final List<_PickerOption<T>> options;
+  final T? selected;
+  const _PickerSheet({required this.title, required this.options, required this.selected});
+  @override State<_PickerSheet<T>> createState() => _PickerSheetState<T>();
+}
+
+class _PickerSheetState<T> extends State<_PickerSheet<T>> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? widget.options
+        : widget.options.where((o) => o.label.toLowerCase().contains(q)).toList();
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(widget.title, style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v),
+          style: TextStyle(color: textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Search…',
+            hintStyle: TextStyle(color: textSecondary),
+            prefixIcon: Icon(Icons.search_rounded, color: textSecondary),
+            filled: true, fillColor: AppColors.glassFill(context),
+            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Flexible(child: filtered.isEmpty
+          ? Padding(padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Center(child: Text('No matches', style: TextStyle(color: textSecondary))))
+          : ListView.builder(
+              shrinkWrap: true,
+              itemCount: filtered.length,
+              itemBuilder: (_, i) {
+                final o = filtered[i];
+                final sel = o.value == widget.selected;
+                return ListTile(
+                  dense: true,
+                  title: Text(o.label, overflow: TextOverflow.ellipsis, style: TextStyle(
+                      color: sel ? AppColors.holoTeal : textPrimary,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+                  trailing: sel ? const Icon(Icons.check_rounded, color: AppColors.holoTeal, size: 20) : null,
+                  onTap: () => Navigator.pop(context, o.value),
+                );
+              },
+            )),
+      ]),
+    );
+  }
 }
 
 class TransportScreen extends StatefulWidget {
@@ -402,15 +481,10 @@ class _StopDropdown extends StatelessWidget {
   final ValueChanged<String?> onChanged;
   const _StopDropdown({required this.label, required this.icon, required this.value, required this.options, required this.onChanged});
   @override
-  // Was a DropdownButtonFormField relying on Material's floating-label
-  // InputDecorator -- several rounds of contentPadding tweaks still left the
-  // label/value text sitting hard against the left edge (an
-  // EdgeInsets.only(top:..,bottom:..) leaves left/right at zero, and the
-  // decorator's internal label layout doesn't respect the icon+gap that
-  // precedes it in the Row the way a plain block layout would). Rebuilt on
-  // a plain DropdownButton with an always-visible label above it instead of
-  // a floating one -- full explicit control over every side's spacing, no
-  // InputDecorator internals to fight.
+  // Renders as a labelled, tappable field (not a Material dropdown): tapping
+  // opens a searchable glass bottom-sheet picker (_showOptionPicker) — proper
+  // positioning + search for the 170+ stop list, instead of a cramped dropdown
+  // overlay that anchored badly and couldn't be searched.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -424,17 +498,24 @@ class _StopDropdown extends StatelessWidget {
               style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10.5, height: 1.0,
                   fontWeight: FontWeight.w700, letterSpacing: 0.6)),
           const SizedBox(height: 5),
-          DropdownButtonHideUnderline(child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            isDense: true,
-            hint: Text('Select a stop', style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 15)),
-            dropdownColor: AppColors.surfaceOf(context),
-            style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600, fontSize: 15),
-            icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondaryOf(context)),
-            items: options.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
-            onChanged: onChanged,
-          )),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () async {
+              final picked = await _showOptionPicker<String>(context,
+                  title: 'Select a stop',
+                  options: options.map((s) => (label: s, value: s)).toList(),
+                  selected: value);
+              if (picked != null) onChanged(picked);
+            },
+            child: Row(children: [
+              Expanded(child: Text(value ?? 'Select a stop',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: value == null ? AppColors.textMutedOf(context) : AppColors.textPrimaryOf(context),
+                      fontWeight: FontWeight.w600, fontSize: 15))),
+              Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondaryOf(context)),
+            ]),
+          ),
         ])),
       ]),
     );
@@ -531,18 +612,27 @@ class _MyRouteTabState extends State<_MyRouteTab> {
                 style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10.5, height: 1.0,
                     fontWeight: FontWeight.w700, letterSpacing: 0.6)),
             const SizedBox(height: 5),
-            DropdownButtonHideUnderline(child: DropdownButton<String>(
-              value: _selectedRoute,
-              isExpanded: true,
-              isDense: true,
-              hint: Text('Choose route', style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 15)),
-              dropdownColor: AppColors.surfaceOf(context),
-              style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600, fontSize: 15),
-              icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondaryOf(context)),
-              items: widget.routes.map((r) => DropdownMenuItem(value: r['id'] as String,
-                  child: Text('${r['route_number']} — ${r['route_name'] ?? 'Route'}', overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: (v) => setState(() { _selectedRoute = v; _autoSuggested = false; }),
-            )),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                final picked = await _showOptionPicker<String>(context,
+                    title: 'Choose your route',
+                    options: widget.routes.map((r) => (
+                        label: '${r['route_number']} — ${r['route_name'] ?? 'Route'}',
+                        value: r['id'] as String)).toList(),
+                    selected: _selectedRoute);
+                if (picked != null) setState(() { _selectedRoute = picked; _autoSuggested = false; });
+              },
+              child: Row(children: [
+                Expanded(child: Text(
+                    selected == null ? 'Choose route' : '${selected['route_number']} — ${selected['route_name'] ?? 'Route'}',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: selected == null ? AppColors.textMutedOf(context) : AppColors.textPrimaryOf(context),
+                        fontWeight: FontWeight.w600, fontSize: 15))),
+                Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondaryOf(context)),
+              ]),
+            ),
           ])),
         ]),
       ),
@@ -671,43 +761,42 @@ class _AllRoutesTab extends StatelessWidget {
     final toDsc = _tripsOf(route, 'to_dsc_trips');
     final fromDsc = _tripsOf(route, 'from_dsc_trips');
     final stopNames = ((route['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: AppColors.surfaceOf(context),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (sheetCtx) => DraggableScrollableSheet(
-            initialChildSize: 0.6, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
-            builder: (_, scrollCtrl) => SingleChildScrollView(controller: scrollCtrl,
-                padding: const EdgeInsets.all(20),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text('${route['route_number']} — ${route['route_name'] ?? 'Route'}',
-                        style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
-                    _LiveStatusBadge(status: liveStatus[route['id']]),
-                  ]),
-                  const SizedBox(height: 16),
-                  if (stopNames.isNotEmpty) ...[
-                    Text('Stops', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx), fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 8),
-                    Text(stopNames.join('  →  '), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-                    const SizedBox(height: 16),
-                  ],
-                  if (toDsc.isNotEmpty) _ScheduleCard(title: 'Departure Times (To DSC)', times: toDsc),
-                  if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
-                      child: _ScheduleCard(title: 'Departure Times (From DSC)', times: fromDsc)),
-                  if (toDsc.isEmpty && fromDsc.isEmpty && stopNames.isEmpty)
-                    Text('No trip data uploaded for this route yet', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx))),
-                  const SizedBox(height: 24),
-                  SizedBox(width: double.infinity, child: FilledButton.icon(
-                      onPressed: () { Navigator.pop(sheetCtx); onViewOnMap(route['id'] as String); },
-                      icon: const Icon(Icons.map_rounded, size: 18),
-                      label: const Text('View on Map'))),
-                  if (stopNames.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                        onPressed: () => _openInGoogleMaps(stopNames),
-                        icon: const Icon(Icons.directions_rounded, size: 18),
-                        label: const Text('Open in Google Maps'))),
-                  ],
-                ]))));
+    showGlassSheet(context, child: Builder(builder: (sheetCtx) => ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetCtx).size.height * 0.78),
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Expanded(child: Text('${route['route_number']} — ${route['route_name'] ?? 'Route'}',
+                  style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
+              _LiveStatusBadge(status: liveStatus[route['id']]),
+            ]),
+            const SizedBox(height: 16),
+            if (stopNames.isNotEmpty) ...[
+              Text('Stops', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx), fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text(stopNames.join('  →  '), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+              const SizedBox(height: 16),
+            ],
+            if (toDsc.isNotEmpty) _ScheduleCard(title: 'Departure Times (To DSC)', times: toDsc),
+            if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
+                child: _ScheduleCard(title: 'Departure Times (From DSC)', times: fromDsc)),
+            if (toDsc.isEmpty && fromDsc.isEmpty && stopNames.isEmpty)
+              Text('No trip data uploaded for this route yet', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx))),
+            const SizedBox(height: 24),
+            SizedBox(width: double.infinity, child: FilledButton.icon(
+                onPressed: () { Navigator.pop(sheetCtx); onViewOnMap(route['id'] as String); },
+                icon: const Icon(Icons.map_rounded, size: 18),
+                label: const Text('View on Map'))),
+            if (stopNames.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                  onPressed: () => _openInGoogleMaps(stopNames),
+                  icon: const Icon(Icons.directions_rounded, size: 18),
+                  label: const Text('Open in Google Maps'))),
+            ],
+          ]),
+        ),
+      )));
   }
 
   @override
