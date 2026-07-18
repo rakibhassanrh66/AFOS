@@ -53,4 +53,20 @@ class TransportRepository {
         .order('stop_order') as List;
     return res.cast<Map<String, dynamic>>();
   }
+
+  /// The current import's metadata (semester + imported_at) for the "Schedule
+  /// for <semester> · Updated <date>" header. Null if nothing imported yet.
+  Future<Map<String, dynamic>?> fetchCurrentMeta() async {
+    try {
+      final res = await _client
+          .from('transport_schedule_meta')
+          .select()
+          .eq('is_current', true)
+          .order('imported_at', ascending: false)
+          .limit(1) as List;
+      return res.isNotEmpty ? Map<String, dynamic>.from(res.first) : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
