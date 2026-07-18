@@ -14,6 +14,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/services/blob_bytes.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/location_helper.dart';
+import '../../../core/utils/responsive.dart';
 import '../data/repositories/sos_repository.dart';
 
 /// Persistent emergency-alert button, mounted once in AppShell's Stack so
@@ -115,8 +116,11 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    // On mobile/tablet the floating bottom nav occupies the bottom, so lift the
+    // SOS button clear of it; the web rail has no bottom bar, so keep it low.
+    final onRail = kIsWeb && Responsive.isExpanded(context);
     return Positioned(
-      right: 16, bottom: 88,
+      right: 16, bottom: onRail ? 88 : 168,
       child: GestureDetector(
         onLongPressStart: (_) => _onHoldStart(),
         onLongPressEnd: (_) => _onHoldEnd(),

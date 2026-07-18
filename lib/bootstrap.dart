@@ -9,6 +9,7 @@ import 'config/app_config.dart';
 import 'config/routes/app_router.dart';
 import 'config/supabase_config.dart';
 import 'core/di/injection.dart';
+import 'core/auth/biometric_lock.dart';
 import 'core/services/badge_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/local_cache_service.dart';
@@ -167,6 +168,14 @@ Future<void> bootstrap() async {
       BadgeService.start();
     } else {
       BadgeService.stop();
+    }
+    // Single chokepoint for wiping the biometric quick-login token: any real
+    // sign-out (settings/menu logout, reset-password, or a silent session
+    // drop) fires signedOut here, so the stored session can never outlive the
+    // account it belonged to. (recoverSession/auto-restore emit signedIn, not
+    // signedOut, so a biometric unlock never trips this.)
+    if (data.event == AuthChangeEvent.signedOut) {
+      BiometricTokenStore.clear();
     }
     // Clicking the emailed password-reset link establishes a real session
     // and fires this event exactly once -- there was previously nothing
