@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import 'signature_shape.dart';
 
 /// One destination in the floating bottom nav.
 class BottomNavDest {
@@ -95,22 +96,24 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final n = widget.destinations.length;
-    final radius = BorderRadius.circular(LiquidGlass.radiusPill);
+    // Bespoke AFOS silhouette: a big-radius glass slab with the signature
+    // top-right corner cut tight — recognizably this app, not a generic pill.
+    // Fill + border + clip all derive from the one SignatureBorder.
+    const shape = SignatureBorder(radius: 26);
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 10 + MediaQuery.of(context).padding.bottom * 0.4),
       child: RepaintBoundary(
-        child: ClipRRect(
-          borderRadius: radius,
+        child: ClipPath(
+          clipper: const ShapeBorderClipper(shape: shape),
           clipBehavior: Clip.antiAlias,
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: LiquidGlass.blurRaised, sigmaY: LiquidGlass.blurRaised),
             child: Container(
               height: GlassBottomNav.barHeight,
-              decoration: BoxDecoration(
+              decoration: ShapeDecoration(
                 color: Color.alphaBlend(AppColors.glassFill(context), AppColors.surfaceOf(context).withValues(alpha: 0.82)),
-                borderRadius: radius,
-                border: Border.all(color: AppColors.glassBorder(context), width: 1),
-                boxShadow: [
+                shape: shape.copyWith(side: BorderSide(color: AppColors.glassBorder(context), width: 1)),
+                shadows: [
                   BoxShadow(
                     color: AppColors.holoBlue.withValues(alpha: 0.14),
                     blurRadius: 22,

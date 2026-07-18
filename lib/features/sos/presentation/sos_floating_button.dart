@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../core/auth/role_session.dart';
+import '../../../core/services/app_config_service.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/services/blob_bytes.dart';
@@ -16,6 +18,35 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../core/utils/responsive.dart';
 import '../data/repositories/sos_repository.dart';
+
+/// Visibility gate for the persistent SOS button. General users only see it
+/// when a super-admin has switched the campus-emergency SOS feature ON
+/// (`AppConfigService.sosEnabled`, default OFF); a super-admin always retains
+/// personal access regardless of the toggle. This is a pure access gate — it
+/// changes nothing about how an alert is triggered or stored.
+class SosGate extends StatefulWidget {
+  const SosGate({super.key});
+  @override State<SosGate> createState() => _SosGateState();
+}
+
+class _SosGateState extends State<SosGate> {
+  @override
+  void initState() {
+    super.initState();
+    // Authenticated shell is mounted here, so the RLS-gated read succeeds.
+    AppConfigService.instance.ensureInit();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (RoleSession.role == 'super_admin') return const SosFloatingButton();
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppConfigService.instance.sosEnabled,
+      builder: (_, enabled, __) =>
+          enabled ? const SosFloatingButton() : const SizedBox.shrink(),
+    );
+  }
+}
 
 /// Persistent emergency-alert button, mounted once in AppShell's Stack so
 /// it appears on every authenticated screen. Hold-to-arm (not a plain tap)

@@ -14,6 +14,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../auth/data/repositories/academic_repository.dart';
+import '../../notifications/data/repositories/notification_service.dart';
 import '../../transport/data/transport_excel_parser.dart';
 import '../../transport/data/transport_import_service.dart';
 import '../../transport/data/transport_pdf_parser.dart';
@@ -216,6 +217,19 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
         return;
       }
       await TransportImportService.write(parsed);
+      // Notify the whole university that the schedule changed. This is what was
+      // missing entirely: the upload wrote the routes but never told anyone.
+      // Best-effort (broadcast swallows its own errors) so a notification
+      // failure can't undo a successful import; super-admin uploader is allowed
+      // the broadcastAll path server-side.
+      await NotificationService.broadcast(
+        // No role/department filter => the service sends broadcastAll (every
+        // user), which is correct for a university-wide transport change.
+        title: 'Transport schedule updated',
+        message: 'The ${parsed.semester} bus schedule has been updated — tap to see your route.',
+        deepLink: '/transport',
+        category: 'transport',
+      );
       setState(() => p.result =
           '✅ ${parsed.routes.length} routes imported for ${parsed.semester}'
           '${validation.warningCount > 0 ? ' (${validation.warningCount} warnings)' : ''}.');

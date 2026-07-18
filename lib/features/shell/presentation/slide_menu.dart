@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/services/app_config_service.dart';
 import 'dart:ui' show ImageFilter;
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -33,6 +34,18 @@ class _SlideMenuState extends State<SlideMenu> {
   void initState() {
     super.initState();
     _loadUser();
+    AppConfigService.instance.ensureInit();
+    // Rebuild the menu when the SOS toggle flips so the item appears/disappears
+    // live without needing to reopen the drawer.
+    AppConfigService.instance.sosEnabled.addListener(_onConfigChanged);
+  }
+
+  void _onConfigChanged() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    AppConfigService.instance.sosEnabled.removeListener(_onConfigChanged);
+    super.dispose();
   }
 
   Future<void> _loadUser() async {
@@ -151,6 +164,16 @@ class _SlideMenuState extends State<SlideMenu> {
   }
 
   List<_MenuItem> get _effectiveItems {
+    final items = _roleItems;
+    // "Nearby SOS Alerts" is gated behind the campus-emergency SOS toggle:
+    // general users see it only when a super-admin has switched SOS ON;
+    // super_admin always sees it. Pure visibility filter — the route/RLS are
+    // unchanged.
+    final sosVisible = _user?.role == 'super_admin' || AppConfigService.instance.sosEnabled.value;
+    return sosVisible ? items : items.where((it) => it.route != '/sos/nearby').toList();
+  }
+
+  List<_MenuItem> get _roleItems {
     final role = _user?.role;
     // Admin-tier roles get oversight tools (Manage Hall, etc.), not the
     // student-personal-record screens themselves — an admin has no hall

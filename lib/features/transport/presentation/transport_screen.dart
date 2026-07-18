@@ -66,6 +66,11 @@ _NextTrip? _nextDeparture(List<Trip> trips, int nowMinutes) {
 // — the source routine sheet never has GPS coordinates for stops (only
 // names), so this works even when the in-app map has no path to draw,
 // which is most routes today.
+/// Strips any stray "<"/">" separator characters that leaked into a stored
+/// stop name (older imports split inconsistent delimiters imperfectly), so no
+/// delimiter can ever reach a rendered widget even for pre-existing DB rows.
+String _cleanStop(String s) => s.replaceAll(RegExp(r'[<>]'), '').trim();
+
 Future<void> _openInGoogleMaps(List<String> stopNames) async {
   final origin = Uri.encodeComponent('${stopNames.first}, Dhaka, Bangladesh');
   final destination = Uri.encodeComponent('${stopNames.last}, Dhaka, Bangladesh');
@@ -323,8 +328,8 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     for (final r in widget.routes) {
       final stops = (r['stops'] as List?) ?? const [];
       for (final s in stops) {
-        final name = (s as Map)['name'] as String?;
-        if (name != null && name.isNotEmpty) names.add(name);
+        final name = _cleanStop((s as Map)['name'] as String? ?? '');
+        if (name.isNotEmpty) names.add(name);
       }
     }
     final list = names.toList()..sort();
@@ -336,7 +341,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     final results = <_RouteMatch>[];
     for (final r in widget.routes) {
       final stops = ((r['stops'] as List?) ?? const [])
-          .cast<Map>().map((s) => s['name'] as String?).toList();
+          .cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).toList();
       final fromIdx = stops.indexWhere((s) => s == _from);
       final toIdx = stops.indexWhere((s) => s == _to);
       if (fromIdx == -1 || toIdx == -1) continue;
@@ -586,7 +591,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
       ])));
     }
     final selected = widget.routes.where((r) => r['id'] == _selectedRoute).firstOrNull;
-    final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
+    final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'to_dsc_trips');
     final fromDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'from_dsc_trips');
     return ListView(padding:const EdgeInsets.all(16),children:[
@@ -904,7 +909,7 @@ class _AllRoutesTab extends StatelessWidget {
   void _showRouteDetail(BuildContext context, Map<String,dynamic> route) {
     final toDsc = _tripsOf(route, 'to_dsc_trips');
     final fromDsc = _tripsOf(route, 'from_dsc_trips');
-    final stopNames = ((route['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
+    final stopNames = ((route['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     showGlassSheet(context, child: Builder(builder: (sheetCtx) => ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetCtx).size.height * 0.78),
         child: SingleChildScrollView(
@@ -985,62 +990,59 @@ class _AllRoutesTab extends StatelessWidget {
 
   Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i) {
     final ctx = context;
-    final stops = ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
+    final stops = ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = _tripsOf(r, 'to_dsc_trips');
     final subtitle = stops.isNotEmpty
-        ? '${stops.first} → ${stops.last} (${stops.length} stops)'
+        ? '${stops.first} → ${stops.last} · ${stops.length} stops'
         : toDsc.isNotEmpty ? '${toDsc.length} trips/day' : 'No trip data yet';
-    return Padding(padding: const EdgeInsets.only(bottom:12), child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _showRouteDetail(ctx, r),
-            child: RepaintBoundary(
-              child: Container(
-                padding: const EdgeInsets.all(1.2),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      colors: [AppColors.holoTeal.withValues(alpha: AppColors.isDark(context) ? 0.3 : 0.2),
-                               AppColors.holoBlue.withValues(alpha: 0.12)]),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(15)),
-                  child: Row(children: [
-                    Container(width: 44, height: 44,
-                        decoration: BoxDecoration(
-                            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                colors: [AppColors.holoTeal.withValues(alpha: 0.85), AppColors.holoBlue.withValues(alpha: 0.65)]),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
-                        child: Center(child: Text(r['route_number']??'?',
-                            textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                            style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 15)))),
-                    const SizedBox(width:12),
-                    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                      Row(children: [
-                        Expanded(child: Text(r['route_name']??'',style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        const SizedBox(width: 6),
-                        _LiveStatusBadge(status: liveStatus[r['id']]),
-                      ]),
-                      const SizedBox(height: 2),
-                      Row(children: [
-                        Icon(Icons.route_rounded, size: 12, color: AppColors.textSecondaryOf(context)),
-                        const SizedBox(width: 4),
-                        Expanded(child: Text(subtitle,style:AppTextStyles.bodyMedium.copyWith(color:AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      ]),
-                    ])),
-                    Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
-                  ]),
-                ),
-              ),
-            ),
-          ),
-        )).animate(delay: Duration(milliseconds: i * 50))
-            .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
+    final accent = _accentFor(ScheduleTypeX.fromWire(r['schedule_type'] as String?));
+    // App-consistent glass surface (SurfaceCard = signature cut-corner, list-row
+    // safe with blur:false), replacing the old bespoke gradient-border card so
+    // the transport screen matches the rest of the redesign.
+    return SurfaceCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      blur: false,
+      radius: 18,
+      accent: accent,
+      onTap: () => _showRouteDetail(ctx, r),
+      child: Row(children: [
+        Container(width: 44, height: 44,
+            decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [accent.withValues(alpha: 0.9), accent.withValues(alpha: 0.6)]),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+            child: Center(child: Text(r['route_number']??'?',
+                textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 15)))),
+        const SizedBox(width:12),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children: [
+            Expanded(child: Text(r['route_name']??'',style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 6),
+            _LiveStatusBadge(status: liveStatus[r['id']]),
+          ]),
+          const SizedBox(height: 3),
+          Row(children: [
+            Icon(Icons.route_rounded, size: 12, color: AppColors.textSecondaryOf(context)),
+            const SizedBox(width: 4),
+            Expanded(child: Text(subtitle,style:AppTextStyles.bodyMedium.copyWith(color:AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ]),
+        ])),
+        Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
+      ]),
+    ).animate(delay: Duration(milliseconds: i * 50))
+        .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }
+
+/// One accent per schedule type, so Regular / Shuttle / Friday read distinctly
+/// across route cards and the schedule chips.
+Color _accentFor(ScheduleType t) => switch (t) {
+      ScheduleType.regular => AppColors.holoTeal,
+      ScheduleType.shuttle => AppColors.holoBlue,
+      ScheduleType.friday => AppColors.amber,
+    };
 
 class _MapTab extends StatefulWidget {
   final String? selectedRouteId;

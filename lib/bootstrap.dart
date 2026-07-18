@@ -11,6 +11,7 @@ import 'config/routes/app_router.dart';
 import 'config/supabase_config.dart';
 import 'core/di/injection.dart';
 import 'core/auth/biometric_lock.dart';
+import 'core/services/app_config_service.dart';
 import 'core/services/badge_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/local_cache_service.dart';
@@ -187,6 +188,7 @@ Future<void> bootstrap() async {
     // signedOut, so a biometric unlock never trips this.)
     if (data.event == AuthChangeEvent.signedOut) {
       BiometricTokenStore.clear();
+      AppConfigService.instance.reset();
     }
     // Clicking the emailed password-reset link establishes a real session
     // and fires this event exactly once -- there was previously nothing

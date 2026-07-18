@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/auth/role_session.dart';
+import '../../../core/services/app_config_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -33,6 +35,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
   void initState() {
     super.initState();
     _load();
+    AppConfigService.instance.ensureInit();
     _sub = SupabaseConfig.client.channel('manage_sos_alerts')
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
             table: 'sos_alerts', callback: (_) => _load())
@@ -54,6 +57,18 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
   List<Map<String, dynamic>> get _visible =>
       _filter == 'all' ? _alerts : _alerts.where((a) => (a['status'] ?? 'active') == _filter).toList();
 
+  Future<void> _toggleSos(bool v) async {
+    try {
+      await AppConfigService.instance.setSosEnabled(v);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Couldn't update SOS visibility: ${friendlyError(e)}"),
+            backgroundColor: AppColors.red));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textSecondary = AppColors.textSecondaryOf(context);
@@ -70,6 +85,41 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
               colors: [AppColors.red, AppColors.coral]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ),
+        // Super-admin only: the campus-wide SOS visibility switch. OFF hides
+        // the SOS button/entry points for general users (super-admin keeps
+        // personal access); ON turns it on for everyone for a real emergency.
+        if (RoleSession.role == 'super_admin')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: ValueListenableBuilder<bool>(
+              valueListenable: AppConfigService.instance.sosEnabled,
+              builder: (_, enabled, __) => Container(
+                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceOf(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: enabled ? AppColors.red : AppColors.borderOf(context),
+                      width: enabled ? 1.2 : 0.5),
+                ),
+                child: Row(children: [
+                  Icon(enabled ? Icons.campaign_rounded : Icons.campaign_outlined,
+                      color: enabled ? AppColors.red : AppColors.textSecondaryOf(context)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Campus SOS for everyone',
+                        style: AppTextStyles.titleMedium.copyWith(
+                            color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
+                    Text(enabled
+                            ? 'Visible & usable by all users right now'
+                            : 'Hidden for general users — only you can use SOS',
+                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+                  ])),
+                  Switch(value: enabled, activeThumbColor: AppColors.red, onChanged: _toggleSos),
+                ]),
+              ),
+            ),
+          ),
         SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             children: _filters.map((f) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -48,6 +49,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   static const _days = ['Sat','Sun','Mon','Tue','Wed','Thu','Fri'];
 
   final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
   List<ClassSlot> _searchResults = [];
   bool _searching = false;
   bool _searchOpen = false;
@@ -72,7 +74,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   }
 
   @override
-  void dispose() { _tab.dispose(); _searchCtrl.dispose(); super.dispose(); }
+  void dispose() { _searchDebounce?.cancel(); _tab.dispose(); _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _loadUser() async {
     final uid = SupabaseConfig.uid;
@@ -143,6 +145,19 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
       ).asBroadcastStream();
     }
     return _classesStreamMemo!;
+  }
+
+  // Live, debounced filtering as the user types (the field previously only
+  // searched on Enter via onSubmitted, so it read as "search doesn't work").
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    final q = v.trim();
+    if (q.length < 2) {
+      setState(() { _searchResults = []; _searching = false; });
+      return;
+    }
+    setState(() => _searching = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () => _searchCourses(q));
   }
 
   Future<void> _searchCourses(String code) async {
@@ -256,7 +271,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                 style: TextStyle(color: AppColors.gold.withValues(alpha: 0.9), fontSize: 12))),
         Expanded(child: TabBarView(controller: _tab, children: [
           Column(children:[
-            if (_searchOpen) _SearchBar(controller: _searchCtrl, onSubmit: _searchCourses),
+            if (_searchOpen) _SearchBar(controller: _searchCtrl, onSubmit: _searchCourses, onChanged: _onSearchChanged),
             if (_searchOpen)
               Expanded(child: _searching
                   ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -678,8 +693,10 @@ class _Badge extends StatelessWidget {
 }
 
 class _SearchBar extends StatelessWidget {
-  final TextEditingController controller; final ValueChanged<String> onSubmit;
-  const _SearchBar({required this.controller, required this.onSubmit});
+  final TextEditingController controller;
+  final ValueChanged<String> onSubmit;
+  final ValueChanged<String> onChanged;
+  const _SearchBar({required this.controller, required this.onSubmit, required this.onChanged});
   @override
   Widget build(BuildContext context) => Container(
     color: AppColors.surfaceOf(context),
@@ -688,7 +705,10 @@ class _SearchBar extends StatelessWidget {
       controller: controller,
       style: TextStyle(color: AppColors.textPrimaryOf(context)),
       textInputAction: TextInputAction.search,
+      onChanged: onChanged,
       onSubmitted: onSubmit,
+      // Dismiss the keyboard on tap-outside instead of leaving it hanging.
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
       decoration: InputDecoration(
         hintText: 'Find a class by course code (e.g. CSE112)…',
         prefixIcon: const Icon(Icons.search_rounded, size: 20),
