@@ -11,7 +11,8 @@ import '../../../core/utils/last_route.dart';
 
 /// Splash motion concept: a clock-style sweep reveals the wordmark
 /// right-to-left (a rotating clock hand wiping the dial open), then the whole
-/// splash content zooms out (scales down + fades) as it hands off to the app.
+/// splash content bursts outward (scales UP + fades — a Netflix-style pop-out)
+/// as it hands off to the app.
 /// Routing is unchanged: session → last route, else login.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -34,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
     _handCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat();
     _revealCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
-    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 480));
+    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     final rng = Random();
     for (int i = 0; i < 60; i++) {
       _particles.add(_Particle(
@@ -107,10 +108,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           child: AnimatedBuilder(
             animation: _exitCtrl,
             builder: (_, child) {
-              final t = _exitCtrl.value;
+              // Netflix-style pop-out: the splash surges toward the viewer
+              // (scales UP) while fading, so it feels like it bursts off the
+              // screen rather than quietly fading away. easeIn accelerates the
+              // surge so the exit reads as a "pop", not a drift.
+              final t = Curves.easeIn.transform(_exitCtrl.value);
               return Opacity(
                 opacity: 1 - t,
-                child: Transform.scale(scale: 1 - 0.18 * t, child: child),
+                child: Transform.scale(scale: 1 + 0.6 * t, child: child),
               );
             },
             child: Column(mainAxisSize: MainAxisSize.min, children: [
