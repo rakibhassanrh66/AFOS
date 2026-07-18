@@ -980,7 +980,7 @@ class _MapTabState extends State<_MapTab> {
           ]),
         ],
       ),
-      Positioned(right: 16, bottom: 16, child: FloatingActionButton(
+      Positioned(right: 16, bottom: 16 + MediaQuery.of(context).padding.bottom, child: FloatingActionButton(
           heroTag: 'my_location_fab',
           backgroundColor: AppColors.surfaceOf(context),
           onPressed: _requestingLocation ? null : _enableLocation,
@@ -992,7 +992,7 @@ class _MapTabState extends State<_MapTab> {
           decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.borderOf(context))),
           child: Text(_locationError!, style: TextStyle(fontSize: 12, color: AppColors.textSecondaryOf(context))))),
-      if (showNoPathNote) Positioned(left: 16, right: 16, bottom: 90, child: Container(
+      if (showNoPathNote) Positioned(left: 16, right: 16, bottom: 90 + MediaQuery.of(context).padding.bottom, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.borderOf(context))),

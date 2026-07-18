@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -35,6 +36,16 @@ bool get _isMobile =>
 Future<void> bootstrap() async {
   await SystemChrome.setPreferredOrientations(
       [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+
+  // Opt into the device's native high refresh rate (90/120Hz) on Android —
+  // Flutter otherwise caps rendering at 60Hz there even on faster panels.
+  // Best-effort (a device without a high-Hz mode just stays at its default);
+  // iOS ProMotion is handled by the engine automatically, no call needed.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (_) {}
+  }
 
   // Real installed version, so UI/feedback metadata can't drift from
   // pubspec.yaml. Best-effort: keep the compiled-in fallback on failure.

@@ -1,7 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 2.0.0+14
+version: 2.0.1+15
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -44,6 +44,12 @@ dependencies:
   json_annotation: ^4.9.0
   syncfusion_flutter_pdf: ^27.2.5
   excel: ^4.0.6
+  # More tolerant .xlsx reader — the `excel` package (v4) throws
+  # "Null check operator used on a null value" in its own cell parser on some
+  # Google-Sheets exports; spreadsheet_decoder is the fallback that reads them.
+  spreadsheet_decoder: ^2.3.0
+  # Opt into 90Hz/120Hz on Android (Flutter defaults to 60Hz otherwise).
+  flutter_displaymode: ^0.6.0
   geolocator: ^13.0.2
   cupertino_icons: ^1.0.8
   url_launcher: ^6.3.1

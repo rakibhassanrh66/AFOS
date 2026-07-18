@@ -35,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
     _handCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat();
     _revealCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
-    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
     final rng = Random();
     for (int i = 0; i < 60; i++) {
       _particles.add(_Particle(
@@ -108,14 +108,16 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           child: AnimatedBuilder(
             animation: _exitCtrl,
             builder: (_, child) {
-              // Netflix-style pop-out: the splash surges toward the viewer
-              // (scales UP) while fading, so it feels like it bursts off the
-              // screen rather than quietly fading away. easeIn accelerates the
-              // surge so the exit reads as a "pop", not a drift.
-              final t = Curves.easeIn.transform(_exitCtrl.value);
+              // Dramatic camera-punch hand-off: a tiny anticipation dip below
+              // 1.0 (wind-up), then a big spring overshoot outward to ~2.5x,
+              // with the fade held off until the punch is well underway — so it
+              // reads as a physical pull-back/burst, not a subtle scale-down.
+              final t = _exitCtrl.value;
+              final scale = 1.0 + 1.5 * Curves.easeInBack.transform(t);
+              final fade = const Interval(0.32, 1.0, curve: Curves.easeIn).transform(t);
               return Opacity(
-                opacity: 1 - t,
-                child: Transform.scale(scale: 1 + 0.6 * t, child: child),
+                opacity: (1 - fade).clamp(0.0, 1.0),
+                child: Transform.scale(scale: scale, child: child),
               );
             },
             child: Column(mainAxisSize: MainAxisSize.min, children: [

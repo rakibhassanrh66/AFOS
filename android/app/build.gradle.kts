@@ -10,7 +10,14 @@ plugins {
 
 android {
     namespace = "com.example.afos_v7"
-    compileSdk = flutter.compileSdkVersion
+    // This Flutter channel's flutter.compileSdkVersion still defaults to 33, but
+    // several transitive androidx deps now require newer: flutter_displaymode
+    // (BUG 5) pulls fragment:1.7.1/window:1.2.0 (need 34), androidx.camera 1.5.0
+    // needs 35, and androidx.browser 1.9.0 needs 36. Pin 36 (the highest floor,
+    // also the current max API). compileSdk only affects which APIs compile;
+    // targetSdk/minSdk below are unchanged, so runtime behaviour and device
+    // support are untouched.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

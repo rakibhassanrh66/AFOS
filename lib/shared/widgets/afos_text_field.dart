@@ -8,6 +8,12 @@ class AfosTextField extends StatefulWidget {
   final bool obscure;
   final IconData? prefixIcon;
   final Widget? suffix;
+  // Optional extra trailing icon (e.g. a fingerprint quick-login button) shown
+  // to the LEFT of the built-in show/hide eye toggle on obscured fields, so a
+  // password field can offer both actions without the two icons overlapping.
+  final IconData? trailingIcon;
+  final VoidCallback? onTrailingIconTap;
+  final String? trailingTooltip;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final void Function(String)? onChanged;
@@ -17,6 +23,7 @@ class AfosTextField extends StatefulWidget {
 
   const AfosTextField({super.key, required this.hint, this.controller,
     this.validator, this.obscure=false, this.prefixIcon, this.suffix,
+    this.trailingIcon, this.onTrailingIconTap, this.trailingTooltip,
     this.keyboardType, this.textInputAction, this.onChanged, this.maxLines=1,
     // Autocorrect/suggestions have no purpose on an obscured password
     // field, and combined with certain Gboard versions on newer Android
@@ -46,6 +53,30 @@ class _AfosTextFieldState extends State<AfosTextField> {
 
   @override
   void dispose() { _focusNode.dispose(); super.dispose(); }
+
+  /// Builds the trailing suffix: the built-in show/hide eye toggle (obscured
+  /// fields only) plus, when [AfosTextField.trailingIcon] is supplied, an extra
+  /// icon button to its left. Each button is a full ≥48dp target and the two
+  /// never overlap the field text or border.
+  Widget? _buildSuffix(BuildContext context) {
+    final Widget? eye = widget.obscure
+        ? IconButton(
+            icon: Icon(_show ? Icons.visibility_off : Icons.visibility,
+                color: AppColors.textSecondaryOf(context), size: 20),
+            tooltip: _show ? 'Hide password' : 'Show password',
+            onPressed: () => setState(() => _show = !_show))
+        : widget.suffix;
+    if (widget.trailingIcon == null) return eye;
+    final trailing = IconButton(
+      icon: Icon(widget.trailingIcon, color: AppColors.holoBlue, size: 22),
+      tooltip: widget.trailingTooltip,
+      onPressed: widget.onTrailingIconTap,
+    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      trailing,
+      if (eye != null) eye,
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,12 +115,10 @@ class _AfosTextFieldState extends State<AfosTextField> {
                   child: Icon(widget.prefixIcon,
                       color: active ? AppColors.holoBlue : AppColors.textSecondaryOf(context), size: 20))
               : null,
-            suffixIcon: widget.obscure
-              ? IconButton(
-                  icon: Icon(_show?Icons.visibility_off:Icons.visibility,
-                    color:AppColors.textSecondaryOf(context), size:20),
-                  onPressed: () => setState(()=>_show=!_show))
-              : widget.suffix,
+            // Fixed-width suffix slot so a second (fingerprint) icon can sit
+            // beside the eye toggle with full ≥48dp targets and no overlap.
+            suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            suffixIcon: _buildSuffix(context),
           ),
         ),
       ),
