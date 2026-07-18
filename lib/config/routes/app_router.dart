@@ -13,6 +13,7 @@ import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
+import '../../features/auth/presentation/unlock_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
 import '../../features/conference_room/presentation/conference_room_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
@@ -29,6 +30,8 @@ import '../../features/lost_found/presentation/lost_found_screen.dart';
 import '../../features/mentorship/presentation/mentorship_screen.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
 import '../../features/payment/presentation/payment_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/search/presentation/global_search_screen.dart';
 import '../../features/registry/presentation/manage_notices_screen.dart';
 import '../../features/registry/presentation/registry_list_screen.dart';
 import '../../features/schedule/presentation/schedule_screen.dart';
@@ -70,6 +73,11 @@ class AppRouter {
       // in, /auth/* bounces to /home" rule two lines down doesn't also
       // catch it and skip the password-reset step entirely.
       if (loc == '/reset-password') return null;
+      // Biometric lock: reachable even with a live session (it gates access to
+      // that already-valid session), so it must be exempt from the
+      // "logged-in, /auth/* bounces to /home" rule below — same reasoning as
+      // /reset-password above.
+      if (loc == '/auth/unlock') return null;
       if (session == null) {
         RoleSession.clear();
         return loc.startsWith('/auth') ? null : '/auth/login';
@@ -138,6 +146,8 @@ class AppRouter {
       GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
       GoRoute(path: '/auth/login',
         pageBuilder: (c, s) => fadeScalePage(const LoginScreen(), s)),
+      GoRoute(path: '/auth/unlock',
+        pageBuilder: (c, s) => fadeScalePage(const UnlockScreen(), s)),
       GoRoute(path: '/auth/register',
         pageBuilder: (c, s) => slideUpPage(const RegisterScreen(), s)),
       GoRoute(path: '/auth/forgot-password',
@@ -154,6 +164,8 @@ class AppRouter {
         builder: (c, s, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/home',          pageBuilder: (c,s) => slideRightPage(const DashboardScreen(), s)),
+          GoRoute(path: '/profile',       pageBuilder: (c,s) => slideRightPage(const ProfileScreen(), s)),
+          GoRoute(path: '/search',        pageBuilder: (c,s) => slideRightPage(const GlobalSearchScreen(), s)),
           GoRoute(path: '/schedule',      pageBuilder: (c,s) => slideRightPage(const ScheduleScreen(), s)),
           GoRoute(path: '/hall',          pageBuilder: (c,s) => slideRightPage(const HallScreen(), s)),
           GoRoute(path: '/transport',     pageBuilder: (c,s) => slideRightPage(const TransportScreen(), s)),

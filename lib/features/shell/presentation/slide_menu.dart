@@ -51,6 +51,15 @@ class _SlideMenuState extends State<SlideMenu> {
   // both client-side and at the RLS layer). Library stays student-only
   // (see _studentOnlyItems) since it's a personal borrowing record, not
   // something to just "view".
+  // The 4 quick-access destinations pinned at the top of the web rail (they
+  // are the floating bottom bar's items on mobile).
+  static const _quickAccessItems = [
+    _MenuItem('Home',     AppIcons.dashboard, '/home',     AppColors.blue),
+    _MenuItem('Search',   Icons.search_rounded, '/search', AppColors.holoTeal),
+    _MenuItem('Profile',  Icons.person_rounded, '/profile', AppColors.holoBlue),
+    _MenuItem('Settings', AppIcons.settings,  '/settings', AppColors.textSecondary),
+  ];
+
   static const _commonItems = [
     _MenuItem('Dashboard',      AppIcons.dashboard,   '/home',          AppColors.blue),
     _MenuItem('Class Schedule', AppIcons.schedule,    '/schedule',      AppColors.blue),
@@ -208,6 +217,13 @@ class _SlideMenuState extends State<SlideMenu> {
               child: Column(children:[
                 _buildHeader(ctx),
                 Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
+                  // Web rail: pin the 4 quick-access destinations at the top
+                  // (the mobile floating bottom bar covers these on phones).
+                  if (widget.permanent) ...[
+                    for (final it in _quickAccessItems)
+                      _QuickRailTile(item: it, active: GoRouterState.of(ctx).matchedLocation == it.route),
+                    Divider(color: border, height: 16),
+                  ],
                   // Capped, not i*40 uncapped -- a role with a long menu (25
                   // items for super_admin) meant the last tile's fade-in didn't
                   // even START until ~960ms after the menu opened. Scrolling
@@ -477,4 +493,46 @@ class _MenuItem {
   final IconData icon;
   final Color color;
   const _MenuItem(this.label,this.icon,this.route,this.color);
+}
+
+/// A pinned quick-access tile for the web rail: highlights by the active route
+/// and navigates with `go` (no ShellBloc index side effects).
+class _QuickRailTile extends StatelessWidget {
+  final _MenuItem item;
+  final bool active;
+  const _QuickRailTile({required this.item, required this.active});
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => context.go(item.route),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: active ? item.color.withValues(alpha: 0.14) : Colors.transparent,
+              border: active ? Border(left: BorderSide(color: item.color, width: 3)) : null,
+            ),
+            child: Row(children: [
+              Container(width: 34, height: 34, alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: item.color.withValues(alpha: active ? 0.22 : 0.15),
+                  borderRadius: BorderRadius.circular(10)),
+                child: Icon(item.icon, color: item.color, size: 18)),
+              const SizedBox(width: 12),
+              Expanded(child: Text(item.label,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: active ? item.color : textPrimary,
+                  fontSize: 14, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }
