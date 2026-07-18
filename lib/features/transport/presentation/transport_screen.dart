@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -14,12 +15,20 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../data/models/transport_schedule.dart';
 import '../data/repositories/transport_repository.dart';
 
-/// Parses "10:50 AM" / "4:20 PM" style time strings (as stored in
-/// transport_routes.to_dsc_times/from_dsc_times) into minutes-since-midnight.
-/// Returns null for anything unparseable rather than throwing -- source
-/// data is PDF-extracted and not perfectly uniform.
+/// Reads a route row's per-trip objects ({time, note, status}) for one
+/// direction into typed [Trip]s, dropping blanks.
+List<Trip> _tripsOf(Map r, String key) =>
+    (((r[key] as List?) ?? const [])
+        .map((e) => Trip.fromJson(Map<String, dynamic>.from(e as Map)))
+        .where((t) => !t.isEmpty)
+        .toList());
+
+/// Parses "10:50 AM" / "4:20 PM" style time strings into minutes-since-midnight.
+/// Returns null for anything unparseable (e.g. a coming-soon trip) rather than
+/// throwing -- source data is imported and not perfectly uniform.
 int? _parseTimeToMinutes(String raw) {
   final m = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?').firstMatch(raw.trim());
   if (m == null) return null;
@@ -35,9 +44,10 @@ typedef _NextTrip = ({String time, int minutesUntil, bool isTomorrow});
 
 /// Finds the next upcoming departure in [times] relative to [nowMinutes],
 /// wrapping to tomorrow's first departure if everything today has passed.
-_NextTrip? _nextDeparture(List<String> times, int nowMinutes) {
-  final parsed = times
-      .map((t) => (raw: t, min: _parseTimeToMinutes(t)))
+_NextTrip? _nextDeparture(List<Trip> trips, int nowMinutes) {
+  final parsed = trips
+      .where((t) => t.time != null)
+      .map((t) => (raw: t.time!, min: _parseTimeToMinutes(t.time!)))
       .where((e) => e.min != null)
       .toList()
     ..sort((a, b) => a.min!.compareTo(b.min!));
@@ -85,10 +95,26 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
   late final Stream<List<Map<String,dynamic>>> _routesStream = _repo.watchRoutes();
   late final Stream<Map<String, Map<String, dynamic>>> _liveStatusStream = _repo.watchLiveStatus();
 
+  // Import metadata for the "Schedule for <semester> · Updated <date>" header.
+  Map<String, dynamic>? _meta;
+
   @override
   void initState() {
     super.initState();
     _tab = TabController(length:4,vsync:this);
+    _repo.fetchCurrentMeta().then((m) { if (mounted) setState(() => _meta = m); });
+  }
+
+  String _scheduleSubtitle(bool loading, int routeCount) {
+    final m = _meta;
+    if (m != null) {
+      final semester = m['semester'] as String?;
+      final importedAt = DateTime.tryParse(m['imported_at'] as String? ?? '');
+      final updated = importedAt != null ? AppFormatters.fullDate(importedAt.toLocal()) : null;
+      final sem = (semester != null && semester != 'legacy-import') ? 'Schedule for $semester' : '$routeCount routes';
+      return updated != null ? '$sem · Updated $updated' : sem;
+    }
+    return loading ? 'Loading routes…' : '$routeCount routes available';
   }
 
   @override
@@ -121,7 +147,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                 return Column(children: [
                   FeatureHeader(
                     title: 'Campus Transport',
-                    subtitle: loading ? 'Loading routes…' : '${routes.length} routes available',
+                    subtitle: _scheduleSubtitle(loading, routes.length),
                     icon: Icons.directions_bus_filled_rounded,
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.holoTeal, AppColors.holoBlue]),
@@ -238,14 +264,12 @@ class _FindRouteTabState extends State<_FindRouteTab> {
       // The sheet gives per-trip times to/from DSC, not per-stop times, so
       // we surface the route's daily trip schedule rather than a single
       // board/arrive time we don't actually have data for.
-      final toDsc = ((r['to_dsc_times'] as List?) ?? const []).cast<String>();
-      final fromDsc = ((r['from_dsc_times'] as List?) ?? const []).cast<String>();
       results.add((
         routeId: r['id'] as String,
         routeNumber: r['route_number'] as String? ?? '?',
         routeName: r['route_name'] as String? ?? 'Route',
-        toDsc: toDsc,
-        fromDsc: fromDsc,
+        toDsc: _tripsOf(r, 'to_dsc_trips'),
+        fromDsc: _tripsOf(r, 'from_dsc_trips'),
       ));
     }
     return results;
@@ -333,20 +357,39 @@ class _FindRouteTabState extends State<_FindRouteTab> {
   }
 }
 
-typedef _RouteMatch = ({String routeId, String routeNumber, String routeName, List<String> toDsc, List<String> fromDsc});
+typedef _RouteMatch = ({String routeId, String routeNumber, String routeName, List<Trip> toDsc, List<Trip> fromDsc});
+
+/// One trip chip: the time (or "Coming soon"), with any note as a caption.
+class _TripChip extends StatelessWidget {
+  final Trip trip;
+  const _TripChip({required this.trip});
+  @override
+  Widget build(BuildContext context) {
+    final soon = trip.isComingSoon;
+    final color = soon ? AppColors.amber : AppColors.holoTeal;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(soon ? 'Coming soon' : (trip.time ?? '—'),
+            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+        if (trip.note != null && trip.note!.isNotEmpty)
+          Text(trip.note!, style: TextStyle(fontSize: 9.5, color: AppColors.textSecondaryOf(context))),
+      ]),
+    );
+  }
+}
 
 class _TimeChipsRow extends StatelessWidget {
-  final String label; final List<String> times;
+  final String label; final List<Trip> times;
   const _TimeChipsRow({required this.label, required this.times});
   @override
   Widget build(BuildContext context) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SizedBox(width: 62, child: Text(label,
           style: TextStyle(fontSize: 11, color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w600))),
-      Expanded(child: Wrap(spacing: 6, runSpacing: 4, children: times.map((t) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
-          child: Text(t, style: const TextStyle(fontSize: 11, color: AppColors.holoTeal)))).toList())),
+      Expanded(child: Wrap(spacing: 6, runSpacing: 4,
+          children: times.map((t) => _TripChip(trip: t)).toList())),
     ]);
   }
 }
@@ -463,8 +506,8 @@ class _MyRouteTabState extends State<_MyRouteTab> {
     }
     final selected = widget.routes.where((r) => r['id'] == _selectedRoute).firstOrNull;
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
-    final toDsc = ((selected?['to_dsc_times'] as List?) ?? const []).cast<String>();
-    final fromDsc = ((selected?['from_dsc_times'] as List?) ?? const []).cast<String>();
+    final toDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'to_dsc_trips');
+    final fromDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'from_dsc_trips');
     return ListView(padding:const EdgeInsets.all(16),children:[
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
@@ -547,7 +590,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
 /// advances to the following trip once the current one's time passes,
 /// wrapping to tomorrow's first departure once today's are all gone.
 class _NextDepartureCard extends StatelessWidget {
-  final List<String> toDsc; final List<String> fromDsc;
+  final List<Trip> toDsc; final List<Trip> fromDsc;
   const _NextDepartureCard({required this.toDsc, required this.fromDsc});
 
   String _fmt(_NextTrip n) {
@@ -588,7 +631,7 @@ class _NextDepartureCard extends StatelessWidget {
 }
 
 class _ScheduleCard extends StatelessWidget {
-  final String title; final List<String> times;
+  final String title; final List<Trip> times;
   const _ScheduleCard({required this.title, required this.times});
   @override
   Widget build(BuildContext context) {
@@ -599,11 +642,19 @@ class _ScheduleCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
-        ...times.map((t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-          Icon(Icons.access_time, color: AppColors.textSecondaryOf(context), size: 16),
-          const SizedBox(width: 10),
-          Text(t, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-        ]))),
+        ...times.map((t) => Padding(padding: const EdgeInsets.only(bottom: 8),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(t.isComingSoon ? Icons.hourglass_empty_rounded : Icons.access_time,
+                color: t.isComingSoon ? AppColors.amber : AppColors.textSecondaryOf(context), size: 16),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(t.isComingSoon ? 'Coming soon' : (t.time ?? '—'),
+                  style: AppTextStyles.titleMedium.copyWith(
+                      color: t.isComingSoon ? AppColors.amber : AppColors.textPrimaryOf(context))),
+              if (t.note != null && t.note!.isNotEmpty)
+                Text(t.note!, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+            ])),
+          ]))),
       ]),
     );
   }
@@ -617,8 +668,8 @@ class _AllRoutesTab extends StatelessWidget {
   const _AllRoutesTab({required this.routes, required this.liveStatus, required this.repo, required this.onViewOnMap});
 
   void _showRouteDetail(BuildContext context, Map<String,dynamic> route) {
-    final toDsc = ((route['to_dsc_times'] as List?) ?? const []).cast<String>();
-    final fromDsc = ((route['from_dsc_times'] as List?) ?? const []).cast<String>();
+    final toDsc = _tripsOf(route, 'to_dsc_trips');
+    final fromDsc = _tripsOf(route, 'from_dsc_trips');
     final stopNames = ((route['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
     showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: AppColors.surfaceOf(context),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -665,15 +716,44 @@ class _AllRoutesTab extends StatelessWidget {
       return Center(
         child:Text('No routes',style:TextStyle(color:AppColors.textSecondaryOf(context))));
     }
-    return ListView.builder(padding:const EdgeInsets.all(16),itemCount:routes.length,
-      itemBuilder:(ctx,i){
-        final r = routes[i];
-        final stops = ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
-        final toDsc = ((r['to_dsc_times'] as List?) ?? const []).cast<String>();
-        final subtitle = stops.isNotEmpty
-            ? '${stops.first} → ${stops.last} (${stops.length} stops)'
-            : toDsc.isNotEmpty ? '${toDsc.length} trips/day' : 'No trip data yet';
-        return Padding(padding: const EdgeInsets.only(bottom:12), child: Material(
+    // Group by schedule_type into the source document's own sections
+    // (Regular / Shuttle / Friday), in that order.
+    const order = [ScheduleType.regular, ScheduleType.shuttle, ScheduleType.friday];
+    final grouped = <ScheduleType, List<Map<String,dynamic>>>{};
+    for (final r in routes) {
+      final type = ScheduleTypeX.fromWire(r['schedule_type'] as String?);
+      grouped.putIfAbsent(type, () => []).add(r);
+    }
+    final children = <Widget>[];
+    var idx = 0;
+    for (final type in order) {
+      final group = grouped[type];
+      if (group == null || group.isEmpty) continue;
+      // Only label sections when more than one exists, so a single-section
+      // schedule doesn't get a redundant header.
+      if (grouped.length > 1) {
+        children.add(Padding(
+          padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+          child: Text(type.label.toUpperCase(),
+              style: AppTextStyles.labelSmall.copyWith(
+                  letterSpacing: 1.5, color: AppColors.textSecondaryOf(context))),
+        ));
+      }
+      for (final r in group) {
+        children.add(_routeCard(context, r, idx++));
+      }
+    }
+    return ListView(padding: const EdgeInsets.all(16), children: children);
+  }
+
+  Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i) {
+    final ctx = context;
+    final stops = ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => s['name'] as String? ?? '').where((s) => s.isNotEmpty).toList();
+    final toDsc = _tripsOf(r, 'to_dsc_trips');
+    final subtitle = stops.isNotEmpty
+        ? '${stops.first} → ${stops.last} (${stops.length} stops)'
+        : toDsc.isNotEmpty ? '${toDsc.length} trips/day' : 'No trip data yet';
+    return Padding(padding: const EdgeInsets.only(bottom:12), child: Material(
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
@@ -722,7 +802,6 @@ class _AllRoutesTab extends StatelessWidget {
           ),
         )).animate(delay: Duration(milliseconds: i * 50))
             .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
-      });
   }
 }
 

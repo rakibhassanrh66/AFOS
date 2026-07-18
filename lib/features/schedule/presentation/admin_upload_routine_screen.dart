@@ -9,10 +9,15 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../auth/data/repositories/academic_repository.dart';
+import '../../transport/data/transport_excel_parser.dart';
+import '../../transport/data/transport_import_service.dart';
+import '../../transport/data/transport_pdf_parser.dart';
+import '../../transport/presentation/transport_import_preview_screen.dart';
 
 const _modes = ['class_routine', 'exam_routine', 'transport', 'schedule'];
 String _modeLabel(String m) => switch (m) {
@@ -130,6 +135,13 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
   }
 
   Future<void> _uploadOne(_PendingUpload p) async {
+    // Transport is parsed CLIENT-SIDE (Excel primary / PDF fallback), validated,
+    // and previewed for admin review before anything is written — see
+    // _importTransport. It does not go through the edge function.
+    if (p.mode == 'transport') {
+      await _importTransport(p);
+      return;
+    }
     // Transport is university-wide (no department column involved at all).
     // Only super_admin picks explicitly here — every other role has no
     // dropdown to fill in at all (locked server-side to their own profile
@@ -175,6 +187,40 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
     } catch (e) {
       final data = e is DioException ? e.response?.data : null;
       setState(() => p.error = data is Map && data['error'] != null ? data['error'].toString() : friendlyError(e));
+    } finally {
+      if (mounted) setState(() => p.uploading = false);
+    }
+  }
+
+  /// Client-side transport import: parse (Excel primary / PDF fallback),
+  /// validate, let the admin review the parsed result + QA flags, and only
+  /// write on explicit confirmation. Nothing is written silently.
+  Future<void> _importTransport(_PendingUpload p) async {
+    setState(() { p.uploading = true; p.result = null; p.error = null; });
+    try {
+      final bytes = await _fileBytes(p.file);
+      final ext = p.file.extension?.toLowerCase();
+      final parsed = ext == 'pdf'
+          ? TransportPdfParser.parse(bytes)
+          : TransportExcelParser.parse(bytes);
+      if (parsed.routes.isEmpty) {
+        throw 'No transport routes could be read from "${p.file.name}". '
+            'If this is a scanned/image PDF, export the sheet as .xlsx instead.';
+      }
+      final validation = TransportImportService.validate(parsed);
+      if (!mounted) return;
+      final confirmed = await Navigator.of(context).push<bool>(appPageRoute(
+          TransportImportPreviewScreen(parsed: parsed, validation: validation)));
+      if (confirmed != true) {
+        setState(() { p.uploading = false; p.result = null; });
+        return;
+      }
+      await TransportImportService.write(parsed);
+      setState(() => p.result =
+          '✅ ${parsed.routes.length} routes imported for ${parsed.semester}'
+          '${validation.warningCount > 0 ? ' (${validation.warningCount} warnings)' : ''}.');
+    } catch (e) {
+      setState(() => p.error = friendlyError(e));
     } finally {
       if (mounted) setState(() => p.uploading = false);
     }
