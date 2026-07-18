@@ -29,6 +29,8 @@ import '../../features/lost_found/presentation/lost_found_screen.dart';
 import '../../features/mentorship/presentation/mentorship_screen.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
 import '../../features/payment/presentation/payment_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/search/presentation/global_search_screen.dart';
 import '../../features/registry/presentation/manage_notices_screen.dart';
 import '../../features/registry/presentation/registry_list_screen.dart';
 import '../../features/schedule/presentation/schedule_screen.dart';
@@ -154,6 +156,8 @@ class AppRouter {
         builder: (c, s, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/home',          pageBuilder: (c,s) => slideRightPage(const DashboardScreen(), s)),
+          GoRoute(path: '/profile',       pageBuilder: (c,s) => slideRightPage(const ProfileScreen(), s)),
+          GoRoute(path: '/search',        pageBuilder: (c,s) => slideRightPage(const GlobalSearchScreen(), s)),
           GoRoute(path: '/schedule',      pageBuilder: (c,s) => slideRightPage(const ScheduleScreen(), s)),
           GoRoute(path: '/hall',          pageBuilder: (c,s) => slideRightPage(const HallScreen(), s)),
           GoRoute(path: '/transport',     pageBuilder: (c,s) => slideRightPage(const TransportScreen(), s)),
