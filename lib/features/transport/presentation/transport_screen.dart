@@ -226,7 +226,7 @@ class _LiveStatusBadge extends StatelessWidget {
 /// Lets a user pick where they are and where they want to go, then shows
 /// every route whose stop list contains both stops — a route's `stops` array
 /// is stored in a single fixed physical order, but the bus itself runs both
-/// directions along it (see to_dsc_times/from_dsc_times), so which stop
+/// directions along it (see to_dsc_trips/from_dsc_trips), so which stop
 /// happens to come first in that stored order says nothing about whether
 /// the trip is possible.
 class _FindRouteTab extends StatefulWidget {
