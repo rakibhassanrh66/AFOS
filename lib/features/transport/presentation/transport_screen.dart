@@ -656,8 +656,8 @@ class _MyRouteTabState extends State<_MyRouteTab> {
                 const SizedBox(width: 6),
                 Text('ROUTE PATH', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700, letterSpacing: 0.4)),
               ]),
-              const SizedBox(height: 8),
-              Text(stops.join('  →  '), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+              const SizedBox(height: 10),
+              _StopsTimeline(stops: stops),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
                   onPressed: () => _openInGoogleMaps(stops),
@@ -665,9 +665,9 @@ class _MyRouteTabState extends State<_MyRouteTab> {
                   label: const Text('Open in Google Maps'))),
             ])),
         const SizedBox(height: 16),
-        if (toDsc.isNotEmpty) _ScheduleCard(title: 'Departure Times (To DSC)', times: toDsc),
+        if (toDsc.isNotEmpty) _ScheduleCard(title: 'To DSC', times: toDsc, icon: Icons.login_rounded, accent: AppColors.holoTeal),
         if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
-            child: _ScheduleCard(title: 'Departure Times (From DSC)', times: fromDsc)),
+            child: _ScheduleCard(title: 'From DSC', times: fromDsc, icon: Icons.logout_rounded, accent: AppColors.holoBlue)),
         if (toDsc.isEmpty && fromDsc.isEmpty) Text('No trip times uploaded for this route yet',
             style: TextStyle(color: AppColors.textSecondaryOf(context))),
       ],
@@ -679,13 +679,63 @@ class _MyRouteTabState extends State<_MyRouteTab> {
 /// re-evaluated every minute (see _MyRouteTabState's _tickTimer) so it
 /// advances to the following trip once the current one's time passes,
 /// wrapping to tomorrow's first departure once today's are all gone.
+/// A small live-pulsing dot used to signal "this is real-time" next to the
+/// NEXT BUS header.
+class _PulseDot extends StatefulWidget {
+  final Color color;
+  const _PulseDot({required this.color});
+  @override State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+  @override void dispose() { _c.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 14, height: 14,
+    child: AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) => Stack(alignment: Alignment.center, children: [
+        Container(width: 6 + 8 * _c.value, height: 6 + 8 * _c.value,
+            decoration: BoxDecoration(shape: BoxShape.circle,
+                color: widget.color.withValues(alpha: 0.28 * (1 - _c.value)))),
+        Container(width: 7, height: 7,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color)),
+      ]),
+    ),
+  );
+}
+
+/// Live "next bus" hero — big departure time per direction with a relative
+/// countdown chip and a pulsing "live" indicator.
 class _NextDepartureCard extends StatelessWidget {
   final List<Trip> toDsc; final List<Trip> fromDsc;
   const _NextDepartureCard({required this.toDsc, required this.fromDsc});
 
-  String _fmt(_NextTrip n) {
-    final rel = n.minutesUntil < 60 ? '${n.minutesUntil}m' : '${n.minutesUntil ~/ 60}h ${n.minutesUntil % 60}m';
-    return '${n.time} (${n.isTomorrow ? 'tomorrow, ' : ''}in $rel)';
+  String _rel(int m) => m < 60 ? '${m}m' : '${m ~/ 60}h ${m % 60}m';
+
+  Widget _leg(BuildContext context, String dir, _NextTrip n) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(7)),
+          child: Text(dir, style: const TextStyle(color: AppColors.holoTeal, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+        ),
+        const SizedBox(width: 10),
+        Text(n.time, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimaryOf(context))),
+        const SizedBox(width: 8),
+        Flexible(child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: AppColors.holoBlue.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(7)),
+          child: Text('${n.isTomorrow ? 'tomorrow · ' : ''}in ${_rel(n.minutesUntil)}',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.holoBlue, fontSize: 11, fontWeight: FontWeight.w700)),
+        )),
+      ]),
+    );
   }
 
   @override
@@ -695,56 +745,150 @@ class _NextDepartureCard extends StatelessWidget {
     final nextTo = _nextDeparture(toDsc, nowMin);
     final nextFrom = _nextDeparture(fromDsc, nowMin);
     if (nextTo == null && nextFrom == null) return const SizedBox.shrink();
-    final textPrimary = AppColors.textPrimaryOf(context);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [
-          AppColors.holoTeal.withValues(alpha: 0.15), AppColors.holoBlue.withValues(alpha: 0.08)]),
-        borderRadius: BorderRadius.circular(14),
+          AppColors.holoTeal.withValues(alpha: 0.16), AppColors.holoBlue.withValues(alpha: 0.06)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.holoTeal.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Row(children: [
-          Icon(Icons.directions_bus_filled_rounded, color: AppColors.holoTeal, size: 18),
+          _PulseDot(color: AppColors.holoTeal),
           SizedBox(width: 8),
           Text('NEXT BUS', style: TextStyle(
-              color: AppColors.holoTeal, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              color: AppColors.holoTeal, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+          Spacer(),
+          Icon(Icons.directions_bus_filled_rounded, color: AppColors.holoTeal, size: 20),
         ]),
-        const SizedBox(height: 10),
-        if (nextTo != null) Text('To DSC: ${_fmt(nextTo)}', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-        if (nextTo != null && nextFrom != null) const SizedBox(height: 4),
-        if (nextFrom != null) Text('From DSC: ${_fmt(nextFrom)}', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+        if (nextTo != null) _leg(context, 'TO DSC', nextTo),
+        if (nextFrom != null) _leg(context, 'FROM DSC', nextFrom),
       ]),
     );
   }
 }
 
-class _ScheduleCard extends StatelessWidget {
-  final String title; final List<Trip> times;
-  const _ScheduleCard({required this.title, required this.times});
+/// One departure time rendered as a compact pill (amber for "coming soon").
+class _TimePill extends StatelessWidget {
+  final Trip trip; final Color accent;
+  const _TimePill({required this.trip, required this.accent});
   @override
   Widget build(BuildContext context) {
+    final soon = trip.isComingSoon;
+    final c = soon ? AppColors.amber : accent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: c.withValues(alpha: 0.32)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(soon ? Icons.hourglass_bottom_rounded : Icons.access_time_rounded, size: 13, color: c),
+        const SizedBox(width: 5),
+        Text(soon ? 'Soon' : (trip.time ?? '—'),
+            style: TextStyle(color: c, fontSize: 12.5, fontWeight: FontWeight.w700)),
+      ]),
+    );
+  }
+}
+
+/// Departure times as a scannable pill grid with a count badge and direction
+/// accent. Trips that carry a note are shown on their own line below so the
+/// exception text (e.g. "Only 1 bus assigned") is never lost.
+class _ScheduleCard extends StatelessWidget {
+  final String title; final List<Trip> times;
+  final IconData icon; final Color accent;
+  const _ScheduleCard({required this.title, required this.times,
+    this.icon = Icons.schedule_rounded, this.accent = AppColors.holoTeal});
+  @override
+  Widget build(BuildContext context) {
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final plain = times.where((t) => t.note == null || t.note!.isEmpty).toList();
+    final noted = times.where((t) => t.note != null && t.note!.isNotEmpty).toList();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
-        const SizedBox(height: 10),
-        ...times.map((t) => Padding(padding: const EdgeInsets.only(bottom: 8),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(t.isComingSoon ? Icons.hourglass_empty_rounded : Icons.access_time,
-                color: t.isComingSoon ? AppColors.amber : AppColors.textSecondaryOf(context), size: 16),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(t.isComingSoon ? 'Coming soon' : (t.time ?? '—'),
-                  style: AppTextStyles.titleMedium.copyWith(
-                      color: t.isComingSoon ? AppColors.amber : AppColors.textPrimaryOf(context))),
-              if (t.note != null && t.note!.isNotEmpty)
-                Text(t.note!, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-            ])),
-          ]))),
+        Row(children: [
+          Icon(icon, size: 15, color: accent),
+          const SizedBox(width: 7),
+          Expanded(child: Text(title.toUpperCase(), style: AppTextStyles.labelSmall.copyWith(
+              color: textSecondary, fontWeight: FontWeight.w800, letterSpacing: 0.4))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+            child: Text('${times.length}', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w800)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        if (plain.isNotEmpty)
+          Wrap(spacing: 8, runSpacing: 8, children: plain.map((t) => _TimePill(trip: t, accent: accent)).toList()),
+        if (noted.isNotEmpty) ...[
+          if (plain.isNotEmpty) const SizedBox(height: 10),
+          ...noted.map((t) => Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              _TimePill(trip: t, accent: accent),
+              const SizedBox(width: 10),
+              Expanded(child: Text(t.note!, style: AppTextStyles.labelSmall.copyWith(color: textSecondary))),
+            ]),
+          )),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Vertical route timeline: connected stop nodes from origin (blue START) down
+/// to the campus destination (teal DESTINATION), replacing the old flat
+/// "A -> B -> C" text so the full route path reads at a glance.
+class _StopsTimeline extends StatelessWidget {
+  final List<String> stops;
+  const _StopsTimeline({required this.stops});
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (int i = 0; i < stops.length; i++)
+        _row(stops[i], i == 0, i == stops.length - 1, textPrimary, textSecondary),
+    ]);
+  }
+
+  Widget _row(String name, bool isFirst, bool isLast, Color textPrimary, Color textSecondary) {
+    final endpoint = isFirst || isLast;
+    final nodeColor = isLast ? AppColors.holoTeal : (isFirst ? AppColors.holoBlue : textSecondary);
+    const line = Color(0x593ECF8E); // teal @ ~0.35, connector
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SizedBox(width: 24, child: Column(children: [
+          Expanded(child: Container(width: 2, color: isFirst ? Colors.transparent : line)),
+          Container(
+            width: endpoint ? 14 : 9, height: endpoint ? 14 : 9,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: endpoint ? nodeColor : nodeColor.withValues(alpha: 0.55),
+              boxShadow: endpoint ? [BoxShadow(color: nodeColor.withValues(alpha: 0.5), blurRadius: 6, spreadRadius: 1)] : null,
+            ),
+          ),
+          Expanded(child: Container(width: 2, color: isLast ? Colors.transparent : line)),
+        ])),
+        const SizedBox(width: 12),
+        Expanded(child: Padding(
+          padding: EdgeInsets.symmetric(vertical: endpoint ? 5 : 4.5),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(name, style: TextStyle(
+                color: endpoint ? textPrimary : textSecondary,
+                fontWeight: endpoint ? FontWeight.w700 : FontWeight.w500,
+                fontSize: endpoint ? 14 : 13)),
+            if (isFirst) const Text('START', style: TextStyle(color: AppColors.holoBlue, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.5))
+            else if (isLast) const Text('DESTINATION', style: TextStyle(color: AppColors.holoTeal, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+          ]),
+        )),
       ]),
     );
   }
@@ -772,14 +916,18 @@ class _AllRoutesTab extends StatelessWidget {
             ]),
             const SizedBox(height: 16),
             if (stopNames.isNotEmpty) ...[
-              Text('Stops', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx), fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text(stopNames.join('  →  '), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+              Row(children: [
+                const Icon(Icons.alt_route_rounded, size: 15, color: AppColors.holoTeal),
+                const SizedBox(width: 7),
+                Text('ROUTE PATH', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx), fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+              ]),
+              const SizedBox(height: 10),
+              _StopsTimeline(stops: stopNames),
               const SizedBox(height: 16),
             ],
-            if (toDsc.isNotEmpty) _ScheduleCard(title: 'Departure Times (To DSC)', times: toDsc),
+            if (toDsc.isNotEmpty) _ScheduleCard(title: 'To DSC', times: toDsc, icon: Icons.login_rounded, accent: AppColors.holoTeal),
             if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
-                child: _ScheduleCard(title: 'Departure Times (From DSC)', times: fromDsc)),
+                child: _ScheduleCard(title: 'From DSC', times: fromDsc, icon: Icons.logout_rounded, accent: AppColors.holoBlue)),
             if (toDsc.isEmpty && fromDsc.isEmpty && stopNames.isEmpty)
               Text('No trip data uploaded for this route yet', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx))),
             const SizedBox(height: 24),
