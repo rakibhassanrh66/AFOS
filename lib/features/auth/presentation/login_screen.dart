@@ -1,13 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../data/repositories/auth_repository.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/auth/biometric_lock.dart';
 import '../../../shared/extensions/context_ext.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -56,6 +59,45 @@ class _LoginBodyState extends State<_LoginBody> {
   @override
   void dispose() { _emailCtrl.dispose(); _passCtrl.dispose(); super.dispose(); }
 
+  /// After a successful login, offer to enable biometric quick-login once
+  /// (mobile only, if the device supports it and it isn't already set up),
+  /// then continue to home. Storing the session JSON only gates a future
+  /// local unlock — it never changes how Supabase issues/validates sessions.
+  Future<void> _afterLogin(BuildContext ctx) async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null &&
+        await BiometricAuth.canUse() &&
+        !await BiometricTokenStore.isEnabled() &&
+        !await BiometricTokenStore.wasPrompted()) {
+      await BiometricTokenStore.markPrompted();
+      if (!ctx.mounted) return;
+      final enable = await showDialog<bool>(
+        context: ctx,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: AppColors.surfaceOf(dctx),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(children: [
+            const Icon(Icons.fingerprint_rounded, color: AppColors.holoBlue),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Faster sign-in?', style: TextStyle(color: AppColors.textPrimaryOf(dctx)))),
+          ]),
+          content: Text('Use your fingerprint or Face ID to unlock AFOS next time, without typing your password.',
+              style: TextStyle(color: AppColors.textSecondaryOf(dctx))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false),
+                child: Text('Not now', style: TextStyle(color: AppColors.textSecondaryOf(dctx)))),
+            TextButton(onPressed: () => Navigator.pop(dctx, true),
+                child: const Text('Enable', style: TextStyle(color: AppColors.holoBlue, fontWeight: FontWeight.w700))),
+          ],
+        ),
+      );
+      if (enable == true) {
+        await BiometricTokenStore.enable(jsonEncode(session.toJson()));
+      }
+    }
+    if (ctx.mounted) ctx.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
@@ -64,7 +106,7 @@ class _LoginBodyState extends State<_LoginBody> {
 
     return BlocListener<AuthBloc, AuthState>(
       listener: (ctx, state) {
-        if(state is AuthAuthenticated) ctx.go('/home');
+        if(state is AuthAuthenticated) _afterLogin(ctx);
         if(state is AuthError) ctx.showSnack(state.message, isError:true);
       },
       child: Scaffold(

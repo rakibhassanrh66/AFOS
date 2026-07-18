@@ -13,6 +13,7 @@ import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
+import '../../features/auth/presentation/unlock_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
 import '../../features/conference_room/presentation/conference_room_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
@@ -72,6 +73,11 @@ class AppRouter {
       // in, /auth/* bounces to /home" rule two lines down doesn't also
       // catch it and skip the password-reset step entirely.
       if (loc == '/reset-password') return null;
+      // Biometric lock: reachable even with a live session (it gates access to
+      // that already-valid session), so it must be exempt from the
+      // "logged-in, /auth/* bounces to /home" rule below — same reasoning as
+      // /reset-password above.
+      if (loc == '/auth/unlock') return null;
       if (session == null) {
         RoleSession.clear();
         return loc.startsWith('/auth') ? null : '/auth/login';
@@ -140,6 +146,8 @@ class AppRouter {
       GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
       GoRoute(path: '/auth/login',
         pageBuilder: (c, s) => fadeScalePage(const LoginScreen(), s)),
+      GoRoute(path: '/auth/unlock',
+        pageBuilder: (c, s) => fadeScalePage(const UnlockScreen(), s)),
       GoRoute(path: '/auth/register',
         pageBuilder: (c, s) => slideUpPage(const RegisterScreen(), s)),
       GoRoute(path: '/auth/forgot-password',

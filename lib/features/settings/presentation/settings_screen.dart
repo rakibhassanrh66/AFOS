@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/theme_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/auth/biometric_lock.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -41,6 +42,8 @@ class _SettingsState extends State<SettingsScreen> {
   String _notificationSound = 'default';
   String _chatBackground = 'default';
   bool _locationSharing = true;
+  bool _biometricSupported = false;
+  bool _biometricEnabled = false;
 
   // Was its own independent, fully-saturated set (not even the same hex
   // values as AppColors' now-recalibrated palette) -- referencing the
@@ -59,7 +62,31 @@ class _SettingsState extends State<SettingsScreen> {
   };
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() { super.initState(); _load(); _loadBiometric(); }
+
+  Future<void> _loadBiometric() async {
+    final supported = await BiometricAuth.canUse();
+    final enabled = await BiometricTokenStore.isEnabled();
+    if (mounted) setState(() { _biometricSupported = supported; _biometricEnabled = enabled; });
+  }
+
+  Future<void> _toggleBiometric(bool on) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (on) {
+      final ok = await BiometricAuth.authenticate('Enable fingerprint / Face ID login');
+      if (!ok) return;
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) return;
+      await BiometricTokenStore.enable(jsonEncode(session.toJson()));
+      if (mounted) setState(() => _biometricEnabled = true);
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Biometric login enabled ✓'), backgroundColor: AppColors.green));
+    } else {
+      await BiometricTokenStore.clear();
+      if (mounted) setState(() => _biometricEnabled = false);
+      messenger.showSnackBar(const SnackBar(content: Text('Biometric login disabled')));
+    }
+  }
 
   @override
   void dispose() { _batchCtrl.dispose(); _sectionCtrl.dispose(); _teacherInitialCtrl.dispose(); super.dispose(); }
@@ -389,6 +416,25 @@ class _SettingsState extends State<SettingsScreen> {
                       onChanged: _updateLocationSharing),
                 ])),
               ]),
+
+              if (_biometricSupported) ...[
+                const SizedBox(height: 16),
+                // ── Security ────────────────────────────────────────────────
+                _Section(title: 'Security', children: [
+                  Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                    const Icon(Icons.fingerprint_rounded, color: AppColors.holoBlue, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Fingerprint / Face ID login', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                      const SizedBox(height: 4),
+                      Text('Unlock AFOS with biometrics next time instead of typing your password. Your session stays only on this device.',
+                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+                    ])),
+                    Switch(value: _biometricEnabled, activeThumbColor: AppColors.holoBlue,
+                        onChanged: _toggleBiometric),
+                  ])),
+                ]),
+              ],
 
               const SizedBox(height: 16),
 
