@@ -1,10 +1,12 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../core/auth/biometric_lock.dart';
 import '../../../core/utils/last_route.dart';
 
 /// Splash motion concept: a clock-style sweep reveals the wordmark
@@ -60,7 +62,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     // Resolve the destination first, then zoom the splash out and hand off.
     final session = Supabase.instance.client.auth.currentSession;
-    final target = session == null ? '/auth/login' : (await loadLastRoute() ?? '/home');
+    String target;
+    if (!kIsWeb && await BiometricTokenStore.isEnabled()) {
+      // Biometric quick-login is set up on this device — gate behind the
+      // Unlock screen (the session is usually already auto-restored; Unlock
+      // recovers it from secure storage otherwise).
+      target = '/auth/unlock';
+    } else {
+      target = session == null ? '/auth/login' : (await loadLastRoute() ?? '/home');
+    }
     if (!mounted) return;
     if (!MediaQuery.of(context).disableAnimations) {
       await _exitCtrl.forward();
