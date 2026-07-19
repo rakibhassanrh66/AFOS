@@ -12,6 +12,7 @@ import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Faculties/Departments registry — read is open to any authenticated user
 /// (public_read_* policies), but only super_admin has an RLS path to write
 /// (super_admin_all), so the add/edit/delete affordances are hidden for
@@ -195,7 +196,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                   ? EmptyState(icon: Icons.account_balance_outlined, title: 'No ${widget.title.toLowerCase()} yet',
                       subtitle: _canWrite ? 'Tap + to add one' : 'Nothing has been added yet')
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8 + GlassBottomNav.navContentClearance),
                       itemCount: _items.length,
                       itemBuilder: (context, i) {
                         final item = _items[i];

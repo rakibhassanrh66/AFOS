@@ -8,6 +8,7 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../data/models/transport_schedule.dart';
 import '../data/transport_import_service.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// The QA gate the admin sees BEFORE any transport data is written: every
 /// parsed route grouped by section (Regular / Shuttle / Friday), each with its
 /// trips + notes and a validation status (ok / warning / error). Pops `true`
@@ -34,7 +35,7 @@ class TransportImportPreviewScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: Column(children: [
-          Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
+          Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
             FeatureHeader(
               title: 'Schedule for ${parsed.semester}',
               subtitle: '${parsed.routes.length} routes'
@@ -194,9 +195,11 @@ class _TripChip extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(comingSoon ? 'Coming soon' : (trip.time ?? '—'),
+        Text(comingSoon ? 'Being updated' : (trip.time ?? '—'),
             style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
-        if (trip.note != null && trip.note!.isNotEmpty)
+        if (comingSoon)
+          Text('time not set yet', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))
+        else if (trip.note != null && trip.note!.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 1),
             child: Text(trip.note!, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),

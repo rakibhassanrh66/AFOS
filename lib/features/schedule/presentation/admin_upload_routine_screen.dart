@@ -11,15 +11,17 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
-import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../auth/data/repositories/academic_repository.dart';
+import '../../shell/presentation/top_app_bar.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../transport/data/transport_excel_parser.dart';
 import '../../transport/data/transport_import_service.dart';
 import '../../transport/data/transport_pdf_parser.dart';
 import '../../transport/presentation/transport_import_preview_screen.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 const _modes = ['class_routine', 'exam_routine', 'transport', 'schedule'];
 String _modeLabel(String m) => switch (m) {
       'transport' => 'Transport Routes',
@@ -222,7 +224,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       // Best-effort (broadcast swallows its own errors) so a notification
       // failure can't undo a successful import; super-admin uploader is allowed
       // the broadcastAll path server-side.
-      await NotificationService.broadcast(
+      final notifyResult = await NotificationService.broadcast(
         // No role/department filter => the service sends broadcastAll (every
         // user), which is correct for a university-wide transport change.
         title: 'Transport schedule updated',
@@ -230,14 +232,31 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
         deepLink: '/transport',
         category: 'transport',
       );
+      // Surface exactly what the notify step did, so a silent failure is
+      // visible instead of the old "routes imported" with no delivery signal.
+      // inAppInserted is the count of user_notifications rows actually created.
+      final notifyNote = _notifyOutcome(notifyResult);
       setState(() => p.result =
           '✅ ${parsed.routes.length} routes imported for ${parsed.semester}'
-          '${validation.warningCount > 0 ? ' (${validation.warningCount} warnings)' : ''}.');
+          '${validation.warningCount > 0 ? ' (${validation.warningCount} warnings)' : ''}.$notifyNote');
     } catch (e) {
       setState(() => p.error = friendlyError(e));
     } finally {
       if (mounted) setState(() => p.uploading = false);
     }
+  }
+
+  /// Turns the broadcast result into a short human note appended to the upload
+  /// result, so the notify step's real outcome is visible instead of silent.
+  /// `inAppInserted` is the number of user_notifications rows actually created —
+  /// the definitive "did a notification get created in the DB" signal.
+  String _notifyOutcome(Map<String, dynamic>? r) {
+    if (r == null) return ' ⚠ Saved, but the update notification could not be sent (check connection/permissions).';
+    if (r['insertError'] != null) return ' ⚠ Saved, but notifying users failed: ${r['insertError']}.';
+    final inApp = (r['inAppInserted'] as num?)?.toInt() ?? 0;
+    if (inApp == 0) return ' ⚠ Saved, but no users were notified (no recipients matched).';
+    final pushNote = r['pushError'] != null ? ' (in-app only — push unavailable)' : '';
+    return ' 🔔 $inApp user${inApp == 1 ? '' : 's'} notified$pushNote.';
   }
 
   Future<void> _uploadAll() async {
@@ -260,37 +279,27 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
     final showDept = _pending.any((p) => p.mode != 'transport');
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
-      appBar: AppBar(
-        title: Text('Upload Schedule / Transport', style: TextStyle(color: textPrimary)),
-        backgroundColor: AppColors.surfaceOf(context),
-        iconTheme: IconThemeData(color: textPrimary),
-      ),
+      // The app's standard floating glass pill — this screen was the only one
+      // inside the shell still on a raw Material AppBar, which also meant it
+      // had no hamburger and no notification bell, leaving the slide menu
+      // unreachable from here. Title matches the slide-menu entry exactly.
+      appBar: const AfosAppBar(title: 'Upload Routine/Transport'),
       body: SingleChildScrollView(
         // Bottom inset so the "Upload All" button clears the floating bottom
         // nav bar (this screen is inside the shell). MediaQuery.padding.bottom
         // already carries the shell's reserved bar space (app_shell.dart).
-        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
+        // Horizontal padding is 16 to match every other feature screen.
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.of(context).padding.bottom),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          RepaintBoundary(
-            child: GlassCard(
-              borderRadius: 20,
-              glowColor: AppColors.holoBlue,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Icon(Icons.upload_file_rounded, color: AppColors.holoBlue, size: 48)
-                      .animate().scale(curve: Curves.easeOutCubic),
-                  const SizedBox(height: 16),
-                  Text('Upload Routines & Transport', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                  const SizedBox(height: 8),
-                  Text('Select one or more PDF/Excel files at once — a class routine, exam routine, and transport '
-                      'sheet can all be uploaded together. Each file gets its own type (guessed from the filename, '
-                      'override if wrong) and is parsed independently.',
-                      style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                ]),
-              ),
-            ),
-          ),
+          const FeatureHeader(
+            title: 'Upload Routines & Transport',
+            subtitle: 'Select one or more PDF/Excel files at once — a class routine, exam routine, and '
+                'transport sheet can all go up together. Each file gets its own type (guessed from the '
+                'filename, override if wrong) and is parsed independently.',
+            icon: Icons.upload_file_rounded,
+            accent: AppColors.holoBlue,
+            margin: EdgeInsets.fromLTRB(0, 16, 0, 12),
+          ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06),
           if (showDept) ...[
             const SizedBox(height: 20),
             if (_loadingDepts)
@@ -322,7 +331,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             // this account's own profile department regardless of anything
             // the client could send).
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10 + GlassBottomNav.navContentClearance),
               decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.borderOf(context))),
               child: Row(children: [

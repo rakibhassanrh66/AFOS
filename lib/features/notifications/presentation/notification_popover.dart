@@ -9,6 +9,7 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Compact floating notification panel, anchored under the app-bar bell.
 ///
 /// The bell deliberately does NOT navigate to the full-screen center any
@@ -239,7 +240,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                       )
                     : ListView.separated(
                         shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.fromLTRB(0, 4, 0, 4 + GlassBottomNav.navContentClearance),
                         itemCount: _notifs.length,
                         separatorBuilder: (_, __) =>
                             Divider(height: 1, indent: 56, color: glass.glassBorder),

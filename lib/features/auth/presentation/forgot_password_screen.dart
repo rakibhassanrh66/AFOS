@@ -16,6 +16,7 @@ import '../../../core/utils/validators.dart';
 import '../../../core/utils/responsive.dart';
 import 'widgets/auth_brand_panel.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class ForgotPasswordScreen extends StatelessWidget {
   const ForgotPasswordScreen({super.key});
   @override
@@ -59,7 +60,7 @@ class _ForgotBodyState extends State<_ForgotBody> {
           builder: (context, outer) {
             final formCard = SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24 + GlassBottomNav.navContentClearance),
                 child: Center(child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity),
                   child: GlassCard(

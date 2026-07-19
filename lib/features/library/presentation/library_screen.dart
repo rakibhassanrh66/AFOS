@@ -13,6 +13,7 @@ import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
   @override State<LibraryScreen> createState() => _LibraryState();
@@ -185,7 +186,7 @@ class _BorrowedTab extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       color: AppColors.blue,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
         if (fine > 0) RepaintBoundary(
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -335,7 +336,7 @@ class _SearchTab extends StatelessWidget {
           ? const EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
           : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0 + GlassBottomNav.navContentClearance),
               itemCount: results.length,
               itemBuilder: (ctx, i) {
                 final b = results[i];
@@ -399,7 +400,7 @@ class _SearchTab extends StatelessWidget {
             ]));
           }
           return SafeArea(child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24 + GlassBottomNav.navContentClearance),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 64, height: 88,

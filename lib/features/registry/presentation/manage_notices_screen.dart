@@ -13,6 +13,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Super Admin / admin / teacher content management for notices, rules,
 /// and announcements — creating one here immediately writes to Supabase
 /// (the list below is a live stream, so every open dashboard/notifications
@@ -189,7 +190,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
           : _notices.isEmpty
               ? const EmptyState(icon: Icons.campaign_outlined, title: 'Nothing published yet',
                   subtitle: 'Create a notice, rule, or announcement')
-              : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _notices.length,
+              : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _notices.length,
                   itemBuilder: (ctx, i) {
                     final n = _notices[i];
                     final category = n['category'] as String? ?? 'notice';

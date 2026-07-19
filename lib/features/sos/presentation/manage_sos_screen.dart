@@ -14,6 +14,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Admin/staff oversight of every SOS alert system-wide -- same filter-tab
 /// + refetch-on-any-change pattern as manage_hall_screen.dart, since
 /// sos_alerts.stream() can't embed the sender's profile either.
@@ -111,8 +112,8 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                         style: AppTextStyles.titleMedium.copyWith(
                             color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
                     Text(enabled
-                            ? 'Visible & usable by all users right now'
-                            : 'Hidden for general users — only you can use SOS',
+                            ? 'SOS button is visible & usable by everyone right now'
+                            : 'SOS button is hidden for everyone — flip on for an emergency',
                         style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                   ])),
                   Switch(value: enabled, activeThumbColor: AppColors.red, onChanged: _toggleSos),
@@ -144,7 +145,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                   ])))
                 : _visible.isEmpty
                     ? EmptyState(icon: Icons.sos_rounded, title: 'Nothing here', subtitle: 'No "$_filter" alerts right now')
-                    : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
+                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final a = _visible[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};

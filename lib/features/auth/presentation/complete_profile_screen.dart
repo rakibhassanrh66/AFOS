@@ -16,6 +16,7 @@ import '../../../core/utils/validators.dart';
 import '../data/repositories/academic_repository.dart';
 import '../../../shared/models/user_model.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Force-completion gate for accounts that skipped mandatory fields at
 /// signup (an older/looser signup path, or an admin-created account) —
 /// the router redirects here and won't let the user past it until saved.
@@ -325,7 +326,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       body: SafeArea(child: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24 + GlassBottomNav.navContentClearance),
               child: GlassCard(
                 glowColor: AppColors.holoBlue,
                 child: Padding(

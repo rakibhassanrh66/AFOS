@@ -10,6 +10,7 @@ import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Staff/admin-side book checkout — real DIU library policy requires a
 /// physical sign-in/handover, so borrowing was never meant to be pure
 /// student self-service. Previously there was no way for ANYONE to issue a
@@ -106,7 +107,7 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
                     ])))
                   : _activeBorrows.isEmpty
                       ? const EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
-                      : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _activeBorrows.length,
+                      : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _activeBorrows.length,
                           itemBuilder: (ctx, i) {
                             final b = _activeBorrows[i];
                             final book = b['books'] as Map<String, dynamic>? ?? {};
@@ -212,7 +213,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Student', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
         const SizedBox(height: 8),

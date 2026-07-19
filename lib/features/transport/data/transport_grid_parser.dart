@@ -182,12 +182,17 @@ class TransportGridParser {
         .map((s) => s.replaceAll(RegExp(r'[<>]'), '').trim())
         .where((p) => p.isNotEmpty)
         .toList();
+    // DSC / "Daffodil Smart City" is the single canonical destination and must
+    // appear exactly once. Strip every DSC entry while building, then append one
+    // canonical DSC at the end (routes always terminate at the campus), so a
+    // details string that names DSC more than once can never yield two stops.
     final stops = <String>[];
+    var hadDsc = false;
     for (final p in parts) {
-      final canon = _isDsc(p) ? kCanonicalDestination : p;
-      if (stops.isNotEmpty && _isDsc(stops.last) && _isDsc(canon)) continue;
-      stops.add(canon);
+      if (_isDsc(p)) { hadDsc = true; continue; }
+      stops.add(p);
     }
+    if (hadDsc) stops.add(kCanonicalDestination);
     return stops;
   }
 

@@ -13,6 +13,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'payment_webview_screen.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
   @override State<PaymentScreen> createState() => _PaymentState();
@@ -134,7 +135,7 @@ class _PayNowTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance),
       // Fixed 2-column count stretched into 2 giant tiles on a wide desktop
       // browser window; max-extent keeps each tile a consistent size and
       // adds columns as space allows instead (see dashboard_screen.dart).
@@ -220,7 +221,7 @@ class _HistoryTab extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
       itemCount: history.length,
       itemBuilder: (ctx, i) {
         final p = history[i];

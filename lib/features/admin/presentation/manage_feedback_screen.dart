@@ -11,6 +11,7 @@ import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// super_admin-only review queue for the feedback/contribution box — the
 /// underlying `feedback` table previously had zero SELECT policy at all,
 /// so every submission anyone ever sent was write-only and unreadable by
@@ -147,7 +148,7 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                 : _visible.isEmpty
                     ? ListView(children: [EmptyState(icon: Icons.feedback_outlined, title: 'Nothing here', subtitle: 'Nothing in "$_filter" right now')])
                     : RefreshIndicator(onRefresh: _load, color: AppColors.holoviolet,
-                        child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
+                        child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final item = _visible[i];
                           final profile = item['profiles'] as Map<String, dynamic>? ?? {};

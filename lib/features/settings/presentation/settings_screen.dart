@@ -20,9 +20,11 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/logout_tile.dart';
+import '../../../shared/widgets/radial_logout_menu.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
   @override State<SettingsScreen> createState() => _SettingsState();
@@ -256,25 +258,13 @@ class _SettingsState extends State<SettingsScreen> {
     if (mounted) setState(() => _saving = false);
   }
 
-  Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.surfaceOf(dialogCtx),
-        title: Text('Log out?', style: TextStyle(color: AppColors.textPrimaryOf(dialogCtx))),
-        content: Text('Are you sure you want to sign out of AFOS?',
-            style: TextStyle(color: AppColors.textSecondaryOf(dialogCtx))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(dialogCtx, true),
-              child: const Text('Log out', style: TextStyle(color: AppColors.red))),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await Supabase.instance.client.auth.signOut();
-      if (mounted) context.go('/auth/login');
-    }
+  /// [tileCtx] is the Logout row's own context — the radial leave menu bursts
+  /// out of that row's render box. Shares `applyLogoutChoice` with the slide
+  /// menu so both entry points behave identically.
+  Future<void> _logout(BuildContext tileCtx) async {
+    final choice = await showRadialLogoutMenu(tileCtx);
+    if (!tileCtx.mounted) return;
+    await applyLogoutChoice(tileCtx, choice);
   }
 
   @override
@@ -284,7 +274,7 @@ class _SettingsState extends State<SettingsScreen> {
       appBar: const AfosAppBar(title: 'Settings'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
-          : ListView(padding: const EdgeInsets.all(16), children: [
+          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
 
               // Profile identity now lives on its own /profile screen (bottom
               // nav) so it isn't shown in two places — Settings keeps only
@@ -461,7 +451,8 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 24),
 
               // ── Logout ───────────────────────────────────────────────────
-              LogoutTile(onTap: _logout),
+              // Builder so the tile has its OWN context for the burst origin.
+              Builder(builder: (tileCtx) => LogoutTile(onTap: () => _logout(tileCtx))),
               const SizedBox(height: 40),
             ]),
     );

@@ -20,6 +20,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'club_chat_screen.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 IconData categoryIcon(String? category) => switch (category) {
       'Tech' => Icons.memory_rounded,
       'Sports' => Icons.sports_soccer_rounded,
@@ -533,7 +534,7 @@ class _ClubList extends StatelessWidget {
     if (clubs.isEmpty) return const EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
     final canJoin = RoleSession.role == 'student';
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: clubs.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: clubs.length,
         itemBuilder: (ctx, i) {
           final c = clubs[i];
           final clubId = c['id'] as String?;
@@ -601,7 +602,7 @@ class _MyClubsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.group_add_rounded,
         title: 'No clubs joined', subtitle: 'Discover and request to join clubs from the Discover tab');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: myClubs.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: myClubs.length,
         itemBuilder: (ctx, i) {
           final m = myClubs[i];
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
@@ -704,7 +705,7 @@ class _EventsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.event_rounded,
         title: 'No upcoming events', subtitle: 'Events will appear here');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: events.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: events.length,
         itemBuilder: (ctx, i) {
           final e = events[i];
           final eventId = e['id'] as String?;

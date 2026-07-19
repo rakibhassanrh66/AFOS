@@ -12,6 +12,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Teacher/staff-facing conference room booking — request purpose/date/
 /// time, super_admin approves and assigns the actual room number.
 class ConferenceRoomScreen extends StatefulWidget {
@@ -106,7 +107,7 @@ class _RequestsList extends StatelessWidget {
       return const EmptyState(icon: Icons.meeting_room_outlined,
         title: 'No requests yet', subtitle: 'Submit a new request from the other tab');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: requests.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: requests.length,
         itemBuilder: (ctx, i) {
           final r = requests[i];
           final status = r['status'] as String? ?? 'pending';
@@ -202,7 +203,7 @@ class _NewRequestFormState extends State<_NewRequestForm> {
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
-    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Request a Conference Room', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 20),
       AfosTextField(hint: 'Purpose (e.g. Department meeting)', controller: _purposeCtrl, maxLines: 2),

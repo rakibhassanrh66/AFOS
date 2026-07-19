@@ -15,6 +15,7 @@ import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class HallScreen extends StatefulWidget {
   const HallScreen({super.key});
   @override State<HallScreen> createState() => _HallState();
@@ -145,7 +146,7 @@ class _MyApplicationTab extends StatelessWidget {
     final stepIndex = {'pending': 0, 'reviewing': 1, 'approved': 2, 'rejected': 2}[status] ?? 0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Application Status', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
         const SizedBox(height: 20),
@@ -443,7 +444,7 @@ class _ApplyTabState extends State<_ApplyTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance),
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -590,7 +591,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance),
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

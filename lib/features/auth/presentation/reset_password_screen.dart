@@ -11,6 +11,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/responsive.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Reached only via a Supabase password-recovery link (bootstrap.dart's
 /// AuthChangeEvent.passwordRecovery listener routes here) -- there was
 /// previously no screen at all tied to that event, so clicking the emailed
@@ -62,7 +63,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       body: LayoutBuilder(builder: (context, outer) {
         return SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24 + GlassBottomNav.navContentClearance),
             child: Center(child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity),
               child: GlassCard(
