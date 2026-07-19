@@ -12,6 +12,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Active SOS alerts within 5km of the current user -- gated entirely by
 /// sos_alerts' nearby_select_sos_alerts RLS policy (live-verified), not
 /// client-side filtering. Anyone reachable here is someone who could
@@ -71,7 +72,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
             : _error != null
-                ? ListView(children: [Padding(padding: const EdgeInsets.all(24), child: Column(children: [
+                ? ListView(children: [Padding(padding: const EdgeInsets.fromLTRB(24, 24, 24, 24 + GlassBottomNav.navContentClearance), child: Column(children: [
                     Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
                     const SizedBox(height: 12),
                     TextButton(onPressed: _load, child: const Text('Retry')),
@@ -80,7 +81,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                     ? ListView(children: const [EmptyState(icon: Icons.shield_outlined,
                         title: 'No active alerts near you',
                         subtitle: "You'll see it here if someone nearby needs help.")])
-                    : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _alerts.length,
+                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _alerts.length,
                         itemBuilder: (ctx, i) {
                           final a = _alerts[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};

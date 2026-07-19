@@ -19,6 +19,7 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -231,6 +232,75 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
     if (confirm) await _deleteUser(user);
   }
 
+  // Roles a super-admin can assign. `all` is only a filter, not a role.
+  static const _assignableRoles = ['student', 'teacher', 'staff', 'admin', 'dept_admin', 'exam_controller', 'super_admin'];
+
+  Future<String?> _pickRole(String current) => showGlassModal<String>(context,
+      builder: (sheetCtx) => SafeArea(child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24 + GlassBottomNav.navContentClearance),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Assign a role', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+          const SizedBox(height: 4),
+          Text('Takes effect immediately — access is enforced by the database (RLS).',
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+          const SizedBox(height: 12),
+          ..._assignableRoles.map((r) {
+            final sel = r == current;
+            final c = _UserCard._roleColors[r] ?? AppColors.textSecondary;
+            return ListTile(
+              dense: true,
+              leading: Icon(sel ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded, color: c, size: 20),
+              title: Text(r, style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx),
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+              trailing: sel ? Text('current', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx), fontSize: 11)) : null,
+              onTap: () => Navigator.pop(sheetCtx, r),
+            );
+          }),
+        ]),
+      )));
+
+  /// Super-admin changes another user's role. `profiles.role` (text) is the
+  /// authorization source of truth (`get_my_profile_role()`); `role_id` is kept
+  /// in sync from the `roles` table so the permission joins stay consistent.
+  /// The existing RLS policy (`admin_manage_all_profiles`) + privileged-column
+  /// trigger already permit a super-admin to write another user's role.
+  Future<void> _setRole(Map<String, dynamic> user) async {
+    if (user['id'] == SupabaseConfig.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You can't change your own role"), backgroundColor: AppColors.red));
+      return;
+    }
+    final current = user['role'] as String? ?? 'student';
+    final picked = await _pickRole(current);
+    if (picked == null || picked == current || !mounted) return;
+    final confirm = await _confirmAction('Change role?',
+        'Set ${user['full_name'] ?? 'this user'}\'s role to "$picked"? Their access changes immediately.',
+        'Change role');
+    if (!confirm) return;
+    try {
+      final roleRow = await SupabaseConfig.client.from('roles').select('id').eq('name', picked).maybeSingle();
+      final update = <String, dynamic>{'role': picked};
+      if (roleRow != null && roleRow['id'] != null) update['role_id'] = roleRow['id'];
+      await SupabaseConfig.client.from('profiles').update(update).eq('id', user['id']);
+      await NotificationService.sendToUsers(
+        userIds: [user['id'] as String],
+        title: 'Your role was updated',
+        message: 'A super-admin set your AFOS account role to "$picked".',
+        category: 'general',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('${user['full_name'] ?? 'User'} is now "$picked"'), backgroundColor: AppColors.green));
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,7 +345,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     : _pending.isEmpty
                     ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
-                    : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _pending.length,
+                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _pending.length,
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
                             onReject: () => _rejectAndDelete(_pending[i]),
@@ -285,7 +355,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     : _crRequests.isEmpty
                     ? const EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
                         subtitle: 'Student requests to become Class Representative will show up here')
-                    : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _crRequests.length,
+                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _crRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _crRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -332,9 +402,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
-                      : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _filtered.length,
+                      : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _filtered.length,
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
-                              onDelete: () => _confirmDelete(_filtered[i])))),
+                              onDelete: () => _confirmDelete(_filtered[i]),
+                              onChangeRole: () => _setRole(_filtered[i])))),
                 ]),
               ])),
       ]),
@@ -363,8 +434,8 @@ class _StatDivider extends StatelessWidget {
 
 class _UserCard extends StatelessWidget {
   final Map<String, dynamic> user; final bool pending;
-  final VoidCallback? onApprove, onReject, onDelete;
-  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete});
+  final VoidCallback? onApprove, onReject, onDelete, onChangeRole;
+  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete, this.onChangeRole});
 
   static const _roleColors = {
     'super_admin': AppColors.holoviolet, 'admin': AppColors.holoBlue, 'dept_admin': AppColors.holoTeal,
@@ -394,7 +465,7 @@ class _UserCard extends StatelessWidget {
     showGlassModal(context,
         builder: (sheetCtx) => SafeArea(
             child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24 + GlassBottomNav.navContentClearance),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     CircleAvatar(radius: 24, backgroundColor: color.withValues(alpha: 0.15),
@@ -416,6 +487,14 @@ class _UserCard extends StatelessWidget {
                         Expanded(child: Text(r.value,
                             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
                       ]))),
+                  if (onChangeRole != null) ...[
+                    const SizedBox(height: 18),
+                    SizedBox(width: double.infinity, child: FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: AppColors.holoviolet),
+                        onPressed: () { Navigator.pop(sheetCtx); onChangeRole!(); },
+                        icon: const Icon(Icons.manage_accounts_rounded, size: 18),
+                        label: const Text('Change role'))),
+                  ],
                 ]))));
   }
 

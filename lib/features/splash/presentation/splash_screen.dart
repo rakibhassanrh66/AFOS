@@ -23,6 +23,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late AnimationController _particleCtrl; // ambient drifting dots
   late AnimationController _glowCtrl;      // holo glow pulse
   late AnimationController _handCtrl;      // continuous clock hand sweep
+  late AnimationController _introCtrl;     // dramatic letter-by-letter logo punch-in
   late AnimationController _revealCtrl;    // one-shot right-to-left wipe reveal
   late AnimationController _exitCtrl;      // zoom-out on hand-off
   final List<_Particle> _particles = [];
@@ -34,8 +35,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _particleCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
     _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
     _handCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat();
+    _introCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
     _revealCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
-    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
     final rng = Random();
     for (int i = 0; i < 60; i++) {
       _particles.add(_Particle(
@@ -50,8 +52,10 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<void> _run() async {
-    // The clock sweeps the wordmark open right-to-left.
-    await Future.delayed(const Duration(milliseconds: 400));
+    // The AFOS logo punches in first (letter-by-letter spring pop), then the
+    // clock sweeps the wordmark open right-to-left.
+    _introCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     _revealCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 900));
@@ -85,6 +89,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _particleCtrl.dispose();
     _glowCtrl.dispose();
     _handCtrl.dispose();
+    _introCtrl.dispose();
     _revealCtrl.dispose();
     _exitCtrl.dispose();
     super.dispose();
@@ -108,33 +113,48 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           child: AnimatedBuilder(
             animation: _exitCtrl,
             builder: (_, child) {
-              // Dramatic camera-punch hand-off: a tiny anticipation dip below
-              // 1.0 (wind-up), then a big spring overshoot outward to ~2.5x,
-              // with the fade held off until the punch is well underway — so it
-              // reads as a physical pull-back/burst, not a subtle scale-down.
+              // Camera-punch hand-off: easeInBack dips below 1.0 first (a
+              // physical wind-up), then the whole lockup flies AT the viewer to
+              // ~5.5x while rotating a few degrees, so it reads as a violent
+              // burst past the camera rather than a polite scale-up. The fade
+              // is held off until the punch is well underway, and a white flash
+              // fires at the very end to blow out into the next screen.
               final t = _exitCtrl.value;
-              final scale = 1.0 + 1.5 * Curves.easeInBack.transform(t);
-              final fade = const Interval(0.32, 1.0, curve: Curves.easeIn).transform(t);
+              final punch = Curves.easeInBack.transform(t);
+              final scale = 1.0 + 4.5 * punch;
+              final spin = 0.06 * punch; // radians — a slight barrel roll
+              final fade = const Interval(0.55, 1.0, curve: Curves.easeIn).transform(t);
               return Opacity(
                 opacity: (1 - fade).clamp(0.0, 1.0),
-                child: Transform.scale(scale: scale, child: child),
+                child: Transform.rotate(
+                  angle: spin,
+                  child: Transform.scale(scale: scale, child: child),
+                ),
               );
             },
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               // Clock-style loader: a dial + sweeping hand behind the logo mark.
               SizedBox(
-                width: 132, height: 132,
+                width: 200, height: 200,
                 child: Stack(alignment: Alignment.center, children: [
                   AnimatedBuilder(
                     animation: Listenable.merge([_handCtrl, _glowCtrl]),
                     builder: (_, __) => CustomPaint(
-                      size: const Size(132, 132),
+                      size: const Size(200, 200),
                       painter: _ClockSweepPainter(t: _handCtrl.value, glow: _glowCtrl.value),
                     ),
                   ),
-                  // The AFOS monogram in the dial center.
-                  const Text('AFOS', style: TextStyle(
-                      color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  // The AFOS monogram punches in letter-by-letter — a dramatic
+                  // spring pop toward the viewer, tinted with the brand duo.
+                  AnimatedBuilder(
+                    animation: _introCtrl,
+                    builder: (_, __) => ShaderMask(
+                      shaderCallback: (r) => AppColors.holoGradient.createShader(r),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        for (var i = 0; i < 4; i++) _monoLetter('AFOS'[i], i),
+                      ]),
+                    ),
+                  ),
                 ]),
               ),
               const SizedBox(height: 28),
@@ -147,7 +167,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   child: ShaderMask(
                     shaderCallback: (rect) => AppColors.holoGradient.createShader(rect),
                     child: const Text('All Facilities One System',
-                        style: TextStyle(color: Colors.white, fontSize: 17, letterSpacing: 1.5, fontWeight: FontWeight.w500)),
+                        style: TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 1.8, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ),
@@ -166,7 +186,46 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
             ]),
           ),
         ),
+        // Blow-out flash at the very end of the punch, so the hand-off to the
+        // next screen lands hard instead of politely cross-fading. Deliberately
+        // ONE brief brand-tinted flash capped below full white — a repeated or
+        // pure-white strobe is a photosensitivity hazard — and skipped entirely
+        // when the user has asked for reduced motion.
+        if (!MediaQuery.of(context).disableAnimations)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _exitCtrl,
+                builder: (_, __) {
+                  final f = const Interval(0.74, 1.0, curve: Curves.easeIn).transform(_exitCtrl.value);
+                  return Opacity(
+                    opacity: (f * 0.7).clamp(0.0, 1.0),
+                    child: const ColoredBox(color: Color(0xFFEAFFF6)),
+                  );
+                },
+              ),
+            ),
+          ),
       ]),
+    );
+  }
+
+  /// One monogram letter, popped in with a staggered elastic spring so the
+  /// word "AFOS" bursts toward the viewer letter-by-letter at launch.
+  Widget _monoLetter(String ch, int i) {
+    final v = _introCtrl.value;
+    // Tighter stagger (0.09) so the four letters land as one hard burst rather
+    // than a leisurely one-by-one drift.
+    final start = i * 0.09;
+    final pop = Interval(start, (start + 0.55).clamp(0.0, 1.0), curve: Curves.elasticOut).transform(v);
+    final op = Interval(start, (start + 0.18).clamp(0.0, 1.0), curve: Curves.easeOut).transform(v);
+    return Opacity(
+      opacity: op.clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: 0.3 + 0.7 * pop,
+        child: Text(ch, style: const TextStyle(
+            color: Colors.white, fontSize: 56, fontWeight: FontWeight.w900, letterSpacing: 1, height: 1.0)),
+      ),
     );
   }
 

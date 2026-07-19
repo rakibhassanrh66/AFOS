@@ -15,6 +15,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Reached from the SOS push notification's deep link ('/sos/:id') or from
 /// manage_sos_screen.dart's oversight list. Shows the sender's live
 /// position (flutter_map/OSM -- no Google Maps key needed, same as
@@ -208,7 +209,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
     final voicePath = a['voice_path'] as String?;
     final point = LatLng(lat, lng);
 
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
       Row(children: [
         CircleAvatar(radius: 24, backgroundColor: AppColors.red.withValues(alpha: 0.15),
             backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url']) : null,

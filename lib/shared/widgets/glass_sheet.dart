@@ -40,9 +40,10 @@ class GlassSheet extends StatelessWidget {
         filter: LiquidGlass.frost(LiquidGlass.blurFloating),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            // Sheets sit over dimmed content, so the fill leans on the
-            // canvas color for legibility instead of pure translucency.
-            color: Color.alphaBlend(AppColors.glassFill(context), glass.canvas.withValues(alpha: 0.86)),
+            // Sheets sit over dimmed content, so the fill leans on the canvas
+            // color for legibility — but lowered (0.86 -> 0.6) so the frost
+            // reads as translucent glass rather than a flat solid panel.
+            color: Color.alphaBlend(AppColors.glassFill(context), glass.canvas.withValues(alpha: 0.6)),
             borderRadius: radius,
             border: Border.all(color: glass.glassBorder, width: 1),
           ),

@@ -26,8 +26,12 @@ class LiquidGlass {
   static const Color canvasLight = Color(0xFFF4F6FB);
 
   // --- Glass fills ---
-  static const Color glassFillDark = Color(0x0FFFFFFF); // white 6%
-  static const Color glassFillLight = Color(0x8CFFFFFF); // white 55%
+  // Kept intentionally low so the BackdropFilter blur genuinely shows through
+  // (a translucent frosted panel, not a flat solid block). Dark canvas needs
+  // only a whisper of white; light canvas needs a bit more to read against
+  // near-white, but well below the old near-opaque 55%.
+  static const Color glassFillDark = Color(0x14FFFFFF); // white ~8%
+  static const Color glassFillLight = Color(0x40FFFFFF); // white ~25%
 
   // --- Glass borders (tinted, not grey) ---
   static const Color glassBorderDark = Color(0x333ECF8E); // teal 20%

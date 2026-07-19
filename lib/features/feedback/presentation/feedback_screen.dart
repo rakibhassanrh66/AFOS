@@ -16,6 +16,7 @@ import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Open to every user (unlike ManageFeedbackScreen, which is the
 /// super_admin-only moderation queue for the same `feedback` table) — a
 /// place to share an idea or contribution plan and see the status of what
@@ -136,7 +137,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       body: RefreshIndicator(onRefresh: _load, color: AppColors.teal,
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-            : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
+            : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96 + GlassBottomNav.navContentClearance), children: [
                 const FeatureHeader(
                   title: 'Feedback & Ideas',
                   subtitle: 'Anyone can share one — a super admin reviews every submission',

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/auth/role_session.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -18,7 +19,11 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/models/transport_schedule.dart';
 import '../data/repositories/transport_repository.dart';
+import '../data/stop_offsets_repository.dart';
+import '../data/stop_time_calculator.dart';
+import 'manage_stop_times_screen.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Reads a route row's per-trip objects ({time, note, status}) for one
 /// direction into typed [Trip]s, dropping blanks.
 List<Trip> _tripsOf(Map r, String key) =>
@@ -70,6 +75,20 @@ _NextTrip? _nextDeparture(List<Trip> trips, int nowMinutes) {
 /// stop name (older imports split inconsistent delimiters imperfectly), so no
 /// delimiter can ever reach a rendered widget even for pre-existing DB rows.
 String _cleanStop(String s) => s.replaceAll(RegExp(r'[<>]'), '').trim();
+
+/// Friendly message shown for a trip slot the admin hasn't finalized yet (a
+/// "Coming Soon" cell) — never a blank cell or an error.
+const String _kSoonMsg = 'Time being updated — check back soon';
+
+/// Display form of a stored route name: turn the raw "<>"/">" separators into a
+/// clean "›" and normalize the "DSC" shorthand to the single canonical
+/// destination ([kCanonicalDestination]) so a route title never disagrees with
+/// the stop list / pickers, which already only ever show "Daffodil Smart City".
+String _displayRouteName(String raw) {
+  var s = raw.replaceAll(RegExp(r'\s*[<>]+\s*'), ' › ');
+  s = s.replaceAll(RegExp(r'\bDSC\b', caseSensitive: false), kCanonicalDestination);
+  return s.trim();
+}
 
 Future<void> _openInGoogleMaps(List<String> stopNames) async {
   final origin = Uri.encodeComponent('${stopNames.first}, Dhaka, Bangladesh');
@@ -322,6 +341,21 @@ class _FindRouteTab extends StatefulWidget {
 
 class _FindRouteTabState extends State<_FindRouteTab> {
   String? _from, _to;
+  // Admin-recorded per-stop timings, keyed by StopOffset.keyFor(). Empty until
+  // loaded (and stays empty if nothing has been recorded yet) — every consumer
+  // treats "absent" as "unknown", never as zero.
+  Map<String, StopOffset> _offsets = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOffsets();
+  }
+
+  Future<void> _loadOffsets() async {
+    final o = await StopOffsetsRepository.fetchAll();
+    if (mounted && o.isNotEmpty) setState(() => _offsets = o);
+  }
 
   List<String> get _stopNames {
     final names = <String>{};
@@ -337,23 +371,44 @@ class _FindRouteTabState extends State<_FindRouteTab> {
   }
 
   List<_RouteMatch> get _matches {
-    if (_from == null || _to == null || _from == _to) return const [];
+    // A single picked stop is enough: resolve every route that stops there back
+    // to its parent route and show that route's real to/from-DSC times (stops
+    // are pickup points on a route, never independent schedule entities). When
+    // both are picked, require both to be on the same route.
+    if (_from == null && _to == null) return const [];
+    if (_from != null && _to != null && _from == _to) return const [];
+    // The stop the user is asking about: their origin if they picked one,
+    // otherwise the destination they picked.
+    final focus = _from ?? _to;
     final results = <_RouteMatch>[];
     for (final r in widget.routes) {
       final stops = ((r['stops'] as List?) ?? const [])
           .cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).toList();
-      final fromIdx = stops.indexWhere((s) => s == _from);
-      final toIdx = stops.indexWhere((s) => s == _to);
-      if (fromIdx == -1 || toIdx == -1) continue;
-      // The sheet gives per-trip times to/from DSC, not per-stop times, so
-      // we surface the route's daily trip schedule rather than a single
-      // board/arrive time we don't actually have data for.
+      if (_from != null && !stops.contains(_from)) continue;
+      if (_to != null && !stops.contains(_to)) continue;
+      final routeNumber = r['route_number'] as String? ?? '?';
+      final scheduleType = r['schedule_type'] as String? ?? 'regular';
+      final toDsc = _tripsOf(r, 'to_dsc_trips');
+      final fromDsc = _tripsOf(r, 'from_dsc_trips');
+      // Where the focused stop sits in this route's running order — the index
+      // was previously computed and thrown away, but it's exactly what turns
+      // "this route stops there" into "your stop is 4th, after ECB Chattor".
+      final idx = focus == null ? -1 : stops.indexOf(focus);
+      final offset = focus == null ? null : _offsets[StopOffset.keyFor(routeNumber, scheduleType, focus)];
       results.add((
         routeId: r['id'] as String,
-        routeNumber: r['route_number'] as String? ?? '?',
+        routeNumber: routeNumber,
         routeName: r['route_name'] as String? ?? 'Route',
-        toDsc: _tripsOf(r, 'to_dsc_trips'),
-        fromDsc: _tripsOf(r, 'from_dsc_trips'),
+        toDsc: toDsc,
+        fromDsc: fromDsc,
+        stopIndex: idx,
+        stopCount: stops.length,
+        originName: stops.isEmpty ? null : stops.first,
+        // Real per-stop times, but ONLY when an admin actually recorded the
+        // offset. Null means "not known" and the UI must say so rather than
+        // present the route-level time as if it were the stop's.
+        stopToDsc: StopTimeCalculator.shiftAll(toDsc, offset?.minutesFromOrigin),
+        stopFromDsc: StopTimeCalculator.shiftAll(fromDsc, offset?.minutesFromDsc),
       ));
     }
     return results;
@@ -372,9 +427,14 @@ class _FindRouteTabState extends State<_FindRouteTab> {
       ])));
     }
     final matches = _matches;
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    // The stop whose times the user is really asking about.
+    final focusStop = _from ?? _to;
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
       Text('Where are you, and where are you going?',
           style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+      const SizedBox(height: 4),
+      Text('Pick a stop to see its route — add a destination to narrow it down.',
+          style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
       const SizedBox(height: 16),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -403,11 +463,11 @@ class _FindRouteTabState extends State<_FindRouteTab> {
       const SizedBox(height: 20),
       if (_from != null && _to != null && _from == _to)
         Text('Pick two different stops', style: TextStyle(color: textSecondary))
-      else if (_from != null && _to != null && matches.isEmpty)
+      else if ((_from != null || _to != null) && matches.isEmpty)
         Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.route_outlined, size: 34, color: textSecondary),
           const SizedBox(height: 10),
-          Text('No route covers that trip', style: TextStyle(color: textSecondary)),
+          Text(_to == null ? 'No route stops there yet' : 'No route covers that trip', style: TextStyle(color: textSecondary)),
         ])))
       else
         ...matches.map((m) => SurfaceCard(
@@ -425,12 +485,16 @@ class _FindRouteTabState extends State<_FindRouteTab> {
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Expanded(child: Text(m.routeName, style: AppTextStyles.titleMedium.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(_displayRouteName(m.routeName), style: AppTextStyles.titleMedium.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 6),
                 _LiveStatusBadge(status: widget.liveStatus[m.routeId]),
               ]),
-              Text('$_from → $_to', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-              const SizedBox(height: 6),
+              Text(_from != null && _to != null ? '$_from → $_to' : (_from != null ? 'Stops at $_from' : 'Stops at $_to'),
+                  style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+              // The plain-language answer to "when is the bus at my stop?".
+              if (focusStop != null) _StopAnswerCard(match: m, stop: focusStop),
+              // The route's own timetable stays below, clearly labelled as
+              // to/from DSC so the two are never confused with each other.
               if (m.toDsc.isNotEmpty) _TimeChipsRow(label: 'To DSC', times: m.toDsc),
               if (m.fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
                   child: _TimeChipsRow(label: 'From DSC', times: m.fromDsc)),
@@ -441,7 +505,192 @@ class _FindRouteTabState extends State<_FindRouteTab> {
   }
 }
 
-typedef _RouteMatch = ({String routeId, String routeNumber, String routeName, List<Trip> toDsc, List<Trip> fromDsc});
+/// "7:00 AM and 10:00 AM" / "1:30 PM, 4:20 PM and 6:10 PM" — times read as a
+/// sentence rather than a grid. Coming-soon slots are skipped (they have no
+/// time to read out).
+String _readTimes(List<Trip> trips) {
+  final times = trips.where((t) => t.time != null && !t.isComingSoon).map((t) => t.time!).toList();
+  if (times.isEmpty) return '';
+  if (times.length == 1) return times.first;
+  return '${times.sublist(0, times.length - 1).join(', ')} and ${times.last}';
+}
+
+/// Normalized word tokens: lower-cased, every non-alphanumeric run treated as a
+/// separator, so "Mirpur-1, 10" becomes ['mirpur', '1', '10'].
+List<String> _tokens(String s) =>
+    s.toLowerCase().split(RegExp(r'[^a-z0-9]+')).where((t) => t.isNotEmpty).toList();
+
+/// Trips whose note names [stop] as a **contiguous** token run.
+///
+/// Deliberately strict. A loose "contains any token" test would match
+/// "Mirpur 10" against the note "will go upto Mirpur-1, 10, pallabi and ECB",
+/// which lists Mirpur-1 AND Mirpur-10 as separate places — and would just as
+/// happily match a note that only mentioned Mirpur-1. Telling a rider the wrong
+/// bus serves their stop is worse than telling them nothing, so anything short
+/// of an exact phrase match stays silent.
+List<Trip> _tripsNaming(List<Trip> trips, String stop) {
+  final needle = _tokens(stop);
+  if (needle.isEmpty) return const [];
+  return trips.where((t) {
+    if (t.note == null || t.note!.isEmpty || t.time == null) return false;
+    final hay = _tokens(t.note!);
+    for (var i = 0; i + needle.length <= hay.length; i++) {
+      var ok = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (hay[i + j] != needle[j]) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+    return false;
+  }).toList();
+}
+
+/// One route that serves the picked stop(s).
+///
+/// [toDsc]/[fromDsc] are the ROUTE-level times straight from the sheet: the
+/// start time at the route's first stop, and the departure time from campus.
+/// [stopToDsc]/[stopFromDsc] are those same trips shifted to the picked stop —
+/// and are **null whenever no admin offset has been recorded**, which is the
+/// signal for the UI to describe the route honestly instead of presenting the
+/// origin's times as if they were the stop's.
+typedef _RouteMatch = ({
+  String routeId,
+  String routeNumber,
+  String routeName,
+  List<Trip> toDsc,
+  List<Trip> fromDsc,
+  int stopIndex,
+  int stopCount,
+  String? originName,
+  List<Trip>? stopToDsc,
+  List<Trip>? stopFromDsc,
+});
+
+/// Answers "what time is the bus at MY stop?" for one route.
+///
+/// Two states, and the difference between them is the whole point:
+///
+///  * **Timings recorded** — shows the genuine per-stop times an admin entered
+///    offsets for ("From Mirpur 10 · 7:18 AM and 10:18 AM").
+///  * **Not recorded** — states only what the sheet actually says: where the
+///    stop sits in the running order, and that the quoted times belong to the
+///    route's FIRST stop. It never relabels the origin's times as the stop's.
+class _StopAnswerCard extends StatelessWidget {
+  final _RouteMatch match;
+  final String stop;
+  const _StopAnswerCard({required this.match, required this.stop});
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final known = match.stopToDsc != null || match.stopFromDsc != null;
+    final isOrigin = match.stopIndex == 0;
+
+    final lines = <Widget>[];
+
+    if (known) {
+      final toStr = _readTimes(match.stopToDsc ?? const []);
+      final fromStr = _readTimes(match.stopFromDsc ?? const []);
+      if (toStr.isNotEmpty) {
+        lines.add(_line(Icons.school_rounded, AppColors.holoTeal,
+            'Towards campus from $stop', toStr, textPrimary, textSecondary));
+      }
+      if (fromStr.isNotEmpty) {
+        lines.add(_line(Icons.home_rounded, AppColors.holoBlue,
+            'Back from campus, reaching $stop', fromStr, textPrimary, textSecondary));
+      }
+    } else if (isOrigin) {
+      // The picked stop IS the route's origin, so the sheet's start times are
+      // literally this stop's departure times — no offset needed to say so.
+      final toStr = _readTimes(match.toDsc);
+      final fromStr = _readTimes(match.fromDsc);
+      if (toStr.isNotEmpty) {
+        lines.add(_line(Icons.school_rounded, AppColors.holoTeal,
+            'Buses leave $stop at', toStr, textPrimary, textSecondary));
+      }
+      if (fromStr.isNotEmpty) {
+        lines.add(_line(Icons.home_rounded, AppColors.holoBlue,
+            'Leaving campus at', fromStr, textPrimary, textSecondary));
+      }
+    } else {
+      final origin = match.originName;
+      final toStr = _readTimes(match.toDsc);
+      final position = match.stopIndex >= 0 && match.stopCount > 0
+          ? '$stop is stop ${match.stopIndex + 1} of ${match.stopCount} on this route.'
+          : '$stop is on this route.';
+      lines.add(Text(position, style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)));
+      if (toStr.isNotEmpty && origin != null) {
+        lines.add(const SizedBox(height: 4));
+        lines.add(Text(
+          'The bus starts from $origin at $toStr, so it reaches $stop a little later.',
+          style: AppTextStyles.labelSmall.copyWith(color: textSecondary, height: 1.35),
+        ));
+      }
+    }
+
+    // Only claim a specific run serves this stop when its own note says so
+    // word-for-word (see _tripsNaming).
+    final naming = _tripsNaming(match.fromDsc, stop);
+    if (naming.isNotEmpty) {
+      lines.add(const SizedBox(height: 6));
+      lines.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.verified_rounded, size: 13, color: AppColors.green),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          'The ${_readTimes(naming)} run${naming.length == 1 ? '' : 's'} from campus '
+          'go${naming.length == 1 ? 'es' : ''} all the way to $stop.',
+          style: AppTextStyles.labelSmall.copyWith(color: AppColors.green, height: 1.3),
+        )),
+      ]));
+    }
+
+    if (!known && !isOrigin) {
+      lines.add(const SizedBox(height: 6));
+      lines.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline_rounded, size: 12, color: textSecondary),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          'Exact times at this stop haven\'t been set by admin yet.',
+          style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+        )),
+      ]));
+    }
+
+    if (lines.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 6, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: (known || isOrigin ? AppColors.holoTeal : AppColors.textSecondaryOf(context))
+            .withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: (known || isOrigin ? AppColors.holoTeal : AppColors.borderOf(context))
+                .withValues(alpha: 0.25)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: lines),
+    );
+  }
+
+  Widget _line(IconData icon, Color accent, String label, String times, Color primary, Color secondary) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 14, color: accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(children: [
+                TextSpan(text: '$label  ', style: AppTextStyles.labelSmall.copyWith(color: secondary)),
+                TextSpan(text: times,
+                    style: AppTextStyles.bodyMedium.copyWith(color: primary, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+        ]),
+      );
+}
 
 /// One trip chip: the time (or "Coming soon"), with any note as a caption.
 class _TripChip extends StatelessWidget {
@@ -455,9 +704,11 @@ class _TripChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(soon ? 'Coming soon' : (trip.time ?? '—'),
+        Text(soon ? 'Being updated' : (trip.time ?? '—'),
             style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-        if (trip.note != null && trip.note!.isNotEmpty)
+        if (soon)
+          Text('check back soon', style: TextStyle(fontSize: 9.5, color: AppColors.textSecondaryOf(context)))
+        else if (trip.note != null && trip.note!.isNotEmpty)
           Text(trip.note!, style: TextStyle(fontSize: 9.5, color: AppColors.textSecondaryOf(context))),
       ]),
     );
@@ -594,7 +845,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'to_dsc_trips');
     final fromDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'from_dsc_trips');
-    return ListView(padding:const EdgeInsets.all(16),children:[
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),children:[
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
       if (_autoSuggested && selected != null) ...[
@@ -623,14 +874,14 @@ class _MyRouteTabState extends State<_MyRouteTab> {
                 final picked = await _showOptionPicker<String>(context,
                     title: 'Choose your route',
                     options: widget.routes.map((r) => (
-                        label: '${r['route_number']} — ${r['route_name'] ?? 'Route'}',
+                        label: '${r['route_number']} — ${_displayRouteName(r['route_name'] as String? ?? 'Route')}',
                         value: r['id'] as String)).toList(),
                     selected: _selectedRoute);
                 if (picked != null) setState(() { _selectedRoute = picked; _autoSuggested = false; });
               },
               child: Row(children: [
                 Expanded(child: Text(
-                    selected == null ? 'Choose route' : '${selected['route_number']} — ${selected['route_name'] ?? 'Route'}',
+                    selected == null ? 'Choose route' : '${selected['route_number']} — ${_displayRouteName(selected['route_name'] as String? ?? 'Route')}',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         color: selected == null ? AppColors.textMutedOf(context) : AppColors.textPrimaryOf(context),
@@ -793,7 +1044,7 @@ class _TimePill extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(soon ? Icons.hourglass_bottom_rounded : Icons.access_time_rounded, size: 13, color: c),
         const SizedBox(width: 5),
-        Text(soon ? 'Soon' : (trip.time ?? '—'),
+        Text(soon ? 'Being updated' : (trip.time ?? '—'),
             style: TextStyle(color: c, fontSize: 12.5, fontWeight: FontWeight.w700)),
       ]),
     );
@@ -842,6 +1093,16 @@ class _ScheduleCard extends StatelessWidget {
               Expanded(child: Text(t.note!, style: AppTextStyles.labelSmall.copyWith(color: textSecondary))),
             ]),
           )),
+        ],
+        // Friendly, never-blank message when a slot's time hasn't been set yet.
+        if (times.any((t) => t.isComingSoon)) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            const Icon(Icons.hourglass_bottom_rounded, size: 13, color: AppColors.amber),
+            const SizedBox(width: 6),
+            Expanded(child: Text(_kSoonMsg,
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.amber, fontWeight: FontWeight.w600))),
+          ]),
         ],
       ]),
     );
@@ -915,7 +1176,7 @@ class _AllRoutesTab extends StatelessWidget {
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
-              Expanded(child: Text('${route['route_number']} — ${route['route_name'] ?? 'Route'}',
+              Expanded(child: Text('${route['route_number']} — ${_displayRouteName(route['route_name'] as String? ?? 'Route')}',
                   style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
               _LiveStatusBadge(status: liveStatus[route['id']]),
             ]),
@@ -931,7 +1192,7 @@ class _AllRoutesTab extends StatelessWidget {
               const SizedBox(height: 16),
             ],
             if (toDsc.isNotEmpty) _ScheduleCard(title: 'To DSC', times: toDsc, icon: Icons.login_rounded, accent: AppColors.holoTeal),
-            if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
+            if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12, bottom: GlassBottomNav.navContentClearance),
                 child: _ScheduleCard(title: 'From DSC', times: fromDsc, icon: Icons.logout_rounded, accent: AppColors.holoBlue)),
             if (toDsc.isEmpty && fromDsc.isEmpty && stopNames.isEmpty)
               Text('No trip data uploaded for this route yet', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx))),
@@ -946,6 +1207,27 @@ class _AllRoutesTab extends StatelessWidget {
                   onPressed: () => _openInGoogleMaps(stopNames),
                   icon: const Icon(Icons.directions_rounded, size: 18),
                   label: const Text('Open in Google Maps'))),
+              // Admin-only: record how many minutes into each leg the bus
+              // reaches each stop. Without this the app can only quote the
+              // route's start/campus times, never the rider's own stop.
+              if (RoleSession.role == 'admin' || RoleSession.role == 'super_admin') ...[
+                const SizedBox(height: 10),
+                SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.holoviolet),
+                    onPressed: () {
+                      Navigator.pop(sheetCtx);
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ManageStopTimesScreen(
+                          routeNumber: route['route_number'] as String? ?? '?',
+                          scheduleType: route['schedule_type'] as String? ?? 'regular',
+                          routeName: _displayRouteName(route['route_name'] as String? ?? 'Route'),
+                          stops: stopNames,
+                        ),
+                      ));
+                    },
+                    icon: const Icon(Icons.more_time_rounded, size: 18),
+                    label: const Text('Set stop times'))),
+              ],
             ],
           ]),
         ),
@@ -959,8 +1241,13 @@ class _AllRoutesTab extends StatelessWidget {
         child:Text('No routes',style:TextStyle(color:AppColors.textSecondaryOf(context))));
     }
     // Group by schedule_type into the source document's own sections
-    // (Regular / Shuttle / Friday), in that order.
-    const order = [ScheduleType.regular, ScheduleType.shuttle, ScheduleType.friday];
+    // (Regular / Shuttle / Friday). On Fridays the Friday schedule is what
+    // actually applies today, so surface it FIRST and flag it; other days keep
+    // the document's Regular → Shuttle → Friday order.
+    final isFriday = DateTime.now().weekday == DateTime.friday;
+    final order = isFriday
+        ? const [ScheduleType.friday, ScheduleType.regular, ScheduleType.shuttle]
+        : const [ScheduleType.regular, ScheduleType.shuttle, ScheduleType.friday];
     final grouped = <ScheduleType, List<Map<String,dynamic>>>{};
     for (final r in routes) {
       final type = ScheduleTypeX.fromWire(r['schedule_type'] as String?);
@@ -968,24 +1255,44 @@ class _AllRoutesTab extends StatelessWidget {
     }
     final children = <Widget>[];
     var idx = 0;
+    if (isFriday && (grouped[ScheduleType.friday]?.isNotEmpty ?? false)) {
+      children.add(Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.amber.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.event_available_rounded, size: 16, color: AppColors.amber),
+          const SizedBox(width: 8),
+          Expanded(child: Text("It's Friday — the Friday schedule applies today.",
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.amber, fontWeight: FontWeight.w700))),
+        ]),
+      ));
+    }
     for (final type in order) {
       final group = grouped[type];
       if (group == null || group.isEmpty) continue;
+      final isTodaySection = isFriday && type == ScheduleType.friday;
       // Only label sections when more than one exists, so a single-section
       // schedule doesn't get a redundant header.
       if (grouped.length > 1) {
         children.add(Padding(
           padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-          child: Text(type.label.toUpperCase(),
+          child: Text('${type.label.toUpperCase()}${isTodaySection ? '  ·  TODAY' : ''}',
               style: AppTextStyles.labelSmall.copyWith(
-                  letterSpacing: 1.5, color: AppColors.textSecondaryOf(context))),
+                  letterSpacing: 1.5,
+                  fontWeight: isTodaySection ? FontWeight.w800 : null,
+                  color: isTodaySection ? AppColors.amber : AppColors.textSecondaryOf(context))),
         ));
       }
       for (final r in group) {
         children.add(_routeCard(context, r, idx++));
       }
     }
-    return ListView(padding: const EdgeInsets.all(16), children: children);
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: children);
   }
 
   Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i) {
@@ -1018,7 +1325,7 @@ class _AllRoutesTab extends StatelessWidget {
         const SizedBox(width:12),
         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Row(children: [
-            Expanded(child: Text(r['route_name']??'',style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(_displayRouteName(r['route_name'] as String? ?? ''),style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
             const SizedBox(width: 6),
             _LiveStatusBadge(status: liveStatus[r['id']]),
           ]),

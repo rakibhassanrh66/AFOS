@@ -17,6 +17,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class MentorshipScreen extends StatefulWidget {
   const MentorshipScreen({super.key});
   @override State<MentorshipScreen> createState() => _MentorshipState();
@@ -248,7 +249,7 @@ class _MentorList extends StatelessWidget {
       return const EmptyState(icon: AppIcons.mentorship,
         title: 'No mentors available', subtitle: 'Mentors will appear here once faculty register');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: mentors.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: mentors.length,
         itemBuilder: (ctx, i) {
           final m = mentors[i];
           final profile = m['profiles'] as Map<String, dynamic>? ?? {};
@@ -312,7 +313,7 @@ class _SessionsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.event_note_rounded,
         title: 'No sessions yet', subtitle: 'Book your first mentorship session');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: sessions.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: sessions.length,
         itemBuilder: (ctx, i) {
           final s = sessions[i];
           final mentor = (s['mentors'] as Map?)?['profiles'] as Map? ?? {};
@@ -389,7 +390,7 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
       return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No requests yet', subtitle: 'Student mentorship requests addressed to you will appear here');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: widget.requests.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: widget.requests.length,
         itemBuilder: (ctx, i) {
           final r = widget.requests[i];
           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -477,7 +478,7 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(
+    return SingleChildScrollView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (widget.profile == null)
         Text('Set up your mentor profile so students can find and book you.',
@@ -544,7 +545,7 @@ class _OversightTab extends StatelessWidget {
       return const EmptyState(icon: Icons.school_outlined,
         title: 'No mentorship activity yet', subtitle: 'Every booking across the system will show up here');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: bookings.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: bookings.length,
         itemBuilder: (ctx, i) {
           final b = bookings[i];
           final student = b['profiles'] as Map<String, dynamic>? ?? {};

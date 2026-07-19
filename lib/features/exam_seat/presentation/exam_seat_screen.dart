@@ -11,6 +11,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Shows which room(s) the student's own batch+section is assigned for
 /// each exam — confirmed against a real DIU seat-plan document that this
 /// is genuinely all it publishes (room capacity per section, split across
@@ -105,7 +106,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
                 : RefreshIndicator(
                     onRefresh: _load, color: AppColors.blue,
                     child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16 + GlassBottomNav.navContentClearance),
                         itemCount: sessions.length,
                         itemBuilder: (ctx, i) => _SessionCard(session: sessions[i], index: i)))),
       ]),

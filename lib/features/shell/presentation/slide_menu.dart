@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
@@ -15,7 +14,9 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/logout_tile.dart';
+import '../../../shared/widgets/radial_logout_menu.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class SlideMenu extends StatefulWidget {
   // True when rendered as the permanent desktop nav rail (app_shell.dart,
   // >=1024px) instead of the mobile/tablet hide-show overlay drawer -- a
@@ -230,7 +231,7 @@ class _SlideMenuState extends State<SlideMenu> {
           filter: ImageFilter.blur(sigmaX: LiquidGlass.blurRaised, sigmaY: LiquidGlass.blurRaised),
           child: Container(
             decoration: BoxDecoration(
-              color: Color.alphaBlend(AppColors.glassFill(context), surface.withValues(alpha: 0.88)),
+              color: Color.alphaBlend(AppColors.glassFill(context), surface.withValues(alpha: 0.62)),
               border: Border(right:BorderSide(color:AppColors.glassBorder(context),width:1)),
               boxShadow: [
                 BoxShadow(color: AppColors.holoBlue.withValues(alpha:0.08), blurRadius:24, spreadRadius:-4),
@@ -239,7 +240,7 @@ class _SlideMenuState extends State<SlideMenu> {
             child: SafeArea(
               child: Column(children:[
                 _buildHeader(ctx),
-                Expanded(child: ListView(padding:const EdgeInsets.symmetric(vertical:8), children:[
+                Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 8 + GlassBottomNav.navContentClearance), children:[
                   // Web rail: pin the 4 quick-access destinations at the top
                   // (the mobile floating bottom bar covers these on phones).
                   if (widget.permanent) ...[
@@ -261,7 +262,12 @@ class _SlideMenuState extends State<SlideMenu> {
                   Divider(color:border, height:24),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: LogoutTile(label: 'Logout', onTap: () => _confirmLogout(ctx)),
+                    // Builder so the tile gets its OWN context: the radial
+                    // menu reads that render box to place the burst origin.
+                    child: Builder(
+                      builder: (tileCtx) =>
+                          LogoutTile(label: 'Logout', onTap: () => _confirmLogout(tileCtx)),
+                    ),
                   ),
                 ])),
                 _buildFooter(context),
@@ -338,27 +344,13 @@ class _SlideMenuState extends State<SlideMenu> {
     );
   }
 
-  Future<void> _confirmLogout(BuildContext ctx) async {
-    final surface = AppColors.surfaceOf(ctx);
-    final textPrimary = AppColors.textPrimaryOf(ctx);
-    final textSecondary = AppColors.textSecondaryOf(ctx);
-    final confirm = await showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        backgroundColor: surface,
-        title: Text('Log out?', style: TextStyle(color: textPrimary)),
-        content: Text('Are you sure you want to sign out?', style: TextStyle(color: textSecondary)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Logout', style: TextStyle(color: AppColors.red))),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await Supabase.instance.client.auth.signOut();
-      if (ctx.mounted) ctx.go('/auth/login');
-    }
+  /// [tileCtx] is the Logout row's own context — the radial fan uses its render
+  /// box as the burst origin, so the options visibly spring out of the row that
+  /// was tapped.
+  Future<void> _confirmLogout(BuildContext tileCtx) async {
+    final choice = await showRadialLogoutMenu(tileCtx);
+    if (!tileCtx.mounted) return;
+    await applyLogoutChoice(tileCtx, choice);
   }
 
   Widget _buildFooter(BuildContext context) {
@@ -418,7 +410,15 @@ class _MenuTileState extends State<_MenuTile> {
           borderRadius:BorderRadius.circular(10),
           onTap:(){
             context.read<ShellBloc>().add(SelectItem(widget.index));
-            context.push(item.route);
+            // `go`, not `push`: every menu destination is a flat route inside
+            // the same ShellRoute, and an imperative push deliberately leaves
+            // the match list's uri unchanged (go_router's own comment on
+            // RouteMatchList.push). The shell reads `matchedLocation` to decide
+            // which bottom-nav tab is active, so pushing left the planet parked
+            // on Home even while Settings was on screen. The desktop rail
+            // (_QuickRailTile) always used `go` -- which is exactly why the rail
+            // highlighted correctly and the bottom nav did not.
+            context.go(item.route);
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),

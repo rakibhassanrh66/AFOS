@@ -49,6 +49,19 @@ class TransportTimeParser {
     return t.contains('coming') && t.contains('soon');
   }
 
+  /// Build a note from any free descriptive text ([residual]) plus an optional
+  /// parenthetical ([paren]). A bare parenthetical keeps just its inner text
+  /// (e.g. "(Students bus)" -> "Students bus"); descriptive text that precedes
+  /// a parenthetical keeps BOTH so multi-part notes like
+  /// "Will go upto Mirpur-1,10&Pallabi (Only 1 Bus Assigned For ECB)" aren't
+  /// reduced to just the parenthetical.
+  static String? _combineNote(String residual, String? paren) {
+    final r = _clean(residual);
+    if (r.isEmpty) return paren;
+    if (paren == null || paren.isEmpty) return r;
+    return '$r ($paren)';
+  }
+
   /// Canonical display for an hour/minute (+ optional explicit meridiem).
   static String _display(int hour24Or12, int minute, {String? meridiem}) {
     int h = hour24Or12;
@@ -82,18 +95,20 @@ class TransportTimeParser {
     var s = _clean(raw);
     if (s.isEmpty) return const Trip();
 
-    final (timePart0, note) = _splitNote(s);
+    final (timePart0, paren) = _splitNote(s);
     final timePart = _clean(timePart0);
 
     if (_looksComingSoon(s)) {
-      return Trip(time: null, note: note, status: TripStatus.comingSoon);
+      return Trip(time: null, note: paren, status: TripStatus.comingSoon);
     }
 
     final m = _timeRe.firstMatch(timePart);
     if (m == null) {
-      // No time and not coming-soon. If there's only a note, keep it (some
-      // cells carry just an exception); otherwise it's blank.
-      return Trip(time: null, note: note);
+      // No time and not coming-soon. Keep the WHOLE descriptive text (outside
+      // any parenthetical) plus the parenthetical, not just the parenthetical —
+      // so a continuation line like "Will go upto ... (Only 1 Bus ...)" survives
+      // intact for the column parser to merge into the trip above it.
+      return Trip(time: null, note: _combineNote(timePart, paren));
     }
     final hour = int.parse(m.group(1)!);
     final minute = int.parse(m.group(2)!);
@@ -104,9 +119,12 @@ class TransportTimeParser {
     }
     if (minute > 59 || hour > 23) {
       // Unparseable-as-time; treat as note-only so the QA step can flag it.
-      return Trip(time: null, note: note ?? raw.trim());
+      return Trip(time: null, note: paren ?? raw.trim());
     }
-    return Trip(time: _display(hour, minute, meridiem: meridiem), note: note);
+    // Any descriptive text sitting beside the time (outside the parenthetical)
+    // is part of the note too, e.g. "6:10 PM Will go upto ... (Only 1 Bus ...)".
+    final residual = timePart.substring(0, m.start) + timePart.substring(m.end);
+    return Trip(time: _display(hour, minute, meridiem: meridiem), note: _combineNote(residual, paren));
   }
 
   /// For a typed Excel time cell (hour/minute already known). Optionally pass
@@ -145,7 +163,19 @@ class TransportTimeParser {
         }
       } else {
         final t = parseTrip(line);
-        if (!t.isEmpty) trips.add(t);
+        if (t.isEmpty) continue;
+        // A note-only line (no time, not coming-soon) is a continuation of the
+        // trip above it — the sheet sometimes splits a time and its note onto
+        // separate sub-rows (e.g. "6:10 PM" then "Will go upto ... (Only 1 Bus
+        // ...)"). Merge it into the previous trip instead of leaving an orphan
+        // time-less entry.
+        if (t.time == null && t.status == TripStatus.scheduled && t.note != null && trips.isNotEmpty) {
+          final prev = trips.removeLast();
+          final merged = (prev.note == null || prev.note!.isEmpty) ? t.note : '${prev.note} ${t.note}';
+          trips.add(Trip(time: prev.time, note: merged, status: prev.status));
+          continue;
+        }
+        trips.add(t);
       }
     }
     return trips;

@@ -9,7 +9,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
-import '../../../core/auth/role_session.dart';
 import '../../../core/services/app_config_service.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -19,11 +18,13 @@ import '../../../core/utils/location_helper.dart';
 import '../../../core/utils/responsive.dart';
 import '../data/repositories/sos_repository.dart';
 
-/// Visibility gate for the persistent SOS button. General users only see it
-/// when a super-admin has switched the campus-emergency SOS feature ON
-/// (`AppConfigService.sosEnabled`, default OFF); a super-admin always retains
-/// personal access regardless of the toggle. This is a pure access gate — it
-/// changes nothing about how an alert is triggered or stored.
+/// Visibility gate for the persistent SOS button. The floating button is shown
+/// only when a super-admin has switched the campus-emergency SOS feature ON
+/// (`AppConfigService.sosEnabled`, default OFF) — for EVERYONE, super-admin
+/// included, so flipping the toggle visibly hides/shows the bar. A super-admin
+/// still reaches SOS management and the toggle itself from the "Manage SOS
+/// Alerts" menu entry regardless. Pure access gate — it changes nothing about
+/// how an alert is triggered or stored.
 class SosGate extends StatefulWidget {
   const SosGate({super.key});
   @override State<SosGate> createState() => _SosGateState();
@@ -39,7 +40,6 @@ class _SosGateState extends State<SosGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (RoleSession.role == 'super_admin') return const SosFloatingButton();
     return ValueListenableBuilder<bool>(
       valueListenable: AppConfigService.instance.sosEnabled,
       builder: (_, enabled, __) =>

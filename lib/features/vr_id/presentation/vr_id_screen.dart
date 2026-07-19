@@ -22,6 +22,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../data/vr_id_pdf_generator.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class VrIdScreen extends StatefulWidget {
   const VrIdScreen({super.key});
   @override State<VrIdScreen> createState() => _VrIdState();
@@ -131,7 +132,7 @@ class _MyVrIdTab extends StatelessWidget {
     if (loading) return const Center(child: SupernovaLoader(size: 40, color: AppColors.blue));
     if (user == null) return Center(child: Text('Could not load profile', style: TextStyle(color: AppColors.textSecondaryOf(context))));
     final countdownColor = countdown > 30 ? AppColors.green : countdown > 10 ? AppColors.amber : AppColors.red;
-    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
+    return SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance), child: Column(children: [
       RepaintBoundary(
         child: GlassCard(
           glowColor: AppColors.blue,
@@ -344,7 +345,7 @@ class _AccessLogTabState extends State<_AccessLogTab> {
       Text('No scans yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     ]));
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _logs.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _logs.length,
         itemBuilder: (ctx, i) {
           final log = _logs[i];
           final scanner = (log['scanned_by'] as Map?)?['full_name'] ?? 'Unknown';

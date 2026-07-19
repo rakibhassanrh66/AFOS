@@ -21,6 +21,7 @@ import '../../../core/utils/last_route.dart';
 import '../../../core/utils/responsive.dart';
 import 'widgets/auth_brand_panel.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
   @override
@@ -272,7 +273,7 @@ class _FormPane extends StatelessWidget {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal:28, vertical:24),
+                padding: const EdgeInsets.fromLTRB(28, 24, 28, 24 + GlassBottomNav.navContentClearance),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Center(child: ConstrainedBox(

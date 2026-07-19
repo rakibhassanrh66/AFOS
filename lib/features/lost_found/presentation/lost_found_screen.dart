@@ -19,6 +19,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class LostFoundScreen extends StatefulWidget {
   const LostFoundScreen({super.key});
   @override State<LostFoundScreen> createState() => _LFState();
@@ -151,7 +152,7 @@ class _FeedTab extends StatelessWidget {
                   subtitle: 'Be the first to report a lost or found item')
               : RefreshIndicator(onRefresh: () async => onRefresh(), color: AppColors.blue,
                   child: GridView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
                       // Fixed 2-column count stretched into 2 wide tiles on a
                       // desktop browser window instead of more, reasonably-sized
                       // ones (see dashboard_screen.dart) -- max-extent keeps the
@@ -354,7 +355,7 @@ class _PostTabState extends State<_PostTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance),
       child: Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: _TypeChip('I Lost Something', 'lost', _type, (v) => setState(() => _type = v))),
@@ -446,7 +447,7 @@ class _MyPostsTabState extends State<_MyPostsTab> {
       return const EmptyState(icon: Icons.post_add_rounded,
         title: 'No posts yet', subtitle: 'Post a lost or found item from the Post tab');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _myPosts.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _myPosts.length,
         itemBuilder: (ctx, i) {
           final p = _myPosts[i];
           final type = p['type'] as String? ?? 'lost';
@@ -643,7 +644,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
       return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No claims filed', subtitle: 'Claims you send from the Feed tab will appear here');
     }
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _claims.length,
+    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _claims.length,
         itemBuilder: (ctx, i) {
           final c = _claims[i];
           final post = c['lost_found_posts'] as Map<String, dynamic>? ?? {};

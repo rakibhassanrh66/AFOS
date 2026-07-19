@@ -13,6 +13,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
   @override State<NotificationCenterScreen> createState() => _NotifState();
@@ -139,7 +140,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                   onRefresh: _load,
                   color: AppColors.blue,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12 + GlassBottomNav.navContentClearance),
                     itemCount: _notifs.length,
                     itemBuilder: (ctx, i) {
                       final n = _notifs[i];

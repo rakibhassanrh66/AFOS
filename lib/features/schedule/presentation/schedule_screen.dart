@@ -20,6 +20,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../data/models/class_slot.dart';
 import '../data/repositories/schedule_repository.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Pairwise same-day/overlapping-time check over a slot list — used both
 /// as a confirmation before pinning a retake course and as a persistent
 /// warning chip if a later routine re-upload creates a clash with an
@@ -282,7 +283,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                           final merged = mergeAdjacentSlots(_searchResults);
                           final existingMerged = mergeAdjacentSlots(_allMySlots);
                           return ListView.builder(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
                             itemCount: merged.length,
                             itemBuilder: (ctx, i) {
                               final s = merged[i];
@@ -333,7 +334,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                               style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w600))),
                         Expanded(child: ListView.builder(
-                          padding:const EdgeInsets.all(16),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
                           itemCount:displaySlots.length,
                           itemBuilder:(ctx,i)=>_ClassCard(slot:displaySlots[i],index:i,teacherDirectory:_teacherDirectory,
                             isTeacher:_isFacultyRole, repo:_repo,
@@ -382,7 +383,7 @@ class _ExamRoutineTabState extends State<_ExamRoutineTab> {
         title: 'No exam routine yet', subtitle: 'Mid/final term exams will appear here once published');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _exams.length + 2,
+        child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _exams.length + 2,
             itemBuilder: (ctx, i) {
               if (i == 0) return _RoutineHeaderBanner(department: widget.department, header: _header);
               if (i == 1) {

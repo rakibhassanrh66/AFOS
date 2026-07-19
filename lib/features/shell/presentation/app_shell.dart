@@ -47,26 +47,34 @@ class _ShellBody extends StatelessWidget {
   // 3 real pops, then a direct jump to Dashboard; pressing back again while
   // already on Dashboard (the true app root) asks for exit confirmation
   // instead, rather than silently closing.
+  // Ordering matters here: ask "is anything stacked above us?" BEFORE asking
+  // "where are we?". Inside a ShellRoute an imperative `push` deliberately
+  // leaves the match list's uri untouched (go_router's own comment: "Imperative
+  // route match doesn't change the uri and path parameters"), so
+  // `matchedLocation` can still read '/home' while a pushed screen sits on top
+  // -- the old location-first order therefore offered to EXIT THE APP instead
+  // of popping that screen. canPop() reflects the real navigator stack, so it
+  // is the trustworthy signal; the location is only consulted once we know
+  // there is nothing left to pop.
   void _handleBack(BuildContext context) {
     final router = GoRouter.of(context);
-    final loc = GoRouterState.of(context).matchedLocation;
-    if (loc == '/home') {
+    final tracker = BackPressTracker.instance;
+    if (router.canPop()) {
+      if (tracker.consecutiveBackPresses >= 3) {
+        tracker.consecutiveBackPresses = 0;
+        router.go('/home');
+        return;
+      }
+      tracker.consecutiveBackPresses++;
+      router.pop();
+      return;
+    }
+    tracker.consecutiveBackPresses = 0;
+    if (GoRouterState.of(context).matchedLocation == '/home') {
       _confirmExit(context);
       return;
     }
-    final tracker = BackPressTracker.instance;
-    if (tracker.consecutiveBackPresses >= 3) {
-      tracker.consecutiveBackPresses = 0;
-      router.go('/home');
-      return;
-    }
-    tracker.consecutiveBackPresses++;
-    if (router.canPop()) {
-      router.pop();
-    } else {
-      tracker.consecutiveBackPresses = 0;
-      router.go('/home');
-    }
+    router.go('/home');
   }
 
   Future<void> _confirmExit(BuildContext context) async {
@@ -129,18 +137,43 @@ class _ShellBody extends StatelessWidget {
         // so screens that honor bottom padding clear the floating bar, and
         // highlight whichever of the 4 quick destinations is the active route.
         final loc = GoRouterState.of(context).matchedLocation;
-        final navIndex = kQuickNavDestinations.indexWhere((d) => loc == d.route);
+        // Match sub-routes too, so a future '/settings/notifications' still
+        // keeps the planet parked on Settings rather than snapping back to
+        // Home. -1 (no tab matches) is handled by the nav itself.
+        final navIndex = kQuickNavDestinations
+            .indexWhere((d) => loc == d.route || loc.startsWith('${d.route}/'));
         final mq = MediaQuery.of(context);
         // Systemic clearance for the floating bottom nav: PHYSICAL bottom
         // padding on the routed content so every screen — including ones that
         // never read the inset (e.g. a plain ListView with fixed padding) —
         // keeps its last element above the bar. This replaces the old
         // MediaQuery-inset-only reservation that naive screens silently ignored
-        // (the Settings "Log out" regression). barSpace = bar height + its
-        // floating margin; + safe-area so it also clears the gesture bar.
-        const barSpace = GlassBottomNav.barHeight + 22;
-        final mobileContent = Padding(
-          padding: EdgeInsets.only(bottom: barSpace + mq.padding.bottom),
+        // (the Settings "Log out" regression). The floating "planet" nav needs
+        // clearance for the bar itself AND the planet that floats above it —
+        // reservedHeight already sums bar + planet lift + margins; + safe-area
+        // so it also clears the gesture bar.
+        const barSpace = GlassBottomNav.reservedHeight;
+        // Clearance is handed down as a MediaQuery BOTTOM INSET, never as
+        // physical Padding on the routed content.
+        //
+        // Physical padding is what made the floating bar look like "a rectangle
+        // inside a rectangle": it ended the content above the bar, so the only
+        // thing left behind the glass was flat Scaffold background, and a
+        // BackdropFilter with nothing behind it to blur renders as a plain
+        // opaque slab. Content now runs full-bleed to the bottom of the screen
+        // and genuinely scrolls UNDER the bar, which is what gives the frosted
+        // read-through.
+        //
+        // Clearance still works because `BoxScrollView` (ListView/GridView)
+        // with a null `padding` automatically adopts MediaQuery's vertical
+        // padding, and SafeArea consumes it too. The screens that need a manual
+        // pass are the ones that hard-code their own scroll padding or pin a
+        // widget to the bottom — they opt out of the inset by construction.
+        final mobileContent = MediaQuery(
+          data: mq.copyWith(
+            padding: mq.padding.copyWith(bottom: mq.padding.bottom + barSpace),
+            viewPadding: mq.viewPadding.copyWith(bottom: mq.viewPadding.bottom + barSpace),
+          ),
           child: content,
         );
         return Scaffold(

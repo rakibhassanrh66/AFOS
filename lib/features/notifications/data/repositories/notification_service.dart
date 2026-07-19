@@ -30,7 +30,11 @@ class NotificationService {
   /// (e.g. a university-wide notice/rule) — the edge function requires
   /// broadcastAll explicitly in that case so an empty target can never be
   /// mistaken for "no filter given, do nothing".
-  static Future<void> broadcast({
+  /// Returns the edge function's result (`{inAppInserted, insertError,
+  /// pushTargeted, pushError}`) or null if the call itself failed, so callers
+  /// can confirm delivery and show the admin a real outcome instead of assuming
+  /// success. Still best-effort — it never throws.
+  static Future<Map<String, dynamic>?> broadcast({
     String? roleFilter,
     String? departmentFilter,
     required String title,
@@ -38,7 +42,7 @@ class NotificationService {
     String? deepLink,
     String? category,
   }) async {
-    await _invoke({
+    return _invoke({
       if (roleFilter != null) 'roleFilter': roleFilter,
       if (departmentFilter != null) 'departmentFilter': departmentFilter,
       if (roleFilter == null && departmentFilter == null) 'broadcastAll': true,

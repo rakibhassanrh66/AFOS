@@ -15,6 +15,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Super Admin / admin / staff hall-application review — the student side
 /// (hall_screen.dart) could always apply/cancel, but until this screen there
 /// was nowhere for anyone to actually approve/reject an application (the
@@ -420,7 +421,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                   ])))
                 : _visible.isEmpty
                 ? EmptyState(icon: Icons.apartment_outlined, title: 'No applications', subtitle: 'Nothing in "$_filter" right now')
-                : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visible.length,
+                : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _visible.length,
                     itemBuilder: (ctx, i) {
                       final a = _visible[i];
                       final profile = a['profiles'] as Map<String, dynamic>? ?? {};
@@ -514,7 +515,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                 ])))
               : _visibleComplaints.isEmpty
               ? EmptyState(icon: Icons.report_problem_outlined, title: 'No complaints', subtitle: 'Nothing in "$_complaintFilter" right now')
-              : ListView.builder(padding: const EdgeInsets.all(16), itemCount: _visibleComplaints.length,
+              : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _visibleComplaints.length,
                   itemBuilder: (ctx, i) {
                     final c = _visibleComplaints[i];
                     final profile = c['profiles'] as Map<String, dynamic>? ?? {};
