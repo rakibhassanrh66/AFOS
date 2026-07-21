@@ -72,6 +72,37 @@ jobs:
       # the thing that silently ships a stale artifact.
       - run: flutter clean
       - run: flutter pub get
+
+      # android/app/google-services.json is gitignored (.gitignore:54), so the
+      # runner has no copy and `:app:processReleaseGoogleServices` failed with
+      # "File google-services.json is missing" — which is why every tagged
+      # release from 2.2.0 to 2.3.1 produced no APK.
+      #
+      # Restored from an encrypted repo secret rather than being committed: this
+      # repo is PUBLIC, and the file identifies the Firebase project. This job
+      # is already gated to `refs/tags/v*` (see `if:` above), and GitHub never
+      # passes secrets to pull_request runs from forks, so the value is only
+      # ever available to a tag push by someone with write access.
+      #
+      # Passed via `env:` rather than interpolated into the script body, so the
+      # value never appears in a command line; and the emptiness check makes a
+      # missing/rotated secret fail loudly here instead of surfacing as a
+      # confusing Gradle error six minutes later.
+      - name: Restore google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON secret is not set. Set it with:"
+            echo "::error::  gh secret set GOOGLE_SERVICES_JSON < android/app/google-services.json"
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          # Confirm it parses, without ever printing the contents.
+          python3 -c "import json,sys; json.load(open('android/app/google-services.json'))" \
+            || { echo "::error::Restored google-services.json is not valid JSON."; exit 1; }
+          echo "google-services.json restored ($(wc -c < android/app/google-services.json) bytes)"
+
       - run: flutter build apk --release
 
       # Name the artifact after the tag so downloads are self-identifying
