@@ -29,6 +29,8 @@ import '../../features/library/presentation/manage_library_screen.dart';
 import '../../features/lost_found/presentation/lost_found_screen.dart';
 import '../../features/mentorship/presentation/mentorship_screen.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
+import '../../features/portal/presentation/diu_portal_hub_screen.dart';
+import '../../features/portal/presentation/diu_portal_screen.dart';
 import '../../features/payment/presentation/payment_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/search/presentation/global_search_screen.dart';
@@ -48,6 +50,7 @@ import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/transport/presentation/transport_screen.dart';
 import '../../features/vr_id/presentation/vr_id_screen.dart';
 import '../../shared/animations/page_transitions.dart';
+import '../app_config.dart';
 import '../../core/auth/role_session.dart';
 import '../../core/navigation/back_press_tracker.dart';
 import '../../core/utils/last_route.dart';
@@ -199,6 +202,33 @@ class AppRouter {
               SosAlertDetailScreen(alertId: s.pathParameters['id']!), s)),
           GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
           GoRoute(path: '/manage-exam-seats', pageBuilder: (c,s) => slideRightPage(const ManageExamSeatsScreen(), s)),
+          // Single entry point for all the DIU portal links — one slide-menu
+          // item opens this hub, rather than nine entries cluttering the menu.
+          GoRoute(path: '/portal', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalHubScreen(), s)),
+          // DIU student-portal pages, shown in an in-app browser inside the
+          // shell (so the bottom nav, header and back behaviour are the app's,
+          // not a browser's). They are NOT scraped: the portal is behind a
+          // Cloudflare bot challenge that 403s every non-browser client, so a
+          // server-side scraper cannot read them at all — see DiuPortalScreen.
+          GoRoute(path: '/portal/dashboard', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Student Portal', url: AppConfig.diuPortalDashboard), s)),
+          GoRoute(path: '/portal/ledger', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Payment Ledger', url: AppConfig.diuPortalLedger), s)),
+          GoRoute(path: '/portal/scholarship', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Scholarship Circular', url: AppConfig.diuPortalScholarship), s)),
+          GoRoute(path: '/portal/waiver', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Waiver', url: AppConfig.diuPortalWaiver), s)),
+          GoRoute(path: '/portal/career', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Career Development', url: AppConfig.diuPortalCareer), s)),
+          GoRoute(path: '/portal/notices', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'DIU Notice Board', url: AppConfig.diuPortalNoticeBoard), s)),
+          GoRoute(path: '/portal/facilities', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Student Benefits', url: AppConfig.diuPortalFacilities), s)),
+          GoRoute(path: '/portal/transport-card', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Transport Card', url: AppConfig.diuTransportCardApply), s)),
+          GoRoute(path: '/portal/hall', pageBuilder: (c,s) => slideRightPage(
+              const DiuPortalScreen(title: 'Hall Management', url: AppConfig.diuHallLogin), s)),
           // Registry Module Routes — same slide transition as their shell siblings.
           GoRoute(path: '/admin/faculties',
               pageBuilder: (c, s) => slideRightPage(const RegistryListScreen(tableName: 'faculties', title: 'Faculties'), s)),

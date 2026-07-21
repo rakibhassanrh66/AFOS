@@ -21,6 +21,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import 'club_chat_screen.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 IconData categoryIcon(String? category) => switch (category) {
       'Tech' => Icons.memory_rounded,
       'Sports' => Icons.sports_soccer_rounded,
@@ -56,11 +57,11 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     _tab = TabController(length: 3, vsync: this);
     _load();
     _loadUser();
-    _clubsSub = SupabaseConfig.client.channel('clubs_screen_clubs')
+    _clubsSub = SupabaseConfig.client.channel(screenChannel('clubs_screen_clubs', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'clubs',
             callback: (_) => _load())
         .subscribe();
-    _membersSub = SupabaseConfig.client.channel('clubs_screen_members')
+    _membersSub = SupabaseConfig.client.channel(screenChannel('clubs_screen_members', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_members',
             callback: (_) => _load())
         .subscribe();

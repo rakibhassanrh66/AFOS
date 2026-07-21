@@ -10,7 +10,6 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 /// The biometric lock screen shown on cold start when quick-login is enabled.
 /// It gates access to an already-valid, on-device session: a passing biometric
 /// check proceeds into the app; it never mints or validates a session itself.
@@ -71,7 +70,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 28 + GlassBottomNav.navContentClearance),
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: GlassCard(

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/navigation/router_location.dart';
 import '../../../core/services/app_config_service.dart';
 import 'dart:ui' show ImageFilter;
 import '../../../config/theme/app_colors.dart';
@@ -98,6 +99,11 @@ class _SlideMenuState extends State<SlideMenu> {
   // Student-only: hall allocation, payment, exam seating, and library are
   // student-personal records — a teacher/staff member has none of their own.
   static const _studentOnlyItems = [
+    // ONE entry, not nine. It opens a hub listing the DIU portal pages
+    // (ledger, waiver, transport card, notice board, ...). Student-only
+    // because those are the student's own portal records — a teacher or staff
+    // member has no ledger, waiver or transport card of their own.
+    _MenuItem('DIU Portal',     Icons.language_rounded, '/portal',      AppColors.holoBlue),
     _MenuItem('Library',        AppIcons.library,     '/library',       AppColors.indigo),
     _MenuItem('Hall Allocation',AppIcons.hall,         '/hall',          AppColors.amber),
     _MenuItem('Payment',        AppIcons.payment,      '/payment',       AppColors.gold),
@@ -240,12 +246,22 @@ class _SlideMenuState extends State<SlideMenu> {
             child: SafeArea(
               child: Column(children:[
                 _buildHeader(ctx),
-                Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 8 + GlassBottomNav.navContentClearance), children:[
+                Expanded(child: ListenableBuilder(
+                  // Highlighting is route-derived, so it has to rebuild on
+                  // navigation. This widget is permanently mounted and its Bloc
+                  // state does not change when the route does, so without this
+                  // the highlight would simply never update.
+                  listenable: GoRouter.of(ctx).routerDelegate,
+                  builder: (ctx, _) => ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 8 + GlassBottomNav.navContentClearance), children:[
                   // Web rail: pin the 4 quick-access destinations at the top
                   // (the mobile floating bottom bar covers these on phones).
                   if (widget.permanent) ...[
                     for (final it in _quickAccessItems)
-                      _QuickRailTile(item: it, active: GoRouterState.of(ctx).matchedLocation == it.route),
+                      // Was `GoRouterState.of(ctx).matchedLocation == it.route`,
+                      // which is stale under an imperative push -- so on desktop
+                      // web, reaching a screen from a dashboard tile left the
+                      // rail highlighting the previous entry.
+                      _QuickRailTile(item: it, active: isRouteActive(GoRouter.of(ctx), it.route)),
                     Divider(color: border, height: 16),
                   ],
                   // Capped, not i*40 uncapped -- a role with a long menu (25
@@ -257,8 +273,18 @@ class _SlideMenuState extends State<SlideMenu> {
                   // animation. Capping keeps the same staggered-entrance feel
                   // for the first several tiles while guaranteeing the whole
                   // list finishes animating well within any real scroll.
+                  // Was `state.selectedIndex == i` -- a ShellBloc index that only
+                  // a MENU TAP ever set. Reaching the same screen from a
+                  // dashboard tile, a search result or a notification left the
+                  // menu highlighting whatever was last tapped in the menu, so
+                  // it could point at a screen you were no longer on. Derived
+                  // from the actual route now, like every other highlight.
                   ...List.generate(_effectiveItems.length, (i) =>
-                    _MenuTile(item:_effectiveItems[i], isActive:state.selectedIndex==i, index:i, delay:(i*15).clamp(0,90))),
+                    _MenuTile(
+                      item: _effectiveItems[i],
+                      isActive: isRouteActive(GoRouter.of(ctx), _effectiveItems[i].route),
+                      index: i,
+                      delay: (i*15).clamp(0,90))),
                   Divider(color:border, height:24),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -269,7 +295,7 @@ class _SlideMenuState extends State<SlideMenu> {
                           LogoutTile(label: 'Logout', onTap: () => _confirmLogout(tileCtx)),
                     ),
                   ),
-                ])),
+                ]))),
                 _buildFooter(context),
               ]),
             ),
@@ -409,16 +435,18 @@ class _MenuTileState extends State<_MenuTile> {
         child: InkWell(
           borderRadius:BorderRadius.circular(10),
           onTap:(){
-            context.read<ShellBloc>().add(SelectItem(widget.index));
-            // `go`, not `push`: every menu destination is a flat route inside
-            // the same ShellRoute, and an imperative push deliberately leaves
-            // the match list's uri unchanged (go_router's own comment on
-            // RouteMatchList.push). The shell reads `matchedLocation` to decide
-            // which bottom-nav tab is active, so pushing left the planet parked
-            // on Home even while Settings was on screen. The desktop rail
-            // (_QuickRailTile) always used `go` -- which is exactly why the rail
-            // highlighted correctly and the bottom nav did not.
-            context.go(item.route);
+            context.read<ShellBloc>().add(CloseMenu());
+            // `push`, matching every other in-shell entry point (dashboard
+            // tiles, search results, notification taps). This was briefly
+            // changed to `go` to fix the bottom-nav indicator, but that treated
+            // a symptom: the indicator was reading `matchedLocation`, which an
+            // imperative push leaves stale by design. `go` did move the
+            // indicator -- by destroying the back stack, since these are all
+            // flat siblings in one ShellRoute, so `go` replaces instead of
+            // stacking and canPop() went false everywhere. The indicator is now
+            // fixed at its source in app_shell.dart's _navIndexOf, so the verb
+            // is free to be the one that preserves back behaviour.
+            context.push(item.route);
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),

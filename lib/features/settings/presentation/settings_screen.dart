@@ -3,7 +3,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/theme_bloc.dart';
 import '../../../config/app_config.dart';
@@ -434,8 +433,10 @@ class _SettingsState extends State<SettingsScreen> {
                     () => _showChangePassword()),
                 _ActionTile('Send Feedback', Icons.feedback_outlined, AppColors.green,
                     () => _showFeedback()),
-                _ActionTile('Fix Push Notifications', Icons.notifications_active_outlined, AppColors.amber,
-                    () => _fixPushNotifications()),
+                // 'Fix Push Notifications' removed: it re-registered the
+                // OneSignal identity, which is maintenance plumbing, not
+                // something an end user should ever have to know about or run.
+                // Every user was being shown a button for an internal repair.
               ]),
 
               const SizedBox(height: 16),
@@ -526,28 +527,6 @@ class _SettingsState extends State<SettingsScreen> {
                 }
               }),
             ])));
-  }
-
-  Future<void> _fixPushNotifications() async {
-    final uid = SupabaseConfig.uid;
-    if (uid == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fixing notification subscription...')));
-    try {
-      await SupabaseConfig.client.functions.invoke('check-push-status',
-          body: {'resetIdentity': true});
-      await OneSignal.logout();
-      await OneSignal.login(uid);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Done — try sending yourself a test notice.'), backgroundColor: AppColors.green));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
-      }
-    }
   }
 
   void _showFeedback() {

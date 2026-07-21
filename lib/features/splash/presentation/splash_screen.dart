@@ -197,7 +197,22 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               child: AnimatedBuilder(
                 animation: _exitCtrl,
                 builder: (_, __) {
-                  final f = const Interval(0.74, 1.0, curve: Curves.easeIn).transform(_exitCtrl.value);
+                  // Rise THEN fall, finishing at zero.
+                  //
+                  // This used to be a single 0.74->1.0 ramp, so the flash was at
+                  // its brightest exactly when the controller ended — and
+                  // `await _exitCtrl.forward()` is immediately followed by
+                  // `context.go(target)`. The final splash frame was therefore a
+                  // 70%-opaque near-white sheet, left on screen for however long
+                  // the next route took to build its first frame: the "last frame
+                  // sticks and goes white".
+                  //
+                  // Peaking at 0.88 and falling back to 0 by 1.0 keeps the punch
+                  // but guarantees the last frame handed over is clean.
+                  final v = _exitCtrl.value;
+                  final up = const Interval(0.74, 0.88, curve: Curves.easeIn).transform(v);
+                  final down = const Interval(0.88, 1.0, curve: Curves.easeOut).transform(v);
+                  final f = (up - down).clamp(0.0, 1.0);
                   return Opacity(
                     opacity: (f * 0.7).clamp(0.0, 1.0),
                     child: const ColoredBox(color: Color(0xFFEAFFF6)),

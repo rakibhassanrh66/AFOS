@@ -16,6 +16,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 /// Super Admin / admin / staff hall-application review — the student side
 /// (hall_screen.dart) could always apply/cancel, but until this screen there
 /// was nowhere for anyone to actually approve/reject an application (the
@@ -54,11 +55,11 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     // hall_applications.stream() can't embed the student's profile, so we
     // refetch (like dept_chat's admin-moderation pattern) on any change
     // instead of relying on the raw realtime row.
-    _sub = SupabaseConfig.client.channel('manage_hall_applications')
+    _sub = SupabaseConfig.client.channel(screenChannel('manage_hall_applications', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
             table: 'hall_applications', callback: (_) => _load())
         .subscribe();
-    _complaintsSub = SupabaseConfig.client.channel('manage_hall_complaints')
+    _complaintsSub = SupabaseConfig.client.channel(screenChannel('manage_hall_complaints', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
             table: 'hall_complaints', callback: (_) => _loadComplaints())
         .subscribe();

@@ -16,6 +16,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 class ManageConferenceRoomsScreen extends StatefulWidget {
   const ManageConferenceRoomsScreen({super.key});
   @override State<ManageConferenceRoomsScreen> createState() => _ManageConferenceRoomsScreenState();
@@ -32,7 +33,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
   void initState() {
     super.initState();
     _load();
-    _sub = SupabaseConfig.client.channel('manage_conference_rooms')
+    _sub = SupabaseConfig.client.channel(screenChannel('manage_conference_rooms', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'conference_room_requests',
             callback: (_) => _load())
         .subscribe();

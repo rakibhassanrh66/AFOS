@@ -15,6 +15,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 /// Admin/staff oversight of every SOS alert system-wide -- same filter-tab
 /// + refetch-on-any-change pattern as manage_hall_screen.dart, since
 /// sos_alerts.stream() can't embed the sender's profile either.
@@ -37,7 +38,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
     super.initState();
     _load();
     AppConfigService.instance.ensureInit();
-    _sub = SupabaseConfig.client.channel('manage_sos_alerts')
+    _sub = SupabaseConfig.client.channel(screenChannel('manage_sos_alerts', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
             table: 'sos_alerts', callback: (_) => _load())
         .subscribe();

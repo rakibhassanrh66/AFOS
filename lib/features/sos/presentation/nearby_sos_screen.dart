@@ -13,6 +13,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 /// Active SOS alerts within 5km of the current user -- gated entirely by
 /// sos_alerts' nearby_select_sos_alerts RLS policy (live-verified), not
 /// client-side filtering. Anyone reachable here is someone who could
@@ -33,7 +34,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
   void initState() {
     super.initState();
     _load();
-    _sub = SupabaseConfig.client.channel('nearby_sos_alerts')
+    _sub = SupabaseConfig.client.channel(screenChannel('nearby_sos_alerts', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
             table: 'sos_alerts', callback: (_) => _load())
         .subscribe();

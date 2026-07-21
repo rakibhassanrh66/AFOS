@@ -47,14 +47,22 @@ class StatTile extends StatelessWidget {
                 Icon(icon, size: 16, color: on ? color : AppColors.textSecondaryOf(context)),
                 const Spacer(),
               ],
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: on ? color : AppColors.textPrimaryOf(context),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
+              // Flexible: maxLines/ellipsis alone do NOT prevent overflow --
+              // the Text still claims its full intrinsic width, leaving the
+              // Spacer at zero and pushing the Row past the tile. These sit
+              // three-across in an Expanded Row on the admin summary bars, so
+              // at a large text scale each tile is genuinely narrower than its
+              // own number.
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: on ? color : AppColors.textPrimaryOf(context),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
                 ),
               ),
               if (icon == null) const Spacer(),
