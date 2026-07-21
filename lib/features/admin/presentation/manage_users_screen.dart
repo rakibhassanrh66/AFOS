@@ -20,6 +20,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -42,6 +43,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   String _roleFilter = 'all';
   RealtimeChannel? _sub;
   RealtimeChannel? _crSub;
+  final _refresh = RealtimeRefresh();
+  final _crRefresh = RealtimeRefresh();
 
   static const _roles = ['all', 'student', 'teacher', 'admin', 'dept_admin', 'staff', 'exam_controller', 'super_admin'];
 
@@ -51,18 +54,31 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
     _tab = TabController(length: 3, vsync: this);
     _load();
     _loadCrRequests();
-    _sub = SupabaseConfig.client.channel('manage_users')
+    // Debounced: `profiles` changes on every login and every profile edit
+    // anywhere in the app, and each event used to trigger a full re-download of
+    // all profiles (15 columns). Approving several signups, or any bulk write,
+    // turned N row changes into N full-table fetches — N round trips on a phone
+    // connection. The burst now collapses into one.
+    _sub = SupabaseConfig.client.channel(screenChannel('manage_users', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'profiles',
-            callback: (_) => _load())
+            callback: (_) => _refresh.schedule(_load))
         .subscribe();
-    _crSub = SupabaseConfig.client.channel('manage_cr_requests')
+    _crSub = SupabaseConfig.client.channel(screenChannel('manage_cr_requests', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'cr_requests',
-            callback: (_) => _loadCrRequests())
+            callback: (_) => _crRefresh.schedule(_loadCrRequests))
         .subscribe();
   }
 
   @override
-  void dispose() { _tab.dispose(); _sub?.unsubscribe(); _crSub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _tab.dispose();
+    _sub?.unsubscribe();
+    _crSub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    _crRefresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     try {
@@ -104,6 +120,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         message: 'You are now the Class Representative for your section.',
         category: 'general',
       );
+      // Same reasoning as _approve: don't leave the reviewed request sitting in
+      // the pending list until a realtime event happens to arrive.
+      await _loadCrRequests();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -162,6 +181,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   Future<void> _approve(Map<String, dynamic> user) async {
     try {
       await SupabaseConfig.client.from('profiles').update({'is_verified': true}).eq('id', user['id']);
+      // Reflect it locally straight away instead of waiting for the realtime
+      // round-trip to come back and call _load(). The subscription is still the
+      // thing that keeps OTHER admins' screens in sync, but making the acting
+      // admin's own list depend on a WAL round-trip is what made an approval
+      // look like it hadn't registered -- the row sat in "Pending" until the
+      // event arrived, or until the screen was left and reopened. The reload
+      // below still runs, so this is a head start, not a substitute for truth.
+      if (mounted) {
+        setState(() {
+          final idx = _users.indexWhere((u) => u['id'] == user['id']);
+          if (idx >= 0) _users[idx] = {..._users[idx], 'is_verified': true};
+        });
+      }
       // pending_approval_screen.dart only reflects this live via realtime
       // while the app is actually open — a push is the only way someone
       // who's closed the app finds out their account is now active.
@@ -171,6 +203,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         message: 'Your AFOS account has been approved — welcome!',
         category: 'general',
       );
+      await _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

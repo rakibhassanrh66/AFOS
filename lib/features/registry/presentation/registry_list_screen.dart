@@ -13,6 +13,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 /// Faculties/Departments registry — read is open to any authenticated user
 /// (public_read_* policies), but only super_admin has an RLS path to write
 /// (super_admin_all), so the add/edit/delete affordances are hidden for
@@ -47,7 +48,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
   void initState() {
     super.initState();
     _load();
-    _sub = Supabase.instance.client.channel('registry_${widget.tableName}')
+    _sub = Supabase.instance.client.channel(screenChannel('registry_${widget.tableName}', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
             table: widget.tableName, callback: (_) => _load())
         .subscribe();

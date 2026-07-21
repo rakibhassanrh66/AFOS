@@ -35,10 +35,19 @@ class LabelValueRow extends StatelessWidget {
             Icon(icon, size: 18, color: AppColors.textSecondaryOf(context)),
             const SizedBox(width: 10),
           ],
-          Text(
-            label,
-            style: AppTextStyles.bodyMedium
-                .copyWith(color: AppColors.textSecondaryOf(context)),
+          // The VALUE was already overflow-safe; the LABEL was not. A long
+          // label next to an icon ('Emergency contact' at 1.3x on a 320dp
+          // phone) took its full intrinsic width and pushed the row past its
+          // container. Flexible with ellipsis keeps the label honest while
+          // still letting the value have the remaining space.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium
+                  .copyWith(color: AppColors.textSecondaryOf(context)),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

@@ -21,7 +21,6 @@ import '../../../core/utils/last_route.dart';
 import '../../../core/utils/responsive.dart';
 import 'widgets/auth_brand_panel.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
   @override
@@ -227,6 +226,11 @@ class _LoginBodyState extends State<_LoginBody> {
   }
 }
 
+/// Vertical padding of the login scroll view. Named because `minHeight` has to
+/// subtract exactly this to keep the card centred and the page unscrollable —
+/// if the two ever drift apart the page starts sliding again.
+const double _vPad = 24;
+
 class _FormPane extends StatelessWidget {
   final bool isDark;
   final Color textPrimary, textSecondary;
@@ -272,10 +276,28 @@ class _FormPane extends StatelessWidget {
           RepaintBoundary(child: CustomPaint(painter:_GridPainter(isDark:isDark), size: Size.infinite)),
           SafeArea(
             child: LayoutBuilder(
+              // Exactly centred, and NOT draggable when it fits.
+              //
+              // Two things were wrong. (1) The bottom padding included
+              // `GlassBottomNav.navContentClearance` — but this screen is not
+              // inside the AppShell and has no bottom nav, so that was ~100px of
+              // phantom space shoving the card upward off centre. It came from
+              // the codemod that added clearance to 80 scrollviews; login should
+              // never have been one of them. (2) `minHeight` used the FULL
+              // viewport height while the scroll view added its own vertical
+              // padding on top, so the content was always taller than the
+              // viewport — which is why the page could be pulled up and down
+              // even with room to spare.
+              //
+              // Subtracting the padding from minHeight makes the content exactly
+              // one viewport tall, so Center puts the card dead centre on any
+              // device and there is nothing to scroll — until the keyboard opens
+              // or the screen is genuinely too short, when it scrolls properly.
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 24, 28, 24 + GlassBottomNav.navContentClearance),
+                padding: const EdgeInsets.fromLTRB(28, _vPad, 28, _vPad),
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  constraints: BoxConstraints(
+                      minHeight: (constraints.maxHeight - _vPad * 2).clamp(0.0, double.infinity)),
                   child: Center(child: ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: cardMaxWidth),
                     child: GlassCard(

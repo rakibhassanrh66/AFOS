@@ -7,6 +7,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/navigation/back_press_tracker.dart';
+import '../../../core/navigation/router_location.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../shared/widgets/liquid_backdrop.dart';
@@ -23,6 +24,21 @@ const List<BottomNavDest> kQuickNavDestinations = [
   BottomNavDest(label: 'Profile', icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, route: '/profile'),
   BottomNavDest(label: 'Settings', icon: Icons.settings_outlined, activeIcon: AppIcons.settings, route: '/settings'),
 ];
+
+/// Which of [kQuickNavDestinations] (if any) is actually on screen, or -1.
+///
+/// The truthful-location reasoning lives in `currentRouteLocation` — the short
+/// version is that `matchedLocation` is stale under an imperative push, so it
+/// reported the screen you came FROM. That, not the navigation verb, was the
+/// indicator bug; changing slide_menu's verb to `go` only traded it for the
+/// back stack.
+///
+/// `navigation_indicator_test.dart` pins the underlying go_router behaviour, so
+/// an upgrade that changes it fails loudly instead of silently reintroducing
+/// the stale indicator.
+@visibleForTesting
+int navIndexForRouter(GoRouter router) =>
+    kQuickNavDestinations.indexWhere((d) => isRouteActive(router, d.route));
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -70,7 +86,12 @@ class _ShellBody extends StatelessWidget {
       return;
     }
     tracker.consecutiveBackPresses = 0;
-    if (GoRouterState.of(context).matchedLocation == '/home') {
+    // currentRouteLocation, not matchedLocation. Both are correct HERE (we only
+    // reach this line when canPop() is false, which means nothing was pushed and
+    // so nothing is stale), but relying on that ordering invariant is exactly
+    // how this class of bug keeps coming back. The truthful read is correct
+    // regardless of how the code above it is later rearranged.
+    if (currentRouteLocation(router) == '/home') {
       _confirmExit(context);
       return;
     }
@@ -136,12 +157,6 @@ class _ShellBody extends StatelessWidget {
         // Mobile/tablet: reserve space at the bottom (via a MediaQuery inset)
         // so screens that honor bottom padding clear the floating bar, and
         // highlight whichever of the 4 quick destinations is the active route.
-        final loc = GoRouterState.of(context).matchedLocation;
-        // Match sub-routes too, so a future '/settings/notifications' still
-        // keeps the planet parked on Settings rather than snapping back to
-        // Home. -1 (no tab matches) is handled by the nav itself.
-        final navIndex = kQuickNavDestinations
-            .indexWhere((d) => loc == d.route || loc.startsWith('${d.route}/'));
         final mq = MediaQuery.of(context);
         // Systemic clearance for the floating bottom nav: PHYSICAL bottom
         // padding on the routed content so every screen — including ones that
@@ -191,10 +206,20 @@ class _ShellBody extends StatelessWidget {
             left: 0, right: 0, bottom: 0,
             child: SafeArea(
               top: false,
-              child: GlassBottomNav(
-                destinations: kQuickNavDestinations,
-                currentIndex: navIndex,
-                onTap: (i) => ctx.go(kQuickNavDestinations[i].route),
+              // Rebuilt off the router delegate (a ChangeNotifier) rather than
+              // off this Bloc build, so the indicator is guaranteed to re-read
+              // after ANY navigation -- imperative pushes included -- instead of
+              // depending on the shell happening to rebuild.
+              child: ListenableBuilder(
+                listenable: GoRouter.of(ctx).routerDelegate,
+                builder: (_, __) => GlassBottomNav(
+                  destinations: kQuickNavDestinations,
+                  currentIndex: navIndexForRouter(GoRouter.of(ctx)),
+                  // `go` for the 4 quick destinations specifically: these are
+                  // top-level tabs, so re-selecting one should replace, not
+                  // stack Home on top of Home.
+                  onTap: (i) => ctx.go(kQuickNavDestinations[i].route),
+                ),
               ),
             ),
           ),

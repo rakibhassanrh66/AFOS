@@ -136,6 +136,17 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
         : widget.options.where((o) => o.label.toLowerCase().contains(q)).toList();
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
+    // NOTE (2026-07-22): two attempts to auto-open the keyboard here both made
+    // this sheet worse, so it is deliberately back to its original behaviour.
+    //   1st: `autofocus: true` + our own `Padding(bottom: viewInsets.bottom)`.
+    //        GlassSheet ALREADY lifts the whole sheet for the keyboard
+    //        (`liftForKeyboard: true`, glass_sheet.dart:77), so the lift was
+    //        applied twice and the sheet left the top of the screen.
+    //   2nd: autofocus with the padding removed. Still wrong — the sheet jumped
+    //        and left a large empty gap below it.
+    // The interaction between autofocus, showModalBottomSheet's viewInsets and
+    // GlassSheet's lift needs to be worked out on a real device, not guessed at.
+    // Until then this stays exactly as it was: tap the field to focus it.
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -170,7 +181,12 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
                       color: sel ? AppColors.holoTeal : textPrimary,
                       fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
                   trailing: sel ? const Icon(Icons.check_rounded, color: AppColors.holoTeal, size: 20) : null,
-                  onTap: () => Navigator.pop(context, o.value),
+                  // Drop focus BEFORE popping: otherwise the keyboard stays up
+                  // over the screen behind for a beat after the sheet closes.
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    Navigator.pop(context, o.value);
+                  },
                 );
               },
             )),

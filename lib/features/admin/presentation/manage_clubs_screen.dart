@@ -16,6 +16,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/services/realtime_channel.dart';
 /// Super-admin-only: approve/reject club membership requests and officer
 /// post (secretary/vice_president/president) requests. Regular admins have
 /// no route here — clubs.president_id carries real notification-broadcast
@@ -43,11 +44,11 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
     super.initState();
     _tab = TabController(length: 2, vsync: this);
     _load();
-    _memberSub = SupabaseConfig.client.channel('manage_club_membership_requests')
+    _memberSub = SupabaseConfig.client.channel(screenChannel('manage_club_membership_requests', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_membership_requests',
             callback: (_) => _load())
         .subscribe();
-    _postSub = SupabaseConfig.client.channel('manage_club_post_requests')
+    _postSub = SupabaseConfig.client.channel(screenChannel('manage_club_post_requests', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_post_requests',
             callback: (_) => _load())
         .subscribe();

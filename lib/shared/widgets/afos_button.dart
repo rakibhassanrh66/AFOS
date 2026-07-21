@@ -72,9 +72,26 @@ class _AfosButtonState extends State<AfosButton> {
             ),
             child: widget.loading
               ? Center(child: SupernovaLoader(size: 24, color: widget.outlined ? bg : fg))
+              // mainAxisSize stays MAX (the default). An earlier attempt at the
+              // overflow fix added MainAxisSize.min, which made the Row
+              // shrink-wrap instead of filling the button -- that is what
+              // deformed Sign In. Flexible alone fixes the long-label overflow;
+              // the size mode must not be touched.
               : Row(mainAxisAlignment:MainAxisAlignment.center, children:[
                   if(widget.icon!=null) ...[Icon(widget.icon,color:widget.outlined?bg:fg,size:18), const SizedBox(width:8)],
-                  Text(widget.label, style:TextStyle(color:widget.outlined?bg:fg,fontSize:15,fontWeight:FontWeight.w600)),
+                  // Flexible, not a bare Text: a long label ('Confirm Approval
+                  // and Notify Student') took its full intrinsic width and blew
+                  // straight through the button on a 320dp phone -- at DEFAULT
+                  // text scale, not just an accessibility one. Ellipsis is the
+                  // right failure mode for a button; silently clipping past the
+                  // edge is not.
+                  Flexible(
+                    child: Text(widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style:TextStyle(color:widget.outlined?bg:fg,fontSize:15,fontWeight:FontWeight.w600)),
+                  ),
                 ]),
           ),
         ),
