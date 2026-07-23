@@ -30,6 +30,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
   String? _error;
   String _filter = 'active';
   RealtimeChannel? _sub;
+  final _refresh = RealtimeRefresh();
 
   static const _filters = ['active', 'resolved', 'false_alarm', 'all'];
 
@@ -40,12 +41,18 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
     AppConfigService.instance.ensureInit();
     _sub = SupabaseConfig.client.channel(screenChannel('manage_sos_alerts', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-            table: 'sos_alerts', callback: (_) => _load())
+        // Debounced: every event reloads the whole alert table.
+            table: 'sos_alerts', callback: (_) => _refresh.schedule(_load))
         .subscribe();
   }
 
   @override
-  void dispose() { _sub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _sub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     try {

@@ -29,6 +29,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
   bool _loading = true;
   String? _error;
   RealtimeChannel? _sub;
+  final _refresh = RealtimeRefresh();
 
   @override
   void initState() {
@@ -36,12 +37,18 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
     _load();
     _sub = SupabaseConfig.client.channel(screenChannel('nearby_sos_alerts', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-            table: 'sos_alerts', callback: (_) => _load())
+        // Debounced: every event reloads the whole alert table.
+            table: 'sos_alerts', callback: (_) => _refresh.schedule(_load))
         .subscribe();
   }
 
   @override
-  void dispose() { _sub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _sub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     try {

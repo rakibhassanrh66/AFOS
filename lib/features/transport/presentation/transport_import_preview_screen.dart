@@ -8,7 +8,6 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../data/models/transport_schedule.dart';
 import '../data/transport_import_service.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 /// The QA gate the admin sees BEFORE any transport data is written: every
 /// parsed route grouped by section (Regular / Shuttle / Friday), each with its
 /// trips + notes and a validation status (ok / warning / error). Pops `true`
@@ -35,7 +34,12 @@ class TransportImportPreviewScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: Column(children: [
-          Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+          // No `navContentClearance` on this list: the pinned _ConfirmBar sits
+          // below it and the enclosing SafeArea already consumes the shell's
+          // bottom inset for both. Adding it here counted the clearance twice
+          // and left ~145px of dead space between the last route card and the
+          // confirm bar.
+          Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), children: [
             FeatureHeader(
               title: 'Schedule for ${parsed.semester}',
               subtitle: '${parsed.routes.length} routes'

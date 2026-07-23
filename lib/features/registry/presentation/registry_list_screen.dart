@@ -40,6 +40,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
   bool _loading = true;
   String? _error;
   RealtimeChannel? _sub;
+  final _refresh = RealtimeRefresh();
 
   bool get _canWrite => RoleSession.role == 'super_admin';
   bool get _isDepartments => widget.tableName == 'departments';
@@ -50,13 +51,16 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
     _load();
     _sub = Supabase.instance.client.channel(screenChannel('registry_${widget.tableName}', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-            table: widget.tableName, callback: (_) => _load())
+        // Debounced: every event reloads the whole registry table.
+            table: widget.tableName, callback: (_) => _refresh.schedule(_load))
         .subscribe();
   }
 
   @override
   void dispose() {
     _sub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
     super.dispose();
   }
 

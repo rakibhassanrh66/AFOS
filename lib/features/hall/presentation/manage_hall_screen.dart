@@ -39,6 +39,8 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
   String _complaintFilter = 'open';
   String? _complaintsError;
   RealtimeChannel? _complaintsSub;
+  final _refresh = RealtimeRefresh();
+  final _complaintsRefresh = RealtimeRefresh();
 
   static const _filters = ['pending', 'reviewing', 'cancel_requested', 'approved', 'rejected', 'cancelled', 'all'];
   static const _complaintFilters = ['open', 'in_progress', 'resolved', 'dismissed', 'all'];
@@ -55,18 +57,30 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     // hall_applications.stream() can't embed the student's profile, so we
     // refetch (like dept_chat's admin-moderation pattern) on any change
     // instead of relying on the raw realtime row.
+    // Debounced: these subscribe with `PostgresChangeEvent.all` and answer every
+    // event with a full table reload, so approving a batch of applications turned
+    // N row changes into N complete refetches. One trailing-edge debounce per
+    // loader collapses each burst into a single fetch.
     _sub = SupabaseConfig.client.channel(screenChannel('manage_hall_applications', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-            table: 'hall_applications', callback: (_) => _load())
+            table: 'hall_applications', callback: (_) => _refresh.schedule(_load))
         .subscribe();
     _complaintsSub = SupabaseConfig.client.channel(screenChannel('manage_hall_complaints', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public',
-            table: 'hall_complaints', callback: (_) => _loadComplaints())
+            table: 'hall_complaints', callback: (_) => _complaintsRefresh.schedule(_loadComplaints))
         .subscribe();
   }
 
   @override
-  void dispose() { _tab.dispose(); _sub?.unsubscribe(); _complaintsSub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _tab.dispose();
+    _sub?.unsubscribe();
+    _complaintsSub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    _complaintsRefresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _loadComplaints() async {
     try {

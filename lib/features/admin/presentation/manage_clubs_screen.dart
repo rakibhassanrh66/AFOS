@@ -32,6 +32,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
   List<Map<String, dynamic>> _membershipRequests = [], _postRequests = [];
   bool _loading = true;
   RealtimeChannel? _memberSub, _postSub;
+  final _refresh = RealtimeRefresh();
   // Guards against a double-tap (or a retry after a lost network response
   // for a write that actually went through) re-submitting the same
   // approval — without this, a second attempt on an already-approved
@@ -44,18 +45,27 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
     super.initState();
     _tab = TabController(length: 2, vsync: this);
     _load();
+    // ONE debouncer for both channels: they share `_load()`, which fetches both
+    // request tables, so a change on either used to trigger a full double fetch.
     _memberSub = SupabaseConfig.client.channel(screenChannel('manage_club_membership_requests', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_membership_requests',
-            callback: (_) => _load())
+            callback: (_) => _refresh.schedule(_load))
         .subscribe();
     _postSub = SupabaseConfig.client.channel(screenChannel('manage_club_post_requests', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_post_requests',
-            callback: (_) => _load())
+            callback: (_) => _refresh.schedule(_load))
         .subscribe();
   }
 
   @override
-  void dispose() { _tab.dispose(); _memberSub?.unsubscribe(); _postSub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _tab.dispose();
+    _memberSub?.unsubscribe();
+    _postSub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     try {
