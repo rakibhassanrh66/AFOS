@@ -50,6 +50,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   String _search = '';
   static const _filters = ['All', 'Tech', 'Sports', 'Cultural', 'Volunteer', 'Business', 'Academic'];
   RealtimeChannel? _clubsSub, _membersSub;
+  final _refresh = RealtimeRefresh();
 
   @override
   void initState() {
@@ -57,17 +58,28 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     _tab = TabController(length: 3, vsync: this);
     _load();
     _loadUser();
+    // ONE debouncer shared by both channels, deliberately: they both call the
+    // same `_load()`, so joining a club (which writes `club_members` and bumps
+    // the parent `clubs` row) fired two full reloads back to back. Sharing the
+    // timer collapses the cross-table burst as well as each table's own.
     _clubsSub = SupabaseConfig.client.channel(screenChannel('clubs_screen_clubs', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'clubs',
-            callback: (_) => _load())
+            callback: (_) => _refresh.schedule(_load))
         .subscribe();
     _membersSub = SupabaseConfig.client.channel(screenChannel('clubs_screen_members', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'club_members',
-            callback: (_) => _load())
+            callback: (_) => _refresh.schedule(_load))
         .subscribe();
   }
   @override
-  void dispose() { _tab.dispose(); _clubsSub?.unsubscribe(); _membersSub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _tab.dispose();
+    _clubsSub?.unsubscribe();
+    _membersSub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });

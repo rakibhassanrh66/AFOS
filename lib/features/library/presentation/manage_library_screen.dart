@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/utils/postgrest_filters.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -158,7 +159,9 @@ class _IssueBookTabState extends State<_IssueBookTab> {
     try {
       final res = await SupabaseConfig.client.from('profiles')
           .select('id, full_name, university_id').eq('role', 'student')
-          .or('full_name.ilike.%$q%,university_id.ilike.%$q%').limit(8) as List;
+          // orIlike, not interpolation — see postgrest_filters.dart: a comma or
+          // parenthesis in the typed name corrupted the or= grammar.
+          .or(orIlike(const ['full_name', 'university_id'], q)).limit(8) as List;
       if (mounted) setState(() => _studentResults = res.cast());
     } catch (_) {}
   }
@@ -168,7 +171,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
     try {
       final res = await SupabaseConfig.client.from('books')
           .select('id, title, author, available_copies').gt('available_copies', 0)
-          .or('title.ilike.%$q%,author.ilike.%$q%,isbn.ilike.%$q%').limit(8) as List;
+          .or(orIlike(const ['title', 'author', 'isbn'], q)).limit(8) as List;
       if (mounted) setState(() => _bookResults = res.cast());
     } catch (_) {}
   }

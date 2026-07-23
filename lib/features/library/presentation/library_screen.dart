@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/utils/postgrest_filters.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -77,9 +78,14 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
     if (q.isEmpty) { setState(() => _searchResults = []); return; }
     setState(() => _searching = true);
     try {
+      // Built via orIlike, not interpolated: a comma or parenthesis in the
+      // query used to corrupt PostgREST's or= grammar — a comma threw
+      // PGRST100 and was swallowed by the catch below (search looked empty),
+      // a parenthesis silently returned the wrong rows. Book titles are full
+      // of both.
       final res = await SupabaseConfig.client
           .from('books').select()
-          .or('title.ilike.%$q%,author.ilike.%$q%,isbn.ilike.%$q%') as List;
+          .or(orIlike(const ['title', 'author', 'isbn'], q)) as List;
       if (mounted) setState(() => _searchResults = res.cast());
     } catch (_) {}
     if (mounted) setState(() => _searching = false);

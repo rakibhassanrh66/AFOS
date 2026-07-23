@@ -113,6 +113,18 @@ class TransportImportService {
           );
     }
 
+    // Mirror each route's ordered stop list into `transport_stops`.
+    //
+    // This step never existed. The importer only ever wrote the `stops` jsonb
+    // on `transport_routes`, so `transport_stops` was populated exactly once by
+    // a legacy import and never again — which is why `fetchStops()` returned an
+    // empty list for every route and the map could not draw a thing.
+    //
+    // `transport_stops` is the row-per-stop form the map reads (it is where
+    // latitude/longitude live), so it has to be kept in step with every upload
+    // or it goes stale the moment a route's stops change.
+    await _syncStops(parsed);
+
     // Remove stale routes for this semester (schedule_type,route_number no
     // longer in the file). Fetch current, diff, delete by id.
     final existing = await client
@@ -137,5 +149,59 @@ class TransportImportService {
       'uploaded_by': SupabaseConfig.uid,
       'is_current': true,
     });
+  }
+
+  /// Mirrors each imported route's ordered stop list into `transport_stops`,
+  /// the row-per-stop table the map reads (and the only place latitude /
+  /// longitude can live).
+  ///
+  /// Deliberately **preserves existing coordinates**: a stop that already has
+  /// lat/long keeps it, because geocoding is expensive and manual corrections
+  /// must survive a routine re-upload. Only the name and ordering are refreshed.
+  ///
+  /// Rows are keyed on (route_id, stop_order) — the natural key added in
+  /// migration `20260722072545`, which is also what makes this upsert idempotent
+  /// rather than duplicating the whole list on every import.
+  static Future<void> _syncStops(ParsedTransportSchedule parsed) async {
+    final client = SupabaseConfig.client;
+
+    // Resolve the ids of the routes just written, so stops attach to the right
+    // parent even on a first-time import where the caller has no ids yet.
+    final saved = await client
+        .from('transport_routes')
+        .select('id, schedule_type, route_number')
+        .eq('semester', parsed.semester) as List;
+    final idByKey = {
+      for (final r in saved) '${r['schedule_type']}|${r['route_number']}': r['id'] as String,
+    };
+
+    final stopRows = <Map<String, dynamic>>[];
+    final routeIds = <String>[];
+    for (final route in parsed.routes) {
+      final routeId = idByKey['${route.scheduleType.wire}|${route.routeNo}'];
+      if (routeId == null) continue;
+      routeIds.add(routeId);
+      for (var i = 0; i < route.stops.length; i++) {
+        final name = route.stops[i].trim();
+        if (name.isEmpty) continue;
+        stopRows.add({
+          'route_id': routeId,
+          'stop_name': name,
+          // 1-based, matching the backfill migration.
+          'stop_order': i + 1,
+        });
+      }
+    }
+
+    if (stopRows.isNotEmpty) {
+      await client.from('transport_stops').upsert(stopRows, onConflict: 'route_id,stop_order');
+    }
+
+    // Drop stops left over from a previous, longer version of a route —
+    // upserting alone would leave the tail of the old list orphaned in place.
+    for (final routeId in routeIds) {
+      final count = stopRows.where((s) => s['route_id'] == routeId).length;
+      await client.from('transport_stops').delete().eq('route_id', routeId).gt('stop_order', count);
+    }
   }
 }

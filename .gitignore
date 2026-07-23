@@ -60,3 +60,5 @@ supabase/.temp/
 
 # Playwright MCP tool output
 .playwright-mcp/
+.aidesigner/*
+!.aidesigner/.gitkeep

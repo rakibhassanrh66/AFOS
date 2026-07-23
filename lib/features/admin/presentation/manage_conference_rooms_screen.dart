@@ -27,6 +27,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
   bool _loading = true;
   String _filter = 'pending';
   RealtimeChannel? _sub;
+  final _refresh = RealtimeRefresh();
   static const _filters = ['pending', 'approved', 'rejected', 'cancelled', 'all'];
 
   @override
@@ -34,13 +35,20 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
     super.initState();
     _load();
     _sub = SupabaseConfig.client.channel(screenChannel('manage_conference_rooms', this))
+        // Debounced: every event reloads the whole request table, so approving
+        // a batch turned N row changes into N full refetches.
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'conference_room_requests',
-            callback: (_) => _load())
+            callback: (_) => _refresh.schedule(_load))
         .subscribe();
   }
 
   @override
-  void dispose() { _sub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _sub?.unsubscribe();
+    // Cancel any queued refetch, or it fires against an unmounted widget.
+    _refresh.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     try {

@@ -28,8 +28,20 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
 
   Future<void> _load() async {
     try {
+      // `release_date` is a DATE, and four releases share 2026-07-19, so
+      // ordering on it alone left those four in whatever order Postgres
+      // happened to return — live, that was 2.3.1, 2.0.1, 2.1.0, 2.0.2, i.e.
+      // What's New listed an older release above a newer one.
+      //
+      // `created_at` is the tiebreaker because it carries the build number in
+      // its time component (…00:15 = +15, 00:20 = +20), so it orders same-day
+      // releases correctly. Sorting on the `version` text instead would look
+      // right today but break the first time a "2.10.0" ships, since "2.10.0"
+      // sorts below "2.9.0" lexicographically.
       final res = await SupabaseConfig.client.from('app_releases')
-          .select().order('release_date', ascending: false) as List;
+          .select()
+          .order('release_date', ascending: false)
+          .order('created_at', ascending: false) as List;
       if (mounted) setState(() { _releases = res.cast(); _loading = false; });
     } catch (_) {
       if (mounted) setState(() => _loading = false);

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
@@ -21,6 +22,7 @@ import '../data/models/transport_schedule.dart';
 import '../data/repositories/transport_repository.dart';
 import '../data/stop_offsets_repository.dart';
 import '../data/stop_time_calculator.dart';
+import '../data/transport_display.dart';
 import 'manage_stop_times_screen.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
@@ -74,11 +76,44 @@ _NextTrip? _nextDeparture(List<Trip> trips, int nowMinutes) {
 /// Strips any stray "<"/">" separator characters that leaked into a stored
 /// stop name (older imports split inconsistent delimiters imperfectly), so no
 /// delimiter can ever reach a rendered widget even for pre-existing DB rows.
-String _cleanStop(String s) => s.replaceAll(RegExp(r'[<>]'), '').trim();
+/// The single entry point every stop name passes through before it is shown or
+/// compared. Strips leaked separators, then normalizes the handful of
+/// all-lower-case names (see [prettyStop]) so the list doesn't look half-broken.
+String _cleanStop(String s) => prettyStop(s.replaceAll(RegExp(r'[<>]'), '').trim());
 
 /// Friendly message shown for a trip slot the admin hasn't finalized yet (a
 /// "Coming Soon" cell) — never a blank cell or an error.
 const String _kSoonMsg = 'Time being updated — check back soon';
+
+/// The standing boarding rule, shown wherever a departure time is.
+const String _kArriveEarlyMsg = 'Be at your stop at least 5 minutes before the time.';
+
+/// The standing "arrive early" advisory, styled as guidance rather than a
+/// warning. Buses run to the listed time, so the buffer is what absorbs the
+/// slack between the schedule and reality.
+class _ArriveEarlyNote extends StatelessWidget {
+  final EdgeInsetsGeometry margin;
+  const _ArriveEarlyNote({this.margin = EdgeInsets.zero});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: margin,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.holoBlue.withValues(alpha: 0.10),
+        borderRadius: LiquidGlass.signatureRadius(12),
+        border: Border.all(color: AppColors.holoBlue.withValues(alpha: 0.28)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.alarm_on_rounded, size: 15, color: AppColors.holoBlue),
+        const SizedBox(width: 8),
+        Expanded(child: Text(_kArriveEarlyMsg,
+            style: AppTextStyles.labelSmall.copyWith(
+                color: AppColors.holoBlue, fontWeight: FontWeight.w600, height: 1.3))),
+      ]),
+    );
+  }
+}
 
 /// Display form of a stored route name: turn the raw "<>"/">" separators into a
 /// clean "›" and normalize the "DSC" shorthand to the single canonical
@@ -90,15 +125,24 @@ String _displayRouteName(String raw) {
   return s.trim();
 }
 
-Future<void> _openInGoogleMaps(List<String> stopNames) async {
-  final origin = Uri.encodeComponent('${stopNames.first}, Dhaka, Bangladesh');
-  final destination = Uri.encodeComponent('${stopNames.last}, Dhaka, Bangladesh');
-  final middle = stopNames.length > 2 ? stopNames.sublist(1, stopNames.length - 1) : const <String>[];
-  final waypoints = middle.map((s) => Uri.encodeComponent('$s, Dhaka, Bangladesh')).join('|');
-  final url = Uri.parse('https://www.google.com/maps/dir/?api=1'
-      '&origin=$origin&destination=$destination'
-      '${waypoints.isNotEmpty ? '&waypoints=$waypoints' : ''}&travelmode=driving');
-  await launchUrl(url, mode: LaunchMode.externalApplication);
+/// Opens the route in Google Maps as directions through its stops.
+/// URL construction (region qualifier, waypoint cap) lives in
+/// [googleMapsRouteUrl] so it can be unit-tested.
+Future<void> _openInGoogleMaps(BuildContext context, List<String> stopNames) async {
+  final url = googleMapsRouteUrl(stopNames);
+  if (url == null) return;
+  var opened = false;
+  try {
+    opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    opened = false;
+  }
+  // The result used to be discarded, so a device with no maps handler simply
+  // did nothing at all when the button was tapped.
+  if (!opened && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't open Google Maps on this device")));
+  }
 }
 
 typedef _PickerOption<T> = ({String label, T value});
@@ -130,10 +174,11 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final q = _query.trim().toLowerCase();
-    final filtered = q.isEmpty
-        ? widget.options
-        : widget.options.where((o) => o.label.toLowerCase().contains(q)).toList();
+    // Normalized, token-order-independent, ranked (see [searchRank]). The old
+    // `label.toLowerCase().contains(q)` missed "mirpur10" / "mirpur-10" / "cb",
+    // couldn't handle "sony mirpur", and listed hits alphabetically so the exact
+    // match wasn't first.
+    final filtered = searchRank(widget.options, _query, (o) => o.label);
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     // NOTE (2026-07-22): two attempts to auto-open the keyboard here both made
@@ -160,6 +205,12 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
             hintText: 'Search…',
             hintStyle: TextStyle(color: textSecondary),
             prefixIcon: Icon(Icons.search_rounded, color: textSecondary),
+            // Clearing meant holding backspace through a long stop name.
+            suffixIcon: _query.isEmpty ? null : IconButton(
+              icon: Icon(Icons.close_rounded, size: 18, color: textSecondary),
+              tooltip: 'Clear',
+              onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); },
+            ),
             filled: true, fillColor: AppColors.glassFill(context),
             contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -168,7 +219,8 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
         const SizedBox(height: 8),
         Flexible(child: filtered.isEmpty
           ? Padding(padding: const EdgeInsets.symmetric(vertical: 28),
-              child: Center(child: Text('No matches', style: TextStyle(color: textSecondary))))
+              child: Center(child: Text('No matches for "${_query.trim()}"',
+                  textAlign: TextAlign.center, style: TextStyle(color: textSecondary))))
           : ListView.builder(
               shrinkWrap: true,
               itemCount: filtered.length,
@@ -301,7 +353,15 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                     loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_FindRouteTab(routes:routes, liveStatus: liveStatus),
                     loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_MyRouteTab(routes:routes, liveStatus: liveStatus),
                     loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_AllRoutesTab(routes:routes, liveStatus: liveStatus, repo: _repo, onViewOnMap: _viewOnMap),
-                    _MapTab(selectedRouteId: _selectedRouteId, repo: _repo),
+                    _MapTab(
+                      // The whole route row, not just its id: with no stop
+                      // coordinates in the database the map can't draw a path,
+                      // but it CAN name the route and hand its stop names to
+                      // Google Maps, which routes on names perfectly well.
+                      route: routes.where((r) => r['id'] == _selectedRouteId).firstOrNull,
+                      repo: _repo,
+                      onBrowseRoutes: () => _tab.animateTo(2),
+                    ),
                   ])),
                 ]);
               },
@@ -373,17 +433,29 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     if (mounted && o.isNotEmpty) setState(() => _offsets = o);
   }
 
+  /// Every distinct stop across all routes, collapsed by [stopKey] so one
+  /// place spelled two ways ("Mirpur 10" / "Mirpur-10") appears once, and
+  /// sorted **case-insensitively**.
+  ///
+  /// The plain `sort()` this replaces was code-unit ordering, which pushed
+  /// every lower-cased name in the live data — "gulistan", "kolabagan",
+  /// "saydabad bus stand", "sign board", "sonir akhra" — below "Zirabo", i.e.
+  /// past the end of the alphabet where nobody scrolls to look for them.
   List<String> get _stopNames {
-    final names = <String>{};
+    final byKey = <String, String>{};
     for (final r in widget.routes) {
-      final stops = (r['stops'] as List?) ?? const [];
-      for (final s in stops) {
+      for (final s in (r['stops'] as List?) ?? const []) {
         final name = _cleanStop((s as Map)['name'] as String? ?? '');
-        if (name.isNotEmpty) names.add(name);
+        if (name.isEmpty) continue;
+        final key = stopKey(name);
+        if (key.isEmpty) continue;
+        // Deterministic winner between competing spellings, so the picker
+        // doesn't reshuffle itself between rebuilds.
+        final existing = byKey[key];
+        if (existing == null || name.compareTo(existing) < 0) byKey[key] = name;
       }
     }
-    final list = names.toList()..sort();
-    return list;
+    return byKey.values.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
   }
 
   List<_RouteMatch> get _matches {
@@ -392,16 +464,21 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     // are pickup points on a route, never independent schedule entities). When
     // both are picked, require both to be on the same route.
     if (_from == null && _to == null) return const [];
-    if (_from != null && _to != null && _from == _to) return const [];
+    // Compared on normalized keys throughout, so a route that spells the picked
+    // stop differently still matches (see [stopKey]).
+    final fromKey = _from == null ? null : stopKey(_from!);
+    final toKey = _to == null ? null : stopKey(_to!);
+    if (fromKey != null && toKey != null && fromKey == toKey) return const [];
     // The stop the user is asking about: their origin if they picked one,
     // otherwise the destination they picked.
-    final focus = _from ?? _to;
+    final focusKey = fromKey ?? toKey;
     final results = <_RouteMatch>[];
     for (final r in widget.routes) {
       final stops = ((r['stops'] as List?) ?? const [])
           .cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).toList();
-      if (_from != null && !stops.contains(_from)) continue;
-      if (_to != null && !stops.contains(_to)) continue;
+      final stopKeys = stops.map(stopKey).toList();
+      if (fromKey != null && !stopKeys.contains(fromKey)) continue;
+      if (toKey != null && !stopKeys.contains(toKey)) continue;
       final routeNumber = r['route_number'] as String? ?? '?';
       final scheduleType = r['schedule_type'] as String? ?? 'regular';
       final toDsc = _tripsOf(r, 'to_dsc_trips');
@@ -409,8 +486,13 @@ class _FindRouteTabState extends State<_FindRouteTab> {
       // Where the focused stop sits in this route's running order — the index
       // was previously computed and thrown away, but it's exactly what turns
       // "this route stops there" into "your stop is 4th, after ECB Chattor".
-      final idx = focus == null ? -1 : stops.indexOf(focus);
-      final offset = focus == null ? null : _offsets[StopOffset.keyFor(routeNumber, scheduleType, focus)];
+      final idx = focusKey == null ? -1 : stopKeys.indexOf(focusKey);
+      // Look the offset up under THIS route's own spelling of the stop, not the
+      // picker's canonical one — the admin recorded it against the route.
+      final localName = idx >= 0 ? stops[idx] : null;
+      final offset = localName == null
+          ? null
+          : _offsets[StopOffset.keyFor(routeNumber, scheduleType, localName)];
       results.add((
         routeId: r['id'] as String,
         routeNumber: routeNumber,
@@ -454,7 +536,8 @@ class _FindRouteTabState extends State<_FindRouteTab> {
       const SizedBox(height: 16),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(18),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(context),
+            borderRadius: LiquidGlass.signatureRadius(18),
             border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
         child: Column(children: [
           _StopDropdown(label: 'From', icon: Icons.trip_origin_rounded, value: _from, options: stopNames,
@@ -477,7 +560,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
         ]),
       ),
       const SizedBox(height: 20),
-      if (_from != null && _to != null && _from == _to)
+      if (_from != null && _to != null && stopKey(_from!) == stopKey(_to!))
         Text('Pick two different stops', style: TextStyle(color: textSecondary))
       else if ((_from != null || _to != null) && matches.isEmpty)
         Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -661,15 +744,28 @@ class _StopAnswerCard extends StatelessWidget {
       ]));
     }
 
-    if (!known && !isOrigin) {
-      lines.add(const SizedBox(height: 6));
+    // The standing boarding rule replaces the old "exact times at this stop
+    // haven't been set by admin yet" apology. Per-stop offsets are no longer
+    // the plan: the listed time and the place are what matter, and the
+    // 5-minute buffer is what absorbs the difference.
+    //
+    // For a mid-route stop the positional line above still says which stop the
+    // quoted time is measured from — without it "be there 5 minutes early"
+    // would send a Mirpur 10 rider out for R4's 7:00 AM, which is when the bus
+    // leaves ECB Chattor, nine stops earlier.
+    //
+    // Guarded on `lines` already having content: adding it unconditionally made
+    // the `lines.isEmpty` bail-out below unreachable, so a route whose trips are
+    // all still "coming soon" rendered a card containing nothing but the
+    // advisory — a boarding rule for a time that isn't shown anywhere.
+    if (lines.isNotEmpty) {
+      lines.add(const SizedBox(height: 8));
       lines.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.info_outline_rounded, size: 12, color: textSecondary),
+        const Icon(Icons.alarm_on_rounded, size: 13, color: AppColors.holoBlue),
         const SizedBox(width: 6),
-        Expanded(child: Text(
-          'Exact times at this stop haven\'t been set by admin yet.',
-          style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
-        )),
+        Expanded(child: Text(_kArriveEarlyMsg,
+            style: AppTextStyles.labelSmall.copyWith(
+                color: AppColors.holoBlue, fontWeight: FontWeight.w600, height: 1.3))),
       ]));
     }
 
@@ -872,7 +968,8 @@ class _MyRouteTabState extends State<_MyRouteTab> {
       const SizedBox(height:12),
       Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(context),
+            borderRadius: LiquidGlass.signatureRadius(16),
             border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
         child: Row(children: [
           Container(width: 36, height: 36, alignment: Alignment.center,
@@ -887,9 +984,13 @@ class _MyRouteTabState extends State<_MyRouteTab> {
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () async {
+                // Same natural ordering as All Routes, so the picker doesn't
+                // list R10 between R1 and R2.
+                final ordered = [...widget.routes]..sort((a, b) => compareRouteNumbers(
+                    a['route_number'] as String? ?? '', b['route_number'] as String? ?? ''));
                 final picked = await _showOptionPicker<String>(context,
                     title: 'Choose your route',
-                    options: widget.routes.map((r) => (
+                    options: ordered.map((r) => (
                         label: '${r['route_number']} — ${_displayRouteName(r['route_name'] as String? ?? 'Route')}',
                         value: r['id'] as String)).toList(),
                     selected: _selectedRoute);
@@ -915,12 +1016,21 @@ class _MyRouteTabState extends State<_MyRouteTab> {
         ]),
         const SizedBox(height:8),
         if (toDsc.isNotEmpty || fromDsc.isNotEmpty) ...[
-          _NextDepartureCard(toDsc: toDsc, fromDsc: fromDsc),
+          _NextDepartureCard(
+            toDsc: toDsc, fromDsc: fromDsc,
+            // Which corridor the quoted time belongs to — without it the big
+            // number is a time with no subject.
+            subtitle: stops.length >= 2
+                ? '${selected['route_number']}  ·  ${stops.first} › ${stops.last}'
+                : selected['route_number'] as String?,
+          ),
+          const _ArriveEarlyNote(margin: EdgeInsets.only(top: 10)),
           const SizedBox(height: 12),
         ],
         if (stops.isNotEmpty) Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+            decoration: BoxDecoration(color: AppColors.surfaceOf(context),
+                borderRadius: LiquidGlass.signatureRadius(16),
                 border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -932,7 +1042,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
               _StopsTimeline(stops: stops),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                  onPressed: () => _openInGoogleMaps(stops),
+                  onPressed: () => _openInGoogleMaps(context, stops),
                   icon: const Icon(Icons.directions_rounded, size: 18),
                   label: const Text('Open in Google Maps'))),
             ])),
@@ -981,34 +1091,108 @@ class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixi
 
 /// Live "next bus" hero — big departure time per direction with a relative
 /// countdown chip and a pulsing "live" indicator.
-class _NextDepartureCard extends StatelessWidget {
-  final List<Trip> toDsc; final List<Trip> fromDsc;
-  const _NextDepartureCard({required this.toDsc, required this.fromDsc});
+/// One direction's next departure as a departure-board panel: the time is the
+/// largest, most confident element on the screen, with the countdown as a pill
+/// beside it and a live dot in the corner.
+///
+/// The previous version stacked both directions inside one box with the time at
+/// **20px** — the single thing a rider opens this screen for carried the same
+/// visual weight as its own label. Splitting per direction also lets each leg
+/// take its own accent (teal inbound, blue outbound), matching the To/From DSC
+/// colour language the schedule cards below already use.
+class _DepartureHeroCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color accent;
+  final _NextTrip next;
 
-  String _rel(int m) => m < 60 ? '${m}m' : '${m ~/ 60}h ${m % 60}m';
+  /// Route corridor line, e.g. "R4 · ECB Chattor › Daffodil Smart City".
+  final String? subtitle;
+  const _DepartureHeroCard({
+    required this.label,
+    required this.icon,
+    required this.accent,
+    required this.next,
+    this.subtitle,
+  });
 
-  Widget _leg(BuildContext context, String dir, _NextTrip n) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(7)),
-          child: Text(dir, style: const TextStyle(color: AppColors.holoTeal, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+  static String rel(int m) => m < 60 ? '$m min' : '${m ~/ 60}h ${m % 60}m';
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: [accent.withValues(alpha: 0.16), accent.withValues(alpha: 0.04)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        // The signature AFOS silhouette rather than a plain rounded box, so the
+        // hero reads as part of the same system as every other glass panel.
+        borderRadius: LiquidGlass.signatureRadius(LiquidGlass.radiusCard),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 14, color: accent),
+          const SizedBox(width: 7),
+          Expanded(child: Text(label,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: accent, fontSize: 11,
+                  fontWeight: FontWeight.w800, letterSpacing: 0.8))),
+          _PulseDot(color: accent),
+        ]),
+        const SizedBox(height: 10),
+        // Wrap, not Row: at 1.6x text scale on a 320dp screen a 40px time plus a
+        // countdown pill cannot sit side by side, and the layout harness already
+        // proved maxLines+ellipsis does NOT stop a Text claiming its full
+        // intrinsic width. Wrapping is the only arrangement that cannot overflow.
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10, runSpacing: 6,
+          children: [
+            Text(next.time,
+                textHeightBehavior: const TextHeightBehavior(
+                    applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                style: TextStyle(fontSize: 40, height: 1.0, letterSpacing: -1.2,
+                    fontWeight: FontWeight.w800, color: textPrimary)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
+                border: Border.all(color: accent.withValues(alpha: 0.28)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(next.isTomorrow ? Icons.event_rounded : Icons.schedule_rounded,
+                    size: 12, color: accent),
+                const SizedBox(width: 5),
+                Text(next.isTomorrow ? 'tomorrow' : 'in ${rel(next.minutesUntil)}',
+                    style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Text(n.time, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimaryOf(context))),
-        const SizedBox(width: 8),
-        Flexible(child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: AppColors.holoBlue.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(7)),
-          child: Text('${n.isTomorrow ? 'tomorrow · ' : ''}in ${_rel(n.minutesUntil)}',
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.holoBlue, fontSize: 11, fontWeight: FontWeight.w700)),
-        )),
+        if (subtitle != null && subtitle!.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+        ],
       ]),
     );
   }
+}
+
+/// Live "next bus" hero — one [_DepartureHeroCard] per direction that still has
+/// an upcoming departure, re-evaluated every minute by `_MyRouteTabState`'s tick
+/// timer so the countdown advances without a manual refresh.
+class _NextDepartureCard extends StatelessWidget {
+  final List<Trip> toDsc; final List<Trip> fromDsc;
+
+  /// Corridor line shown under the time, e.g. "R4 · ECB Chattor › …".
+  final String? subtitle;
+  const _NextDepartureCard({required this.toDsc, required this.fromDsc, this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -1017,28 +1201,17 @@ class _NextDepartureCard extends StatelessWidget {
     final nextTo = _nextDeparture(toDsc, nowMin);
     final nextFrom = _nextDeparture(fromDsc, nowMin);
     if (nextTo == null && nextFrom == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [
-          AppColors.holoTeal.withValues(alpha: 0.16), AppColors.holoBlue.withValues(alpha: 0.06)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.holoTeal.withValues(alpha: 0.3)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [
-          _PulseDot(color: AppColors.holoTeal),
-          SizedBox(width: 8),
-          Text('NEXT BUS', style: TextStyle(
-              color: AppColors.holoTeal, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-          Spacer(),
-          Icon(Icons.directions_bus_filled_rounded, color: AppColors.holoTeal, size: 20),
-        ]),
-        if (nextTo != null) _leg(context, 'TO DSC', nextTo),
-        if (nextFrom != null) _leg(context, 'FROM DSC', nextFrom),
-      ]),
-    );
+    return Column(children: [
+      if (nextTo != null)
+        _DepartureHeroCard(
+            label: 'TO CAMPUS', icon: Icons.school_rounded,
+            accent: AppColors.holoTeal, next: nextTo, subtitle: subtitle),
+      if (nextTo != null && nextFrom != null) const SizedBox(height: 10),
+      if (nextFrom != null)
+        _DepartureHeroCard(
+            label: 'FROM CAMPUS', icon: Icons.home_rounded,
+            accent: AppColors.holoBlue, next: nextFrom, subtitle: subtitle),
+    ]);
   }
 }
 
@@ -1082,7 +1255,11 @@ class _ScheduleCard extends StatelessWidget {
     final noted = times.where((t) => t.note != null && t.note!.isNotEmpty).toList();
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context),
+          // Signature silhouette (three corners large, top-right cut) instead of
+          // a uniform circular radius, so the schedule panels match the rest of
+          // the glass system rather than reading as generic cards.
+          borderRadius: LiquidGlass.signatureRadius(16),
           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -1176,12 +1353,37 @@ class _StopsTimeline extends StatelessWidget {
   }
 }
 
-class _AllRoutesTab extends StatelessWidget {
+class _AllRoutesTab extends StatefulWidget {
   final List<Map<String,dynamic>> routes;
   final Map<String, Map<String, dynamic>> liveStatus;
   final TransportRepository repo;
   final ValueChanged<String> onViewOnMap;
   const _AllRoutesTab({required this.routes, required this.liveStatus, required this.repo, required this.onViewOnMap});
+  @override State<_AllRoutesTab> createState() => _AllRoutesTabState();
+}
+
+class _AllRoutesTabState extends State<_AllRoutesTab> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+
+  Map<String, Map<String, dynamic>> get liveStatus => widget.liveStatus;
+  ValueChanged<String> get onViewOnMap => widget.onViewOnMap;
+
+  /// Routes matching the search box. Deliberately searches the **stop list** as
+  /// well as the number and name: riders know the stop they board at, not the
+  /// route's official title, so "Kalshi" has to find R4 even though the word
+  /// appears nowhere in "ECB Chattor <> Mirpur <> Daffodil Smart City".
+  List<Map<String,dynamic>> get _visible {
+    if (searchNormalize(_query).isEmpty) return widget.routes;
+    return searchRank(widget.routes, _query, (r) {
+      final stops = ((r['stops'] as List?) ?? const [])
+          .cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).join(' ');
+      return '${r['route_number'] ?? ''} ${_displayRouteName(r['route_name'] as String? ?? '')} $stops';
+    });
+  }
 
   void _showRouteDetail(BuildContext context, Map<String,dynamic> route) {
     final toDsc = _tripsOf(route, 'to_dsc_trips');
@@ -1208,10 +1410,20 @@ class _AllRoutesTab extends StatelessWidget {
               const SizedBox(height: 16),
             ],
             if (toDsc.isNotEmpty) _ScheduleCard(title: 'To DSC', times: toDsc, icon: Icons.login_rounded, accent: AppColors.holoTeal),
-            if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12, bottom: GlassBottomNav.navContentClearance),
+            // NO `navContentClearance` here: this is a modal bottom sheet, not a
+            // screen inside the AppShell, so there is no floating bottom nav to
+            // clear — GlassSheet already supplies its own SafeArea + 24px pad.
+            // The stray 129px it used to add was dead space between the last
+            // schedule card and the action buttons, and because it hung off the
+            // `fromDsc.isNotEmpty` branch, a route with no return trips got a
+            // completely different layout. That is the "route detail goes to all
+            // the edges / super weird" report.
+            if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
                 child: _ScheduleCard(title: 'From DSC', times: fromDsc, icon: Icons.logout_rounded, accent: AppColors.holoBlue)),
             if (toDsc.isEmpty && fromDsc.isEmpty && stopNames.isEmpty)
               Text('No trip data uploaded for this route yet', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx))),
+            if (toDsc.isNotEmpty || fromDsc.isNotEmpty)
+              const _ArriveEarlyNote(margin: EdgeInsets.only(top: 12)),
             const SizedBox(height: 24),
             SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: () { Navigator.pop(sheetCtx); onViewOnMap(route['id'] as String); },
@@ -1220,7 +1432,7 @@ class _AllRoutesTab extends StatelessWidget {
             if (stopNames.isNotEmpty) ...[
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                  onPressed: () => _openInGoogleMaps(stopNames),
+                  onPressed: () => _openInGoogleMaps(sheetCtx, stopNames),
                   icon: const Icon(Icons.directions_rounded, size: 18),
                   label: const Text('Open in Google Maps'))),
               // Admin-only: record how many minutes into each leg the bus
@@ -1252,10 +1464,11 @@ class _AllRoutesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if(routes.isEmpty) {
+    if (widget.routes.isEmpty) {
       return Center(
         child:Text('No routes',style:TextStyle(color:AppColors.textSecondaryOf(context))));
     }
+    final visible = _visible;
     // Group by schedule_type into the source document's own sections
     // (Regular / Shuttle / Friday). On Fridays the Friday schedule is what
     // actually applies today, so surface it FIRST and flag it; other days keep
@@ -1265,9 +1478,16 @@ class _AllRoutesTab extends StatelessWidget {
         ? const [ScheduleType.friday, ScheduleType.regular, ScheduleType.shuttle]
         : const [ScheduleType.regular, ScheduleType.shuttle, ScheduleType.friday];
     final grouped = <ScheduleType, List<Map<String,dynamic>>>{};
-    for (final r in routes) {
+    for (final r in visible) {
       final type = ScheduleTypeX.fromWire(r['schedule_type'] as String?);
       grouped.putIfAbsent(type, () => []).add(r);
+    }
+    // The rows arrive in the DB's lexicographic route_number order, which reads
+    // R1, R10, R2, R3 … — re-sort each section naturally (see
+    // [compareRouteNumbers]).
+    for (final group in grouped.values) {
+      group.sort((a, b) => compareRouteNumbers(
+          a['route_number'] as String? ?? '', b['route_number'] as String? ?? ''));
     }
     final children = <Widget>[];
     var idx = 0;
@@ -1308,7 +1528,59 @@ class _AllRoutesTab extends StatelessWidget {
         children.add(_routeCard(context, r, idx++));
       }
     }
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: children);
+    if (visible.isEmpty) {
+      children.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(children: [
+          Icon(Icons.search_off_rounded, size: 34, color: AppColors.textSecondaryOf(context)),
+          const SizedBox(height: 10),
+          Text('No route matches "${_query.trim()}"',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondaryOf(context))),
+          const SizedBox(height: 4),
+          Text('Try a stop name, or a route number like R4.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedOf(context))),
+        ]),
+      ));
+    }
+    return Column(children: [
+      // 21 routes across three sections had no filter at all, so finding your
+      // route meant scrolling the whole list. Searches stop names too, because
+      // riders know where they board, not the route's official title.
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: TextField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v),
+          textInputAction: TextInputAction.search,
+          onTapOutside: (_) => FocusScope.of(context).unfocus(),
+          style: TextStyle(color: AppColors.textPrimaryOf(context)),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'Search route or stop…',
+            hintStyle: TextStyle(color: AppColors.textSecondaryOf(context)),
+            prefixIcon: Icon(Icons.search_rounded, color: AppColors.textSecondaryOf(context)),
+            suffixIcon: _query.isEmpty ? null : IconButton(
+              icon: Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondaryOf(context)),
+              tooltip: 'Clear',
+              onPressed: () {
+                _searchCtrl.clear();
+                FocusScope.of(context).unfocus();
+                setState(() => _query = '');
+              },
+            ),
+            filled: true, fillColor: AppColors.glassFill(context),
+            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            border: OutlineInputBorder(
+                borderRadius: LiquidGlass.signatureRadius(14), borderSide: BorderSide.none),
+          ),
+        ),
+      ),
+      Expanded(child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16 + GlassBottomNav.navContentClearance),
+        children: children)),
+    ]);
   }
 
   Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i) {
@@ -1368,9 +1640,14 @@ Color _accentFor(ScheduleType t) => switch (t) {
     };
 
 class _MapTab extends StatefulWidget {
-  final String? selectedRouteId;
+  /// The route being previewed, or null when the user hasn't chosen one yet.
+  final Map<String, dynamic>? route;
   final TransportRepository repo;
-  const _MapTab({required this.selectedRouteId, required this.repo});
+
+  /// Jumps to the All Routes tab — the map has no route list of its own, and
+  /// without this the tab was a dead end for anyone who opened it directly.
+  final VoidCallback onBrowseRoutes;
+  const _MapTab({required this.route, required this.repo, required this.onBrowseRoutes});
   @override State<_MapTab> createState() => _MapTabState();
 }
 
@@ -1383,20 +1660,31 @@ class _MapTabState extends State<_MapTab> {
   List<Map<String,dynamic>>? _stops;
   bool _loadingStops = false;
 
+  String? get _routeId => widget.route?['id'] as String?;
+
+  /// Stop names straight off the route row. These always exist, unlike the
+  /// `transport_stops` coordinates, so they're what powers the Google Maps
+  /// hand-off when the in-app path can't be drawn.
+  List<String> get _stopNames => ((widget.route?['stops'] as List?) ?? const [])
+      .cast<Map>()
+      .map((s) => _cleanStop(s['name'] as String? ?? ''))
+      .where((s) => s.isNotEmpty)
+      .toList();
+
   @override
   void initState() { super.initState(); _enableLocation(); _loadStops(); }
 
   @override
   void didUpdateWidget(covariant _MapTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedRouteId != widget.selectedRouteId) _loadStops();
+    if (oldWidget.route?['id'] != _routeId) _loadStops();
   }
 
   @override
   void dispose() { _mapController.dispose(); super.dispose(); }
 
   Future<void> _loadStops() async {
-    final routeId = widget.selectedRouteId;
+    final routeId = _routeId;
     if (routeId == null) { if (mounted) setState(() => _stops = null); return; }
     setState(() => _loadingStops = true);
     try {
@@ -1426,7 +1714,13 @@ class _MapTabState extends State<_MapTab> {
   @override
   Widget build(BuildContext context) {
     final routePoints = _routePoints;
-    final showNoPathNote = widget.selectedRouteId != null && !_loadingStops && routePoints.length < 2;
+    final hasRoute = widget.route != null;
+    // Every one of the 183 `transport_stops` rows belongs to the retired
+    // legacy import, so `fetchStops` returns nothing for any ACTIVE route and
+    // this is currently true for all of them. The panel below says so plainly
+    // instead of leaving a blank map, and still offers the thing that does
+    // work — Google Maps directions built from the stop names.
+    final showNoPathNote = hasRoute && !_loadingStops && routePoints.length < 2;
     return Stack(children: [
       FlutterMap(
         mapController: _mapController,
@@ -1453,28 +1747,101 @@ class _MapTabState extends State<_MapTab> {
           ]),
         ],
       ),
-      Positioned(right: 16, bottom: 16 + MediaQuery.of(context).padding.bottom, child: FloatingActionButton(
-          heroTag: 'my_location_fab',
-          backgroundColor: AppColors.surfaceOf(context),
-          onPressed: _requestingLocation ? null : _enableLocation,
-          child: _requestingLocation
-              ? const SupernovaLoader(size: 20, color: AppColors.holoTeal)
-              : const Icon(Icons.my_location_rounded, color: AppColors.holoTeal))),
       if (_locationError != null) Positioned(left: 16, right: 90, top: 16, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.borderOf(context))),
           child: Text(_locationError!, style: TextStyle(fontSize: 12, color: AppColors.textSecondaryOf(context))))),
-      if (showNoPathNote) Positioned(left: 16, right: 16, bottom: 90 + MediaQuery.of(context).padding.bottom, child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.borderOf(context))),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.info_outline_rounded, size: 16, color: AppColors.textSecondaryOf(context)),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Route path not available yet for this route',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondaryOf(context)))),
-          ]))),
+      // Locate button and info panel share ONE bottom-anchored column so they
+      // stack instead of colliding — both used to be pinned to the same
+      // `bottom:`, which put the FAB on top of the panel's action button.
+      Positioned(
+        left: 16, right: 16,
+        bottom: 16 + MediaQuery.of(context).padding.bottom,
+        // stretch (not end) so the panel spans the full width; the FAB is
+        // right-aligned individually.
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: FloatingActionButton(
+                heroTag: 'my_location_fab',
+                backgroundColor: AppColors.surfaceOf(context),
+                onPressed: _requestingLocation ? null : _enableLocation,
+                child: _requestingLocation
+                    ? const SupernovaLoader(size: 20, color: AppColors.holoTeal)
+                    : const Icon(Icons.my_location_rounded, color: AppColors.holoTeal)),
+          ),
+          // Two honest states: "pick a route" when nothing is selected, and
+          // "we can't draw this one, here's what does work" when the selected
+          // route has no plotted stops. The old build showed nothing at all in
+          // the first case, so opening the Map tab directly left the user on a
+          // bare map of Dhaka with no idea what to do.
+          if (!hasRoute || showNoPathNote) ...[
+            const SizedBox(height: 12),
+            _MapInfoPanel(
+              routeLabel: hasRoute
+                  ? '${widget.route!['route_number']} — ${_displayRouteName(widget.route!['route_name'] as String? ?? 'Route')}'
+                  : null,
+              stopNames: _stopNames,
+              onBrowseRoutes: widget.onBrowseRoutes,
+            ),
+          ],
+        ]),
+      ),
     ]);
+  }
+}
+
+/// The map's ground-truth panel. Deliberately states what is and isn't known
+/// rather than leaving the map silently empty.
+class _MapInfoPanel extends StatelessWidget {
+  /// Null when no route is selected yet.
+  final String? routeLabel;
+  final List<String> stopNames;
+  final VoidCallback onBrowseRoutes;
+  const _MapInfoPanel({required this.routeLabel, required this.stopNames, required this.onBrowseRoutes});
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    final hasRoute = routeLabel != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderOf(context)),
+        boxShadow: [BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18), blurRadius: 18, offset: const Offset(0, 6))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(hasRoute ? Icons.route_rounded : Icons.touch_app_rounded, size: 16, color: AppColors.holoTeal),
+          const SizedBox(width: 8),
+          Expanded(child: Text(hasRoute ? routeLabel! : 'No route selected',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700))),
+        ]),
+        const SizedBox(height: 6),
+        Text(
+          hasRoute
+              ? "This route's stops haven't been plotted on the map yet, so there's no line to draw. "
+                  'Google Maps can still route you through all ${stopNames.length} stops by name.'
+              : 'Pick a route in All Routes to preview it here.',
+          style: AppTextStyles.labelSmall.copyWith(color: textSecondary, height: 1.35),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: hasRoute && stopNames.isNotEmpty
+            ? FilledButton.icon(
+                onPressed: () => _openInGoogleMaps(context, stopNames),
+                icon: const Icon(Icons.directions_rounded, size: 18),
+                label: const Text('Open in Google Maps'))
+            : OutlinedButton.icon(
+                onPressed: onBrowseRoutes,
+                icon: const Icon(Icons.list_alt_rounded, size: 18),
+                label: const Text('Browse all routes'))),
+      ]),
+    );
   }
 }

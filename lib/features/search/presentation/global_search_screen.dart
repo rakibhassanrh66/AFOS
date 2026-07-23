@@ -8,8 +8,10 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/info_card.dart';
+import '../../../core/utils/postgrest_filters.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../transport/data/transport_display.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
 /// Lightweight cross-module search: one query fans out to notices, class
@@ -57,7 +59,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     }
     final gen = ++_gen;
     setState(() { _query = q; _loading = true; });
-    final like = '%$q%';
+    // `%` and `_` are ilike wildcards. Interpolating the raw query meant a
+    // search for "100%" or "a_b" silently matched far more than was typed.
+    final like = '%${escapeLikePattern(q)}%';
     final client = SupabaseConfig.client;
 
     Future<List<_SearchHit>> run(Future<List> Function() query, _SearchHit Function(Map<String, dynamic>) map) async {
@@ -90,11 +94,46 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       run(() => client.from('clubs').select('name, description').ilike('name', like).limit(6),
           (r) => _SearchHit(r['name'] as String? ?? '', r['description'] as String? ?? 'Club',
               '/clubs', AppIcons.clubs, AppColors.pink)),
+      // Bus routes. Transport was missing from global search entirely, so
+      // searching a stop name campus-wide returned nothing even though seven
+      // routes pass through Mirpur.
+      //
+      // Fetched whole and ranked on the client, NOT filtered with `.or(...)`.
+      // PostgREST's `or=(...)` embeds the value into a filter *expression*, and
+      // its grammar was actively hostile here — verified against the live API:
+      //   * a COMMA ("Mirpur-1, 10") → PGRST100 "failed to parse logic tree".
+      //     The try/catch above swallowed it, so transport results silently
+      //     vanished with no error shown.
+      //   * PARENTHESES ("Malibagh Railgate (South Bus Stop)" is a real stop)
+      //     parsed as filter syntax and returned WRONG rows rather than failing.
+      //   * `*` is a wildcard alias for `%` in like/ilike and cannot be escaped.
+      // Quoting the value fixes the first two but not the third, and only 21
+      // routes are active — a few KB — so filtering locally is both cheaper and
+      // exactly consistent with the in-app Transport search, since it reuses the
+      // same `searchRank` matcher (punctuation-insensitive, any token order,
+      // ranked). `route_details` is the ordered stop list as text, which is what
+      // makes STOPS searchable at all — the `stops` jsonb can't be matched here.
+      () async {
+        try {
+          final rows = await client.from('transport_routes')
+              .select('route_number, route_name, route_details')
+              .eq('is_active', true) as List;
+          final routes = rows.cast<Map<String, dynamic>>();
+          final ranked = searchRank(routes, q,
+              (r) => '${r['route_number'] ?? ''} ${r['route_name'] ?? ''} ${r['route_details'] ?? ''}');
+          return ranked.take(6).map((r) => _SearchHit(
+              '${r['route_number'] ?? ''} — ${(r['route_name'] as String? ?? 'Route').replaceAll(RegExp(r'\s*[<>]+\s*'), ' › ')}',
+              r['route_details'] as String? ?? 'Bus route',
+              '/transport', Icons.directions_bus_filled_rounded, AppColors.holoTeal)).toList();
+        } catch (_) {
+          return const <_SearchHit>[];
+        }
+      }(),
     ]);
 
     if (!mounted || gen != _gen) return;
     final groups = <_SearchGroup>[];
-    const labels = ['Notices', 'Class Schedule', 'Library', 'Lost & Found', 'Clubs'];
+    const labels = ['Notices', 'Class Schedule', 'Library', 'Lost & Found', 'Clubs', 'Transport'];
     for (var i = 0; i < results.length; i++) {
       if (results[i].isNotEmpty) groups.add(_SearchGroup(labels[i], results[i]));
     }
@@ -110,7 +149,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: AfosTextField(
-            hint: 'Search notices, classes, books, clubs…',
+            hint: 'Search notices, classes, books, clubs, routes…',
             controller: _ctrl,
             prefixIcon: Icons.search_rounded,
             onChanged: _onChanged,
@@ -129,7 +168,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       return const EmptyState(
         icon: Icons.search_rounded,
         title: 'Search across AFOS',
-        subtitle: 'Find notices, classes, library books, lost & found items, and clubs — all in one place.',
+        subtitle: 'Find notices, classes, library books, lost & found items, clubs, and bus routes — all in one place.',
       );
     }
     if (_groups.isEmpty) {
