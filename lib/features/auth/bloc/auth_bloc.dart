@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/auth/permission_session.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/pending_credentials_store.dart';
@@ -63,6 +64,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onLogout(AuthLogoutRequested e, Emitter<AuthState> emit) async {
     await _repo.signOut();
     RoleSession.clear();
+    PermissionSession.clear();
     emit(AuthUnauthenticated());
   }
 
@@ -73,6 +75,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthAuthenticated(user));
     } else {
       RoleSession.clear();
+      PermissionSession.clear();
       emit(AuthUnauthenticated());
     }
   }

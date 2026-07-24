@@ -13,6 +13,11 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Made explicit alongside the values/ (light-system) fix, see that
+             file's comment. Theme.Black's own colorBackground is already dark,
+             so this one wasn't the source of the white flash, but pointing it
+             at the exact same drawable removes any reliance on a
+             theme-relative attribute (and any OEM quirks) at this handoff. -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
 </resources>

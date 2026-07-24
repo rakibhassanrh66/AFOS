@@ -209,27 +209,32 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
         child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _assignments.length,
-            itemBuilder: (ctx, i) {
-              final a = _assignments[i];
-              final deadline = DateTime.tryParse(a['deadline'] ?? '');
-              final expired = deadline != null && deadline.isBefore(DateTime.now());
-              final count = ((a['assignment_submissions'] as List?)?.firstOrNull as Map?)?['count'] ?? 0;
-              return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(child: Text(a['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)))),
-                      if (!expired) IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
-                          onPressed: () => _delete(a['id'])),
-                    ]),
-                    Text('${a['course_code']} · Batch ${a['batch']} Sec ${a['section']}',
-                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-                    const SizedBox(height: 6),
-                    Text('$count submission(s) · ${expired ? "Closed" : "Due"} ${deadline != null ? AppFormatters.dateTime(deadline) : ''}',
-                        style: TextStyle(color: expired ? AppColors.red : AppColors.green, fontSize: 12, fontWeight: FontWeight.w600)),
-                  ]));
-            }));
+            // Guarded by the `if (_assignments.isEmpty) return EmptyState(...)`
+            // early-return above, so .first is safe. The delete icon is
+            // conditional (`if (!expired)`) but doesn't change row height.
+            prototypeItem: _buildAssignmentRow(context, _assignments.first),
+            itemBuilder: (ctx, i) => _buildAssignmentRow(ctx, _assignments[i])));
+  }
+
+  Widget _buildAssignmentRow(BuildContext ctx, Map<String, dynamic> a) {
+    final deadline = DateTime.tryParse(a['deadline'] ?? '');
+    final expired = deadline != null && deadline.isBefore(DateTime.now());
+    final count = ((a['assignment_submissions'] as List?)?.firstOrNull as Map?)?['count'] ?? 0;
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(a['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx)))),
+            if (!expired) IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                onPressed: () => _delete(a['id'])),
+          ]),
+          Text('${a['course_code']} · Batch ${a['batch']} Sec ${a['section']}',
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(ctx))),
+          const SizedBox(height: 6),
+          Text('$count submission(s) · ${expired ? "Closed" : "Due"} ${deadline != null ? AppFormatters.dateTime(deadline) : ''}',
+              style: TextStyle(color: expired ? AppColors.red : AppColors.green, fontSize: 12, fontWeight: FontWeight.w600)),
+        ]));
   }
 }
 
@@ -317,7 +322,8 @@ class _ObserveTabState extends State<_ObserveTab> {
   void initState() { super.initState(); _load(); }
   Future<void> _load() async {
     final res = await SupabaseConfig.client.from('assignments')
-        .select('*, profiles!teacher_id(full_name)').order('deadline', ascending: false) as List;
+        .select('id, title, course_code, batch, section, profiles!teacher_id(full_name)')
+        .order('deadline', ascending: false).limit(100) as List;
     if (mounted) setState(() { _all = res.cast(); _loading = false; });
   }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -16,12 +17,35 @@ import '../../../shared/widgets/supernova_loader.dart';
 import '../../auth/data/repositories/academic_repository.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../notifications/data/repositories/notification_service.dart';
+import '../../transport/data/models/transport_schedule.dart';
 import '../../transport/data/transport_excel_parser.dart';
 import '../../transport/data/transport_import_service.dart';
 import '../../transport/data/transport_pdf_parser.dart';
 import '../../transport/presentation/transport_import_preview_screen.dart';
 
 import '../../../shared/widgets/glass_bottom_nav.dart';
+/// PDFs are parsed to text lines right here on-device (Syncfusion's PDF
+/// text extractor), not on the server — a multi-page routine PDF has
+/// thousands of positioned text runs, which reliably blew past the edge
+/// function's CPU/time budget and crashed it (HTTP 546). The phone has
+/// no such limit, so only the already-extracted, tiny text payload goes
+/// to the server for the lightweight regex parsing.
+///
+/// Top-level (not a State method) and run via `compute()` — this is the
+/// single heaviest synchronous parse in the app, invoked directly inside an
+/// admin's upload button tap with nothing else keeping the UI thread busy
+/// meanwhile, so without an isolate the button visibly freezes for the
+/// duration of the extraction.
+List<String> _extractPdfLines(Uint8List bytes) {
+  final doc = PdfDocument(inputBytes: bytes);
+  try {
+    final textLines = PdfTextExtractor(doc).extractTextLines();
+    return textLines.map((l) => l.text.trim()).where((t) => t.isNotEmpty).toList();
+  } finally {
+    doc.dispose();
+  }
+}
+
 const _modes = ['class_routine', 'exam_routine', 'transport', 'schedule'];
 String _modeLabel(String m) => switch (m) {
       'transport' => 'Transport Routes',
@@ -121,22 +145,6 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
     throw 'Could not read "${file.name}" — no file data available.';
   }
 
-  /// PDFs are parsed to text lines right here on-device (Syncfusion's PDF
-  /// text extractor), not on the server — a multi-page routine PDF has
-  /// thousands of positioned text runs, which reliably blew past the edge
-  /// function's CPU/time budget and crashed it (HTTP 546). The phone has
-  /// no such limit, so only the already-extracted, tiny text payload goes
-  /// to the server for the lightweight regex parsing.
-  List<String> _extractPdfLines(Uint8List bytes) {
-    final doc = PdfDocument(inputBytes: bytes);
-    try {
-      final textLines = PdfTextExtractor(doc).extractTextLines();
-      return textLines.map((l) => l.text.trim()).where((t) => t.isNotEmpty).toList();
-    } finally {
-      doc.dispose();
-    }
-  }
-
   Future<void> _uploadOne(_PendingUpload p) async {
     // Transport is parsed CLIENT-SIDE (Excel primary / PDF fallback), validated,
     // and previewed for admin review before anything is written — see
@@ -163,7 +171,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       final bytes = await _fileBytes(p.file);
       final Response res;
       if (isPdf) {
-        final lines = _extractPdfLines(bytes);
+        final lines = await compute(_extractPdfLines, bytes);
         if (lines.isEmpty) {
           throw 'Could not read any text from this PDF — it may be a scanned image rather than a text PDF.';
         }
@@ -203,32 +211,48 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
     try {
       final bytes = await _fileBytes(p.file);
       final ext = p.file.extension?.toLowerCase();
+      // TransportPdfParser/TransportExcelParser.parse are both static —
+      // torn off as a function reference for compute() the same way the
+      // class-routine PDF extraction above is, keeping the upload button
+      // responsive during the parse instead of freezing on the UI thread.
       final parsed = ext == 'pdf'
-          ? TransportPdfParser.parse(bytes)
-          : TransportExcelParser.parse(bytes);
+          ? await compute(TransportPdfParser.parse, bytes)
+          : await compute(TransportExcelParser.parse, bytes);
       if (parsed.routes.isEmpty) {
         throw 'No transport routes could be read from "${p.file.name}". '
             'If this is a scanned/image PDF, export the sheet as .xlsx instead.';
       }
       final validation = TransportImportService.validate(parsed);
       if (!mounted) return;
-      final confirmed = await Navigator.of(context).push<bool>(appPageRoute(
+      // Preview pops null on cancel (back/swipe/Cancel), or an ImportReviewResult
+      // carrying the (possibly admin-edited) routes + optional broadcast message
+      // on Confirm & Import. Editing happens IN the preview screen, so `result`
+      // — not the original `parsed` — is what must actually get written; using
+      // the stale `parsed` here would silently discard every fix the admin made.
+      final result = await Navigator.of(context).push<ImportReviewResult?>(appPageRoute(
           TransportImportPreviewScreen(parsed: parsed, validation: validation)));
-      if (confirmed != true) {
+      if (result == null) {
         setState(() { p.uploading = false; p.result = null; });
         return;
       }
-      await TransportImportService.write(parsed);
+      final edited = ParsedTransportSchedule(
+          semester: parsed.semester, campus: parsed.campus, routes: result.routes);
+      await TransportImportService.write(edited);
       // Notify the whole university that the schedule changed. This is what was
       // missing entirely: the upload wrote the routes but never told anyone.
       // Best-effort (broadcast swallows its own errors) so a notification
       // failure can't undo a successful import; super-admin uploader is allowed
       // the broadcastAll path server-side.
+      final custom = result.message.trim();
       final notifyResult = await NotificationService.broadcast(
         // No role/department filter => the service sends broadcastAll (every
         // user), which is correct for a university-wide transport change.
         title: 'Transport schedule updated',
-        message: 'The ${parsed.semester} bus schedule has been updated — tap to see your route.',
+        // The admin's own notice when they wrote one at review time, else the
+        // standard line.
+        message: custom.isNotEmpty
+            ? custom
+            : 'The ${parsed.semester} bus schedule has been updated — tap to see your route.',
         deepLink: '/transport',
         category: 'transport',
       );
@@ -237,8 +261,8 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       // inAppInserted is the count of user_notifications rows actually created.
       final notifyNote = _notifyOutcome(notifyResult);
       setState(() => p.result =
-          '✅ ${parsed.routes.length} routes imported for ${parsed.semester}'
-          '${validation.warningCount > 0 ? ' (${validation.warningCount} warnings)' : ''}.$notifyNote');
+          '✅ ${edited.routes.length} routes imported for ${parsed.semester}'
+          '${result.warningCount > 0 ? ' (${result.warningCount} warnings)' : ''}.$notifyNote');
     } catch (e) {
       setState(() => p.error = friendlyError(e));
     } finally {

@@ -226,7 +226,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedDept == null) return;
+    if (!_isStaff && _selectedDept == null) return;
     if (_isStaff && _selectedStaffDesignation == null) return;
     if (_division == null || _district == null || _upazila == null) return;
     if (BdGeography.isDhakaMahanagar(_division, _district, _upazila) && _thana == null) return;
@@ -257,8 +257,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'full_name': _nameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
         'emergency_contact': _emergencyCtrl.text.trim(),
-        'department': _selectedDept!.code,
-        'department_id': _selectedDept!.id,
+        // Staff can genuinely have no department picked (see the dropdown's
+        // `if (!_isStaff)` guard above) — conditional, not the old
+        // unconditional `!`, so a null here leaves the existing DB value
+        // untouched instead of crashing on the force-unwrap.
+        if (_selectedDept != null) 'department': _selectedDept!.code,
+        if (_selectedDept != null) 'department_id': _selectedDept!.id,
         'semester': _sem.toInt(),
         'profile_completed': true,
         'permanent_division': _division,
@@ -287,7 +291,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         }).eq('profile_id', uid);
       } else if (_isStaff) {
         await SupabaseConfig.client.from('staff').update({
-          'department_id': _selectedDept!.id,
+          if (_selectedDept != null) 'department_id': _selectedDept!.id,
           if (_selectedStaffDesignation != null) 'designation': _selectedStaffDesignation!.title,
           if (_selectedStaffDesignation != null) 'category': _selectedStaffDesignation!.category,
         }).eq('profile_id', uid);
@@ -402,26 +406,33 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           onTap: () => setState(() => _gender = 'female'))),
                     ]),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<DepartmentOption>(
-                      initialValue: _selectedDept,
-                      isExpanded: true,
-                      decoration: InputDecoration(hintText: 'Department', filled: true,
-                          fillColor: AppColors.glassFill(context),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: AppColors.borderOf(context)))),
-                      dropdownColor: AppColors.surfaceOf(context),
-                      style: TextStyle(color: textPrimary),
-                      items: _departments.map((d) => DropdownMenuItem(value: d,
-                          child: Text(d.name, overflow: TextOverflow.ellipsis))).toList(),
-                      onChanged: (v) => setState(() => _selectedDept = v),
-                      // Was the one required field on this whole screen with
-                      // no validator at all -- _save()'s own "if (_selectedDept
-                      // == null) return" guard then blocked the save with
-                      // zero feedback, indistinguishable from the button
-                      // simply not working.
-                      validator: (v) => v == null ? 'Select a department' : null,
-                    ),
-                    const SizedBox(height: 16),
+                    // Staff never sees this: `_departments` is the purely
+                    // ACADEMIC list (CSE, EEE, BBA, ...) — a staff member (IT,
+                    // accounts, admin, ...) has no correct answer in it. Their
+                    // designation dropdown right below already answers "which
+                    // unit are you in".
+                    if (!_isStaff) ...[
+                      DropdownButtonFormField<DepartmentOption>(
+                        initialValue: _selectedDept,
+                        isExpanded: true,
+                        decoration: InputDecoration(hintText: 'Department', filled: true,
+                            fillColor: AppColors.glassFill(context),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: AppColors.borderOf(context)))),
+                        dropdownColor: AppColors.surfaceOf(context),
+                        style: TextStyle(color: textPrimary),
+                        items: _departments.map((d) => DropdownMenuItem(value: d,
+                            child: Text(d.name, overflow: TextOverflow.ellipsis))).toList(),
+                        onChanged: (v) => setState(() => _selectedDept = v),
+                        // Was the one required field on this whole screen with
+                        // no validator at all -- _save()'s own "if (_selectedDept
+                        // == null) return" guard then blocked the save with
+                        // zero feedback, indistinguishable from the button
+                        // simply not working.
+                        validator: (v) => v == null ? 'Select a department' : null,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     if (_isTeacher)
                       AfosTextField(hint: 'Designation (e.g. Lecturer)', controller: _designationCtrl,
                           validator: (v) => AppValidators.required(v, f: 'Designation'))

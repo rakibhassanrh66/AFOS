@@ -38,8 +38,11 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
   @override
   void initState() {
     super.initState();
+    // dashboard_screen.dart's own notices preview already limits its
+    // equivalent stream to 3 — this full management screen needs more than a
+    // preview but was streaming the ENTIRE notices table with no cap at all.
     _sub = SupabaseConfig.client.from('notices').stream(primaryKey: ['id'])
-        .order('created_at', ascending: false).listen((rows) {
+        .order('created_at', ascending: false).limit(100).listen((rows) {
       if (mounted) setState(() { _notices = rows; _loading = false; });
     });
   }
@@ -141,8 +144,20 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                           title: category == 'RULE' ? 'New rule published' : 'New notice',
                           message: titleCtrl.text.trim(),
                           deepLink: '/notifications',
-                          category: category,
+                          // Lowercased: `category` here is the notices table's
+                          // OWN enum-like value (GENERAL/RULE/ANNOUNCEMENT/...),
+                          // but the shared notification center's icon/colour
+                          // lookup (_catIcon/_catColor in
+                          // notification_center_screen.dart) only matches
+                          // lowercase keys ('exam', 'club', ...). Sent
+                          // uppercase, every notice-sourced notification
+                          // silently fell through to the generic bell icon
+                          // instead of a distinct one — not a missing
+                          // notification, but a real "looks wrong" bug live in
+                          // the data (8 ANNOUNCEMENT + 8 GENERAL + 2 RULE rows).
+                          category: category.toLowerCase(),
                         );
+
                       } else {
                         await SupabaseConfig.client.from('notices').update({
                           'title': titleCtrl.text.trim(),
@@ -166,8 +181,6 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = AppColors.textPrimaryOf(context);
-    final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Notices & Rules'),
@@ -191,32 +204,44 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
               ? const EmptyState(icon: Icons.campaign_outlined, title: 'Nothing published yet',
                   subtitle: 'Create a notice, rule, or announcement')
               : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _notices.length,
-                  itemBuilder: (ctx, i) {
-                    final n = _notices[i];
-                    final category = n['category'] as String? ?? 'notice';
-                    final color = _categoryColor(category);
-                    return Container(margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                                child: Text(category.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
-                            const Spacer(),
-                            IconButton(icon: const Icon(Icons.edit_outlined, size: 18),
-                                onPressed: () => _openForm(existing: n)),
-                            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
-                                onPressed: () => _delete(n['id'])),
-                          ]),
-                          Text(n['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-                          const SizedBox(height: 4),
-                          Text(n['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
-                              maxLines: 3, overflow: TextOverflow.ellipsis),
-                        ]));
-                  })),
+                  // Guarded by the _notices.isEmpty ternary above, so .first is safe.
+                  prototypeItem: _buildNoticeRow(context, _notices.first),
+                  itemBuilder: (ctx, i) => _buildNoticeRow(ctx, _notices[i]))),
       ]),
     );
+  }
+
+  Widget _buildNoticeRow(BuildContext ctx, Map<String, dynamic> n) {
+    final category = n['category'] as String? ?? 'notice';
+    final color = _categoryColor(category);
+    final textPrimary = AppColors.textPrimaryOf(ctx);
+    final textSecondary = AppColors.textSecondaryOf(ctx);
+    return Container(margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                child: Text(category.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.edit_outlined, size: 18),
+                onPressed: () => _openForm(existing: n)),
+            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                onPressed: () => _delete(n['id'])),
+          ]),
+          // Previously unbounded — a long title wrapped to as many lines as
+          // it needed, which is exactly the one source of per-row height
+          // variance in this list. Capped like every other card's title in
+          // the app, both for a consistent look AND so prototypeItem's
+          // one-off measurement of _notices.first can't under-size a later
+          // row with a longer title.
+          Text(n['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Text(n['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
+              maxLines: 3, overflow: TextOverflow.ellipsis),
+        ]));
   }
 }

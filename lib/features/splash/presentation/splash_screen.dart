@@ -54,15 +54,25 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   Future<void> _run() async {
     // The AFOS logo punches in first (letter-by-letter spring pop), then the
     // clock sweeps the wordmark open right-to-left.
+    //
+    // The four waits below used to total 3350ms (600+900+450+1400) PLUS the
+    // 820ms exit animation — a mandatory ~4.2s on EVERY launch, no matter how
+    // fast the backend responded, which is exactly what "the whole app still
+    // takes time to load" was reporting. The last 1400ms in particular held
+    // on a fully-static, already-fully-revealed screen — pure idle padding,
+    // nothing left animating. Trimmed to ~1.85s total (still enough for the
+    // pop-in and wipe-reveal to read cleanly) without touching the animation
+    // controllers' own durations, so the motion itself is unchanged, only
+    // how long it's held on screen before handing off.
     _introCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 450));
     if (!mounted) return;
     _revealCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 900));
+    await Future.delayed(const Duration(milliseconds: 700));
     if (mounted) setState(() => _showTagline = true);
-    await Future.delayed(const Duration(milliseconds: 450));
+    await Future.delayed(const Duration(milliseconds: 300));
     if (mounted) setState(() => _showSub = true);
-    await Future.delayed(const Duration(milliseconds: 1400));
+    await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
     // Resolve the destination first, then zoom the splash out and hand off.

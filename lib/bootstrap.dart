@@ -56,6 +56,11 @@ Future<void> bootstrap() async {
 
   await Hive.initFlutter();
   await Hive.openBox(LocalCacheService.boxName);
+  // First launch after an update (in-app or sideloaded) starts with a clean
+  // read-cache instead of a possibly-stale one from the old version — see
+  // LocalCacheService.clearIfVersionChanged's own doc comment for why this
+  // is scoped to ONLY that cache, never the outbox or secure storage.
+  await LocalCacheService.instance.clearIfVersionChanged(AppConfig.appVersion);
   await Hive.openBox(OutboxService.boxName);
 
   await Supabase.initialize(
@@ -173,6 +178,11 @@ Future<void> bootstrap() async {
     BadgeService.start();
     syncLocationSharing(Supabase.instance.client.auth.currentUser?.id);
   }
+  // Tracked separately from the event stream because a `signedOut` event's
+  // own `data.session` is already null -- this is the only way to know
+  // WHICH account just signed out, so only that one gets forgotten below
+  // instead of every remembered account on the device.
+  String? lastKnownUserId = Supabase.instance.client.auth.currentUser?.id;
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     syncOneSignalIdentity(data.session?.user.id);
     syncLocationSharing(data.session?.user.id);
@@ -181,15 +191,22 @@ Future<void> bootstrap() async {
     } else {
       BadgeService.stop();
     }
-    // Single chokepoint for wiping the biometric quick-login token: any real
+    // Chokepoint for forgetting a biometric quick-login token on a real
     // sign-out (settings/menu logout, reset-password, or a silent session
-    // drop) fires signedOut here, so the stored session can never outlive the
-    // account it belonged to. (recoverSession/auto-restore emit signedIn, not
-    // signedOut, so a biometric unlock never trips this.)
+    // drop): only the account that actually just signed out is forgotten,
+    // so other remembered accounts on this device stay switchable. An
+    // intentional account switch (account_switcher_sheet.dart) sets
+    // `switchingAccounts` around its own sign-out + recover step so this
+    // skips it entirely -- it isn't a logout, it's a hand-off to the next
+    // account. (recoverSession/auto-restore emit signedIn, not signedOut,
+    // so a biometric unlock never trips this either.)
     if (data.event == AuthChangeEvent.signedOut) {
-      BiometricTokenStore.clear();
+      if (lastKnownUserId != null && !BiometricTokenStore.switchingAccounts) {
+        BiometricTokenStore.forget(lastKnownUserId!);
+      }
       AppConfigService.instance.reset();
     }
+    if (data.session?.user.id != null) lastKnownUserId = data.session!.user.id;
     // Clicking the emailed password-reset link establishes a real session
     // and fires this event exactly once -- there was previously nothing
     // listening for it at all, so the recovery token in the link just sat

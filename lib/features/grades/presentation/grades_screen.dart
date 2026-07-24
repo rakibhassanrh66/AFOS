@@ -214,22 +214,25 @@ class _TeacherUploadTabState extends State<_TeacherUploadTab> {
             ? const EmptyState(icon: Icons.people_outline, title: 'No students found', subtitle: 'No students are set to this batch/section yet')
             : Column(children: [
                 Expanded(child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 0, 16, 0 + GlassBottomNav.navContentClearance), itemCount: _students.length,
-                    itemBuilder: (ctx, i) {
-                      final s = _students[i];
-                      return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-                        Expanded(child: Text('${s['full_name']} (${s['university_id'] ?? ''})',
-                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context)),
-                            maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        DropdownButton<String>(
-                            value: _grades[s['id']],
-                            hint: const Text('Grade'),
-                            items: _gradeLetters.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                            onChanged: (v) => setState(() => _grades[s['id'] as String] = v ?? '')),
-                      ]));
-                    })),
+                    // Guarded by the _students.isEmpty ternary above, so .first is safe.
+                    prototypeItem: _buildStudentRow(context, _students.first),
+                    itemBuilder: (ctx, i) => _buildStudentRow(ctx, _students[i]))),
                 Padding(padding: const EdgeInsets.all(16), child: AfosButton(label: 'Submit Grades', loading: _saving, onTap: _submit)),
               ])),
     ]);
+  }
+
+  Widget _buildStudentRow(BuildContext ctx, Map<String, dynamic> s) {
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
+      Expanded(child: Text('${s['full_name']} (${s['university_id'] ?? ''})',
+          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(ctx)),
+          maxLines: 1, overflow: TextOverflow.ellipsis)),
+      DropdownButton<String>(
+          value: _grades[s['id']],
+          hint: const Text('Grade'),
+          items: _gradeLetters.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+          onChanged: (v) => setState(() => _grades[s['id'] as String] = v ?? '')),
+    ]));
   }
 }
 
@@ -276,23 +279,27 @@ class _PublishTabState extends State<_PublishTab> {
     if (_pending.isEmpty) return const EmptyState(icon: Icons.publish_outlined, title: 'Nothing waiting to publish', subtitle: 'Teacher-uploaded results will show up here');
     return Column(children: [
       Expanded(child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _pending.length,
-          itemBuilder: (ctx, i) {
-            final g = _pending[i];
-            final student = g['profiles'] as Map<String, dynamic>? ?? {};
-            final teacher = g['teacher'] as Map<String, dynamic>? ?? {};
-            final id = g['id'] as String;
-            final sel = _selected.contains(id);
-            return CheckboxListTile(
-                value: sel,
-                onChanged: (v) => setState(() => v == true ? _selected.add(id) : _selected.remove(id)),
-                title: Text('${student['full_name'] ?? ''} — ${g['course_code']} (${g['grade_letter']})',
-                    style: TextStyle(color: AppColors.textPrimaryOf(context))),
-                subtitle: Text('Sem ${g['semester']} · Batch ${g['batch']} Sec ${g['section']} · by ${teacher['full_name'] ?? 'Unknown'}',
-                    style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12)));
-          })),
+          // Guarded by the `if (_pending.isEmpty) return EmptyState(...)`
+          // early-return above, so .first is safe.
+          prototypeItem: _buildPendingRow(context, _pending.first),
+          itemBuilder: (ctx, i) => _buildPendingRow(ctx, _pending[i]))),
       Padding(padding: const EdgeInsets.all(16), child: AfosButton(
           label: 'Publish Selected (${_selected.length})', loading: _publishing,
           onTap: _selected.isEmpty ? () {} : _publish)),
     ]);
+  }
+
+  Widget _buildPendingRow(BuildContext ctx, Map<String, dynamic> g) {
+    final student = g['profiles'] as Map<String, dynamic>? ?? {};
+    final teacher = g['teacher'] as Map<String, dynamic>? ?? {};
+    final id = g['id'] as String;
+    final sel = _selected.contains(id);
+    return CheckboxListTile(
+        value: sel,
+        onChanged: (v) => setState(() => v == true ? _selected.add(id) : _selected.remove(id)),
+        title: Text('${student['full_name'] ?? ''} — ${g['course_code']} (${g['grade_letter']})',
+            style: TextStyle(color: AppColors.textPrimaryOf(ctx))),
+        subtitle: Text('Sem ${g['semester']} · Batch ${g['batch']} Sec ${g['section']} · by ${teacher['full_name'] ?? 'Unknown'}',
+            style: TextStyle(color: AppColors.textSecondaryOf(ctx), fontSize: 12)));
   }
 }

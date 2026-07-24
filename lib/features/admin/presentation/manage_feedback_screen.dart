@@ -124,17 +124,22 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
               colors: [AppColors.holoviolet, AppColors.indigo]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ),
-        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // Was a horizontal ListView — always left-anchored, so 4 short chips
+        // sat bunched at the left edge with empty space to the right instead
+        // of reading as a deliberately centered filter row (same fix as
+        // manage_sos_screen.dart).
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
             children: _filters.map((f) {
               final sel = f == _filter;
-              return Padding(padding: const EdgeInsets.only(right: 8),
-                child: Center(child: GlassChip(
-                  label: f[0].toUpperCase() + f.substring(1),
-                  selected: sel,
-                  color: AppColors.holoviolet,
-                  onTap: () => setState(() => _filter = f))));
-            }).toList())),
+              return GlassChip(
+                label: f[0].toUpperCase() + f.substring(1),
+                selected: sel,
+                color: AppColors.holoviolet,
+                onTap: () => setState(() => _filter = f));
+            }).toList()),
+        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null

@@ -228,7 +228,10 @@ class _RegisterBodyState extends State<_RegisterBody> {
                         ctx.showSnack('Select your gender', isError:true);
                         return;
                       }
-                      if(_step==1 && _selectedDept==null) {
+                      // Staff no longer sees the department dropdown at all
+                      // (see _Step2 above) — their designation-required check
+                      // right below already covers them.
+                      if(_step==1 && !_isStaff && _selectedDept==null) {
                         ctx.showSnack('Select a department', isError:true);
                         return;
                       }
@@ -475,25 +478,33 @@ class _Step2 extends StatelessWidget {
     final isStaff = accountType == AccountType.staff;
     final semRange = selectedProgram?.semesterRange ?? 12;
     return Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-      Text('Academic Info', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+      Text(isStaff ? 'Staff Info' : 'Academic Info', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height:6),
-      Text(isStudent ? 'Your department and program' : isStaff ? 'Your department and designation' : 'Your department',
+      Text(isStudent ? 'Your department and program' : isStaff ? 'Your designation' : 'Your department',
           style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
       const SizedBox(height:24),
-      if(loadingDepts)
-        const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
-      else
-        DropdownButtonFormField<DepartmentOption>(
-          initialValue: selectedDept,
-          isExpanded: true,
-          decoration: _decoration(context, 'Department', Icons.school_outlined),
-          dropdownColor: AppColors.surfaceOf(context),
-          style: TextStyle(color:textPrimary),
-          items: departments.map((d)=>DropdownMenuItem(value:d,
-            child:Text(d.name, overflow:TextOverflow.ellipsis))).toList(),
-          onChanged: onDept,
-        ),
-      const SizedBox(height:16),
+      // Staff never sees this: `departments` is the purely ACADEMIC list
+      // (CSE, EEE, BBA, Civil, ...) used for student programs/courses — a
+      // staff member (IT, accounts, admin, ...) has no correct answer in it.
+      // Their own designation dropdown below (grouped by real org-chart
+      // category: Executive Leadership / Department-Level / Project &
+      // Research / Campus Support) already answers "which unit are you in".
+      if(!isStaff) ...[
+        if(loadingDepts)
+          const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
+        else
+          DropdownButtonFormField<DepartmentOption>(
+            initialValue: selectedDept,
+            isExpanded: true,
+            decoration: _decoration(context, 'Department', Icons.school_outlined),
+            dropdownColor: AppColors.surfaceOf(context),
+            style: TextStyle(color:textPrimary),
+            items: departments.map((d)=>DropdownMenuItem(value:d,
+              child:Text(d.name, overflow:TextOverflow.ellipsis))).toList(),
+            onChanged: onDept,
+          ),
+        const SizedBox(height:16),
+      ],
       if(isStudent) ...[
         if(loadingPrograms)
           const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))

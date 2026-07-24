@@ -20,11 +20,32 @@ void main() {
       expect(stopKey('Uttara - Rajlokkhi'), 'uttararajlokkhi');
     });
 
-    test('keeps genuinely different stops apart', () {
-      // These are separate places in the live data and must NOT be merged.
-      expect(stopKey('Savar'), isNot(stopKey('Savar Bus Stand')));
+    test('keeps genuinely different NUMBERED stops apart', () {
+      // Distinct Mirpur numbers are never the same place.
       expect(stopKey('Mirpur 10'), isNot(stopKey('Mirpur 12')));
-      expect(stopKey('Sony Cinema Hall'), isNot(stopKey('Mirpur 01 - Sony Cinema Hall')));
+      expect(stopKey('Mirpur 10'), isNot(stopKey('Mirpur 02')));
+    });
+  });
+
+  group('sameStop — one physical stop, split spellings across routes', () {
+    test('folds a subset name into its fuller spelling (the live splits)', () {
+      // Same place spelled two ways on different routes — picking either must
+      // find all of them. These four are the exact split stops in live data;
+      // the Sony Cinema Hall one is the reported "Mirpur 01 shows no Friday" bug.
+      expect(sameStop('Sony Cinema Hall', 'Mirpur 01 - Sony Cinema Hall'), isTrue);
+      expect(sameStop('Birulia', 'Birulia Bus Stand'), isTrue);
+      expect(sameStop('Eastern Housing', 'Eastern Housing Rup Nogor'), isTrue);
+      expect(sameStop('Savar', 'Savar Bus Stand'), isTrue);
+    });
+    test('still collapses punctuation variants', () {
+      expect(sameStop('Mirpur 10', 'Mirpur-10'), isTrue);
+    });
+    test('does NOT merge genuinely different stops', () {
+      expect(sameStop('Mirpur 10', 'Mirpur 12'), isFalse);
+      expect(sameStop('Mirpur 01 - Sony Cinema Hall', 'Mirpur 10'), isFalse);
+    });
+    test('a short token cannot swallow a longer unrelated stop', () {
+      expect(sameStop('10', 'Mirpur 10'), isFalse);
     });
   });
 

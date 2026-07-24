@@ -179,14 +179,14 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
           : ListView(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.of(context).padding.bottom),
               children: [
-                FeatureHeader(
+                const FeatureHeader(
                   title: 'Stop timings',
                   subtitle: 'Minutes from the start of each leg. The sheet only gives the route\'s '
                       'start time and its campus departure — these offsets are what let riders see '
                       'the time at their own stop. Leave a stop blank if you don\'t know it.',
                   icon: Icons.more_time_rounded,
                   accent: AppColors.holoTeal,
-                  margin: const EdgeInsets.fromLTRB(0, 16, 0, 12),
+                  margin: EdgeInsets.fromLTRB(0, 16, 0, 12),
                 ),
                 Text(widget.routeName, style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
                 const SizedBox(height: 10),

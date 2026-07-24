@@ -52,10 +52,16 @@ class _ClubChatState extends State<ClubChatScreen> {
 
   Future<void> _loadMessages() async {
     try {
+      // Most-recent-first + limit, then reversed back to chronological order
+      // — same fix as dept_chat_screen.dart: an unbounded ascending .order()
+      // re-fetched the entire channel history on every load AND on every
+      // realtime event (the subscription below calls this on every change).
       final res = await SupabaseConfig.client.from('club_messages')
           .select('*, profiles(full_name,avatar_url,role,university_id,department,is_verified,students(batch_label,section))')
-          .eq('club_id', widget.clubId).order('created_at') as List;
-      if (mounted) setState(() { _messages = res.cast(); _loading = false; });
+          .eq('club_id', widget.clubId).order('created_at', ascending: false).limit(60) as List;
+      if (mounted) {
+        setState(() { _messages = res.cast<Map<String, dynamic>>().reversed.toList(); _loading = false; });
+      }
       _scrollToBottom();
     } catch (e) {
       if (mounted) setState(() => _loading = false);

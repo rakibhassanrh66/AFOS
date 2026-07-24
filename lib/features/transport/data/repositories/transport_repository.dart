@@ -45,14 +45,23 @@ class TransportRepository {
     }).asBroadcastStream();
   }
 
-  Future<List<Map<String, dynamic>>> fetchStops(String routeId) async {
-    final res = await _client
-        .from('transport_stops')
-        .select()
-        .eq('route_id', routeId)
-        .order('stop_order') as List;
-    return res.cast<Map<String, dynamic>>();
-  }
+  /// Cached per route: was a plain uncached fetch, so the Map tab specifically
+  /// (the only consumer of this) went blank offline even though watchRoutes
+  /// above — every OTHER Transport tab's data source — already falls back to
+  /// its last-known rows. Stop coordinates change only on a routine
+  /// re-upload, so a slightly-stale cached path is a reasonable trade for not
+  /// losing the map entirely.
+  Future<List<Map<String, dynamic>>> fetchStops(String routeId) => cachedListFetch(
+        cacheKey: 'transport_stops_$routeId',
+        liveFetch: () async {
+          final res = await _client
+              .from('transport_stops')
+              .select()
+              .eq('route_id', routeId)
+              .order('stop_order') as List;
+          return res.cast<Map<String, dynamic>>();
+        },
+      );
 
   /// The current import's metadata (semester + imported_at) for the "Schedule
   /// for <semester> · Updated <date>" header. Null if nothing imported yet.

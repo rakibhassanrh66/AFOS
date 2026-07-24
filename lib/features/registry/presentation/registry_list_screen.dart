@@ -177,8 +177,6 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = AppColors.textPrimaryOf(context);
-    final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: widget.title),
@@ -203,39 +201,10 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8 + GlassBottomNav.navContentClearance),
                       itemCount: _items.length,
-                      itemBuilder: (context, i) {
-                        final item = _items[i];
-                        final subtitle = _isDepartments
-                            ? [item['code'], _facultyName(item['faculty_id'] as String?)].where((s) => (s ?? '').toString().isNotEmpty).join(' · ')
-                            : (item['code'] as String? ?? '');
-                        return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          decoration: BoxDecoration(
-                              color: AppColors.surfaceOf(context),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-                          child: ListTile(
-                            leading: Container(width: 40, height: 40,
-                                decoration: BoxDecoration(
-                                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                        colors: [AppColors.indigo, AppColors.blue]),
-                                    borderRadius: BorderRadius.circular(10)),
-                                child: Icon(_isDepartments ? Icons.school_rounded : Icons.account_balance_rounded, color: Colors.white, size: 20)),
-                            title: Text(item['name'] as String? ?? 'No Name',
-                                style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: subtitle.isEmpty ? null : Text(subtitle,
-                                style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            trailing: _canWrite
-                                ? Row(mainAxisSize: MainAxisSize.min, children: [
-                                    IconButton(icon: const Icon(Icons.edit_outlined, size: 20), onPressed: () => _openForm(existing: item)),
-                                    IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.red), onPressed: () => _delete(item)),
-                                  ])
-                                : null,
-                          ),
-                        );
-                      },
+                      // Guarded by the _items.isEmpty ternary above — this
+                      // branch never renders with an empty list, so .first is safe.
+                      prototypeItem: _buildItemRow(context, _items.first),
+                      itemBuilder: (ctx, i) => _buildItemRow(ctx, _items[i]),
                     )),
       ]),
       floatingActionButton: _canWrite
@@ -245,6 +214,41 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
               child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
+    );
+  }
+
+  Widget _buildItemRow(BuildContext ctx, Map<String, dynamic> item) {
+    final textPrimary = AppColors.textPrimaryOf(ctx);
+    final textSecondary = AppColors.textSecondaryOf(ctx);
+    final subtitle = _isDepartments
+        ? [item['code'], _facultyName(item['faculty_id'] as String?)].where((s) => (s ?? '').toString().isNotEmpty).join(' · ')
+        : (item['code'] as String? ?? '');
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+          color: AppColors.surfaceOf(ctx),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+      child: ListTile(
+        leading: Container(width: 40, height: 40,
+            decoration: BoxDecoration(
+                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [AppColors.indigo, AppColors.blue]),
+                borderRadius: BorderRadius.circular(10)),
+            child: Icon(_isDepartments ? Icons.school_rounded : Icons.account_balance_rounded, color: Colors.white, size: 20)),
+        title: Text(item['name'] as String? ?? 'No Name',
+            style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: subtitle.isEmpty ? null : Text(subtitle,
+            style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: _canWrite
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(icon: const Icon(Icons.edit_outlined, size: 20), onPressed: () => _openForm(existing: item)),
+                IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.red), onPressed: () => _delete(item)),
+              ])
+            : null,
+      ),
     );
   }
 }

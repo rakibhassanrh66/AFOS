@@ -16,6 +16,41 @@ library;
 /// Friday rider searching for Mirpur 10 was told "No route stops there yet".
 String stopKey(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
+/// A stop name split into normalized alphanumeric tokens, e.g.
+/// "Mirpur 01 - Sony Cinema Hall" -> [mirpur, 01, sony, cinema, hall].
+List<String> stopTokens(String s) =>
+    s.toLowerCase().split(RegExp(r'[^a-z0-9]+')).where((t) => t.isNotEmpty).toList();
+
+/// True when two names denote the SAME physical stop: identical after [stopKey],
+/// OR one name's tokens are a contiguous run inside the other's.
+///
+/// [stopKey] alone only collapses punctuation ("Mirpur 10" / "Mirpur-10"). It
+/// does NOT collapse a name that is a *subset* of another, which is a live
+/// defect: the Mirpur-1 stop is "Mirpur 01 - Sony Cinema Hall" on R4 but just
+/// "Sony Cinema Hall" on R13 (shuttle) and F5 (Friday), so picking "Mirpur 01"
+/// found only R4 and hid the shuttle + Friday buses. Verified live, the split
+/// stops are exactly Sony Cinema Hall, Birulia(/Bus Stand),
+/// Eastern Housing(/Rup Nogor) and Savar(/Bus Stand).
+///
+/// The 5-character floor on the shorter name is the safety guard — it stops a
+/// tiny token (a bare "10"/"02") from swallowing an unrelated longer stop, since
+/// claiming the wrong bus serves a stop is worse than a missed match.
+bool sameStop(String a, String b) {
+  if (stopKey(a) == stopKey(b)) return true;
+  final ta = stopTokens(a), tb = stopTokens(b);
+  if (ta.isEmpty || tb.isEmpty) return false;
+  final (short, long) = ta.length <= tb.length ? (ta, tb) : (tb, ta);
+  if (short.join().length < 5) return false;
+  for (var i = 0; i + short.length <= long.length; i++) {
+    var all = true;
+    for (var j = 0; j < short.length; j++) {
+      if (long[i + j] != short[j]) { all = false; break; }
+    }
+    if (all) return true;
+  }
+  return false;
+}
+
 /// Title-cases a stop name that arrived entirely lower-case, and leaves every
 /// other name exactly as imported.
 ///

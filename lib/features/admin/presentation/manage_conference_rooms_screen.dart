@@ -87,6 +87,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                     message: 'Room ${roomCtrl.text.trim()} assigned for your request.',
                     deepLink: '/conference-room', category: 'general',
                   );
+                  _load();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e) {
                   if (sheetCtx.mounted) {
@@ -124,6 +125,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                     message: reasonCtrl.text.trim(),
                     category: 'general',
                   );
+                  _load();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e) {
                   if (sheetCtx.mounted) {
@@ -162,17 +164,20 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
             ),
           ),
         ),
-        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // Was a horizontal ListView — always left-anchored, leaving empty
+        // space to the right of a short filter row instead of centering it.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
             children: _filters.map((f) {
               final sel = f == _filter;
-              return Padding(padding: const EdgeInsets.only(right: 8),
-                child: Center(child: GlassChip(
-                  label: f[0].toUpperCase() + f.substring(1),
-                  selected: sel,
-                  color: AppColors.holoviolet,
-                  onTap: () => setState(() => _filter = f))));
-            }).toList())),
+              return GlassChip(
+                label: f[0].toUpperCase() + f.substring(1),
+                selected: sel,
+                color: AppColors.holoviolet,
+                onTap: () => setState(() => _filter = f));
+            }).toList()),
+        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _visible.isEmpty

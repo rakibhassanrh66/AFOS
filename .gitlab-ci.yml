@@ -1,0 +1,123 @@
+# GitLab CI/CD mirror of .github/workflows/main.yml's job shape (analyze +
+# tag-triggered Android release + What's New recording). iOS build coverage
+# stays on GitHub Actions only — GitLab.com's shared runners are Linux-only,
+# and a macOS runner needs GitLab's paid macOS-on-SaaS tier or a self-hosted
+# Mac, neither of which is assumed to exist here.
+#
+# Required GitLab CI/CD variables (Settings > CI/CD > Variables, masked +
+# protected) — these are project-level secrets separate from the GitHub repo
+# secrets of the same name, they must be added here too:
+#   GOOGLE_SERVICES_JSON       - contents of android/app/google-services.json
+#   SUPABASE_SERVICE_ROLE_KEY  - Supabase Dashboard > Project Settings > API > service_role
+
+variables:
+  FLUTTER_VERSION: "3.41.6"
+
+stages:
+  - analyze
+  - release
+  - notify
+
+analyze:
+  stage: analyze
+  image: ghcr.io/cirruslabs/flutter:${FLUTTER_VERSION}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - flutter pub get
+    # --no-fatal-infos: this codebase carries a known, accepted baseline of
+    # info-level lints (deprecated withOpacity, prefer_const, curly-braces
+    # style, etc.) with zero warnings/errors — matches the GitHub Actions job.
+    - flutter analyze --no-fatal-infos
+
+# Builds the release APK, uploads it to this project's Generic Package
+# Registry (GitLab has no single-step "attach a binary to a release" action
+# the way GitHub's softprops/action-gh-release does — the package registry
+# is the standard place to put the file, then the release step below links
+# to it), and records the What's New entry. Runs ONLY on a v* tag push.
+build_release_apk:
+  stage: release
+  image: ghcr.io/cirruslabs/flutter:${FLUTTER_VERSION}
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  before_script:
+    # google-services.json is gitignored (identifies the Firebase project,
+    # this repo is public) — restored from a masked CI/CD variable exactly
+    # like the GitHub Actions job does from its own repo secret.
+    - |
+      if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+        echo "GOOGLE_SERVICES_JSON CI/CD variable is not set. Add it under Settings > CI/CD > Variables (masked, protected)."
+        exit 1
+      fi
+      printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+      python3 -c "import json; json.load(open('android/app/google-services.json'))" \
+        || { echo "Restored google-services.json is not valid JSON."; exit 1; }
+  script:
+    # flutter clean is deliberate, not cargo-culting — see the equivalent
+    # GitHub Actions step's comment: a debug build before a release one can
+    # regenerate GeneratedPluginRegistrant.java with the debug-only
+    # integration_test plugin and break the release compile.
+    - flutter clean
+    - flutter pub get
+    - flutter build apk --release
+    - mkdir -p dist
+    - cp build/app/outputs/flutter-apk/app-release.apk "dist/AFOS-${CI_COMMIT_TAG}.apk"
+    - |
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        --upload-file "dist/AFOS-${CI_COMMIT_TAG}.apk" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/afos/${CI_COMMIT_TAG}/AFOS-${CI_COMMIT_TAG}.apk"
+  artifacts:
+    paths:
+      - dist/*.apk
+    expire_in: never
+
+# Separate job (release-cli needs its own image) that turns the uploaded
+# package into an actual GitLab Release, the equivalent of the GitHub
+# Actions job's softprops/action-gh-release step.
+create_gitlab_release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: ["build_release_apk"]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  script:
+    - echo "Creating release for $CI_COMMIT_TAG"
+  release:
+    tag_name: "$CI_COMMIT_TAG"
+    name: "$CI_COMMIT_TAG"
+    description: "Release $CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "AFOS-${CI_COMMIT_TAG}.apk"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/afos/${CI_COMMIT_TAG}/AFOS-${CI_COMMIT_TAG}.apk"
+
+# Auto-writes the in-app "What's New" row (app_releases table), reusing the
+# EXACT same script the GitHub Actions job runs — it only ever reads a
+# GITHUB_REF_NAME env var by name, so passing GitLab's own CI_COMMIT_TAG
+# under that name is enough; no need to fork/duplicate the script per CI
+# platform. Runs only after create_gitlab_release succeeds, so a build/
+# publish failure can never produce a What's New entry for a release that
+# doesn't actually exist yet — same ordering guarantee as GitHub Actions.
+record_whats_new:
+  stage: notify
+  image: python:3.12-slim
+  needs: ["create_gitlab_release"]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  variables:
+    GITHUB_REF_NAME: "$CI_COMMIT_TAG"
+    # record_release.py needs the previous tag + full commit log between the
+    # two to build the What's New highlights — GitLab's default shallow
+    # clone wouldn't have that history.
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - git fetch --tags --quiet
+  script:
+    - |
+      if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+        echo "SUPABASE_SERVICE_ROLE_KEY CI/CD variable is not set. Add it under Settings > CI/CD > Variables (masked, protected) — paste the 'service_role' key from Supabase Dashboard > Project Settings > API."
+        exit 1
+      fi
+    - python3 .github/scripts/record_release.py

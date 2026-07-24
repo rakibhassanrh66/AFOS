@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
@@ -83,9 +84,15 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
       // PGRST100 and was swallowed by the catch below (search looked empty),
       // a parenthesis silently returned the wrong rows. Book titles are full
       // of both.
+      // Not narrowing columns here: _showBookDetail (below) reuses this same
+      // row map without a re-fetch, and it reads every one of `books`'
+      // 12 columns (cover_url/isbn/publisher/year/category/shelf_location/
+      // description included) — the blank select is already exactly what's
+      // needed. .limit() is the real, safe win: an unbounded search had no
+      // cap at all.
       final res = await SupabaseConfig.client
           .from('books').select()
-          .or(orIlike(const ['title', 'author', 'isbn'], q)) as List;
+          .or(orIlike(const ['title', 'author', 'isbn'], q)).limit(30) as List;
       if (mounted) setState(() => _searchResults = res.cast());
     } catch (_) {}
     if (mounted) setState(() => _searching = false);
@@ -344,51 +351,60 @@ class _SearchTab extends StatelessWidget {
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0 + GlassBottomNav.navContentClearance),
               itemCount: results.length,
-              itemBuilder: (ctx, i) {
-                final b = results[i];
-                final avail = (b['available_copies'] as int? ?? 0) > 0;
-                return RepaintBoundary(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => _showBookDetail(context, b),
-                      child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: AppColors.surfaceOf(context),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-                    child: Row(children: [
-                      Container(width: 44, height: 60,
-                          decoration: BoxDecoration(
-                              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                  colors: [AppColors.blue, AppColors.indigo]),
-                              borderRadius: BorderRadius.circular(9),
-                              boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
-                          child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(b['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
-                        Text(b['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                              color: (avail ? AppColors.green : AppColors.red).withValues(alpha:0.12),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Text(avail ? 'Available' : 'Checked Out',
-                              style: TextStyle(color: avail ? AppColors.green : AppColors.red,
-                                  fontSize: 10, fontWeight: FontWeight.w600)),
-                        ),
-                      ])),
-                    ]),
-                      ),
-                    ),
-                  ),
-                );
-              })),
+              // Not guarded by an isEmpty early-return in this build method
+              // (the ternary above only swaps in EmptyState when the user has
+              // typed a query and it came back empty) — results can be [] on
+              // first render, so prototypeItem falls back to null instead of
+              // assuming .first is safe.
+              prototypeItem: results.isNotEmpty ? _buildResultRow(context, results.first) : null,
+              itemBuilder: (ctx, i) => _buildResultRow(ctx, results[i]))),
     ]);
+  }
+
+  Widget _buildResultRow(BuildContext ctx, Map<String, dynamic> b) {
+    final textPrimary = AppColors.textPrimaryOf(ctx);
+    final textSecondary = AppColors.textSecondaryOf(ctx);
+    final avail = (b['available_copies'] as int? ?? 0) > 0;
+    return RepaintBoundary(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showBookDetail(ctx, b),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: AppColors.surfaceOf(ctx),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+            child: Row(children: [
+              Container(width: 44, height: 60,
+                  decoration: BoxDecoration(
+                      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          colors: [AppColors.blue, AppColors.indigo]),
+                      borderRadius: BorderRadius.circular(9),
+                      boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
+                  child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(b['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
+                Text(b['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: (avail ? AppColors.green : AppColors.red).withValues(alpha:0.12),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Text(avail ? 'Available' : 'Checked Out',
+                      style: TextStyle(color: avail ? AppColors.green : AppColors.red,
+                          fontSize: 10, fontWeight: FontWeight.w600)),
+                ),
+              ])),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showBookDetail(BuildContext context, Map<String, dynamic> book) {
@@ -414,8 +430,8 @@ class _SearchTab extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10)),
                       child: (book['cover_url'] as String?)?.isNotEmpty == true
                           ? ClipRRect(borderRadius: BorderRadius.circular(10),
-                              child: Image.network(book['cover_url'] as String, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)))
+                              child: CachedNetworkImage(imageUrl: book['cover_url'] as String, fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)))
                           : const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

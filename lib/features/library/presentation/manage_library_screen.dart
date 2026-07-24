@@ -109,32 +109,35 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
                   : _activeBorrows.isEmpty
                       ? const EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
                       : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _activeBorrows.length,
-                          itemBuilder: (ctx, i) {
-                            final b = _activeBorrows[i];
-                            final book = b['books'] as Map<String, dynamic>? ?? {};
-                            final student = b['profiles'] as Map<String, dynamic>? ?? {};
-                            final dueDate = b['due_date'] != null ? DateTime.tryParse(b['due_date']) : null;
-                            final overdue = dueDate != null && DateTime.now().isAfter(dueDate);
-                            return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(book['title'] ?? 'Unknown book', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                                  Text('${student['full_name'] ?? 'Unknown'} · ${student['university_id'] ?? ''}',
-                                      style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-                                  const SizedBox(height: 6),
-                                  Text(overdue ? 'Overdue since ${b['due_date']}' : 'Due ${b['due_date']}',
-                                      style: TextStyle(color: overdue ? AppColors.red : AppColors.textSecondaryOf(context), fontSize: 12, fontWeight: overdue ? FontWeight.w700 : FontWeight.w400)),
-                                  const SizedBox(height: 10),
-                                  SizedBox(width: double.infinity, child: OutlinedButton(
-                                      onPressed: () => _returnBook(b),
-                                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.green, side: const BorderSide(color: AppColors.green), minimumSize: const Size(0, 40)),
-                                      child: const Text('Mark Returned'))),
-                                ]));
-                          }),
+                          // Guarded by the _activeBorrows.isEmpty ternary above, so .first is safe.
+                          prototypeItem: _buildBorrowRow(context, _activeBorrows.first),
+                          itemBuilder: (ctx, i) => _buildBorrowRow(ctx, _activeBorrows[i])),
         ])),
       ]),
     );
+  }
+
+  Widget _buildBorrowRow(BuildContext ctx, Map<String, dynamic> b) {
+    final book = b['books'] as Map<String, dynamic>? ?? {};
+    final student = b['profiles'] as Map<String, dynamic>? ?? {};
+    final dueDate = b['due_date'] != null ? DateTime.tryParse(b['due_date']) : null;
+    final overdue = dueDate != null && DateTime.now().isAfter(dueDate);
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(book['title'] ?? 'Unknown book', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx))),
+          Text('${student['full_name'] ?? 'Unknown'} · ${student['university_id'] ?? ''}',
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(ctx))),
+          const SizedBox(height: 6),
+          Text(overdue ? 'Overdue since ${b['due_date']}' : 'Due ${b['due_date']}',
+              style: TextStyle(color: overdue ? AppColors.red : AppColors.textSecondaryOf(ctx), fontSize: 12, fontWeight: overdue ? FontWeight.w700 : FontWeight.w400)),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: OutlinedButton(
+              onPressed: () => _returnBook(b),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.green, side: const BorderSide(color: AppColors.green), minimumSize: const Size(0, 40)),
+              child: const Text('Mark Returned'))),
+        ]));
   }
 }
 

@@ -117,3 +117,27 @@ jobs:
           files: dist/*.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      # Auto-writes the in-app "What's New" row (app_releases table) for this
+      # release. Until this existed, that row had to be inserted by hand after
+      # every single tag — easy to forget, which is exactly why the in-app
+      # What's New kept lagging a release behind what GitHub actually shipped.
+      # Runs only after the GitHub Release above succeeds, so a build/publish
+      # failure can never produce a "What's New" entry for a release that
+      # doesn't actually exist yet.
+      #
+      # Uses the Supabase SERVICE ROLE key (bypasses RLS) rather than a normal
+      # user session, matching how supabase/functions/send-notification
+      # already does system-initiated writes — there is no human "admin" user
+      # to authenticate as inside a CI runner.
+      - name: Record release in app_releases (What's New)
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set. Set it with:"
+            echo "::error::  gh secret set SUPABASE_SERVICE_ROLE_KEY"
+            echo "::error::(paste the 'service_role' secret key from Supabase Dashboard > Project Settings > API)"
+            exit 1
+          fi
+          python3 .github/scripts/record_release.py

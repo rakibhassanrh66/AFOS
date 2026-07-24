@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../../core/services/app_update_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -43,8 +45,17 @@ class _SettingsState extends State<SettingsScreen> {
   String _notificationSound = 'default';
   String _chatBackground = 'default';
   bool _locationSharing = true;
+  // Preview player for the notification-sound chips below — separate from
+  // any other AudioPlayer in the app (e.g. SOS voice notes) so tapping a
+  // chip here can never fight over playback state with an unrelated screen.
+  final _soundPreviewPlayer = AudioPlayer();
   bool _biometricSupported = false;
   bool _biometricEnabled = false;
+
+  AppUpdateInfo? _availableUpdate;
+  bool _checkingUpdate = false;
+  bool _downloadingUpdate = false;
+  double _downloadProgress = 0;
 
   // Was its own independent, fully-saturated set (not even the same hex
   // values as AppColors' now-recalibrated palette) -- referencing the
@@ -63,34 +74,86 @@ class _SettingsState extends State<SettingsScreen> {
   };
 
   @override
-  void initState() { super.initState(); _load(); _loadBiometric(); }
+  void initState() { super.initState(); _load(); _loadBiometric(); _checkForUpdate(); }
+
+  /// Best-effort, silent on entry — a failed check should never show an error
+  /// on a screen the user didn't even ask to check anything on. The visible
+  /// "Check for Updates" tile below re-runs this on demand and DOES report a
+  /// failure, since that's an explicit user action.
+  Future<void> _checkForUpdate() async {
+    final update = await AppUpdateService.checkForUpdate();
+    if (mounted) setState(() => _availableUpdate = update);
+  }
+
+  Future<void> _checkForUpdateManually() async {
+    setState(() => _checkingUpdate = true);
+    final update = await AppUpdateService.checkForUpdate();
+    if (!mounted) return;
+    setState(() { _availableUpdate = update; _checkingUpdate = false; });
+    if (update == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You're on the latest version ✓"), backgroundColor: AppColors.green));
+    }
+  }
+
+  Future<void> _downloadAndInstallUpdate() async {
+    final update = _availableUpdate;
+    if (update == null || _downloadingUpdate) return;
+    setState(() { _downloadingUpdate = true; _downloadProgress = 0; });
+    try {
+      await AppUpdateService.downloadAndInstall(update,
+          onProgress: (p) { if (mounted) setState(() => _downloadProgress = p); });
+      // Leaves _availableUpdate set even after a successful download: the
+      // installer Intent just opened, the user hasn't actually installed yet
+      // (they still tap through Android's own confirmation), so the banner
+      // staying up until the app is actually relaunched on the new build is
+      // correct, not stale.
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Download failed: ${friendlyError(e)}'), backgroundColor: AppColors.red));
+      }
+    }
+    if (mounted) setState(() => _downloadingUpdate = false);
+  }
 
   Future<void> _loadBiometric() async {
     final supported = await BiometricAuth.canUse();
-    final enabled = await BiometricTokenStore.isEnabled();
+    final uid = SupabaseConfig.uid;
+    final enabled = uid != null && await BiometricTokenStore.isEnabledFor(uid);
     if (mounted) setState(() { _biometricSupported = supported; _biometricEnabled = enabled; });
   }
 
   Future<void> _toggleBiometric(bool on) async {
     final messenger = ScaffoldMessenger.of(context);
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
     if (on) {
       final ok = await BiometricAuth.authenticate('Enable fingerprint / Face ID login');
       if (!ok) return;
       final session = Supabase.instance.client.auth.currentSession;
       if (session == null) return;
-      await BiometricTokenStore.enable(jsonEncode(session.toJson()));
+      await BiometricTokenStore.remember(
+        userId: uid,
+        email: session.user.email ?? '',
+        sessionJson: jsonEncode(session.toJson()),
+        fullName: _user?.fullName,
+        avatarUrl: _user?.avatarUrl,
+      );
       if (mounted) setState(() => _biometricEnabled = true);
       messenger.showSnackBar(const SnackBar(
           content: Text('Biometric login enabled ✓'), backgroundColor: AppColors.green));
     } else {
-      await BiometricTokenStore.clear();
+      // Only this account — other remembered accounts on this device (if
+      // any) keep their own quick-login untouched.
+      await BiometricTokenStore.forget(uid);
       if (mounted) setState(() => _biometricEnabled = false);
       messenger.showSnackBar(const SnackBar(content: Text('Biometric login disabled')));
     }
   }
 
   @override
-  void dispose() { _batchCtrl.dispose(); _sectionCtrl.dispose(); _teacherInitialCtrl.dispose(); super.dispose(); }
+  void dispose() { _batchCtrl.dispose(); _sectionCtrl.dispose(); _teacherInitialCtrl.dispose(); _soundPreviewPlayer.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
@@ -123,11 +186,27 @@ class _SettingsState extends State<SettingsScreen> {
 
   Future<void> _updateSound(String sound) async {
     setState(() => _notificationSound = sound);
+    _previewSound(sound);
     try {
       await SupabaseConfig.client.from('user_settings').upsert({
         'profile_id': SupabaseConfig.uid, 'notification_sound': sound,
         'updated_at': DateTime.now().toIso8601String(),
       });
+    } catch (_) {}
+  }
+
+  /// Plays `assets/sounds/<sound>.mp3` as an immediate preview when a
+  /// notification-sound chip is tapped — this was previously a silent
+  /// preference save with no audible feedback at all. 'none' never plays
+  /// anything, by design. A file that doesn't exist yet (the admin hasn't
+  /// dropped one into assets/sounds/ — see the README there) fails silently
+  /// here rather than showing an error: a missing preview sound is a normal,
+  /// expected state, not a bug to surface to the user.
+  Future<void> _previewSound(String sound) async {
+    if (sound == 'none') return;
+    try {
+      await _soundPreviewPlayer.stop();
+      await _soundPreviewPlayer.play(AssetSource('sounds/$sound.mp3'));
     } catch (_) {}
   }
 
@@ -428,6 +507,8 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 16),
 
               // ── Account ──────────────────────────────────────────────────
+              // Switch Account deliberately lives only on the Unlock screen
+              // ("Use a different account"), not duplicated here too.
               _Section(title: 'Account', children: [
                 _ActionTile('Change Password', Icons.lock_outline_rounded, AppColors.blue,
                     () => _showChangePassword()),
@@ -442,10 +523,24 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 16),
 
               // ── App Info ─────────────────────────────────────────────────
+              if (_availableUpdate != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _UpdateBanner(
+                    update: _availableUpdate!,
+                    downloading: _downloadingUpdate,
+                    progress: _downloadProgress,
+                    onInstall: _downloadAndInstallUpdate,
+                  ),
+                ),
               _Section(title: 'App Info', children: [
                 _InfoTile('Version', 'AFOS v${AppConfig.appVersion}', Icons.info_outline_rounded),
                 _ActionTile('What\'s New', Icons.new_releases_outlined, AppColors.holoBlue,
                     () => context.push('/releases')),
+                _ActionTile(
+                    _checkingUpdate ? 'Checking…' : 'Check for Updates',
+                    Icons.system_update_rounded, AppColors.teal,
+                    _checkingUpdate ? () {} : _checkForUpdateManually),
                 const _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
               ]),
 
@@ -620,10 +715,14 @@ class _InfoTile extends StatelessWidget {
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     leading: Icon(icon, color: AppColors.textSecondaryOf(context), size: 20),
     title: Text(label, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+    // Was maxWidth:160 + maxLines:1 — fine for "AFOS v2.3.x" but truncated
+    // "Daffodil International University" (34 chars) down to "Daffodil
+    // Internat…", cutting off the university's actual name. Widened and
+    // allowed to wrap to a second line instead of ellipsizing.
     trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 160),
+        constraints: const BoxConstraints(maxWidth: 200),
         child: Text(value, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
-            maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end)),
+            maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end)),
   );
 }
 
@@ -646,6 +745,70 @@ class _ActionTile extends StatelessWidget {
     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context), size: 18),
     onTap: onTap,
   );
+}
+
+/// A newer AFOS build is available — download + install without leaving the
+/// app or a browser. Downloads to a temp file and hands it to Android's own
+/// package installer (see AppUpdateService for why the file itself is left
+/// for opportunistic cleanup rather than deleted immediately after).
+class _UpdateBanner extends StatelessWidget {
+  final AppUpdateInfo update;
+  final bool downloading;
+  final double progress;
+  final VoidCallback onInstall;
+  const _UpdateBanner({
+    required this.update, required this.downloading,
+    required this.progress, required this.onInstall,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.teal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.teal.withValues(alpha: 0.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.system_update_rounded, color: AppColors.teal, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Text(update.title,
+              style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700))),
+        ]),
+        if (update.highlights.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          // Capped at 3 — this is a compact settings-screen banner, not the
+          // full What's New page (that's one tap away above).
+          for (final h in update.highlights.take(3))
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text('•  $h', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+            ),
+        ],
+        const SizedBox(height: 12),
+        if (downloading) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+                value: progress > 0 ? progress : null,
+                backgroundColor: AppColors.teal.withValues(alpha: 0.15),
+                color: AppColors.teal, minHeight: 6),
+          ),
+          const SizedBox(height: 6),
+          Text(progress > 0 ? '${(progress * 100).toInt()}%' : 'Starting download…',
+              style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+        ] else
+          SizedBox(width: double.infinity, child: AfosButton(
+              label: 'Download & Install', icon: Icons.download_rounded,
+              color: AppColors.teal, onTap: onInstall)),
+      ]),
+    );
+  }
 }
 
 class _ThemeChip extends StatelessWidget {

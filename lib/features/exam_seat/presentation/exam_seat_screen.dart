@@ -6,6 +6,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -35,18 +36,37 @@ class _ExamSeatState extends State<ExamSeatScreen> {
     if (uid == null) { setState(() => _loading = false); return; }
     setState(() => _error = null);
     try {
-      final student = await SupabaseConfig.client.from('students')
-          .select('batch_label, section').eq('profile_id', uid).maybeSingle();
+      // Both calls were plain, uncached fetches — offline meant an outright
+      // failure (the error state below), not the last-known seat plan. High
+      // stakes to get wrong for something students specifically check right
+      // before walking into an exam, often on patchy exam-hall wifi. Same
+      // cachedMapFetch/cachedListFetch pattern schedule_repository.dart
+      // already uses for exams/routine data.
+      final student = await cachedMapFetch(
+        cacheKey: 'exam_seat_student_$uid',
+        liveFetch: () async {
+          final row = await SupabaseConfig.client.from('students')
+              .select('batch_label, section').eq('profile_id', uid).maybeSingle();
+          if (row == null) throw StateError('no student row yet');
+          return row;
+        },
+      );
       final batch = student?['batch_label'] as String?;
       final section = student?['section'] as String?;
       if (batch == null || section == null) {
         if (mounted) setState(() => _loading = false);
         return;
       }
-      final res = await SupabaseConfig.client.from('exam_room_allocations')
-          .select().eq('batch', batch).eq('section', section)
-          .order('exam_date').order('room_no') as List;
-      if (mounted) setState(() => _allocations = res.cast());
+      final res = await cachedListFetch(
+        cacheKey: 'exam_seat_allocations_${batch}_$section',
+        liveFetch: () async {
+          final rows = await SupabaseConfig.client.from('exam_room_allocations')
+              .select().eq('batch', batch).eq('section', section)
+              .order('exam_date').order('room_no') as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
+      if (mounted) setState(() => _allocations = res);
     } catch (e) {
       // Previously swallowed silently, so a real load failure (network
       // blip, expired session) rendered identically to "seat plan not

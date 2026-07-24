@@ -129,18 +129,26 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
               ),
             ),
           ),
-        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // Was a horizontal ListView — that always left-anchors its content, so
+        // 3 short chips (Active/Resolved/False Alarm) sat bunched at the left
+        // edge with a wide stripe of empty space to the right on any screen
+        // wider than the chips themselves, instead of reading as a
+        // deliberately centered filter row. A Wrap centers them and would
+        // still gracefully flow to a second line if more filters are ever
+        // added, so nothing is lost if this list grows.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
             children: _filters.map((f) {
               final sel = f == _filter;
               final txt = f.replaceAll('_', ' ');
-              return Padding(padding: const EdgeInsets.only(right: 8),
-                child: Center(child: GlassChip(
-                  label: txt[0].toUpperCase() + txt.substring(1),
-                  selected: sel,
-                  color: AppColors.red,
-                  onTap: () => setState(() => _filter = f))));
-            }).toList())),
+              return GlassChip(
+                label: txt[0].toUpperCase() + txt.substring(1),
+                selected: sel,
+                color: AppColors.red,
+                onTap: () => setState(() => _filter = f));
+            }).toList()),
+        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
