@@ -158,7 +158,6 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -230,70 +229,79 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
                 : RefreshIndicator(onRefresh: _load, color: AppColors.holoBlue, child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16 + GlassBottomNav.navContentClearance),
                     itemCount: _rooms.length,
-                    itemBuilder: (ctx, ri) {
-                      final room = _rooms[ri];
-                      final building = room['building']!, roomNumber = room['room_number']!;
-                      final freeHere = _freeCountFor(building, roomNumber);
-                      final totalHere = _periods.length;
-                      final freeRatio = totalHere == 0 ? 0.0 : freeHere / totalHere;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Container(width: 38, height: 38,
-                                decoration: BoxDecoration(color: AppColors.holoBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                                child: const Icon(Icons.door_front_door_rounded, color: AppColors.holoBlue, size: 19)),
-                            const SizedBox(width: 10),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('$building · $roomNumber', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 4),
-                              ClipRRect(borderRadius: BorderRadius.circular(3),
-                                  child: TweenAnimationBuilder<double>(
-                                    tween: Tween(begin: 0, end: freeRatio),
-                                    duration: const Duration(milliseconds: 500),
-                                    curve: Curves.easeOutCubic,
-                                    builder: (ctx, v, _) => LinearProgressIndicator(
-                                        value: v, minHeight: 5,
-                                        backgroundColor: AppColors.borderOf(context),
-                                        valueColor: AlwaysStoppedAnimation(
-                                            v > 0.5 ? AppColors.green : v > 0.2 ? AppColors.amber : AppColors.red)),
-                                  )),
-                            ])),
-                            const SizedBox(width: 8),
-                            Text('$freeHere/$totalHere free', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                                style: TextStyle(color: textSecondary, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600)),
-                          ]),
-                          const SizedBox(height: 12),
-                          Wrap(spacing: 8, runSpacing: 8, children: _periods.map((period) {
-                            final occ = _occupant(building, roomNumber, period);
-                            final claim = _claim(building, roomNumber, period);
-                            final label = '${AppFormatters.time12(period.start)}–${AppFormatters.time12(period.end)}';
-                            if (occ != null) {
-                              return _PeriodChip(label: label, sub: occ.subjectCode ?? occ.subject,
-                                  icon: Icons.school_rounded, color: AppColors.textMutedOf(context));
-                            }
-                            if (claim != null) {
-                              final claimant = (claim['profiles'] as Map?)?['full_name'] as String? ?? 'Someone';
-                              return _PeriodChip(label: label, sub: 'Claimed by $claimant',
-                                  icon: Icons.lock_clock_rounded, color: AppColors.amber);
-                            }
-                            return GestureDetector(
-                              onTap: () => _request(building, roomNumber, period),
-                              child: _PeriodChip(label: label, sub: 'Free — tap to claim',
-                                  icon: Icons.add_circle_outline_rounded, color: AppColors.green, tappable: true),
-                            );
-                          }).toList()),
-                        ]),
-                      ).animate(delay: Duration(milliseconds: (ri * 40).clamp(0, 400)))
-                          .fadeIn(duration: 260.ms, curve: Curves.easeOutCubic)
-                          .slideY(begin: 0.06, curve: Curves.easeOutCubic);
-                    })),
+                    // Guarded by the `_rooms.isEmpty || _periods.isEmpty`
+                    // ternary above, so .first is safe. Every room's chip
+                    // row is built from the SAME shared _periods list for a
+                    // given load, so row height is uniform within one load.
+                    // The index only drives the stagger fade-in delay.
+                    prototypeItem: _buildRoomCard(context, _rooms.first, 0),
+                    itemBuilder: (ctx, ri) => _buildRoomCard(ctx, _rooms[ri], ri))),
         ),
       ]),
     );
+  }
+
+  Widget _buildRoomCard(BuildContext ctx, Map<String, String> room, int ri) {
+    final textPrimary = AppColors.textPrimaryOf(ctx);
+    final textSecondary = AppColors.textSecondaryOf(ctx);
+    final building = room['building']!, roomNumber = room['room_number']!;
+    final freeHere = _freeCountFor(building, roomNumber);
+    final totalHere = _periods.length;
+    final freeRatio = totalHere == 0 ? 0.0 : freeHere / totalHere;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderOf(ctx), width: 0.6)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 38, height: 38,
+              decoration: BoxDecoration(color: AppColors.holoBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.door_front_door_rounded, color: AppColors.holoBlue, size: 19)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$building · $roomNumber', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            ClipRRect(borderRadius: BorderRadius.circular(3),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: freeRatio),
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOutCubic,
+                  builder: (tCtx, v, _) => LinearProgressIndicator(
+                      value: v, minHeight: 5,
+                      backgroundColor: AppColors.borderOf(ctx),
+                      valueColor: AlwaysStoppedAnimation(
+                          v > 0.5 ? AppColors.green : v > 0.2 ? AppColors.amber : AppColors.red)),
+                )),
+          ])),
+          const SizedBox(width: 8),
+          Text('$freeHere/$totalHere free', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+              style: TextStyle(color: textSecondary, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600)),
+        ]),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: _periods.map((period) {
+          final occ = _occupant(building, roomNumber, period);
+          final claim = _claim(building, roomNumber, period);
+          final label = '${AppFormatters.time12(period.start)}–${AppFormatters.time12(period.end)}';
+          if (occ != null) {
+            return _PeriodChip(label: label, sub: occ.subjectCode ?? occ.subject,
+                icon: Icons.school_rounded, color: AppColors.textMutedOf(ctx));
+          }
+          if (claim != null) {
+            final claimant = (claim['profiles'] as Map?)?['full_name'] as String? ?? 'Someone';
+            return _PeriodChip(label: label, sub: 'Claimed by $claimant',
+                icon: Icons.lock_clock_rounded, color: AppColors.amber);
+          }
+          return GestureDetector(
+            onTap: () => _request(building, roomNumber, period),
+            child: _PeriodChip(label: label, sub: 'Free — tap to claim',
+                icon: Icons.add_circle_outline_rounded, color: AppColors.green, tappable: true),
+          );
+        }).toList()),
+      ]),
+    ).animate(delay: Duration(milliseconds: (ri * 40).clamp(0, 400)))
+        .fadeIn(duration: 260.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: 0.06, curve: Curves.easeOutCubic);
   }
 }
 

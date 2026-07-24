@@ -106,12 +106,17 @@ class _DashboardState extends State<DashboardScreen> {
 
       if (dept != null && batch != null && section != null) {
         try {
+          // Filtered server-side by batch+section, not just department — a
+          // plain one-shot .select() (unlike ScheduleRepository's realtime
+          // .stream() calls) supports chaining every filter PostgREST-side,
+          // so there's no reason to pull a whole department's rows (CSE
+          // alone is 1,854+) just to keep a handful for one section.
+          // .ilike() (not .eq()) on batch/section to preserve the original
+          // case-insensitive match — batch/section casing isn't guaranteed
+          // consistent between profiles.batch and schedule_slots.batch.
           final rows = await SupabaseConfig.client.from('schedule_slots')
-              .select().eq('department', dept) as List;
-          final mine = rows.where((s) =>
-              s['is_cancelled'] != true &&
-              (s['batch'] as String?)?.toLowerCase() == batch.toLowerCase() &&
-              (s['section'] as String?)?.toLowerCase() == section.toLowerCase())
+              .select().eq('department', dept).ilike('batch', batch).ilike('section', section) as List;
+          final mine = rows.where((s) => s['is_cancelled'] != true)
               .map((s) => ClassSlot.fromJson(s as Map<String, dynamic>)).toList();
           if (mounted) setState(() => _weekSlots = mine);
         } catch (_) {}

@@ -31,6 +31,16 @@ class Trip {
 
   const Trip({this.time, this.note, this.status = TripStatus.scheduled});
 
+  /// `time`/`note` accept an explicit `null` to CLEAR the field — plain
+  /// omission keeps the current value. Needed by the admin trip editor, where
+  /// blanking a note field must actually remove the note, not leave it as-is.
+  Trip copyWith({String? time, bool clearTime = false, String? note, bool clearNote = false, TripStatus? status}) =>
+      Trip(
+        time: clearTime ? null : (time ?? this.time),
+        note: clearNote ? null : (note ?? this.note),
+        status: status ?? this.status,
+      );
+
   bool get isComingSoon => status == TripStatus.comingSoon;
 
   /// True when this carries neither a time nor a coming-soon marker — i.e.
@@ -95,6 +105,29 @@ class TransportRoute {
   });
 
   String get destination => kCanonicalDestination;
+
+  /// For the admin edit-before-import screen: produces an updated route with
+  /// the given fields replaced. `stops` passed here should NOT include the
+  /// trailing canonical destination — the editor treats that row as fixed, and
+  /// this appends it, mirroring [TransportGridParser]'s own invariant that
+  /// every route's stop list ends at exactly one [kCanonicalDestination].
+  TransportRoute copyWith({
+    String? routeName,
+    List<String>? stopsExcludingDestination,
+    List<Trip>? toDscTrips,
+    List<Trip>? fromDscTrips,
+  }) =>
+      TransportRoute(
+        semester: semester,
+        scheduleType: scheduleType,
+        routeNo: routeNo,
+        routeName: routeName ?? this.routeName,
+        stops: stopsExcludingDestination == null
+            ? stops
+            : [...stopsExcludingDestination, kCanonicalDestination],
+        toDscTrips: toDscTrips ?? this.toDscTrips,
+        fromDscTrips: fromDscTrips ?? this.fromDscTrips,
+      );
 
   Map<String, dynamic> toRouteRow() => {
         'semester': semester,

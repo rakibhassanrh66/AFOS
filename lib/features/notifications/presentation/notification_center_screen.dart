@@ -20,13 +20,20 @@ class NotificationCenterScreen extends StatefulWidget {
 }
 
 class _NotifState extends State<NotificationCenterScreen> {
+  static const _pageSize = 50;
   List<Map<String, dynamic>> _notifs = [];
-  bool _loading = true;
+  bool _loading = true, _loadingMore = false, _hasMore = true;
   String? _error;
   int _loadGen = 0;
 
   @override
   void initState() { super.initState(); _load(); }
+
+  // Narrowed to exactly what this screen reads/acts on (list rendering +
+  // _onTapNotification's deep link) — this table's history was previously
+  // fetched in full with no cap at all, unlike the popover's own query on
+  // the same table which already limits to 20.
+  static const _columns = 'id, is_read, category, received_at, title, body, deep_link_route';
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
@@ -38,15 +45,36 @@ class _NotifState extends State<NotificationCenterScreen> {
     try {
       final res = await SupabaseConfig.client
           .from('user_notifications')
-          .select()
+          .select(_columns)
           .eq('user_id', uid)
-          .order('received_at', ascending: false) as List;
-      if (mounted && gen == _loadGen) setState(() { _notifs = res.cast(); _error = null; });
+          .order('received_at', ascending: false)
+          .range(0, _pageSize - 1) as List;
+      if (mounted && gen == _loadGen) {
+        setState(() { _notifs = res.cast(); _error = null; _hasMore = res.length == _pageSize; });
+      }
     } catch (e) {
       // Silent failure looked identical to "no notifications yet".
       if (mounted && gen == _loadGen) setState(() => _error = friendlyError(e));
     }
     if (mounted && gen == _loadGen) setState(() => _loading = false);
+  }
+
+  Future<void> _loadMore() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null || _loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final res = await SupabaseConfig.client
+          .from('user_notifications')
+          .select(_columns)
+          .eq('user_id', uid)
+          .order('received_at', ascending: false)
+          .range(_notifs.length, _notifs.length + _pageSize - 1) as List;
+      if (mounted) {
+        setState(() { _notifs = [..._notifs, ...res.cast()]; _hasMore = res.length == _pageSize; });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingMore = false);
   }
 
   Future<void> _markAllRead() async {
@@ -141,8 +169,19 @@ class _NotifState extends State<NotificationCenterScreen> {
                   color: AppColors.blue,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 12 + GlassBottomNav.navContentClearance),
-                    itemCount: _notifs.length,
+                    itemCount: _notifs.length + (_hasMore ? 1 : 0),
                     itemBuilder: (ctx, i) {
+                      if (i == _notifs.length) {
+                        // Fires once the footer scrolls into view — no
+                        // separate scroll-position tracking needed since
+                        // ListView.builder only builds items near the
+                        // viewport in the first place.
+                        if (!_loadingMore) WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
+                        return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(child: SizedBox(width: 24, height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.blue))));
+                      }
                       final n = _notifs[i];
                       final isRead = n['is_read'] as bool? ?? false;
                       final cat = n['category'] as String?;

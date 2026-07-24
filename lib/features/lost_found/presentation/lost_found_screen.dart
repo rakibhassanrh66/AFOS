@@ -45,7 +45,11 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      var q = SupabaseConfig.client.from('lost_found_posts').select();
+      // Columns narrowed to exactly what _PostCard (below) reads/acts on —
+      // poster_id and id are needed for the own-post/claim actions, not
+      // just display.
+      var q = SupabaseConfig.client.from('lost_found_posts')
+          .select('id, poster_id, title, description, type, photo_url, location_text, status');
       // Resolved posts drop out of normal browsing automatically once
       // claimed/returned — 'returned' remains available as its own filter
       // chip for anyone who wants to look at resolved history.
@@ -55,7 +59,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
         q = q.neq('status', 'returned');
         if (_filter != 'all') q = q.eq('type', _filter);
       }
-      final res = await q.order('created_at', ascending: false) as List;
+      final res = await q.order('created_at', ascending: false).limit(50) as List;
       if (mounted) setState(() => _posts = res.cast());
     } catch (e) {
       // Previously swallowed silently — a real load failure rendered
@@ -433,7 +437,8 @@ class _MyPostsTabState extends State<_MyPostsTab> {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
-      final res = await SupabaseConfig.client.from('lost_found_posts').select()
+      final res = await SupabaseConfig.client.from('lost_found_posts')
+          .select('id, poster_id, title, description, type, photo_url, location_text, status')
           .eq('poster_id', uid).order('created_at', ascending: false) as List;
       if (mounted) setState(() => _myPosts = res.cast());
     } catch (_) {}
@@ -578,7 +583,7 @@ class _ClaimsPanelState extends State<_ClaimsPanel> {
                     child: const Text('Reject', style: TextStyle(fontSize: 11, color: AppColors.red))),
               ] else
                 TextButton(onPressed: () => _deleteClaim(c['id']),
-                    child: const Text('Clear record', style: TextStyle(fontSize: 11, color: AppColors.textMuted))),
+                    child: Text('Clear record', style: TextStyle(fontSize: 11, color: AppColors.textMutedOf(context)))),
             ]),
           ]));
       }),
@@ -624,7 +629,12 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
       showDialog(context: context, builder: (dctx) => AlertDialog(
           title: const Text('Contact the poster'),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(poster['full_name'] ?? '', style: AppTextStyles.titleMedium),
+            // AppTextStyles.titleMedium is hardcoded to the DARK-mode text
+            // colour (near-white, meant to sit on a dark canvas) with no
+            // theme override — this AlertDialog's background comes from
+            // Material's own theme (near-white in light mode), so this was
+            // near-white text on a near-white dialog: invisible in light mode.
+            Text(poster['full_name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(dctx))),
             if ((poster['phone'] as String? ?? '').isNotEmpty) Text('Phone: ${poster['phone']}'),
             Text('Email: ${poster['email'] ?? ''}'),
           ]),
@@ -675,7 +685,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
                       child: const Text('Contact poster', style: TextStyle(fontSize: 11, color: AppColors.blue))),
                   TextButton(onPressed: () => _withdraw(c['id']),
                       child: Text(status == 'pending' ? 'Withdraw' : 'Clear record',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted))),
+                          style: TextStyle(fontSize: 11, color: AppColors.textMutedOf(context)))),
                 ]),
               ]));
         });

@@ -413,17 +413,20 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Column(children: [
-        SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // Was a horizontal ListView — always left-anchored, leaving empty
+        // space to the right of a short filter row instead of centering it.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
             children: _filters.map((f) {
               final sel = f == _filter;
-              return Padding(padding: const EdgeInsets.only(right: 8),
-                child: Center(child: GlassChip(
-                  label: _filterLabel(f),
-                  selected: sel,
-                  color: AppColors.blue,
-                  onTap: () => setState(() => _filter = f))));
-            }).toList())),
+              return GlassChip(
+                label: _filterLabel(f),
+                selected: sel,
+                color: AppColors.blue,
+                onTap: () => setState(() => _filter = f));
+            }).toList()),
+        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _appsError != null
@@ -507,17 +510,20 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Column(children: [
-      SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      // Was a horizontal ListView — always left-anchored, leaving empty space
+      // to the right of a short filter row instead of centering it.
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
           children: _complaintFilters.map((f) {
             final sel = f == _complaintFilter;
-            return Padding(padding: const EdgeInsets.only(right: 8),
-              child: Center(child: GlassChip(
-                label: f.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' '),
-                selected: sel,
-                color: AppColors.blue,
-                onTap: () => setState(() => _complaintFilter = f))));
-          }).toList())),
+            return GlassChip(
+              label: f.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' '),
+              selected: sel,
+              color: AppColors.blue,
+              onTap: () => setState(() => _complaintFilter = f));
+          }).toList()),
+      ),
       Expanded(child: _complaintsLoading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _complaintsError != null

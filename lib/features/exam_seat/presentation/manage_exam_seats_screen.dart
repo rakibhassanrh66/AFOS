@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show compute;
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -48,7 +49,11 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
       for (final f in _files) {
         final bytes = f.bytes ?? (f.path != null ? File(f.path!).readAsBytesSync() : null);
         if (bytes == null) continue;
-        allRows.addAll(ExamRoomPdfParser.parse(bytes));
+        // The heaviest of the three parsers per-page word extraction +
+        // row-grouping + multi-tier regex classification — and this loop
+        // can run it across several files back to back, so compute() keeps
+        // the "Parsing…" state responsive instead of one long UI freeze.
+        allRows.addAll(await compute(ExamRoomPdfParser.parse, bytes));
       }
       if (allRows.isEmpty) {
         throw "No seat allocation rows found — these may be scanned images rather than text PDFs, or don't match the expected table layout.";

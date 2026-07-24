@@ -119,79 +119,91 @@ class _ShellBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Was one BlocBuilder<ShellBloc,ShellState> wrapping this entire method
+    // (desktop AND mobile Scaffold, SosGate, bottom nav, the routed screen
+    // itself) — but only the dim overlay + AnimatedPositioned menu near the
+    // bottom actually read `state.isOpen`. Every open/close toggle was
+    // rebuilding the whole authenticated shell for nothing; that pair is now
+    // the only thing scoped to a BlocBuilder, further down.
+    //
+    // Web-only: a tablet or a foldable running the native Android/iOS
+    // app should still get the normal touch drawer at any width -- this
+    // is specifically about a mouse-and-keyboard browser window, not
+    // "wide screen" in general.
+    final isDesktop = kIsWeb && Responsive.isExpanded(context);
+    final content = OfflineBanner(child: AdaptiveContentWidth(child: child));
+    // On a desktop-width browser window, the hide/show drawer pattern
+    // (a slide-in panel over a dimmed scrim, meant for a hand reaching
+    // across a phone screen) doesn't make sense with a mouse and a
+    // window that's wide enough to just show it permanently -- it read
+    // as the app "shrinking to phone size and blocking the rest of the
+    // screen" rather than actually using the space. >=1024px on web
+    // gets a fixed nav rail sitting beside the content instead; native
+    // apps and narrower widths keep the original overlay drawer exactly
+    // as it was.
+    if (isDesktop) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          _handleBack(context);
+        },
+        child: Scaffold(
+          backgroundColor: AppColors.surfaceOf(context),
+          body: LiquidBackdrop(child: Row(children: [
+            const SizedBox(width: 248, child: SlideMenu(permanent: true)),
+            Expanded(child: Stack(children: [
+              content,
+              const SosGate(),
+            ])),
+          ])),
+        ),
+      );
+    }
+    // Mobile/tablet: reserve space at the bottom (via a MediaQuery inset)
+    // so screens that honor bottom padding clear the floating bar, and
+    // highlight whichever of the 4 quick destinations is the active route.
+    final mq = MediaQuery.of(context);
+    // Systemic clearance for the floating bottom nav: PHYSICAL bottom
+    // padding on the routed content so every screen — including ones that
+    // never read the inset (e.g. a plain ListView with fixed padding) —
+    // keeps its last element above the bar. This replaces the old
+    // MediaQuery-inset-only reservation that naive screens silently ignored
+    // (the Settings "Log out" regression). The floating "planet" nav needs
+    // clearance for the bar itself AND the planet that floats above it —
+    // reservedHeight already sums bar + planet lift + margins; + safe-area
+    // so it also clears the gesture bar.
+    const barSpace = GlassBottomNav.reservedHeight;
+    // Clearance is handed down as a MediaQuery BOTTOM INSET, never as
+    // physical Padding on the routed content.
+    //
+    // Physical padding is what made the floating bar look like "a rectangle
+    // inside a rectangle": it ended the content above the bar, so the only
+    // thing left behind the glass was flat Scaffold background, and a
+    // BackdropFilter with nothing behind it to blur renders as a plain
+    // opaque slab. Content now runs full-bleed to the bottom of the screen
+    // and genuinely scrolls UNDER the bar, which is what gives the frosted
+    // read-through.
+    //
+    // Clearance still works because `BoxScrollView` (ListView/GridView)
+    // with a null `padding` automatically adopts MediaQuery's vertical
+    // padding, and SafeArea consumes it too. The screens that need a manual
+    // pass are the ones that hard-code their own scroll padding or pin a
+    // widget to the bottom — they opt out of the inset by construction.
+    final mobileContent = MediaQuery(
+      data: mq.copyWith(
+        padding: mq.padding.copyWith(bottom: mq.padding.bottom + barSpace),
+        viewPadding: mq.viewPadding.copyWith(bottom: mq.viewPadding.bottom + barSpace),
+      ),
+      child: content,
+    );
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         _handleBack(context);
       },
-      child: BlocBuilder<ShellBloc,ShellState>(
-      builder:(ctx,state) {
-        // Web-only: a tablet or a foldable running the native Android/iOS
-        // app should still get the normal touch drawer at any width -- this
-        // is specifically about a mouse-and-keyboard browser window, not
-        // "wide screen" in general.
-        final isDesktop = kIsWeb && Responsive.isExpanded(context);
-        final content = OfflineBanner(child: AdaptiveContentWidth(child: child));
-        // On a desktop-width browser window, the hide/show drawer pattern
-        // (a slide-in panel over a dimmed scrim, meant for a hand reaching
-        // across a phone screen) doesn't make sense with a mouse and a
-        // window that's wide enough to just show it permanently -- it read
-        // as the app "shrinking to phone size and blocking the rest of the
-        // screen" rather than actually using the space. >=1024px on web
-        // gets a fixed nav rail sitting beside the content instead; native
-        // apps and narrower widths keep the original overlay drawer exactly
-        // as it was.
-        if (isDesktop) {
-          return Scaffold(
-            backgroundColor: AppColors.surfaceOf(context),
-            body: LiquidBackdrop(child: Row(children: [
-              const SizedBox(width: 248, child: SlideMenu(permanent: true)),
-              Expanded(child: Stack(children: [
-                content,
-                const SosGate(),
-              ])),
-            ])),
-          );
-        }
-        // Mobile/tablet: reserve space at the bottom (via a MediaQuery inset)
-        // so screens that honor bottom padding clear the floating bar, and
-        // highlight whichever of the 4 quick destinations is the active route.
-        final mq = MediaQuery.of(context);
-        // Systemic clearance for the floating bottom nav: PHYSICAL bottom
-        // padding on the routed content so every screen — including ones that
-        // never read the inset (e.g. a plain ListView with fixed padding) —
-        // keeps its last element above the bar. This replaces the old
-        // MediaQuery-inset-only reservation that naive screens silently ignored
-        // (the Settings "Log out" regression). The floating "planet" nav needs
-        // clearance for the bar itself AND the planet that floats above it —
-        // reservedHeight already sums bar + planet lift + margins; + safe-area
-        // so it also clears the gesture bar.
-        const barSpace = GlassBottomNav.reservedHeight;
-        // Clearance is handed down as a MediaQuery BOTTOM INSET, never as
-        // physical Padding on the routed content.
-        //
-        // Physical padding is what made the floating bar look like "a rectangle
-        // inside a rectangle": it ended the content above the bar, so the only
-        // thing left behind the glass was flat Scaffold background, and a
-        // BackdropFilter with nothing behind it to blur renders as a plain
-        // opaque slab. Content now runs full-bleed to the bottom of the screen
-        // and genuinely scrolls UNDER the bar, which is what gives the frosted
-        // read-through.
-        //
-        // Clearance still works because `BoxScrollView` (ListView/GridView)
-        // with a null `padding` automatically adopts MediaQuery's vertical
-        // padding, and SafeArea consumes it too. The screens that need a manual
-        // pass are the ones that hard-code their own scroll padding or pin a
-        // widget to the bottom — they opt out of the inset by construction.
-        final mobileContent = MediaQuery(
-          data: mq.copyWith(
-            padding: mq.padding.copyWith(bottom: mq.padding.bottom + barSpace),
-            viewPadding: mq.viewPadding.copyWith(bottom: mq.viewPadding.bottom + barSpace),
-          ),
-          child: content,
-        );
-        return Scaffold(
+      child: Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
         body: LiquidBackdrop(child: Stack(children:[
           mobileContent,
@@ -211,48 +223,56 @@ class _ShellBody extends StatelessWidget {
               // after ANY navigation -- imperative pushes included -- instead of
               // depending on the shell happening to rebuild.
               child: ListenableBuilder(
-                listenable: GoRouter.of(ctx).routerDelegate,
+                listenable: GoRouter.of(context).routerDelegate,
                 builder: (_, __) => GlassBottomNav(
                   destinations: kQuickNavDestinations,
-                  currentIndex: navIndexForRouter(GoRouter.of(ctx)),
+                  currentIndex: navIndexForRouter(GoRouter.of(context)),
                   // `go` for the 4 quick destinations specifically: these are
                   // top-level tabs, so re-selecting one should replace, not
                   // stack Home on top of Home.
-                  onTap: (i) => ctx.go(kQuickNavDestinations[i].route),
+                  onTap: (i) => context.go(kQuickNavDestinations[i].route),
                 ),
               ),
             ),
           ),
-          // Dim overlay behind the slide menu. Used to also run a
-          // BackdropFilter blur here -- BackdropFilter is one of the most
-          // expensive operations in Flutter's rendering pipeline (a full
-          // framebuffer readback + Gaussian blur + recomposite), and this
-          // one covered the ENTIRE screen for the whole time the menu
-          // stayed open, not just a single frame -- a real, continuous
-          // rendering cost live in both debug and release builds, reported
-          // as the whole app "feeling heavy" specifically while the menu
-          // was open and being scrolled. A plain dim has no such cost.
-          if(state.isOpen)
-            GestureDetector(
-              onTap:()=>ctx.read<ShellBloc>().add(CloseMenu()),
-              child: AnimatedOpacity(
-                duration: LiquidGlass.motionStandard,
-                curve: LiquidGlass.motionCurve,
-                opacity: state.isOpen ? 1 : 0,
-                child: Container(color: Colors.black.withValues(alpha: 0.45)),
-              ),
+          // The only part of this shell that reads ShellBloc's isOpen state
+          // — scoped here (not around the whole build method above) so
+          // opening/closing the menu only rebuilds this small Positioned.fill,
+          // not the routed screen, SosGate, or bottom nav alongside it.
+          Positioned.fill(
+            child: BlocBuilder<ShellBloc, ShellState>(
+              builder: (ctx, state) => Stack(children: [
+                // Dim overlay behind the slide menu. Used to also run a
+                // BackdropFilter blur here -- BackdropFilter is one of the most
+                // expensive operations in Flutter's rendering pipeline (a full
+                // framebuffer readback + Gaussian blur + recomposite), and this
+                // one covered the ENTIRE screen for the whole time the menu
+                // stayed open, not just a single frame -- a real, continuous
+                // rendering cost live in both debug and release builds, reported
+                // as the whole app "feeling heavy" specifically while the menu
+                // was open and being scrolled. A plain dim has no such cost.
+                if(state.isOpen)
+                  GestureDetector(
+                    onTap:()=>ctx.read<ShellBloc>().add(CloseMenu()),
+                    child: AnimatedOpacity(
+                      duration: LiquidGlass.motionStandard,
+                      curve: LiquidGlass.motionCurve,
+                      opacity: state.isOpen ? 1 : 0,
+                      child: Container(color: Colors.black.withValues(alpha: 0.45)),
+                    ),
+                  ),
+                // Slide menu
+                AnimatedPositioned(
+                  duration: LiquidGlass.motionStandard,
+                  curve: LiquidGlass.motionCurve,
+                  left: state.isOpen ? 0 : -320,
+                  top:0, bottom:0, width:300,
+                  child: const SlideMenu(),
+                ),
+              ]),
             ),
-          // Slide menu
-          AnimatedPositioned(
-            duration: LiquidGlass.motionStandard,
-            curve: LiquidGlass.motionCurve,
-            left: state.isOpen ? 0 : -320,
-            top:0, bottom:0, width:300,
-            child: const SlideMenu(),
           ),
         ])),
-        );
-      },
       ),
     );
   }

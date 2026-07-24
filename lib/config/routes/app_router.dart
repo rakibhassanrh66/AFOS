@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/admin/presentation/manage_clubs_screen.dart';
 import '../../features/admin/presentation/manage_conference_rooms_screen.dart';
+import '../../features/admin/presentation/manage_course_offerings_admin_screen.dart';
 import '../../features/admin/presentation/manage_feedback_screen.dart';
 import '../../features/admin/presentation/manage_users_screen.dart';
 import '../../features/assignments/presentation/assignments_screen.dart';
@@ -38,6 +39,8 @@ import '../../features/registry/presentation/manage_notices_screen.dart';
 import '../../features/registry/presentation/registry_list_screen.dart';
 import '../../features/schedule/presentation/schedule_screen.dart';
 import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
+import '../../features/schedule/presentation/browse_courses_screen.dart';
+import '../../features/schedule/presentation/manage_course_offerings_screen.dart';
 import '../../features/schedule/presentation/room_availability_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/releases_screen.dart';
@@ -51,6 +54,7 @@ import '../../features/transport/presentation/transport_screen.dart';
 import '../../features/vr_id/presentation/vr_id_screen.dart';
 import '../../shared/animations/page_transitions.dart';
 import '../app_config.dart';
+import '../../core/auth/permission_session.dart';
 import '../../core/auth/role_session.dart';
 import '../../core/navigation/back_press_tracker.dart';
 import '../../core/utils/last_route.dart';
@@ -83,6 +87,7 @@ class AppRouter {
       if (loc == '/auth/unlock') return null;
       if (session == null) {
         RoleSession.clear();
+        PermissionSession.clear();
         return loc.startsWith('/auth') ? null : '/auth/login';
       }
       if (loc.startsWith('/auth')) return '/home';
@@ -104,14 +109,42 @@ class AppRouter {
         // Library checkout is a real front-desk task, not admin-tier
         // oversight — staff need it same as they need Conference Room and
         // SOS oversight (staff should be able to run and help too).
-        final allowed = _adminRoles.contains(role)
+        var allowed = _adminRoles.contains(role)
             || (role == 'staff' && (loc == '/admin/library' || loc == '/admin/sos'));
+        // Distributed admin roles ("Manage Users" > a user's Permissions):
+        // a super_admin can delegate ONE specific admin area to a non-admin
+        // user without making them a full admin. RLS on the underlying
+        // tables already honours the same grant via caller_can(resource,
+        // action) — this is the router-side half, so a delegated user
+        // actually REACHES the screen instead of being bounced here first.
+        // /admin/upload handles transport, class-routine AND exam-routine
+        // uploads from one screen (parse-routine guesses the mode from the
+        // filename), so any one of those three permissions unlocks it.
+        if (!allowed) {
+          allowed = switch (loc) {
+            '/admin/upload' => await PermissionSession.ensureHas('transport', 'upload')
+                || await PermissionSession.ensureHas('routine', 'upload')
+                || await PermissionSession.ensureHas('exam_seat', 'upload'),
+            '/admin/hall' => await PermissionSession.ensureHas('hall', 'manage'),
+            '/admin/library' => await PermissionSession.ensureHas('library', 'manage'),
+            '/admin/sos' => await PermissionSession.ensureHas('sos', 'manage'),
+            '/admin/conference-rooms' => await PermissionSession.ensureHas('conference', 'manage'),
+            '/admin/course-offerings' => await PermissionSession.ensureHas('course_offerings', 'manage'),
+            _ => false,
+          };
+        }
         if (!allowed) return '/home';
       }
       // User management (approve/reject signups, delete accounts entirely)
       // is the single most destructive tool in the app — super_admin only,
-      // not the broader admin/dept_admin set the rest of /admin allows.
-      if (loc == '/admin/users' || loc == '/admin/clubs' || loc == '/admin/conference-rooms' || loc == '/admin/feedback') {
+      // not the broader admin/dept_admin set the rest of /admin allows, and
+      // NOT delegable via the permissions catalog (there is no "users"
+      // resource in it, deliberately). Clubs/Feedback moderation are the
+      // same tier. Conference Rooms moved to the /admin block above: RLS
+      // there already allows a caller_can('conference','manage') grant, not
+      // just super_admin, so the router now matches that instead of being
+      // stricter than the data layer.
+      if (loc == '/admin/users' || loc == '/admin/clubs' || loc == '/admin/feedback') {
         final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin') return '/home';
       }
@@ -120,13 +153,15 @@ class AppRouter {
       // caught by the admin-only guard above.
       if (loc == '/manage-notices') {
         final role = await RoleSession.ensureLoaded();
-        if (!_adminRoles.contains(role) && role != 'teacher') return '/home';
+        if (!_adminRoles.contains(role) && role != 'teacher'
+            && !(await PermissionSession.ensureHas('notice', 'publish'))) return '/home';
       }
       // Exam seat assignment is done by exam_controller too, which isn't
       // in _adminRoles and isn't under /admin — same reasoning as notices.
       if (loc == '/manage-exam-seats') {
         final role = await RoleSession.ensureLoaded();
-        if (!_adminRoles.contains(role) && role != 'exam_controller') return '/home';
+        if (!_adminRoles.contains(role) && role != 'exam_controller'
+            && !(await PermissionSession.ensureHas('exam_seat', 'upload'))) return '/home';
       }
       // Hall allocation, exam seating, and payment are personal student
       // records — a teacher has none of their own, so hide these routes
@@ -188,6 +223,9 @@ class AppRouter {
           GoRoute(path: '/feedback',      pageBuilder: (c,s) => slideRightPage(const FeedbackScreen(), s)),
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
           GoRoute(path: '/room-availability', pageBuilder: (c,s) => slideRightPage(const RoomAvailabilityScreen(), s)),
+          GoRoute(path: '/schedule/my-offerings', pageBuilder: (c,s) => slideRightPage(const ManageCourseOfferingsScreen(), s)),
+          GoRoute(path: '/schedule/browse-courses', pageBuilder: (c,s) => slideRightPage(const BrowseCoursesScreen(), s)),
+          GoRoute(path: '/admin/course-offerings', pageBuilder: (c,s) => slideRightPage(const ManageCourseOfferingsAdminScreen(), s)),
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
           GoRoute(path: '/admin/library', pageBuilder: (c,s) => slideRightPage(const ManageLibraryScreen(), s)),
           GoRoute(path: '/admin/users',   pageBuilder: (c,s) => slideRightPage(const ManageUsersScreen(), s)),

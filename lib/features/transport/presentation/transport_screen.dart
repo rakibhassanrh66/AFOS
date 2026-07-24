@@ -155,7 +155,11 @@ Future<T?> _showOptionPicker<T>(BuildContext context, {
   required String title,
   required List<_PickerOption<T>> options,
   T? selected,
-}) => showGlassSheet<T>(context, child: _PickerSheet<T>(title: title, options: options, selected: selected));
+}) => showGlassModal<T>(context,
+    // showGlassModal (not showGlassSheet) turns OFF GlassSheet's own keyboard
+    // lift, so _PickerSheet is the single owner of the keyboard inset and can
+    // safely autofocus its search field — see the note in _PickerSheet.build.
+    builder: (_) => _PickerSheet<T>(title: title, options: options, selected: selected));
 
 class _PickerSheet<T> extends StatefulWidget {
   final String title;
@@ -181,20 +185,32 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
     final filtered = searchRank(widget.options, _query, (o) => o.label);
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
-    // NOTE (2026-07-22): two attempts to auto-open the keyboard here both made
-    // this sheet worse, so it is deliberately back to its original behaviour.
-    //   1st: `autofocus: true` + our own `Padding(bottom: viewInsets.bottom)`.
-    //        GlassSheet ALREADY lifts the whole sheet for the keyboard
-    //        (`liftForKeyboard: true`, glass_sheet.dart:77), so the lift was
-    //        applied twice and the sheet left the top of the screen.
-    //   2nd: autofocus with the padding removed. Still wrong — the sheet jumped
-    //        and left a large empty gap below it.
-    // The interaction between autofocus, showModalBottomSheet's viewInsets and
-    // GlassSheet's lift needs to be worked out on a real device, not guessed at.
-    // Until then this stays exactly as it was: tap the field to focus it.
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // NOT autofocused (reverted 2026-07-24). Autofocus opened the keyboard the
+    // INSTANT this sheet appeared, before the user had typed anything — for a
+    // list of ~75 stops that ate roughly half the screen height immediately,
+    // so only the first 1-2 names were visible on open and the rest read as
+    // "disappeared". Tap-to-focus keeps the FULL list visible (like Lost &
+    // Found's clean, uncluttered layout) until the user actually wants to
+    // search, at which point the keyboard opens normally.
+    //
+    // This sheet is shown via showGlassModal — GlassSheet with
+    // liftForKeyboard:false — so the sheet is NOT lifted for us and THIS
+    // widget is the single owner of the keyboard inset: the bottom Padding
+    // here, and nothing else. The two earlier (2026-07-22) autofocus attempts
+    // failed precisely because GlassSheet's own lift was ALSO on, doubling the
+    // lift and throwing the sheet off the top; keeping that single-owner
+    // structure (just without autofocus) is what makes a tap-triggered
+    // keyboard settle correctly instead of repeating that bug. maxHeight is
+    // measured against the space left ABOVE the keyboard — 0 when it's
+    // closed, so the list gets the FULL available height by default — so it
+    // never overflows the top on the rare device where the keyboard is tall
+    // enough to matter once the field IS tapped.
+    final mq = MediaQuery.of(context);
+    return Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, bottom: mq.viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: (mq.size.height - mq.viewInsets.bottom) * 0.72),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(widget.title, style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
         const SizedBox(height: 12),
         TextField(
@@ -243,6 +259,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
               },
             )),
       ]),
+      ),
     );
   }
 }
@@ -402,6 +419,31 @@ class _LiveStatusBadge extends StatelessWidget {
   }
 }
 
+/// Tiny pill telling the rider which schedule a route runs on. Regular and
+/// Shuttle are the everyday (weekday) service and read as teal/blue; Friday is
+/// amber so its separate, once-a-week timetable is unmistakable — the visual
+/// half of "Regular and Shuttle are the same, Friday is different".
+class _ScheduleTypeBadge extends StatelessWidget {
+  final String scheduleType;
+  const _ScheduleTypeBadge({required this.scheduleType});
+  @override
+  Widget build(BuildContext context) {
+    final (color, label) = switch (scheduleType) {
+      'friday' => (AppColors.amber, 'Friday'),
+      'shuttle' => (AppColors.holoBlue, 'Shuttle'),
+      _ => (AppColors.holoTeal, 'Regular'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.4))),
+      child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
 /// Lets a user pick where they are and where they want to go, then shows
 /// every route whose stop list contains both stops — a route's `stops` array
 /// is stored in a single fixed physical order, but the bus itself runs both
@@ -441,7 +483,19 @@ class _FindRouteTabState extends State<_FindRouteTab> {
   /// every lower-cased name in the live data — "gulistan", "kolabagan",
   /// "saydabad bus stand", "sign board", "sonir akhra" — below "Zirabo", i.e.
   /// past the end of the alphabet where nobody scrolls to look for them.
+  // Memoized against the exact `widget.routes` instance: this getter does an
+  // O(n²) sameStop scan over ~79 stops (see the dedup below), and was being
+  // recomputed from scratch on every rebuild — including ones that have
+  // nothing to do with the route list, like every keystroke while typing in
+  // the picker's own search box (a `setState` inside THIS state class, which
+  // reuses the same `widget.routes` instance). Caching on reference identity
+  // skips the rescan whenever the list genuinely hasn't changed.
+  List<Map<String, dynamic>>? _stopNamesForRoutes;
+  List<String>? _stopNamesCache;
   List<String> get _stopNames {
+    if (identical(_stopNamesForRoutes, widget.routes) && _stopNamesCache != null) {
+      return _stopNamesCache!;
+    }
     final byKey = <String, String>{};
     for (final r in widget.routes) {
       for (final s in (r['stops'] as List?) ?? const []) {
@@ -455,7 +509,17 @@ class _FindRouteTabState extends State<_FindRouteTab> {
         if (existing == null || name.compareTo(existing) < 0) byKey[key] = name;
       }
     }
-    return byKey.values.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final names = byKey.values.toList();
+    // Collapse split spellings of one place (see [sameStop]): drop a name when a
+    // strictly longer name in the list already contains it as a contiguous token
+    // run, so "Sony Cinema Hall" folds into "Mirpur 01 - Sony Cinema Hall" and
+    // the picker lists each place once, under its most descriptive spelling.
+    final canonical = names.where((n) => !names.any(
+        (o) => o.length > n.length && sameStop(n, o))).toList();
+    canonical.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    _stopNamesForRoutes = widget.routes;
+    _stopNamesCache = canonical;
+    return canonical;
   }
 
   List<_RouteMatch> get _matches {
@@ -464,21 +528,19 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     // are pickup points on a route, never independent schedule entities). When
     // both are picked, require both to be on the same route.
     if (_from == null && _to == null) return const [];
-    // Compared on normalized keys throughout, so a route that spells the picked
-    // stop differently still matches (see [stopKey]).
-    final fromKey = _from == null ? null : stopKey(_from!);
-    final toKey = _to == null ? null : stopKey(_to!);
-    if (fromKey != null && toKey != null && fromKey == toKey) return const [];
+    // Matched with [sameStop], not raw key equality, so a route that spells the
+    // picked stop as a subset ("Sony Cinema Hall" vs "Mirpur 01 - Sony Cinema
+    // Hall") still matches — the fix for "Mirpur 01 shows no Friday/shuttle bus".
+    if (_from != null && _to != null && sameStop(_from!, _to!)) return const [];
     // The stop the user is asking about: their origin if they picked one,
     // otherwise the destination they picked.
-    final focusKey = fromKey ?? toKey;
+    final focusName = _from ?? _to;
     final results = <_RouteMatch>[];
     for (final r in widget.routes) {
       final stops = ((r['stops'] as List?) ?? const [])
           .cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).toList();
-      final stopKeys = stops.map(stopKey).toList();
-      if (fromKey != null && !stopKeys.contains(fromKey)) continue;
-      if (toKey != null && !stopKeys.contains(toKey)) continue;
+      if (_from != null && !stops.any((s) => sameStop(s, _from!))) continue;
+      if (_to != null && !stops.any((s) => sameStop(s, _to!))) continue;
       final routeNumber = r['route_number'] as String? ?? '?';
       final scheduleType = r['schedule_type'] as String? ?? 'regular';
       final toDsc = _tripsOf(r, 'to_dsc_trips');
@@ -486,7 +548,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
       // Where the focused stop sits in this route's running order — the index
       // was previously computed and thrown away, but it's exactly what turns
       // "this route stops there" into "your stop is 4th, after ECB Chattor".
-      final idx = focusKey == null ? -1 : stopKeys.indexOf(focusKey);
+      final idx = focusName == null ? -1 : stops.indexWhere((s) => sameStop(s, focusName));
       // Look the offset up under THIS route's own spelling of the stop, not the
       // picker's canonical one — the admin recorded it against the route.
       final localName = idx >= 0 ? stops[idx] : null;
@@ -497,6 +559,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
         routeId: r['id'] as String,
         routeNumber: routeNumber,
         routeName: r['route_name'] as String? ?? 'Route',
+        scheduleType: scheduleType,
         toDsc: toDsc,
         fromDsc: fromDsc,
         stopIndex: idx,
@@ -560,7 +623,9 @@ class _FindRouteTabState extends State<_FindRouteTab> {
         ]),
       ),
       const SizedBox(height: 20),
-      if (_from != null && _to != null && stopKey(_from!) == stopKey(_to!))
+      // sameStop, not stopKey: matches the check _matches uses below, so this
+      // warning and the actual "no route" result can never disagree.
+      if (_from != null && _to != null && sameStop(_from!, _to!))
         Text('Pick two different stops', style: TextStyle(color: textSecondary))
       else if ((_from != null || _to != null) && matches.isEmpty)
         Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -569,38 +634,112 @@ class _FindRouteTabState extends State<_FindRouteTab> {
           Text(_to == null ? 'No route stops there yet' : 'No route covers that trip', style: TextStyle(color: textSecondary)),
         ])))
       else
-        ...matches.map((m) => SurfaceCard(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 40, height: 40,
-              decoration: BoxDecoration(
-                  gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      colors: [AppColors.holoTeal, AppColors.holoBlue]),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
-              child: Center(child: Text(m.routeNumber,
-                  textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                  style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.bold)))),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(_displayRouteName(m.routeName), style: AppTextStyles.titleMedium.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 6),
-                _LiveStatusBadge(status: widget.liveStatus[m.routeId]),
-              ]),
-              Text(_from != null && _to != null ? '$_from → $_to' : (_from != null ? 'Stops at $_from' : 'Stops at $_to'),
-                  style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-              // The plain-language answer to "when is the bus at my stop?".
-              if (focusStop != null) _StopAnswerCard(match: m, stop: focusStop),
-              // The route's own timetable stays below, clearly labelled as
-              // to/from DSC so the two are never confused with each other.
-              if (m.toDsc.isNotEmpty) _TimeChipsRow(label: 'To DSC', times: m.toDsc),
-              if (m.fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
-                  child: _TimeChipsRow(label: 'From DSC', times: m.fromDsc)),
-            ])),
-          ]),
-        )),
+        ..._groupedMatches(matches, focusStop, textPrimary, textSecondary),
     ]);
+  }
+
+  /// Groups the matched routes the way a rider thinks about them, and is the fix
+  /// for "search showed me a lone 7:30 for Uttara": Regular and Shuttle run the
+  /// same weekday timetable, so they sit together and lead; Friday-only routes
+  /// get their own clearly-marked section BELOW, never mixed in — so a Friday
+  /// 7:30 can't be mistaken for the weekday answer. Within a section the route
+  /// where the picked stop is the ORIGIN comes first (its quoted times are
+  /// literally that stop's), then the fuller timetable (R15's four times beat
+  /// R16's two), then a stable route order.
+  List<Widget> _groupedMatches(List<_RouteMatch> matches, String? focusStop,
+      Color textPrimary, Color textSecondary) {
+    int timeCount(_RouteMatch m) =>
+        m.toDsc.where((t) => t.time != null).length +
+        m.fromDsc.where((t) => t.time != null).length;
+    // Fuller timetable first — the rider wants to see EVERY departure, so R15's
+    // four times beat R16's two. The route where the stop is the ORIGIN is only
+    // a tiebreak (its quoted times are literally that stop's; the per-card
+    // answer already says which stop each time is measured from). Then a stable
+    // route order.
+    int byRelevance(_RouteMatch a, _RouteMatch b) {
+      final t = timeCount(b).compareTo(timeCount(a));
+      if (t != 0) return t;
+      final ao = a.stopIndex == 0 ? 0 : 1, bo = b.stopIndex == 0 ? 0 : 1;
+      if (ao != bo) return ao - bo;
+      return a.routeNumber.compareTo(b.routeNumber);
+    }
+    final weekday = matches.where((m) => m.scheduleType != 'friday').toList()..sort(byRelevance);
+    final friday = matches.where((m) => m.scheduleType == 'friday').toList()..sort(byRelevance);
+
+    // Friday is the weekend here, so on a Friday the Friday routes are the ones
+    // that actually run today: surface them first and flag them TODAY, exactly
+    // as the All Routes tab does (see _AllRoutesTabState.build). Any other day,
+    // weekday buses lead.
+    final isFriday = DateTime.now().weekday == DateTime.friday;
+
+    final out = <Widget>[];
+    // Section labels only when both groups are present — otherwise a lone header
+    // over the only group is just noise.
+    final labelled = weekday.isNotEmpty && friday.isNotEmpty;
+    void section(String label, List<_RouteMatch> group, {bool today = false}) {
+      if (group.isEmpty) return;
+      if (labelled) {
+        out.add(Padding(
+          padding: const EdgeInsets.only(bottom: 8, top: 2),
+          child: Text('$label${today ? '  ·  TODAY' : ''}',
+              style: AppTextStyles.labelSmall.copyWith(
+                  color: today ? AppColors.amber : textSecondary,
+                  fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+        ));
+      }
+      out.addAll(group.map((m) => _matchCard(m, focusStop, textPrimary, textSecondary)));
+    }
+    if (isFriday) {
+      section('FRIDAY', friday, today: true);
+      section('WEEKDAY BUSES', weekday);
+    } else {
+      section('WEEKDAY BUSES', weekday);
+      section('FRIDAY ONLY', friday);
+    }
+    return out;
+  }
+
+  /// One matched-route card. Extracted from the old inline `matches.map` so the
+  /// weekday/Friday grouping in [_groupedMatches] can lay the cards out in the
+  /// right order and under the right headers. Carries a schedule-type badge so
+  /// the rider can see what each set of times is based on.
+  Widget _matchCard(_RouteMatch m, String? focusStop, Color textPrimary, Color textSecondary) {
+    return SurfaceCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 40, height: 40,
+          decoration: BoxDecoration(
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.holoTeal, AppColors.holoBlue]),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
+          child: Center(child: Text(m.routeNumber,
+              textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+              style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.bold)))),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(_displayRouteName(m.routeName), style: AppTextStyles.titleMedium.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 6),
+            _LiveStatusBadge(status: widget.liveStatus[m.routeId]),
+          ]),
+          const SizedBox(height: 2),
+          Row(children: [
+            _ScheduleTypeBadge(scheduleType: m.scheduleType),
+            const SizedBox(width: 6),
+            Expanded(child: Text(_from != null && _to != null ? '$_from → $_to' : (_from != null ? 'Stops at $_from' : 'Stops at $_to'),
+                style: AppTextStyles.bodyMedium.copyWith(color: textSecondary), overflow: TextOverflow.ellipsis)),
+          ]),
+          // The plain-language answer to "when is the bus at my stop?".
+          if (focusStop != null) _StopAnswerCard(match: m, stop: focusStop),
+          // The route's own timetable stays below, clearly labelled as
+          // to/from DSC so the two are never confused with each other.
+          if (m.toDsc.isNotEmpty) _TimeChipsRow(label: 'To DSC', times: m.toDsc),
+          if (m.fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
+              child: _TimeChipsRow(label: 'From DSC', times: m.fromDsc)),
+        ])),
+      ]),
+    );
   }
 }
 
@@ -656,6 +795,7 @@ typedef _RouteMatch = ({
   String routeId,
   String routeNumber,
   String routeName,
+  String scheduleType,
   List<Trip> toDsc,
   List<Trip> fromDsc,
   int stopIndex,
@@ -1525,7 +1665,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ));
       }
       for (final r in group) {
-        children.add(_routeCard(context, r, idx++));
+        children.add(_routeCard(context, r, idx++, animate: _query.isEmpty));
       }
     }
     if (visible.isEmpty) {
@@ -1583,7 +1723,20 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
     ]);
   }
 
-  Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i) {
+  /// [animate] gates the staggered fade+slide entrance. It must be OFF while a
+  /// search query is active: this list rebuilds on every keystroke, and
+  /// without a stable per-item [Key] Flutter's default index-based
+  /// reconciliation recycles each card's Element for whatever route now sits
+  /// at that position — so an in-flight `delay: i*50ms` entrance (still
+  /// fading in from a PRIOR keystroke's rebuild) gets reused and restarted
+  /// for a route it was never meant to animate, and cards further down the
+  /// list (bigger `i`, bigger delay) never finish fading in for as long as
+  /// typing continues. That reads exactly like "results disappear except the
+  /// first one" — the first card's ~0ms delay is the only one that reliably
+  /// completes before the next keystroke. Typing a search query should show
+  /// results instantly, not stagger them in, so the entrance is skipped
+  /// entirely rather than just capped.
+  Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i, {bool animate = true}) {
     final ctx = context;
     final stops = ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = _tripsOf(r, 'to_dsc_trips');
@@ -1594,7 +1747,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
     // App-consistent glass surface (SurfaceCard = signature cut-corner, list-row
     // safe with blur:false), replacing the old bespoke gradient-border card so
     // the transport screen matches the rest of the redesign.
-    return SurfaceCard(
+    final card = SurfaceCard(
       margin: const EdgeInsets.only(bottom: 12),
       blur: false,
       radius: 18,
@@ -1626,7 +1779,9 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ])),
         Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
       ]),
-    ).animate(delay: Duration(milliseconds: i * 50))
+    );
+    if (!animate) return card;
+    return card.animate(delay: Duration(milliseconds: i * 50))
         .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }

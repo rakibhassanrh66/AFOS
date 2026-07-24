@@ -346,25 +346,29 @@ class _AccessLogTabState extends State<_AccessLogTab> {
     ]));
     }
     return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _logs.length,
-        itemBuilder: (ctx, i) {
-          final log = _logs[i];
-          final scanner = (log['scanned_by'] as Map?)?['full_name'] ?? 'Unknown';
-          final time = log['scanned_at'] != null ? DateTime.tryParse(log['scanned_at']) : null;
-          return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-              child: Row(children: [
-                Container(width: 36, height: 36, decoration: BoxDecoration(
-                    color: AppColors.green.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.green, size: 18)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Scanned by $scanner', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                  Text(log['location_note'] ?? 'Campus', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-                ])),
-                if (time != null) Text(AppFormatters.relativeTime(time),
-                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedOf(context))),
-              ]));
-        });
+        // Guarded by the `if (_logs.isEmpty) return Center(...)`
+        // early-return above, so .first is safe.
+        prototypeItem: _buildLogRow(context, _logs.first),
+        itemBuilder: (ctx, i) => _buildLogRow(ctx, _logs[i]));
+  }
+
+  Widget _buildLogRow(BuildContext ctx, Map<String, dynamic> log) {
+    final scanner = (log['scanned_by'] as Map?)?['full_name'] ?? 'Unknown';
+    final time = log['scanned_at'] != null ? DateTime.tryParse(log['scanned_at']) : null;
+    return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+        child: Row(children: [
+          Container(width: 36, height: 36, decoration: BoxDecoration(
+              color: AppColors.green.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.green, size: 18)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Scanned by $scanner', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx))),
+            Text(log['location_note'] ?? 'Campus', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),
+          ])),
+          if (time != null) Text(AppFormatters.relativeTime(time),
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedOf(ctx))),
+        ]));
   }
 }

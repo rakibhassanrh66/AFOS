@@ -110,6 +110,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
         message: 'You are now a member of ${(req['clubs'] as Map?)?['name'] ?? 'the club'}.',
         category: 'club', deepLink: '/clubs',
       );
+      _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Membership approved ✓'), backgroundColor: AppColors.green));
@@ -167,6 +168,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
         message: 'You are now ${role.replaceAll('_', ' ')} of ${(req['clubs'] as Map?)?['name'] ?? 'the club'}.',
         category: 'club', deepLink: '/clubs',
       );
+      _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post approved ✓'), backgroundColor: AppColors.green));
@@ -208,6 +210,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
               AfosButton(label: 'Confirm', onTap: () async {
                 Navigator.pop(sheetCtx);
                 await onConfirm(reasonCtrl.text.trim());
+                _load();
               }),
             ])));
   }

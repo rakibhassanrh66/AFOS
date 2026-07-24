@@ -65,7 +65,13 @@ class AssignmentsRepository {
   Future<List<Map<String, dynamic>>> getMyClassAssignments() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return [];
-    final assignments = await _client.from('assignments').select().order('deadline') as List;
+    // RLS (student_read_own_section_assignments) already scopes this to only
+    // the caller's own department/batch/section — narrowing the column list
+    // (not adding a redundant filter) is the real saving here, since the row
+    // set returned is identical either way.
+    final assignments = await _client.from('assignments')
+        .select('id, title, course_code, course_title, description, deadline')
+        .order('deadline') as List;
     final mySubmissions = await _client.from('assignment_submissions')
         .select('assignment_id').eq('student_id', uid) as List;
     final submittedIds = mySubmissions.map((s) => s['assignment_id'] as String).toSet();

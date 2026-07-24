@@ -116,8 +116,15 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _roomAvailabilityItem =
     _MenuItem('Room Availability', AppIcons.schedule, '/room-availability', AppColors.holoTeal);
 
+  static const _myOfferingsItem =
+    _MenuItem('My Course Offerings', AppIcons.schedule, '/schedule/my-offerings', AppColors.blue);
+
+  static const _browseCoursesItem =
+    _MenuItem('Browse Courses', Icons.menu_book_rounded, '/schedule/browse-courses', AppColors.blue);
+
   static const _adminItems = [
     _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue),
+    _MenuItem('Course Offerings', AppIcons.schedule, '/admin/course-offerings', AppColors.blue),
     _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber),
     _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple),
     _MenuItem('Moderate Dept Chats', AppIcons.moderateChat, '/admin/dept-chat', AppColors.indigo),
@@ -195,7 +202,7 @@ class _SlideMenuState extends State<SlideMenu> {
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
+      return [..._commonItems, _myOfferingsItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
     }
     if (role == 'staff') {
       return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem, _feedbackItem];
@@ -213,9 +220,9 @@ class _SlideMenuState extends State<SlideMenu> {
     // RLS policy on empty_room_requests already allows CR inserts; without
     // this the menu item simply never existed for them to reach it.
     if (_isCr) {
-      return [..._commonItems, ..._studentOnlyItems, _roomAvailabilityItem, _feedbackItem];
+      return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _roomAvailabilityItem, _feedbackItem];
     }
-    return [..._commonItems, ..._studentOnlyItems, _feedbackItem];
+    return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _feedbackItem];
   }
 
   @override
@@ -230,6 +237,13 @@ class _SlideMenuState extends State<SlideMenu> {
       // whatever was fetched once at app start.
       listenWhen: (prev, curr) => !prev.isOpen && curr.isOpen,
       listener: (ctx, state) => _loadUser(),
+      // The builder below never actually reads `state` — confirmed by
+      // reading its full body (header, BackdropFilter blur, up-to-25-item
+      // menu list, footer all come from `ctx`/instance fields only) — so
+      // without this it was rerunning a BackdropFilter blur (one of the
+      // most expensive Flutter render ops) plus a full List.generate on
+      // every single ShellBloc emission, i.e. twice per menu open/close.
+      buildWhen: (_, __) => false,
       builder:(ctx,state) => ClipRRect(
         // Frosted glass drawer — real blur behind a translucent fill so the
         // dimmed content shows through as glass; tinted (never grey) hairline.
@@ -285,9 +299,23 @@ class _SlideMenuState extends State<SlideMenu> {
                       isActive: isRouteActive(GoRouter.of(ctx), _effectiveItems[i].route),
                       index: i,
                       delay: (i*15).clamp(0,90))),
-                  Divider(color:border, height:24),
+                  // Logout is the LAST ITEM of this same scrolling list, not a
+                  // separately pinned row below it (tried in a previous round —
+                  // pinning it outside the Expanded ListView fixed "Logout
+                  // floats mid-screen for a short role's menu", but introduced
+                  // a worse problem: Logout sat at a FIXED height regardless of
+                  // scroll position, so it visually detached from the item list
+                  // while scrolling — "feedback and ideas [i.e. the real last
+                  // menu item] looks weird" during scroll was that Logout
+                  // wasn't moving WITH the content above it. Back inside the
+                  // list, Logout scrolls naturally right after the last real
+                  // item — any leftover blank space for a short menu now falls
+                  // in the normal, expected place (below Logout, before
+                  // reaching the fixed footer), not as a jarring gap ABOVE a
+                  // detached Logout row.
+                  Divider(color: border, height: 1),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
                     // Builder so the tile gets its OWN context: the radial
                     // menu reads that render box to place the burst origin.
                     child: Builder(
@@ -296,6 +324,9 @@ class _SlideMenuState extends State<SlideMenu> {
                     ),
                   ),
                 ]))),
+                // Only the lightweight version/university footer stays pinned
+                // outside the scroll, so it's always visible without needing
+                // to scroll all the way down for a long menu (super_admin).
                 _buildFooter(context),
               ]),
             ),

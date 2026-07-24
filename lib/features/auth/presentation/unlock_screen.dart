@@ -6,6 +6,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/biometric_lock.dart';
 import '../../../core/utils/last_route.dart';
+import '../../../shared/widgets/account_switcher_sheet.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
@@ -31,6 +32,11 @@ class _UnlockScreenState extends State<UnlockScreen> {
   Future<void> _unlock() async {
     if (_busy) return;
     setState(() { _busy = true; _failed = false; });
+    // Cold start defaults to whichever remembered account was last active —
+    // with more than one remembered account, "Switch account" below reaches
+    // the others instead of only ever unlocking the first one ever enabled.
+    final account = await BiometricTokenStore.lastActiveAccount();
+    if (account == null) { await _fallbackToPassword(); return; }
     final ok = await BiometricAuth.authenticate('Unlock AFOS');
     if (!mounted) return;
     if (!ok) { setState(() { _busy = false; _failed = true; }); return; }
@@ -39,9 +45,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
     // JSON only if Supabase didn't already auto-restore it this launch.
     try {
       if (Supabase.instance.client.auth.currentSession == null) {
-        final stored = await BiometricTokenStore.readSession();
-        if (stored == null) { await _fallbackToPassword(); return; }
-        await Supabase.instance.client.auth.recoverSession(stored);
+        await Supabase.instance.client.auth.recoverSession(account.sessionJson);
       }
     } catch (_) {
       await _fallbackToPassword();
@@ -53,20 +57,28 @@ class _UnlockScreenState extends State<UnlockScreen> {
     context.go(target);
   }
 
-  /// Give up on quick-login: clear the stored token and sign out to the normal
-  /// password form.
+  /// Give up on quick-login for this one account and sign out to the normal
+  /// password form. Other remembered accounts on this device are untouched.
   Future<void> _fallbackToPassword() async {
-    await BiometricTokenStore.clear();
+    final uid = await BiometricTokenStore.lastActiveUserId();
+    if (uid != null) await BiometricTokenStore.forget(uid);
     try { await Supabase.instance.client.auth.signOut(); } catch (_) {}
     if (mounted) context.go('/auth/login');
   }
+
+  Future<void> _switchAccount() => showAccountSwitcherSheet(context);
 
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      // Was hardcoded to the dark canvas unconditionally — every other screen
+      // in the app switches via isDark(context), but this one didn't, so in
+      // light mode the text above (correctly theme-aware) rendered dark-on-
+      // near-black instead of dark-on-light: readable in dark mode only,
+      // effectively invisible in light mode.
+      backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -115,6 +127,11 @@ class _UnlockScreenState extends State<UnlockScreen> {
                       onPressed: _busy ? null : _fallbackToPassword,
                       child: Text('Use password instead',
                           style: TextStyle(color: textSecondary, fontWeight: FontWeight.w600)),
+                    ),
+                    TextButton(
+                      onPressed: _busy ? null : _switchAccount,
+                      child: const Text('Use a different account',
+                          style: TextStyle(color: AppColors.holoBlue, fontWeight: FontWeight.w600)),
                     ),
                   ]),
                 ),

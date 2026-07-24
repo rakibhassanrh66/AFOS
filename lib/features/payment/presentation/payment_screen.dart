@@ -223,49 +223,56 @@ class _HistoryTab extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
       itemCount: history.length,
-      itemBuilder: (ctx, i) {
-        final p = history[i];
-        final status = p['status'] as String? ?? 'pending';
-        final statusColor = status == 'paid' ? AppColors.green
-            : status == 'failed' ? AppColors.red : AppColors.amber;
-        return RepaintBoundary(
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
+      // Every row shares the same fixed template (icon + 2-line column +
+      // amount/status column) — prototypeItem measures the real first row
+      // once instead of guessing a pixel height by hand, so it can't drift
+      // out of sync with a later padding/font tweak the way a hardcoded
+      // itemExtent could.
+      prototypeItem: _buildRow(context, history.first),
+      itemBuilder: (ctx, i) => _buildRow(ctx, history[i]),
+    );
+  }
+
+  Widget _buildRow(BuildContext ctx, Map<String, dynamic> p) {
+    final status = p['status'] as String? ?? 'pending';
+    final statusColor = status == 'paid' ? AppColors.green
+        : status == 'failed' ? AppColors.red : AppColors.amber;
+    return RepaintBoundary(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
             decoration: BoxDecoration(
-                color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-            child: Row(children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                    color: AppColors.holoBlue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p['category'] ?? '',
-                    style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                Text(p['payment_date'] != null
-                    ? AppFormatters.date(DateTime.parse(p['payment_date']))
-                    : 'Pending',
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-              ])),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('৳${p['amount'] ?? 0}',
-                    style: AppTextStyles.titleLarge.copyWith(color: AppColors.gold)),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
-                  child: Text(status.toUpperCase(),
-                      style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
-                ),
-              ]),
-            ]),
+                color: AppColors.holoBlue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
           ),
-        );
-      },
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(p['category'] ?? '',
+                style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx))),
+            Text(p['payment_date'] != null
+                ? AppFormatters.date(DateTime.parse(p['payment_date']))
+                : 'Pending',
+                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),
+          ])),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('৳${p['amount'] ?? 0}',
+                style: AppTextStyles.titleLarge.copyWith(color: AppColors.gold)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
+              child: Text(status.toUpperCase(),
+                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          ]),
+        ]),
+      ),
     );
   }
 }

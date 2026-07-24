@@ -47,7 +47,7 @@ class _LoginBodyState extends State<_LoginBody> {
   // stored for quick-login. The in-field fingerprint icon only appears when the
   // typed email matches that account.
   bool _biometricUsable = false;
-  String? _biometricEmail;
+  List<String> _biometricEmails = const [];
   String? _biometricMsg; // inline message shown under the password field
 
   @override
@@ -67,34 +67,30 @@ class _LoginBodyState extends State<_LoginBody> {
   }
 
   /// Real lookup against secure storage every time the login screen mounts:
-  /// can this device do biometrics, and (if a quick-login session is stored)
-  /// which account's email does it belong to. The stored blob is the Supabase
-  /// session JSON, which carries `user.email`.
+  /// can this device do biometrics, and which accounts' emails have a
+  /// quick-login session stored (possibly several — one device can now
+  /// remember more than one account at once).
   Future<void> _loadBiometricState() async {
     final can = await BiometricAuth.canUse();
-    String? email;
-    if (await BiometricTokenStore.isEnabled()) {
-      final raw = await BiometricTokenStore.readSession();
-      if (raw != null) {
-        try {
-          final j = jsonDecode(raw) as Map<String, dynamic>;
-          email = (j['user'] as Map?)?['email'] as String?;
-        } catch (_) {/* corrupt stored blob — treat as no session */}
-      }
-    }
+    final accounts = await BiometricTokenStore.listAccounts();
     if (!can) {
       debugPrint('[biometric] unavailable on this device '
           '(unsupported or no enrolled fingerprint/face) — fingerprint icon hidden');
     }
-    if (mounted) setState(() { _biometricUsable = can; _biometricEmail = email; });
+    if (mounted) {
+      setState(() {
+        _biometricUsable = can;
+        _biometricEmails = accounts.map((a) => a.email).toList();
+      });
+    }
   }
 
-  // Show the in-field fingerprint icon only when this device can do biometrics,
-  // a session is stored, and the typed email matches that account.
+  // Show the in-field fingerprint icon only when this device can do
+  // biometrics and the typed email matches one of the remembered accounts.
   bool get _showFingerprint {
-    final e = _biometricEmail;
-    return _biometricUsable && e != null &&
-        _emailCtrl.text.trim().toLowerCase() == e.toLowerCase();
+    final typed = _emailCtrl.text.trim().toLowerCase();
+    return _biometricUsable && typed.isNotEmpty &&
+        _biometricEmails.any((e) => e.toLowerCase() == typed);
   }
 
   /// Fingerprint trigger — the icon tap, or "Sign In" with an empty password +
@@ -110,14 +106,16 @@ class _LoginBodyState extends State<_LoginBody> {
       return;
     }
     try {
+      final account = await BiometricTokenStore.byEmail(_emailCtrl.text.trim());
+      final stored = account?.sessionJson;
+      if (stored == null) {
+        setState(() => _biometricMsg = 'Saved session expired — please enter your password');
+        return;
+      }
       if (Supabase.instance.client.auth.currentSession == null) {
-        final stored = await BiometricTokenStore.readSession();
-        if (stored == null) {
-          setState(() => _biometricMsg = 'Saved session expired — please enter your password');
-          return;
-        }
         await Supabase.instance.client.auth.recoverSession(stored);
       }
+      await BiometricTokenStore.setLastActive(account!.userId);
     } catch (_) {
       if (ctx.mounted) setState(() => _biometricMsg = "Couldn't restore your session — please enter your password");
       return;
@@ -143,7 +141,7 @@ class _LoginBodyState extends State<_LoginBody> {
     }
     if (session != null &&
         canUse &&
-        !await BiometricTokenStore.isEnabled() &&
+        !await BiometricTokenStore.isEnabledFor(session.user.id) &&
         !await BiometricTokenStore.wasPrompted()) {
       if (!ctx.mounted) return;
       final enable = await showDialog<bool>(
@@ -167,7 +165,18 @@ class _LoginBodyState extends State<_LoginBody> {
         ),
       );
       if (enable == true) {
-        await BiometricTokenStore.enable(jsonEncode(session.toJson()));
+        Map<String, dynamic>? profile;
+        try {
+          profile = await Supabase.instance.client.from('profiles')
+              .select('full_name, avatar_url').eq('id', session.user.id).maybeSingle();
+        } catch (_) {/* best-effort display info only */}
+        await BiometricTokenStore.remember(
+          userId: session.user.id,
+          email: session.user.email ?? '',
+          sessionJson: jsonEncode(session.toJson()),
+          fullName: profile?['full_name'] as String?,
+          avatarUrl: profile?['avatar_url'] as String?,
+        );
       } else if (enable == false) {
         // Only remember the decline on an explicit "Not now" — an accidental
         // dismiss (barrier tap / back) re-offers on the next login rather than
@@ -327,11 +336,16 @@ class _FormPane extends StatelessWidget {
                           ])))
                         .animate().fadeIn(duration:500.ms,curve:Curves.easeOutCubic).slideY(begin:-0.3,curve:Curves.easeOutCubic),
                       const SizedBox(height:32),
-                      Text('Welcome back', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))
+                      // Centered to match the logo above and the university
+                      // footer below — the enclosing Column is
+                      // CrossAxisAlignment.start (correct for the form fields
+                      // beneath), so these two lines need their own Center or
+                      // they hug the left edge under a centered logo.
+                      Center(child: Text('Welcome back', style:AppTextStyles.displayMedium.copyWith(color: textPrimary)))
                         .animate(delay:120.ms).fadeIn(duration:350.ms).slideX(begin:-0.08,curve:Curves.easeOutCubic),
                       const SizedBox(height:4),
-                      Text('Sign in to your AFOS account',
-                        style:AppTextStyles.bodyMedium.copyWith(color: textSecondary))
+                      Center(child: Text('Sign in to your AFOS account',
+                        style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)))
                         .animate(delay:200.ms).fadeIn(duration:350.ms),
                       const SizedBox(height:32),
                       AfosTextField(

@@ -1,8 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 2.3.3+22
-
+version: 2.5.2+33
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
@@ -92,3 +91,4 @@ flutter:
   assets:
     - assets/lottie/
     - assets/images/
+    - assets/sounds/

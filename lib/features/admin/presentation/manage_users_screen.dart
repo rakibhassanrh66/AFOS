@@ -334,6 +334,107 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
     }
   }
 
+  /// Grants ONE specific admin area to a user without changing their role —
+  /// "distribute admin work" (e.g. a student handles transport uploads
+  /// without becoming a full `admin`). Writes to `user_permissions`, which
+  /// `caller_can(resource, action)` already reads from at the RLS layer
+  /// (transport_routes, schedule_slots, exam_room_allocations, notices,
+  /// halls, hall_applications, sos_alerts, books, borrowed_books,
+  /// conference_room_requests) and PermissionSession reads client-side for
+  /// the matching /admin/* router guards — a grant made here takes effect
+  /// immediately end to end, not just as a UI checkbox.
+  Future<void> _managePermissions(Map<String, dynamic> user) async {
+    List<Map<String, dynamic>> catalog;
+    Set<String> granted;
+    try {
+      final catalogRes = await SupabaseConfig.client
+          .from('permissions').select('id, resource, action, scope')
+          .order('resource').order('action') as List;
+      catalog = catalogRes.cast<Map<String, dynamic>>();
+      final grantedRes = await SupabaseConfig.client
+          .from('user_permissions').select('permission_id')
+          .eq('user_id', user['id']) as List;
+      granted = grantedRes.map((r) => r['permission_id'] as String).toSet();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+      return;
+    }
+    if (!mounted) return;
+    final selected = Set<String>.of(granted);
+    final saved = await showGlassModal<bool>(context,
+        builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SafeArea(
+            child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24 + GlassBottomNav.navContentClearance),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Permissions for ${user['full_name'] ?? 'this user'}',
+                      style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+                  const SizedBox(height: 4),
+                  Text('Delegates ONE specific admin area without changing their role — '
+                      'e.g. grant "transport: upload" so they can update bus routes without being made an admin. '
+                      'Takes effect immediately, enforced by the database.',
+                      style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                  const SizedBox(height: 12),
+                  for (final p in catalog)
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: AppColors.holoviolet,
+                      value: selected.contains(p['id']),
+                      onChanged: (v) => setSheetState(() {
+                        if (v == true) selected.add(p['id'] as String); else selected.remove(p['id']);
+                      }),
+                      title: Text('${_titleCase(p['resource'] as String)}: ${p['action']}',
+                          style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx), fontWeight: FontWeight.w600, fontSize: 14)),
+                      subtitle: Text('scope: ${p['scope']}',
+                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                    ),
+                  const SizedBox(height: 12),
+                  SizedBox(width: double.infinity, child: FilledButton.icon(
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.holoviolet),
+                      onPressed: () => Navigator.pop(sheetCtx, true),
+                      icon: const Icon(Icons.save_rounded, size: 18),
+                      label: const Text('Save permissions'))),
+                ])))));
+    if (saved != true || !mounted) return;
+
+    final toGrant = selected.difference(granted);
+    final toRevoke = granted.difference(selected);
+    if (toGrant.isEmpty && toRevoke.isEmpty) return;
+    try {
+      if (toGrant.isNotEmpty) {
+        await SupabaseConfig.client.from('user_permissions').insert([
+          for (final id in toGrant) {'user_id': user['id'], 'permission_id': id, 'granted_by': SupabaseConfig.uid},
+        ]);
+      }
+      if (toRevoke.isNotEmpty) {
+        await SupabaseConfig.client.from('user_permissions').delete()
+            .eq('user_id', user['id']).inFilter('permission_id', toRevoke.toList());
+      }
+      await NotificationService.sendToUsers(
+        userIds: [user['id'] as String],
+        title: 'Your permissions were updated',
+        message: 'A super-admin changed which admin tools you can access in AFOS.',
+        category: 'general',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Permissions updated for ${user['full_name'] ?? 'user'}'), backgroundColor: AppColors.green));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+  }
+
+  static String _titleCase(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1).replaceAll('_', ' ')}';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -419,26 +520,41 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       decoration: InputDecoration(hintText: 'Search name, email, ID', prefixIcon: const Icon(Icons.search),
                           filled: true, fillColor: AppColors.glassFill(context),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))),
-                  SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                  // Was a horizontal ListView — always left-anchored, and with
+                  // 7+ roles this also hid chips off-screen with no visual cue
+                  // to scroll. Wrap centers what fits per line and flows the
+                  // rest to another line instead of hiding it.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
                       children: _roles.map((r) {
                         final sel = r == _roleFilter;
-                        return Padding(padding: const EdgeInsets.only(right: 8),
-                          child: Center(child: GlassChip(
-                            label: r == 'all' ? 'All' : r,
-                            selected: sel,
-                            color: AppColors.holoviolet,
-                            onTap: () => setState(() => _roleFilter = r))));
-                      }).toList())),
+                        return GlassChip(
+                          label: r == 'all' ? 'All' : r,
+                          selected: sel,
+                          color: AppColors.holoviolet,
+                          onTap: () => setState(() => _roleFilter = r));
+                      }).toList()),
+                  ),
                   const SizedBox(height: 8),
                   Expanded(child: _error != null
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
                       : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _filtered.length,
+                          // This tab's _UserCard is always pending:false (no
+                          // conditional Approve/Reject row like the Pending
+                          // tab above), so every row shares one fixed
+                          // template — guarded by the _filtered.isEmpty
+                          // ternary above, so .first is safe.
+                          prototypeItem: _UserCard(user: _filtered.first, pending: false,
+                              onDelete: () => _confirmDelete(_filtered.first),
+                              onChangeRole: () => _setRole(_filtered.first),
+                              onManagePermissions: () => _managePermissions(_filtered.first)),
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
                               onDelete: () => _confirmDelete(_filtered[i]),
-                              onChangeRole: () => _setRole(_filtered[i])))),
+                              onChangeRole: () => _setRole(_filtered[i]),
+                              onManagePermissions: () => _managePermissions(_filtered[i])))),
                 ]),
               ])),
       ]),
@@ -467,8 +583,8 @@ class _StatDivider extends StatelessWidget {
 
 class _UserCard extends StatelessWidget {
   final Map<String, dynamic> user; final bool pending;
-  final VoidCallback? onApprove, onReject, onDelete, onChangeRole;
-  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete, this.onChangeRole});
+  final VoidCallback? onApprove, onReject, onDelete, onChangeRole, onManagePermissions;
+  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete, this.onChangeRole, this.onManagePermissions});
 
   static const _roleColors = {
     'super_admin': AppColors.holoviolet, 'admin': AppColors.holoBlue, 'dept_admin': AppColors.holoTeal,
@@ -527,6 +643,15 @@ class _UserCard extends StatelessWidget {
                         onPressed: () { Navigator.pop(sheetCtx); onChangeRole!(); },
                         icon: const Icon(Icons.manage_accounts_rounded, size: 18),
                         label: const Text('Change role'))),
+                  ],
+                  if (onManagePermissions != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.holoviolet,
+                            side: const BorderSide(color: AppColors.holoviolet)),
+                        onPressed: () { Navigator.pop(sheetCtx); onManagePermissions!(); },
+                        icon: const Icon(Icons.rule_rounded, size: 18),
+                        label: const Text('Distribute admin work (permissions)'))),
                   ],
                 ]))));
   }

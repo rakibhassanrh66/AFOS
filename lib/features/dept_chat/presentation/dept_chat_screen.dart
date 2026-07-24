@@ -200,12 +200,18 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
 
   Future<void> _loadMessages() async {
     try {
+      // Most-recent-first + limit, then reversed back to chronological order
+      // for display — a plain ascending .order() with no bound re-fetched a
+      // channel's ENTIRE history on every load (and again on every realtime
+      // insert, since this is called from the subscription callback too).
       final res = await SupabaseConfig.client.from('dept_messages')
           .select('*, profiles(full_name,avatar_url,role,university_id,department,is_verified,'
               'students(batch_label,section),teachers(designation),staff(designation))')
           .eq('channel_id', widget.channel['id'])
-          .order('created_at') as List;
-      if (mounted) setState(() { _messages = res.cast(); _loading = false; });
+          .order('created_at', ascending: false).limit(60) as List;
+      if (mounted) {
+        setState(() { _messages = res.cast<Map<String, dynamic>>().reversed.toList(); _loading = false; });
+      }
       _scrollToBottom();
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }

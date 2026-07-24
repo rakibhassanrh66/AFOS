@@ -12,6 +12,14 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Biometric quick-login (local_auth): unlock a stored on-device session. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- In-app updater (Settings, What's New): downloads the new release APK
+         in-app and hands it to the system package installer via open_file,
+         instead of sending the user to a browser to download+install
+         manually. Required on Android 8+ to launch the installer for a
+         non-Play-Store APK at all; the OS still shows its own one-time
+         "allow AFOS to install unknown apps" prompt the first time — that
+         part is Android's own UX, not something this permission bypasses. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="AFOS"
         android:name="${applicationName}"

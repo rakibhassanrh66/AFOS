@@ -85,11 +85,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     setState(() { _loading = true; _error = null; });
     final uid = SupabaseConfig.uid;
     try {
-      var q = SupabaseConfig.client.from('clubs').select();
+      // Narrowed to what _ClubList's card + _presidentIdFor/_anyClubNameFor
+      // lookups actually read — president_id looks unused by the card but
+      // is read later via _clubs.firstWhere(...) for the notice/notify flow.
+      var q = SupabaseConfig.client.from('clubs').select('id, name, tagline, category, president_id');
       if (_filter != 'All') q = q.eq('category', _filter);
       final [clubs, events] = await Future.wait([
         q.order('name') as Future,
-        SupabaseConfig.client.from('club_events').select().order('event_date') as Future,
+        SupabaseConfig.client.from('club_events')
+            .select('id, title, venue, event_date, max_seats').order('event_date') as Future,
       ]);
       List myClubs = [], myMembershipRequests = [], myPostRequests = [], presidingRequests = [], myRegistrations = [];
       if (uid != null) {
@@ -548,48 +552,54 @@ class _ClubList extends StatelessWidget {
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
     final canJoin = RoleSession.role == 'student';
     return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: clubs.length,
-        itemBuilder: (ctx, i) {
-          final c = clubs[i];
-          final clubId = c['id'] as String?;
-          final joined = joinedIds.contains(clubId);
-          final pending = pendingClubIds.contains(clubId);
-          return Container(margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                  color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.pink.withValues(alpha: 0.25), width: 0.8)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(height: 80, decoration: BoxDecoration(
-                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: [AppColors.pink.withValues(alpha: 0.18), AppColors.teal.withValues(alpha: 0.12)]),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
-                    child: Center(child: Icon(categoryIcon(c['category'] as String?), color: AppColors.pink, size: 36))),
-                Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 3),
-                    Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 6),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                        child: Text(c['category'] ?? '', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                            style: const TextStyle(color: AppColors.pink, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600))),
-                  ])),
-                  const SizedBox(width: 12),
-                  if (canJoin || joined)
-                    GestureDetector(onTap: (joined || pending || clubId == null) ? null : () => onJoin(clubId),
-                        child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                                color: joined ? AppColors.green.withValues(alpha: 0.1)
-                                    : pending ? AppColors.amber.withValues(alpha: 0.1) : null,
-                                gradient: (joined || pending) ? null : AppColors.pinkGradient,
-                                borderRadius: BorderRadius.circular(20)),
-                            child: Text(joined ? 'Joined ✓' : pending ? 'Pending' : 'Join',
-                                textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                                style: TextStyle(color: joined ? AppColors.green : pending ? AppColors.amber : Colors.white,
-                                    fontSize: 13, height: 1.0, fontWeight: FontWeight.w600)))),
-                ])),
-              ])).animate(delay: Duration(milliseconds: i * 60)).fadeIn().slideY(begin: 0.05);
-        });
+        // Guarded by the `if (clubs.isEmpty) return EmptyState(...)`
+        // early-return above, so .first is safe. The index only drives the
+        // stagger fade-in delay, not row height, so 0 is fine for the
+        // prototype's one-off measurement.
+        prototypeItem: _buildClubCard(context, clubs.first, 0, joinedIds, canJoin),
+        itemBuilder: (ctx, i) => _buildClubCard(ctx, clubs[i], i, joinedIds, canJoin));
+  }
+
+  Widget _buildClubCard(BuildContext ctx, Map<String, dynamic> c, int i, Set<String> joinedIds, bool canJoin) {
+    final clubId = c['id'] as String?;
+    final joined = joinedIds.contains(clubId);
+    final pending = pendingClubIds.contains(clubId);
+    return Container(margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+            color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.pink.withValues(alpha: 0.25), width: 0.8)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(height: 80, decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [AppColors.pink.withValues(alpha: 0.18), AppColors.teal.withValues(alpha: 0.12)]),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+              child: Center(child: Icon(categoryIcon(c['category'] as String?), color: AppColors.pink, size: 36))),
+          Padding(padding: const EdgeInsets.all(14), child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(ctx)), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 3),
+              Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx)), maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 6),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  child: Text(c['category'] ?? '', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                      style: const TextStyle(color: AppColors.pink, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600))),
+            ])),
+            const SizedBox(width: 12),
+            if (canJoin || joined)
+              GestureDetector(onTap: (joined || pending || clubId == null) ? null : () => onJoin(clubId),
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                          color: joined ? AppColors.green.withValues(alpha: 0.1)
+                              : pending ? AppColors.amber.withValues(alpha: 0.1) : null,
+                          gradient: (joined || pending) ? null : AppColors.pinkGradient,
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Text(joined ? 'Joined ✓' : pending ? 'Pending' : 'Join',
+                          textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: TextStyle(color: joined ? AppColors.green : pending ? AppColors.amber : Colors.white,
+                              fontSize: 13, height: 1.0, fontWeight: FontWeight.w600)))),
+          ])),
+        ])).animate(delay: Duration(milliseconds: i * 60)).fadeIn().slideY(begin: 0.05);
   }
 }
 

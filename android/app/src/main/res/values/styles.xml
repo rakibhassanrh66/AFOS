@@ -13,6 +13,18 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Was `?android:colorBackground`, which resolves against this style's
+             OWN parent (Theme.Light), i.e. white, regardless of the app's
+             actual (dark) canvas. LaunchTheme above correctly shows the dark
+             launch_background drawable while the process starts, but the
+             instant Flutter's engine attaches and switches the window to
+             THIS theme (still before Flutter's own first frame paints), the
+             background flashed white on any device where the SYSTEM (not
+             in-app) theme is light: the majority of phones by default,
+             independent of whatever theme the user picked inside AFOS
+             itself. Using the same dark drawable here removes the seam
+             entirely: LaunchTheme, then NormalTheme, then Flutter's first
+             frame are now all the identical dark canvas colour. -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
 </resources>

@@ -36,4 +36,27 @@ class LocalCacheService {
     final map = Map<String, dynamic>.from(raw as Map);
     return (data: Map<String, dynamic>.from(map['data'] as Map), cachedAt: DateTime.parse(map['cachedAt'] as String));
   }
+
+  static const _versionMarkerKey = '__app_version_marker__';
+
+  /// Wipes this read-cache on the first launch after an app update — a
+  /// version bump can change what shape of data a cached response is
+  /// expected to have (new/renamed/removed fields), so a stale cached blob
+  /// from before the update could otherwise fail to parse or silently show
+  /// outdated data until it happens to refresh. Called once at bootstrap,
+  /// right after this box opens.
+  ///
+  /// Deliberately scoped to ONLY this disposable, network-regenerable
+  /// cache: never touches `OutboxService`'s box (a user's not-yet-synced
+  /// offline writes would be lost) or `flutter_secure_storage` (login
+  /// session / biometric quick-login) — an update must never force anyone
+  /// to lose pending work or get signed out.
+  Future<void> clearIfVersionChanged(String currentVersion) async {
+    final lastVersion = _box.get(_versionMarkerKey) as String?;
+    if (lastVersion != currentVersion) {
+      final keys = _box.keys.where((k) => k != _versionMarkerKey).toList();
+      await _box.deleteAll(keys);
+      await _box.put(_versionMarkerKey, currentVersion);
+    }
+  }
 }
