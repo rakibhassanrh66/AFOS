@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -13,6 +12,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/supernova_loader.dart';
@@ -22,7 +22,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../data/vr_id_pdf_generator.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class VrIdScreen extends StatefulWidget {
   const VrIdScreen({super.key});
   @override State<VrIdScreen> createState() => _VrIdState();
@@ -50,19 +50,39 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
       final p = await SupabaseConfig.client.from('profiles')
           .select('*, teachers(designation), staff(designation)').eq('id', uid).single();
       if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
-      _generateToken();
+      await _generateToken();
       _startTimer();
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
-  void _generateToken() {
-    final uid = SupabaseConfig.uid ?? '';
-    final minute = (DateTime.now().millisecondsSinceEpoch ~/ 60000).toString();
-    final hash = sha256.convert(utf8.encode('$uid:$minute:afos-salt')).toString().substring(0, 16);
-    final payload = jsonEncode({'uid': uid, 'vrid': hash, 'exp': DateTime.now().add(const Duration(seconds: 65)).millisecondsSinceEpoch});
-    if (mounted) setState(() => _token = base64Encode(utf8.encode(payload)));
-    _storage.write(key: 'last_vrid', value: _token);
-    _storage.write(key: 'last_vrid_time', value: DateTime.now().toIso8601String());
+  /// The token is minted by the server (`issue_vr_id_token`), which signs
+  /// `auth.uid()` with a secret this client never sees, so a caller can only
+  /// ever obtain a badge for themselves.
+  ///
+  /// It used to be computed right here as
+  /// `sha256('$uid:$minute:afos-salt')` — but that salt was a literal in a
+  /// PUBLIC repo and in every shipped APK, and the only other input was the
+  /// uid being claimed. Anyone could therefore mint a valid VR-ID for any
+  /// user and have the verifier hand back their name, university id,
+  /// department, batch/section and CGPA. See the migration
+  /// 20260725131000_sec_vr_id_server_signed_tokens for the full write-up.
+  Future<void> _generateToken() async {
+    try {
+      final rows = await SupabaseConfig.client.rpc('issue_vr_id_token') as List;
+      final issued = rows.firstOrNull as Map<String, dynamic>?;
+      if (issued == null) return;
+      final payload = jsonEncode({
+        'uid': issued['uid'], 'vrid': issued['vrid'], 'exp': issued['exp'],
+      });
+      final token = base64Encode(utf8.encode(payload));
+      if (mounted) setState(() => _token = token);
+      await _storage.write(key: 'last_vrid', value: token);
+      await _storage.write(key: 'last_vrid_time', value: DateTime.now().toIso8601String());
+    } catch (e) {
+      // Keep whatever token is already on screen rather than blanking the
+      // QR — the previous one stays valid for its remaining window.
+      debugPrint('[VrId] token issue failed: $e');
+    }
   }
 
   void _startTimer() {
@@ -71,7 +91,7 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
       setState(() => _countdown--);
-      if (_countdown <= 0) { _generateToken(); setState(() => _countdown = 60); }
+      if (_countdown <= 0) { unawaited(_generateToken()); setState(() => _countdown = 60); }
     });
   }
 
@@ -113,7 +133,7 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
 String _secondaryLabel(UserModel user) {
   if (user.isStudent) return 'Sem ${user.semester}';
   if (user.isTeacher) return user.designation ?? 'Faculty';
-  if (user.isStaff) return user.designation ?? 'Staff';
+  if (user.isStaff) return user.designation ?? 'Staff/Officer';
   switch (user.role) {
     case 'super_admin': return 'Super Admin';
     case 'dept_admin': return 'Dept Admin';
@@ -132,7 +152,7 @@ class _MyVrIdTab extends StatelessWidget {
     if (loading) return const Center(child: SupernovaLoader(size: 40, color: AppColors.blue));
     if (user == null) return Center(child: Text('Could not load profile', style: TextStyle(color: AppColors.textSecondaryOf(context))));
     final countdownColor = countdown > 30 ? AppColors.green : countdown > 10 ? AppColors.amber : AppColors.red;
-    return SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance), child: Column(children: [
+    return SingleChildScrollView(padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)), child: Column(children: [
       RepaintBoundary(
         child: GlassCard(
           glowColor: AppColors.blue,
@@ -330,13 +350,7 @@ class _AccessLogTabState extends State<_AccessLogTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     if (_error != null) {
-      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-      const SizedBox(height: 12),
-      Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondaryOf(context))),
-      const SizedBox(height: 12),
-      TextButton(onPressed: _load, child: const Text('Retry')),
-    ])));
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_logs.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -345,7 +359,7 @@ class _AccessLogTabState extends State<_AccessLogTab> {
       Text('No scans yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
     ]));
     }
-    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _logs.length,
+    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _logs.length,
         // Guarded by the `if (_logs.isEmpty) return Center(...)`
         // early-return above, so .first is safe.
         prototypeItem: _buildLogRow(context, _logs.first),

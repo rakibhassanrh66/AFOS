@@ -7,6 +7,7 @@ import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -16,7 +17,7 @@ import '../../grades/data/repositories/grades_repository.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/assignments_repository.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({super.key});
   @override State<AssignmentsScreen> createState() => _AssignmentsScreenState();
@@ -146,7 +147,7 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('New Assignment', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
           const SizedBox(height: 16),
-          if (_loading) const Center(child: CircularProgressIndicator())
+          if (_loading) const Center(child: SupernovaBusy(label: 'Loading your classes'))
           else if (_sections.isEmpty)
             Text('No classes found — set your teacher initials in Settings first.',
                 style: TextStyle(color: AppColors.textSecondaryOf(context)))
@@ -208,7 +209,7 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
         title: 'No assignments yet', subtitle: 'Tap + to post one to a class you teach');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _assignments.length,
+        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             // Guarded by the `if (_assignments.isEmpty) return EmptyState(...)`
             // early-return above, so .first is safe. The delete icon is
             // conditional (`if (!expired)`) but doesn't change row height.
@@ -282,7 +283,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
         title: 'No assignments yet', subtitle: 'Assignments from your teachers will show up here');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _assignments.length,
+        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             itemBuilder: (ctx, i) {
               final a = _assignments[i];
               final deadline = DateTime.tryParse(a['deadline'] ?? '');
@@ -331,7 +332,7 @@ class _ObserveTabState extends State<_ObserveTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     if (_all.isEmpty) return const EmptyState(icon: AppIcons.assignments, title: 'No assignments yet', subtitle: 'System-wide assignments will show up here');
-    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _all.length,
+    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
         itemBuilder: (ctx, i) {
           final a = _all[i];
           final teacher = a['profiles'] as Map<String, dynamic>? ?? {};

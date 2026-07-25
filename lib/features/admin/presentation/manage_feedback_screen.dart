@@ -6,12 +6,13 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// super_admin-only review queue for the feedback/contribution box — the
 /// underlying `feedback` table previously had zero SELECT policy at all,
 /// so every submission anyone ever sent was write-only and unreadable by
@@ -143,17 +144,11 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                    const SizedBox(height: 12),
-                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                    const SizedBox(height: 12),
-                    TextButton(onPressed: _load, child: const Text('Retry')),
-                  ])))
+                ? ErrorView(message: _error!, onRetry: _load)
                 : _visible.isEmpty
                     ? ListView(children: [EmptyState(icon: Icons.feedback_outlined, title: 'Nothing here', subtitle: 'Nothing in "$_filter" right now')])
                     : RefreshIndicator(onRefresh: _load, color: AppColors.holoviolet,
-                        child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _visible.length,
+                        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final item = _visible[i];
                           final profile = item['profiles'] as Map<String, dynamic>? ?? {};

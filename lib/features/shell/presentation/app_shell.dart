@@ -164,38 +164,49 @@ class _ShellBody extends StatelessWidget {
     // so screens that honor bottom padding clear the floating bar, and
     // highlight whichever of the 4 quick destinations is the active route.
     final mq = MediaQuery.of(context);
-    // Systemic clearance for the floating bottom nav: PHYSICAL bottom
-    // padding on the routed content so every screen — including ones that
-    // never read the inset (e.g. a plain ListView with fixed padding) —
-    // keeps its last element above the bar. This replaces the old
-    // MediaQuery-inset-only reservation that naive screens silently ignored
-    // (the Settings "Log out" regression). The floating "planet" nav needs
-    // clearance for the bar itself AND the planet that floats above it —
-    // reservedHeight already sums bar + planet lift + margins; + safe-area
-    // so it also clears the gesture bar.
-    const barSpace = GlassBottomNav.reservedHeight;
+    // ── The single source of floating-nav clearance ────────────────────
+    //
     // Clearance is handed down as a MediaQuery BOTTOM INSET, never as
-    // physical Padding on the routed content.
+    // physical Padding on the routed content, and screens read it back
+    // through `NavInsets` (core/layout/nav_insets.dart) — which is the ONLY
+    // supported way to ask for it. `GlassBottomNav.navContentClearance` used
+    // to be a second, competing mechanism that screens hard-coded on top of
+    // this inset; the two double-counted, which is what ended content
+    // 145-219px above the bar. Nothing was then left behind the glass, and a
+    // BackdropFilter with nothing behind it to blur renders as a plain opaque
+    // slab ("a rectangle inside a rectangle"). That constant is gone.
     //
-    // Physical padding is what made the floating bar look like "a rectangle
-    // inside a rectangle": it ended the content above the bar, so the only
-    // thing left behind the glass was flat Scaffold background, and a
-    // BackdropFilter with nothing behind it to blur renders as a plain
-    // opaque slab. Content now runs full-bleed to the bottom of the screen
-    // and genuinely scrolls UNDER the bar, which is what gives the frosted
-    // read-through.
-    //
-    // Clearance still works because `BoxScrollView` (ListView/GridView)
-    // with a null `padding` automatically adopts MediaQuery's vertical
-    // padding, and SafeArea consumes it too. The screens that need a manual
-    // pass are the ones that hard-code their own scroll padding or pin a
-    // widget to the bottom — they opt out of the inset by construction.
-    final mobileContent = MediaQuery(
-      data: mq.copyWith(
-        padding: mq.padding.copyWith(bottom: mq.padding.bottom + barSpace),
-        viewPadding: mq.viewPadding.copyWith(bottom: mq.viewPadding.bottom + barSpace),
+    // Clearance reaches naive screens for free because `BoxScrollView`
+    // (ListView/GridView) with a null `padding` adopts MediaQuery's vertical
+    // padding automatically, and SafeArea consumes it too.
+    final keyboard = mq.viewInsets.bottom;
+    // While the keyboard is up the nav is BEHIND it (see
+    // resizeToAvoidBottomInset: false below — the bar stays pinned to the
+    // physical screen bottom instead of re-anchoring onto the IME and
+    // covering the bottom 129px of every search result list). A hidden bar
+    // needs no clearance, so the inset collapses and search gets the space
+    // back.
+    final bottomInset =
+        keyboard > 0 ? 0.0 : mq.padding.bottom + GlassBottomNav.contentClearance;
+    // Drawer width: the old hard-coded 300 left only ~20px of scrim on a small
+    // phone, so the menu read as a full-screen takeover with no visible way
+    // back to the content behind it.
+    final menuWidth = mq.size.width * 0.86 < 300 ? mq.size.width * 0.86 : 300.0;
+    final mobileContent = Padding(
+      // The shell lifts content off the keyboard itself, because Scaffold's
+      // own resize would also drag the nav up with it.
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: MediaQuery(
+        data: mq.copyWith(
+          padding: mq.padding.copyWith(bottom: bottomInset),
+          viewPadding: mq.viewPadding.copyWith(bottom: bottomInset),
+          // Consumed by the Padding above, so hand down what's LEFT — exactly
+          // what Scaffold does internally. Without this, the ~24 screens that
+          // pad by viewInsets themselves would lift twice.
+          viewInsets: mq.viewInsets.copyWith(bottom: 0),
+        ),
+        child: content,
       ),
-      child: content,
     );
     return PopScope(
       canPop: false,
@@ -205,6 +216,11 @@ class _ShellBody extends StatelessWidget {
       },
       child: Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
+        // The shell resizes `mobileContent` itself. Letting Scaffold do it
+        // would shrink the whole Stack, which re-anchors the Positioned nav
+        // onto the top edge of the keyboard — the bar then floats over the
+        // search results it is supposed to sit below.
+        resizeToAvoidBottomInset: false,
         body: LiquidBackdrop(child: Stack(children:[
           mobileContent,
           // Persistent across every authenticated screen -- only reachable
@@ -258,15 +274,29 @@ class _ShellBody extends StatelessWidget {
                       duration: LiquidGlass.motionStandard,
                       curve: LiquidGlass.motionCurve,
                       opacity: state.isOpen ? 1 : 0,
+                      // Full-bleed on purpose: the dim SHOULD cover the status
+                      // and gesture bars, so the whole window reads as
+                      // "behind" the menu. It is the panel below that must not.
                       child: Container(color: Colors.black.withValues(alpha: 0.45)),
                     ),
                   ),
-                // Slide menu
+                // Slide menu — a floating glass panel, not a full-height slab.
+                //
+                // It used to be pinned `top: 0, bottom: 0`, so with the app
+                // running edge-to-edge (targetSdk 36 forces it on Android 15+)
+                // the glass surface, its right-hand border and its glow all
+                // painted straight through the status bar and the gesture bar.
+                // Insetting by the real safe area instead keeps it clear of
+                // both and lets it read as the same floating material as the
+                // bottom nav. Width is clamped so it never swallows a narrow
+                // screen whole.
                 AnimatedPositioned(
                   duration: LiquidGlass.motionStandard,
                   curve: LiquidGlass.motionCurve,
-                  left: state.isOpen ? 0 : -320,
-                  top:0, bottom:0, width:300,
+                  left: state.isOpen ? 0 : -(menuWidth + 20),
+                  top: mq.padding.top + 8,
+                  bottom: mq.padding.bottom + 8,
+                  width: menuWidth,
                   child: const SlideMenu(),
                 ),
               ]),

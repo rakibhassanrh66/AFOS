@@ -7,13 +7,14 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/animations/page_transitions.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'payment_webview_screen.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
   @override State<PaymentScreen> createState() => _PaymentState();
@@ -113,14 +114,7 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
           _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _error != null
-                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                      const SizedBox(height: 12),
-                      Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                      const SizedBox(height: 12),
-                      TextButton(onPressed: _loadHistory, child: const Text('Retry')),
-                    ])))
+                  ? ErrorView(message: _error!, onRetry: _loadHistory)
                   : _HistoryTab(history: _history),
         ])),
       ]),
@@ -135,7 +129,7 @@ class _PayNowTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20 + GlassBottomNav.navContentClearance),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
       // Fixed 2-column count stretched into 2 giant tiles on a wide desktop
       // browser window; max-extent keeps each tile a consistent size and
       // adds columns as space allows instead (see dashboard_screen.dart).
@@ -221,7 +215,7 @@ class _HistoryTab extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
       itemCount: history.length,
       // Every row shares the same fixed template (icon + 2-line column +
       // amount/status column) — prototypeItem measures the real first row

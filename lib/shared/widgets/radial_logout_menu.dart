@@ -108,6 +108,8 @@ Future<void> applyLogoutChoice(BuildContext context, LogoutChoice? choice) async
   // — the separate label only tells the user why they're going there.
   // The stored biometric session is cleared by bootstrap.dart's
   // AuthChangeEvent.signedOut listener, so it must NOT be cleared again here.
-  await Supabase.instance.client.auth.signOut();
+  // Global: an explicit logout should revoke the refresh token server-side,
+  // not just forget it locally.
+  await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
   if (context.mounted) context.go('/auth/login');
 }

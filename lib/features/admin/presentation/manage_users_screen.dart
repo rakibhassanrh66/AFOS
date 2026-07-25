@@ -6,6 +6,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/role_labels.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -19,8 +20,8 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../core/services/realtime_channel.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -270,7 +271,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
 
   Future<String?> _pickRole(String current) => showGlassModal<String>(context,
       builder: (sheetCtx) => SafeArea(child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24 + GlassBottomNav.navContentClearance),
+        // Sheet content — GlassSheet's SafeArea already applies the nav inset.
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Assign a role', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
           const SizedBox(height: 4),
@@ -283,7 +285,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
             return ListTile(
               dense: true,
               leading: Icon(sel ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded, color: c, size: 20),
-              title: Text(r, style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx),
+              title: Text(roleLabel(r), style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx),
                   fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
               trailing: sel ? Text('current', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx), fontSize: 11)) : null,
               onTap: () => Navigator.pop(sheetCtx, r),
@@ -367,7 +369,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
     final saved = await showGlassModal<bool>(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SafeArea(
             child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24 + GlassBottomNav.navContentClearance),
+                // No NavInsets here: this is sheet content, and GlassSheet's
+                // own SafeArea already consumes the shell's nav inset. Adding
+                // it again stacked a second ~107px of dead space inside the
+                // sheet.
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Permissions for ${user['full_name'] ?? 'this user'}',
                       style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
@@ -385,7 +391,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       activeColor: AppColors.holoviolet,
                       value: selected.contains(p['id']),
                       onChanged: (v) => setSheetState(() {
-                        if (v == true) selected.add(p['id'] as String); else selected.remove(p['id']);
+                        if (v == true) {
+                          selected.add(p['id'] as String);
+                        } else {
+                          selected.remove(p['id']);
+                        }
                       }),
                       title: Text('${_titleCase(p['resource'] as String)}: ${p['action']}',
                           style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx), fontWeight: FontWeight.w600, fontSize: 14)),
@@ -479,7 +489,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     : _pending.isEmpty
                     ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
-                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _pending.length,
+                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
                             onReject: () => _rejectAndDelete(_pending[i]),
@@ -489,7 +499,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     : _crRequests.isEmpty
                     ? const EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
                         subtitle: 'Student requests to become Class Representative will show up here')
-                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _crRequests.length,
+                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _crRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _crRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -530,7 +540,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       children: _roles.map((r) {
                         final sel = r == _roleFilter;
                         return GlassChip(
-                          label: r == 'all' ? 'All' : r,
+                          label: r == 'all' ? 'All' : roleLabel(r),
                           selected: sel,
                           color: AppColors.holoviolet,
                           onTap: () => setState(() => _roleFilter = r));
@@ -541,7 +551,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
-                      : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _filtered.length,
+                      : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
                           // This tab's _UserCard is always pending:false (no
                           // conditional Approve/Reject row like the Pending
                           // tab above), so every row shares one fixed
@@ -600,7 +610,7 @@ class _UserCard extends StatelessWidget {
       MapEntry('Full name', fmt(user['full_name'] as String?)),
       MapEntry('Email', fmt(user['email'] as String?)),
       MapEntry('Phone', fmt(user['phone'] as String?)),
-      MapEntry('Role', role),
+      MapEntry('Role', roleLabel(role)),
       MapEntry('University ID', fmt(user['university_id'] as String?)),
       MapEntry('Department', fmt(user['department'] as String?)),
       if (role == 'student') MapEntry('Batch', fmt(user['batch'] as String?)),
@@ -614,7 +624,8 @@ class _UserCard extends StatelessWidget {
     showGlassModal(context,
         builder: (sheetCtx) => SafeArea(
             child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24 + GlassBottomNav.navContentClearance),
+                // Sheet content — GlassSheet's SafeArea already applies it.
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     CircleAvatar(radius: 24, backgroundColor: color.withValues(alpha: 0.15),
@@ -692,7 +703,7 @@ class _UserCard extends StatelessWidget {
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-              child: Text(role, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
+              child: Text(roleLabel(role), style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
           const SizedBox(width: 8),
           if ((user['department'] as String?)?.isNotEmpty == true)
             Flexible(child: Text(user['department'], style: TextStyle(color: textSecondary, fontSize: 11),

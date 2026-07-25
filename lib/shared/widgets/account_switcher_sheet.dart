@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, SignOutScope;
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
 import '../../core/auth/biometric_lock.dart';
@@ -19,7 +19,11 @@ Future<bool> switchToAccount(BuildContext context, RememberedAccount target) asy
   try {
     BiometricTokenStore.switchingAccounts = true;
     if (Supabase.instance.client.auth.currentSession != null) {
-      await Supabase.instance.client.auth.signOut();
+      // LOCAL on purpose. This is a hand-off, not a logout: a global sign-out
+      // revokes every refresh token this user holds, which would invalidate
+      // the very session JSON BiometricTokenStore has saved for them and
+      // break switching back to this account later.
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
     }
     await Supabase.instance.client.auth.recoverSession(target.sessionJson);
     await BiometricTokenStore.setLastActive(target.userId);

@@ -45,8 +45,18 @@
        script it throws a null-check TypeError that aborts plugin
        registration entirely -- silently preventing runApp() from ever
        being called (permanent blank page, confirmed via a symbolicated
-       stack trace: PasskeysWeb.registerWith in web_plugin_registrant.dart). -->
-  <script src="https://github.com/corbado/flutter-passkeys/releases/download/2.4.0/bundle.js"></script>
+       stack trace: PasskeysWeb.registerWith in web_plugin_registrant.dart).
+
+       Self-hosted rather than loaded from github.com at runtime. Every
+       visitor was fetching an unpinned-by-integrity script from a third
+       party and executing it on the app's own origin, where it has full
+       access to the session in localStorage -- so a compromised or swapped
+       release asset would have been a full account takeover, for a feature
+       this app never uses. Vendored from
+       https://github.com/corbado/flutter-passkeys/releases/download/2.4.0/bundle.js
+       (sha256 dd06b08556f161f0518d701fd0a1bf9b3f5144e2e0d6e1f5c3cac81742c0be49).
+       Re-vendor deliberately if the passkeys plugin is ever upgraded. -->
+  <script src="passkeys_bundle.js"></script>
 
   <!-- OneSignal Web Push -- the onesignal_flutter Dart plugin has no web
        platform implementation at all, so web push is wired directly against

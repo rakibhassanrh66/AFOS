@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:supabase_flutter/supabase_flutter.dart' show SignOutScope;
 import '../../../../config/supabase_config.dart';
 import '../../../../shared/models/user_model.dart';
 
@@ -82,7 +83,16 @@ class AuthRepository {
     );
   }
 
-  Future<void> signOut() async => await _client.auth.signOut();
+  /// Explicit user-initiated logout, so the refresh token is revoked
+  /// server-side rather than just dropped from this device. Without
+  /// [SignOutScope.global] the token stays valid until it expires on its own,
+  /// which means "log out" didn't actually end the session for anyone holding
+  /// a copy of it.
+  ///
+  /// Deliberately NOT used by the account switcher or the unlock screen's
+  /// password fallback — see the comments at those two call sites.
+  Future<void> signOut() async =>
+      await _client.auth.signOut(scope: SignOutScope.global);
 
   Future<UserModel?> getCurrentUser() async {
     final user = _client.auth.currentUser;

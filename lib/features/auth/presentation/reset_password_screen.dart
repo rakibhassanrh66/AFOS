@@ -40,7 +40,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       // actually works rather than silently continuing in a session that
       // came from an emailed link (which could have been forwarded/opened
       // by someone else).
-      await Supabase.instance.client.auth.signOut();
+      // Global: after a password change every other session that was signed
+      // in with the OLD password must stop working -- that is the whole point
+      // of resetting it.
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
       if (mounted) {
         context.showSnack('Password updated — please sign in.');
         context.go('/auth/login');

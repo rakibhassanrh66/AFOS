@@ -5,9 +5,9 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../shared/widgets/feature_header.dart';
-import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../shared/widgets/info_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../core/layout/nav_insets.dart';
 
 /// One entry point for the DIU student-portal pages, instead of scattering nine
 /// links through the slide menu.
@@ -61,8 +61,7 @@ class DiuPortalHubScreen extends StatelessWidget {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'DIU Portal'),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-            16, 12, 16, 16 + GlassBottomNav.navContentClearance),
+        padding: NavInsets.content(context, top: 12),
         children: [
           const FeatureHeader(
             title: 'DIU Student Portal',

@@ -5,13 +5,14 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Staff/admin-side book checkout — real DIU library policy requires a
 /// physical sign-in/handover, so borrowing was never meant to be pure
 /// student self-service. Previously there was no way for ANYONE to issue a
@@ -99,16 +100,10 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
           _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _error != null
-                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                      const SizedBox(height: 12),
-                      Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                      const SizedBox(height: 12),
-                      TextButton(onPressed: _load, child: const Text('Retry')),
-                    ])))
+                  ? ErrorView(message: _error!, onRetry: _load)
                   : _activeBorrows.isEmpty
                       ? const EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
-                      : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _activeBorrows.length,
+                      : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _activeBorrows.length,
                           // Guarded by the _activeBorrows.isEmpty ternary above, so .first is safe.
                           prototypeItem: _buildBorrowRow(context, _activeBorrows.first),
                           itemBuilder: (ctx, i) => _buildBorrowRow(ctx, _activeBorrows[i])),
@@ -219,7 +214,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Student', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
         const SizedBox(height: 8),

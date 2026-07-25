@@ -11,7 +11,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// One implicit chat room per club (no sub-channels, since a club has a
 /// single membership list, not department-style sub-audiences) — same
 /// 24h-expiry + anonymized-name pattern as dept_chat (see
@@ -150,7 +150,7 @@ class _ClubChatState extends State<ClubChatScreen> {
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
                     itemCount: _messages.length,
                     itemBuilder: (ctx, i) {
                       final m = _messages[i];

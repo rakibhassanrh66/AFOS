@@ -11,7 +11,7 @@ import '../../../shared/widgets/label_value_row.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// The identity destination for the bottom nav — the profile card that used to
 /// live inside Settings, now its own in-shell screen (avatar + identity fields
 /// + an entry point into the full editor at /complete-profile).
@@ -46,7 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: const AfosAppBar(title: 'Profile'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+          : ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
               RepaintBoundary(
                 child: GlassCard(
                   glowColor: AppColors.blue,

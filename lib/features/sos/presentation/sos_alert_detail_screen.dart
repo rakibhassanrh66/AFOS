@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/utils/role_labels.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -15,7 +16,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Reached from the SOS push notification's deep link ('/sos/:id') or from
 /// manage_sos_screen.dart's oversight list. Shows the sender's live
 /// position (flutter_map/OSM -- no Google Maps key needed, same as
@@ -166,12 +167,12 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
   // from the live GPS pin on the map below, since a recipient reading this
   // quickly (an upazila/district name) is faster than interpreting a map
   // when deciding whether they're actually close enough to help.
-  static String _roleLabel(String? role) => switch (role) {
-    'teacher' => 'Teacher', 'staff' => 'Staff', 'admin' => 'Admin',
-    'dept_admin' => 'Dept Admin', 'super_admin' => 'Super Admin',
-    'exam_controller' => 'Exam Controller', 'student' => 'Student',
-    _ => 'Student',
-  };
+  /// Delegates to the shared [roleLabel]; an unknown role falls back to
+  /// 'Student' here (rather than the shared default) because an SOS card
+  /// showing a raw identifier to a responder would be worse than a
+  /// conservative guess.
+  static String _roleLabel(String? role) =>
+      role == null || role.isEmpty ? 'Student' : roleLabel(role);
 
   String? _registeredAddress(Map<String, dynamic> sender) {
     final parts = [sender['permanent_upazila'], sender['permanent_district'], sender['permanent_division']]
@@ -209,7 +210,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
     final voicePath = a['voice_path'] as String?;
     final point = LatLng(lat, lng);
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
       Row(children: [
         CircleAvatar(radius: 24, backgroundColor: AppColors.red.withValues(alpha: 0.15),
             backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url']) : null,
@@ -247,7 +248,10 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
           child: FlutterMap(
             options: MapOptions(initialCenter: point, initialZoom: 16),
             children: [
-              TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.example.afos_v7'),
+              // Real app ID, not the Flutter scaffold default: OSM's tile usage
+              // policy requires a User-Agent that identifies the app, and
+              // com.example.* is exactly the generic value they rate-limit.
+              TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'bd.edu.diu.afos'),
               MarkerLayer(markers: [
                 Marker(point: point, width: 40, height: 40,
                     child: const Icon(Icons.location_on, color: AppColors.red, size: 40)),

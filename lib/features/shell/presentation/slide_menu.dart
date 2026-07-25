@@ -17,7 +17,6 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 class SlideMenu extends StatefulWidget {
   // True when rendered as the permanent desktop nav rail (app_shell.dart,
   // >=1024px) instead of the mobile/tablet hide-show overlay drawer -- a
@@ -167,7 +166,7 @@ class _SlideMenuState extends State<SlideMenu> {
     if (role == null) return '';
     if (_user!.isStudent) return 'Sem ${_user!.semester}';
     if (_user!.isTeacher) return _user!.designation ?? 'Faculty';
-    if (_user!.isStaff) return _user!.designation ?? 'Staff';
+    if (_user!.isStaff) return _user!.designation ?? 'Staff/Officer';
     switch (role) {
       case 'super_admin': return 'Super Admin';
       case 'dept_admin': return 'Dept Admin';
@@ -245,6 +244,14 @@ class _SlideMenuState extends State<SlideMenu> {
       // every single ShellBloc emission, i.e. twice per menu open/close.
       buildWhen: (_, __) => false,
       builder:(ctx,state) => ClipRRect(
+        // Rounded on the trailing edge only — the leading edge runs off-screen,
+        // so rounding it would just show a notch. `ClipRRect` here had NO
+        // borderRadius at all, which is why the drawer read as a hard square
+        // slab next to a design system built entirely on soft glass.
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(LiquidGlass.radiusSheet),
+          bottomRight: Radius.circular(LiquidGlass.radiusSheet),
+        ),
         // Frosted glass drawer — real blur behind a translucent fill so the
         // dimmed content shows through as glass; tinted (never grey) hairline.
         child: BackdropFilter(
@@ -257,8 +264,13 @@ class _SlideMenuState extends State<SlideMenu> {
                 BoxShadow(color: AppColors.holoBlue.withValues(alpha:0.08), blurRadius:24, spreadRadius:-4),
               ],
             ),
-            child: SafeArea(
-              child: Column(children:[
+            // No SafeArea here any more. AppShell now positions this panel
+            // INSIDE the system bars (top: padding.top + 8, bottom:
+            // padding.bottom + 8), so a SafeArea would inset the content a
+            // second time — and when the panel spanned the full window it was
+            // the reason the glass surface itself painted under the status bar
+            // while only its contents were pushed clear.
+            child: Column(children:[
                 _buildHeader(ctx),
                 Expanded(child: ListenableBuilder(
                   // Highlighting is route-derived, so it has to rebuild on
@@ -266,7 +278,12 @@ class _SlideMenuState extends State<SlideMenu> {
                   // state does not change when the route does, so without this
                   // the highlight would simply never update.
                   listenable: GoRouter.of(ctx).routerDelegate,
-                  builder: (ctx, _) => ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 8 + GlassBottomNav.navContentClearance), children:[
+                  // No nav clearance: the drawer is the LAST layer in AppShell's
+                  // Stack, so it paints over the floating bar rather than under
+                  // it, and it is already positioned clear of the gesture bar.
+                  // Adding the inset here just put ~107px of dead space under
+                  // the last menu item.
+                  builder: (ctx, _) => ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 8), children:[
                   // Web rail: pin the 4 quick-access destinations at the top
                   // (the mobile floating bottom bar covers these on phones).
                   if (widget.permanent) ...[
@@ -329,7 +346,6 @@ class _SlideMenuState extends State<SlideMenu> {
                 // to scroll all the way down for a long menu (super_admin).
                 _buildFooter(context),
               ]),
-            ),
           ),
         ),
       ),

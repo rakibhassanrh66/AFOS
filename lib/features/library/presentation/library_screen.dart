@@ -7,6 +7,7 @@ import '../../../core/utils/postgrest_filters.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -15,7 +16,7 @@ import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
   @override State<LibraryScreen> createState() => _LibraryState();
@@ -30,17 +31,30 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
   double _totalFine = 0;
   Timer? _fineTimer;
   final _searchCtrl = TextEditingController();
+  // Owned here rather than inside _SearchTab because the header this collapses
+  // lives above the TabBarView, two levels up from the field itself.
+  final _searchFocus = FocusNode();
+  bool _searchFocused = false;
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
+    // The FeatureHeader + tab bar are ~150px of permanently pinned chrome. With
+    // the keyboard up that left the results list barely two rows tall, so the
+    // header folds away while the user is actually typing and comes back when
+    // the field is dismissed.
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus != _searchFocused && mounted) {
+        setState(() => _searchFocused = _searchFocus.hasFocus);
+      }
+    });
     _load();
     _fineTimer = Timer.periodic(const Duration(seconds: 60), (_) => _calcFines());
   }
 
   @override
-  void dispose() { _tab.dispose(); _fineTimer?.cancel(); _searchCtrl.dispose(); super.dispose(); }
+  void dispose() { _tab.dispose(); _fineTimer?.cancel(); _searchCtrl.dispose(); _searchFocus.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
@@ -131,7 +145,17 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: const AfosAppBar(title: 'Library'),
       body: Column(children: [
-        FeatureHeader(
+        // Collapsed (not removed) while the search field holds focus: an
+        // AnimatedAlign height factor keeps the header mounted, so its entrance
+        // animation runs once on open instead of replaying every time the
+        // keyboard is dismissed. ClipRect stops it painting outside the fold.
+        ClipRect(
+          child: AnimatedAlign(
+            duration: LiquidGlass.motionStandard,
+            curve: LiquidGlass.motionCurve,
+            alignment: Alignment.topCenter,
+            heightFactor: _searchFocused ? 0.0 : 1.0,
+            child: FeatureHeader(
           title: 'Library',
           subtitle: _loading ? 'Loading…' : '${_borrowed.length} book${_borrowed.length == 1 ? '' : 's'} borrowed',
           icon: Icons.local_library_rounded,
@@ -150,7 +174,9 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
                   ]),
                 )
               : null,
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+            ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+          ),
+        ),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(
@@ -167,7 +193,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
         Expanded(child: TabBarView(controller: _tab, children: [
           _BorrowedTab(borrowed: _borrowed, fine: _totalFine,
               loading: _loading, error: _error, onRenew: _renew, onRefresh: _load),
-          _SearchTab(ctrl: _searchCtrl, results: _searchResults,
+          _SearchTab(ctrl: _searchCtrl, focus: _searchFocus, results: _searchResults,
               searching: _searching, onSearch: _search),
         ])),
       ]),
@@ -199,7 +225,7 @@ class _BorrowedTab extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       color: AppColors.blue,
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+      child: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
         if (fine > 0) RepaintBoundary(
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -315,10 +341,13 @@ class _BookCard extends StatelessWidget {
 
 class _SearchTab extends StatelessWidget {
   final TextEditingController ctrl;
+  /// Owned by _LibraryState, which folds the FeatureHeader away while this
+  /// field is focused — so the node has to outlive any rebuild of this tab.
+  final FocusNode focus;
   final List<Map<String, dynamic>> results;
   final bool searching;
   final ValueChanged<String> onSearch;
-  const _SearchTab({required this.ctrl, required this.results,
+  const _SearchTab({required this.ctrl, required this.focus, required this.results,
       required this.searching, required this.onSearch});
 
   @override
@@ -327,7 +356,9 @@ class _SearchTab extends StatelessWidget {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Column(children: [
       Padding(padding: const EdgeInsets.all(16), child: TextField(
-        controller: ctrl, onChanged: onSearch,
+        controller: ctrl, focusNode: focus, onChanged: onSearch,
+        textInputAction: TextInputAction.search,
+        onTapOutside: (_) => FocusScope.of(context).unfocus(),
         style: TextStyle(color: textPrimary),
         decoration: InputDecoration(
             hintText: 'Search by title, author or ISBN',
@@ -349,7 +380,7 @@ class _SearchTab extends StatelessWidget {
           ? const EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
           : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0 + GlassBottomNav.navContentClearance),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 0 + NavInsets.of(context)),
               itemCount: results.length,
               // Not guarded by an isEmpty early-return in this build method
               // (the ternary above only swaps in EmptyState when the user has
@@ -422,7 +453,9 @@ class _SearchTab extends StatelessWidget {
             ]));
           }
           return SafeArea(child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24 + GlassBottomNav.navContentClearance),
+              // Sheet content — GlassSheet's SafeArea already applies the nav
+              // inset; adding it here stacked a second band of dead space.
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 64, height: 88,

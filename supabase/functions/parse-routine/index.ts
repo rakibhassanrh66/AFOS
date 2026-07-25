@@ -37,10 +37,8 @@ serve(async (req) => {
     if (!callerProfile) {
       return new Response(JSON.stringify({ error: "No profile found for caller." }), { status: 403, headers: corsHeaders })
     }
-    // Capability authorization is deferred until `type` is known (below),
-    // since routine / exam_seat / transport uploads require different
-    // capabilities. Legacy admin/dept_admin/teacher roles keep full upload
-    // access; delegated grantees are restricted to exactly what they hold.
+    // Capability authorization is deferred until `type` is known — see the
+    // "Authorization" block below, which runs before any data is touched.
 
     const contentType = req.headers.get("content-type") || ""
     // Two input shapes:
@@ -55,6 +53,9 @@ serve(async (req) => {
     let lines: string[] = []
     let type = "schedule"
     let requestedDepartment: string | null = null
+    // Escape hatch for the destructive-replace guard on transport uploads
+    // (see the transport branch below). Off unless explicitly requested.
+    let force = false
 
     if (contentType.includes("application/json")) {
       const body = await req.json()
@@ -65,6 +66,7 @@ serve(async (req) => {
       lines = Array.isArray(body.lines) ? body.lines.map((l: unknown) => String(l).trim()).filter(Boolean) : []
       rows = lines.map((l) => [l])
       requestedDepartment = typeof body.department === "string" && body.department.trim() ? body.department.trim() : null
+      force = body.force === true
     } else {
       const formData = await req.formData()
       const file = formData.get("file") as File
@@ -80,6 +82,71 @@ serve(async (req) => {
       lines = rows.map((r) => r.join(" "))
       const formDept = formData.get("department")
       requestedDepartment = typeof formDept === "string" && formDept.trim() ? formDept.trim() : null
+      force = String(formData.get("force") ?? "") === "true"
+    }
+
+    // ---------------------- Authorization ----------------------
+    // THIS is the access-control boundary. The Flutter router guard at
+    // app_router.dart:123-135 is not one (the function's own header explains
+    // why), and everything below writes with the service-role client, which
+    // bypasses RLS entirely — so without this block any account holding a
+    // valid session could reach every write in this file.
+    //
+    // Regression note: this check previously existed and was deleted in
+    // 4c7d541, leaving only the "has a profile" test above. Between then and
+    // now, any authenticated user — including a first-week student — could
+    // overwrite their department's schedule_slots/exams and, via
+    // type:"transport", replace the university-wide transport_routes table.
+    //
+    // Mirrors the router's /admin/upload permission mapping, but resolved
+    // per upload type instead of as one blanket check. A transport upload
+    // REPLACES a university-wide table (deleteObsolete with an empty scope),
+    // so it is deliberately held to a higher bar than a department-scoped
+    // routine upload: dept_admin and teacher may publish their own
+    // department's routine, but must not be able to rewrite every bus route
+    // in the university. caller_can() takes an explicit user id because
+    // auth.uid() is NULL under the service-role client.
+    const callerRole = String(callerProfile.role ?? "")
+    const deptUploadRoles = ["super_admin", "admin", "dept_admin", "teacher"]
+    async function callerCan(resource: string, action: string): Promise<boolean> {
+      const { data, error } = await supabase.rpc("caller_can", {
+        p_resource: resource, p_action: action, p_user_id: authData.user.id,
+      })
+      return !error && data === true
+    }
+
+    let authorized: boolean
+    if (type === "transport") {
+      authorized = callerRole === "super_admin" || callerRole === "admin"
+        || await callerCan("transport", "upload")
+    } else if (type === "exam_routine") {
+      authorized = deptUploadRoles.includes(callerRole)
+        || await callerCan("routine", "upload") || await callerCan("exam_seat", "upload")
+    } else {
+      // class_routine, plus the legacy "schedule" default.
+      authorized = deptUploadRoles.includes(callerRole) || await callerCan("routine", "upload")
+    }
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: "Not authorized to upload this file type." }), { status: 403, headers: corsHeaders })
+    }
+
+    // Rate limit AFTER authorization, so an unauthorized caller can't burn a
+    // legitimate user's tokens, and BEFORE the parse/upsert work, which is
+    // the expensive part (hundreds of rows, several bulk round-trips).
+    // Capacity/refill live in rate_limit_policies ('routine_upload'), so the
+    // threshold is tunable without a redeploy. The key is passed explicitly
+    // because consume_rate_limit() defaults to auth.uid(), which is NULL
+    // under the service-role client and would be denied outright.
+    {
+      const { data: rlOk, error: rlErr } = await supabase.rpc("consume_rate_limit", {
+        p_bucket: "routine_upload", p_key: authData.user.id, p_cost: 1,
+      })
+      // Fails open on a limiter error — a broken limiter must not block a
+      // legitimate routine publish — but a genuine denial is enforced.
+      if (rlErr) console.error("[rate_limit] routine_upload check failed, allowing:", rlErr.message)
+      else if (rlOk === false) {
+        return new Response(JSON.stringify({ error: "Too many uploads in a short time — please wait a moment and try again." }), { status: 429, headers: corsHeaders })
+      }
     }
 
     // This used to hardcode "CSE" for every upload regardless of who
@@ -139,7 +206,16 @@ serve(async (req) => {
     // row within that same scope whose full key isn't in the new upload
     // gets deleted. An empty scopeFields means "replace the whole table"
     // (used for transport routes, which is one university-wide file).
-    async function deleteObsolete(table: string, newRecords: any[], keyFields: string[], scopeFields: string[]): Promise<number> {
+    //
+    // `protectWhenNotNull` names a column whose non-null rows are off-limits:
+    // they're excluded from the "existing" scan entirely, so they can never
+    // be flagged obsolete. schedule_slots needs this because rows generated
+    // by an approved course offering (course_offering_id IS NOT NULL) are
+    // not in the uploaded PDF and were therefore deleted by every routine
+    // re-upload — which also cascaded away every student's user_pinned_slots
+    // row, while course_offerings.status stayed 'approved'. That left
+    // permanently orphaned offerings with no repair path.
+    async function deleteObsolete(table: string, newRecords: any[], keyFields: string[], scopeFields: string[], protectWhenNotNull?: string): Promise<number> {
       if (newRecords.length === 0) return 0
       const keyOf = (r: any) => keyFields.map((f) => String(r[f] ?? "")).join("|")
       const newKeys = new Set(newRecords.map(keyOf))
@@ -178,6 +254,7 @@ serve(async (req) => {
         for (let from = 0; ; from += pageSize) {
           let query = supabase.from(table).select(["id", ...keyFields].join(",")).range(from, from + pageSize - 1)
           for (const f of scopeFields) query = query.eq(f, combo[f])
+          if (protectWhenNotNull) query = query.is(protectWhenNotNull, null)
           const { data: page, error } = await query
           if (error || !page) break
           existing.push(...page)
@@ -261,6 +338,33 @@ serve(async (req) => {
         from_dsc_times: r.from_dsc_times ?? null,
         is_active: r.is_active,
       }))
+      // Destructive-replace guard. The empty scopeFields below genuinely
+      // means "replace the whole table" and that IS correct for transport:
+      // it is one university-wide file, so a route missing from a re-upload
+      // is a retired route. Narrowing the scope would leave retired routes
+      // on students' screens forever, so the fix for the old vulnerability
+      // is the authorization block above, not a narrower delete.
+      //
+      // What the scope can't defend against is a *malformed but non-empty*
+      // parse: if a bad file yields 2 recognizable routes out of 40, the
+      // other 38 real ones are silently deleted. This file already carries
+      // scars from that exact class of bug (see the 4249-row incident in
+      // deleteObsolete's comments), so refuse an upload that would remove
+      // most of the table and make the caller opt in explicitly instead.
+      const { count: existingRouteCount } = await supabase
+        .from("transport_routes").select("id", { count: "exact", head: true })
+      if (!force && (existingRouteCount ?? 0) > 3) {
+        const { data: survivingRows } = await supabase.from("transport_routes")
+          .select("route_number").in("route_number", routeRows.map((r) => r.route_number))
+        const wouldRemove = (existingRouteCount ?? 0) - (survivingRows?.length ?? 0)
+        if (wouldRemove > (existingRouteCount ?? 0) * 0.6) {
+          return new Response(JSON.stringify({
+            error: `This file only covers ${routeRows.length} route(s) and would delete ${wouldRemove} of ${existingRouteCount} existing routes. If the file is complete and the missing routes really are retired, re-send with force: true.`,
+            requiresForce: true, wouldRemove, existingRouteCount, parsedRoutes: routeRows.length,
+          }), { status: 409, headers: corsHeaders })
+        }
+      }
+
       const inserted = await batchUpsert("transport_routes", routeRows, "route_number")
       const removed = await deleteObsolete("transport_routes", routeRows, ["route_number"], [])
 
@@ -326,7 +430,7 @@ serve(async (req) => {
       // hardcoded value per upload), so replacing "everything in this
       // department not present in the new file" needs exactly one scope,
       // not one query per distinct semester value.
-      const removed = await deleteObsolete("schedule_slots", slots, keyFields, ["department"])
+      const removed = await deleteObsolete("schedule_slots", slots, keyFields, ["department"], "course_offering_id")
       const dept = slots[0]?.department
       // A whole-department upload spans many real batches/semesters at
       // once (not the single semester this used to hardcode-assume), so
@@ -371,7 +475,7 @@ serve(async (req) => {
     }
     const scheduleKeyFields = ["subject_code", "day_of_week", "start_time", "department", "semester"]
     const inserted = await batchUpsert("schedule_slots", slots, scheduleKeyFields.join(","))
-    const removed = await deleteObsolete("schedule_slots", slots, scheduleKeyFields, ["department", "semester"])
+    const removed = await deleteObsolete("schedule_slots", slots, scheduleKeyFields, ["department", "semester"], "course_offering_id")
     const legacyUserIds = await resolveUserIdsByDeptSemester(slots[0]?.department, slots[0]?.semester)
     await notifyUsers(legacyUserIds, "Schedule updated",
       "Your class schedule has been updated.", "/schedule")

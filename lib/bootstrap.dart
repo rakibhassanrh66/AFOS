@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -11,6 +12,8 @@ import 'config/routes/app_router.dart';
 import 'config/supabase_config.dart';
 import 'core/di/injection.dart';
 import 'core/auth/biometric_lock.dart';
+import 'core/auth/secure_session_storage.dart';
+import 'core/utils/pending_credentials_store.dart';
 import 'core/services/app_config_service.dart';
 import 'core/services/badge_service.dart';
 import 'core/services/connectivity_service.dart';
@@ -37,6 +40,28 @@ bool get _isMobile =>
 Future<void> bootstrap() async {
   await SystemChrome.setPreferredOrientations(
       [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+
+  // Edge-to-edge, declared explicitly.
+  //
+  // The app ships targetSdk 36, and from Android 15 the platform ENFORCES
+  // edge-to-edge and ignores windowOptOutEdgeToEdgeEnforcement — so the app
+  // has been drawing behind the status and gesture bars regardless, while
+  // never once calling SystemChrome or setting a single window flag. The
+  // result was the platform picking its own contrast scrim over surfaces the
+  // app had already frosted, and layout code guessing at insets it never
+  // declared it was consuming.
+  //
+  // Transparent bars let the app's own LiquidBackdrop show through, and
+  // MediaQuery.padding then reports the real bar heights, which is exactly
+  // what AppShell's clearance and the slide menu's positioning read. Icon
+  // brightness is NOT set here (it would be wrong for one of the two themes);
+  // each theme declares it via appBarTheme.systemOverlayStyle.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+  ));
 
   // Opt into the device's native high refresh rate (90/120Hz) on Android —
   // Flutter otherwise caps rendering at 60Hz there even on faster panels.
@@ -66,6 +91,25 @@ Future<void> bootstrap() async {
   await Supabase.initialize(
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
+    // The session (including the long-lived refresh token) goes in the
+    // platform keystore rather than the default SharedPreferences file. Web
+    // keeps the default: flutter_secure_storage still lands in localStorage
+    // there, so it would add a migration risk for no security gain. See
+    // secure_session_storage.dart for the migration that stops this from
+    // signing existing users out.
+    // The key MUST be the one supabase_flutter would have generated itself
+    // ("sb-<project-ref>-auth-token", see Supabase.initialize) — that is the
+    // SharedPreferences entry existing installs already hold, and the
+    // migration reads it by name. Inventing a new key here would silently
+    // migrate nothing and sign every existing user out on update.
+    authOptions: FlutterAuthClientOptions(
+      localStorage: kIsWeb
+          ? null
+          : SecureSessionLocalStorage(
+              persistSessionKey:
+                  'sb-${Uri.parse(SupabaseConfig.url).host.split('.').first}-auth-token',
+            ),
+    ),
   );
 
   // Single shared online/offline signal for the read-cache layer and the
@@ -205,6 +249,12 @@ Future<void> bootstrap() async {
         BiometricTokenStore.forget(lastKnownUserId!);
       }
       AppConfigService.instance.reset();
+      // Same chokepoint reasoning as the biometric token above: a signup
+      // whose login hand-off never completed would otherwise leave a real
+      // password on disk until its TTL expired. Unlike the token, this is
+      // cleared even during an account switch -- a pending credential
+      // belongs to one signup, never to whichever account comes next.
+      PendingCredentialsStore.clear();
     }
     if (data.session?.user.id != null) lastKnownUserId = data.session!.user.id;
     // Clicking the emailed password-reset link establishes a real session

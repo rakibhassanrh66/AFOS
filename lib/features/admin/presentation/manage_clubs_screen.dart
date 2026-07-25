@@ -15,8 +15,8 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../core/services/realtime_channel.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Super-admin-only: approve/reject club membership requests and officer
 /// post (secretary/vice_president/president) requests. Regular admins have
 /// no route here — clubs.president_id carries real notification-broadcast
@@ -253,7 +253,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             : TabBarView(controller: _tab, children: [
                 _membershipRequests.isEmpty
                     ? const EmptyState(icon: Icons.group_add_outlined, title: 'No pending requests', subtitle: 'Membership requests will show up here')
-                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _membershipRequests.length,
+                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _membershipRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _membershipRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -269,7 +269,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
                         }),
                 _postRequests.isEmpty
                     ? const EmptyState(icon: Icons.workspace_premium_outlined, title: 'No pending post applications', subtitle: 'Officer post applications will show up here')
-                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _postRequests.length,
+                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _postRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _postRequests[i];
                           final member = r['profiles'] as Map<String, dynamic>? ?? {};

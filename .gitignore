@@ -45,9 +45,16 @@ app.*.map.json
 /android/app/release
 
 # Signing / credentials — never commit these
+key.properties
 android/key.properties
-android/app/*.jks
-android/app/*.keystore
+# UNANCHORED on purpose. These were `android/app/*.jks` only, which did not
+# cover a keystore generated in the repo ROOT — where `keytool -keystore
+# afos-release.jks` puts it if you run it from the project directory, which is
+# exactly what the documented command in .github/workflows/main.yml does. This
+# repo is PUBLIC; leaking the release key lets anyone forge an update, and it
+# can never be rotated for already-installed apps.
+*.jks
+*.keystore
 *.p12
 *.pem
 ios/Runner/GoogleService-Info.plist

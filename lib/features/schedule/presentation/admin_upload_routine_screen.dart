@@ -23,7 +23,7 @@ import '../../transport/data/transport_import_service.dart';
 import '../../transport/data/transport_pdf_parser.dart';
 import '../../transport/presentation/transport_import_preview_screen.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// PDFs are parsed to text lines right here on-device (Syncfusion's PDF
 /// text extractor), not on the server — a multi-page routine PDF has
 /// thousands of positioned text runs, which reliably blew past the edge
@@ -310,10 +310,9 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       appBar: const AfosAppBar(title: 'Upload Routine/Transport'),
       body: SingleChildScrollView(
         // Bottom inset so the "Upload All" button clears the floating bottom
-        // nav bar (this screen is inside the shell). MediaQuery.padding.bottom
-        // already carries the shell's reserved bar space (app_shell.dart).
-        // Horizontal padding is 16 to match every other feature screen.
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.of(context).padding.bottom),
+        // nav bar (this screen is inside the shell). Horizontal padding is 16
+        // to match every other feature screen.
+        padding: NavInsets.content(context, h: 16, top: 0, bottom: 24),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const FeatureHeader(
             title: 'Upload Routines & Transport',
@@ -355,7 +354,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             // this account's own profile department regardless of anything
             // the client could send).
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10 + GlassBottomNav.navContentClearance),
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + NavInsets.of(context)),
               decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.borderOf(context))),
               child: Row(children: [
