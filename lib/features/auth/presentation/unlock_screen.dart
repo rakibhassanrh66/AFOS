@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, SignOutScope;
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/biometric_lock.dart';
@@ -62,7 +62,12 @@ class _UnlockScreenState extends State<UnlockScreen> {
   Future<void> _fallbackToPassword() async {
     final uid = await BiometricTokenStore.lastActiveUserId();
     if (uid != null) await BiometricTokenStore.forget(uid);
-    try { await Supabase.instance.client.auth.signOut(); } catch (_) {}
+    // LOCAL on purpose: "use my password instead" is a change of login method
+    // on THIS device, not a security event -- a global scope would also sign
+    // the user out of their other devices, which they didn't ask for.
+    try {
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {}
     if (mounted) context.go('/auth/login');
   }
 

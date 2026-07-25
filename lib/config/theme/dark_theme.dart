@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'liquid_glass_theme.dart';
@@ -53,6 +54,16 @@ ThemeData buildDarkTheme({Color? accent}) {
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
+      // Dark surfaces behind transparent system bars need LIGHT icons.
+      // `statusBarIconBrightness` is the Android knob, `statusBarBrightness`
+      // the iOS one — both are set so the pair stays legible on either.
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
       iconTheme: const IconThemeData(color: AppColors.textPrimary),
       titleTextStyle: GoogleFonts.dmSans(fontSize:18,fontWeight:FontWeight.w700,color:AppColors.textPrimary),
     ),

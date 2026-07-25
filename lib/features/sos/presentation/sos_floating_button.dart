@@ -121,9 +121,17 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
         final bytes = kIsWeb ? await fetchBlobBytes(voicePath) : await File(voicePath).readAsBytes();
         await SupabaseConfig.client.storage.from('sos-voice')
             .uploadBinary(voiceStoragePath, bytes);
-      } catch (_) {
+      } catch (e) {
         // Best-effort -- a failed voice upload shouldn't block the alert
         // itself from going out.
+        //
+        // Logged rather than swallowed silently: this catch hid the fact that
+        // the 'sos-voice' bucket did not exist at all, so every voice note
+        // upload failed and voice_path was always null, with nothing anywhere
+        // to indicate it. (The bucket is now declared in
+        // sec_declare_sos_voice_bucket.) Still non-fatal by design, but no
+        // longer invisible.
+        debugPrint('[SOS] voice note upload failed, sending alert without it: $e');
         voiceStoragePath = null;
       }
     }

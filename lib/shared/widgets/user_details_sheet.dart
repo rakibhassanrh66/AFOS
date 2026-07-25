@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
+import '../../core/utils/role_labels.dart';
 import 'glass_sheet.dart';
 
 /// Tap-to-reveal identity card shown from a chat bubble's sender name/avatar
@@ -21,16 +22,9 @@ class UserDetailsSheet extends StatelessWidget {
   final String? designation;
   const UserDetailsSheet({super.key, required this.profile, this.designation});
 
-  static String _roleLabel(String role) => switch (role) {
-    'teacher' => 'Teacher',
-    'student' => 'Student',
-    'staff' => 'Staff',
-    'admin' => 'Admin',
-    'dept_admin' => 'Dept Admin',
-    'super_admin' => 'Super Admin',
-    'exam_controller' => 'Exam Controller',
-    _ => role,
-  };
+  /// Delegates to the shared [roleLabel] so this sheet and the admin screens
+  /// can't drift apart on what a role is called.
+  static String _roleLabel(String role) => roleLabel(role);
 
   @override
   Widget build(BuildContext context) {

@@ -74,9 +74,24 @@ class GlassSheet extends StatelessWidget {
       ),
     );
 
-    final lifted = keyboardInset > 0
-        ? Padding(padding: EdgeInsets.only(bottom: keyboardInset), child: body)
-        : body;
+    // ALWAYS a Padding, even at zero inset. This used to be
+    // `keyboardInset > 0 ? Padding(...) : body`, which changed the child's
+    // widget TYPE the instant the keyboard began to open. `Widget.canUpdate`
+    // compares runtimeType, so Flutter deactivated the entire sheet subtree
+    // and inflated a fresh one — disposing every State below it, including
+    // each AfosTextField's FocusNode and every TextEditingController in the
+    // form. The focused node died mid-animation, the engine hid the keyboard
+    // again, and typed text was wiped. That is why the New Course Offering
+    // search "wouldn't open the keyboard": it opened and was torn down.
+    //
+    // Keeping one stable Padding (animated, so the lift still eases in)
+    // preserves element identity across the whole keyboard transition.
+    final lifted = AnimatedPadding(
+      duration: LiquidGlass.motionStandard,
+      curve: LiquidGlass.motionCurve,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: body,
+    );
 
     if (reduceMotion) return lifted;
     return TweenAnimationBuilder<double>(
@@ -99,6 +114,15 @@ class GlassSheet extends StatelessWidget {
 /// Standard entry point for a Liquid Glass bottom sheet with **inline**
 /// content — the sheet owns the padding, drag handle, frost, and keyboard
 /// lift. Pass a scrollable child (SingleChildScrollView / a min Column).
+///
+/// Deliberately left on the SHELL navigator (`useRootNavigator` defaults to
+/// false). Pushing sheets on the root navigator would put them above the
+/// floating nav bar, which is visually nicer — but `Navigator.pop(context)`
+/// with a *screen* context (how roughly 50 call sites across 18 files close
+/// their sheets) would then resolve to the shell navigator and pop the whole
+/// SCREEN instead of the sheet. AppShell already strips the keyboard inset and
+/// collapses the nav clearance while typing, so the dead-space and
+/// double-lift problems that motivated the change are solved without it.
 Future<T?> showGlassSheet<T>(
   BuildContext context, {
   required Widget child,

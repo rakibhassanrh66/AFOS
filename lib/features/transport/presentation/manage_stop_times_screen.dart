@@ -4,8 +4,10 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/surface_card.dart';
+import '../../../core/layout/nav_insets.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/stop_offsets_repository.dart';
 import '../data/stop_time_calculator.dart';
@@ -175,9 +177,11 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: AfosAppBar(title: '${widget.routeNumber} stop times'),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          // Skeleton rather than a spinner: this is a list, so matching its
+          // shape keeps the layout from jumping when the rows arrive.
+          ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : ListView(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.of(context).padding.bottom),
+              padding: NavInsets.content(context, h: 16, top: 0, bottom: 24),
               children: [
                 const FeatureHeader(
                   title: 'Stop timings',

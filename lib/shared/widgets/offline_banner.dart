@@ -5,7 +5,7 @@ import '../../core/services/connectivity_service.dart';
 import '../../core/services/outbox_service.dart';
 import 'glass_sheet.dart';
 
-import '../../shared/widgets/glass_bottom_nav.dart';
+import '../../core/layout/nav_insets.dart';
 class OfflineBanner extends StatefulWidget {
   final Widget child;
   const OfflineBanner({super.key, required this.child});
@@ -131,7 +131,7 @@ class _PendingActionsSheetState extends State<_PendingActionsSheet> {
                   final status = row['status'] as String? ?? 'pending';
                   final createdAt = DateTime.tryParse(row['createdAt'] as String? ?? '');
                   return Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 8 + GlassBottomNav.navContentClearance),
+                    padding: EdgeInsets.fromLTRB(0, 8, 0, 8 + NavInsets.of(context)),
                     child: Row(children: [
                       Icon(status == 'failed' ? Icons.error_outline_rounded : Icons.schedule_rounded,
                           color: status == 'failed' ? AppColors.red : AppColors.amber, size: 20),

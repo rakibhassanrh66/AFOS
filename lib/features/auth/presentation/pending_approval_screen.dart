@@ -44,7 +44,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   void dispose() { _sub?.unsubscribe(); super.dispose(); }
 
   Future<void> _logout() async {
-    await Supabase.instance.client.auth.signOut();
+    await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);
     if (mounted) context.go('/auth/login');
   }
 

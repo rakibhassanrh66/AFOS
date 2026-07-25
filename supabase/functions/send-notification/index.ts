@@ -17,18 +17,52 @@ const ONESIGNAL_REST_KEY = Deno.env.get("ONESIGNAL_REST_KEY")!
 // legacy include_external_user_ids field instead of the currently-working
 // include_aliases format (verified live against this app's actual REST key).
 //
-// Two targeting modes:
+// Three targeting modes:
 //  - userIds: direct notification to specific users, tied to an action the
 //    caller just performed (mentorship reply, lost&found claim accepted).
-//    Any authenticated user may use this, capped at 20 recipients so it
-//    can't become a mass-broadcast tool.
+//    See AUTHORIZATION below — this used to be open to any authenticated
+//    caller, which made it an in-app phishing tool.
+//  - clubId: a club president notifying their own club's members.
 //  - roleFilter/departmentFilter: broadcast targeting (routine/exam/transport
 //    updates, announcements) — restricted to admin/teacher/dept_admin/
 //    super_admin, matching the same authorization used for routine uploads.
 //
+// AUTHORIZATION on the userIds path. Any authenticated user could previously
+// write an arbitrary title/body/deepLink into any 20 users' notification
+// centres and push it to their phones — "Your account has been suspended,
+// tap to reactivate" pointing at any in-app route. Now:
+//
+//  - Elevated roles (the broadcast roles plus exam_controller/staff) keep the
+//    existing behaviour, capped at 20. Every batched call site in the app —
+//    assignments, exam seats, offering audiences — is one of these.
+//  - Everyone else may notify exactly ONE user, and only one the database can
+//    confirm they share a record with (can_notify_user: mentorship booking,
+//    club membership/request, lost&found claim, active SOS alert, own
+//    section's CR, or a course enrolment). Every peer-to-peer call site in
+//    the app sends to exactly one recipient, so this costs no functionality.
+//
 // Every call writes to user_notifications (in-app notification center)
 // AND sends a OneSignal push via external_id targeting (the app sets
 // OneSignal's external_id to the Supabase user id on login).
+const ELEVATED_ROLES = ["admin", "super_admin", "dept_admin", "teacher", "exam_controller", "staff"]
+
+// Capacity/refill live in rate_limit_policies so they are tunable without a
+// redeploy. The key must be passed explicitly — consume_rate_limit() defaults
+// it to auth.uid(), which is NULL under the service-role client used here,
+// and a NULL key is denied rather than allowed. Fails OPEN on limiter error
+// so an outage in rate limiting cannot silence the whole notification system.
+// deno-lint-ignore no-explicit-any
+async function consumeRateLimit(supabase: any, bucket: string, key: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("consume_rate_limit", {
+    p_bucket: bucket, p_key: key, p_cost: 1,
+  })
+  if (error) {
+    console.error(`[rate_limit] ${bucket} check failed, allowing:`, error.message)
+    return true
+  }
+  return data !== false
+}
+
 serve(async (req) => {
   const corsHeaders = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
@@ -51,6 +85,12 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "title and message are required." }), { status: 400, headers: corsHeaders })
     }
 
+    // Checked before any targeting work: the fan-out queries below are the
+    // expensive part, so a caller hammering this shouldn't get to run them.
+    if (!await consumeRateLimit(supabase, "notification_send", callerId)) {
+      return new Response(JSON.stringify({ error: "You're sending notifications too quickly — wait a moment and try again." }), { status: 429, headers: corsHeaders })
+    }
+
     let targetUserIds: string[] = []
 
     if (clubId) {
@@ -65,10 +105,31 @@ serve(async (req) => {
       if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders })
       targetUserIds = (members ?? []).map((m: { member_id: string }) => m.member_id).filter((id: string) => id !== callerId)
     } else if (Array.isArray(userIds) && userIds.length > 0) {
-      if (userIds.length > 20) {
-        return new Response(JSON.stringify({ error: "Too many direct recipients (max 20)." }), { status: 400, headers: corsHeaders })
+      const { data: senderProfile } = await supabase.from("profiles").select("role").eq("id", callerId).maybeSingle()
+      if (ELEVATED_ROLES.includes(senderProfile?.role ?? "")) {
+        if (userIds.length > 20) {
+          return new Response(JSON.stringify({ error: "Too many direct recipients (max 20)." }), { status: 400, headers: corsHeaders })
+        }
+        targetUserIds = userIds
+      } else {
+        // Peer-to-peer. Every such call site in the app notifies exactly one
+        // person, so more than one recipient means this isn't a call the app
+        // makes — refuse rather than try to validate a list.
+        if (userIds.length !== 1) {
+          return new Response(JSON.stringify({ error: "You can only notify one person at a time." }), { status: 403, headers: corsHeaders })
+        }
+        const { data: allowed, error: relErr } = await supabase
+          .rpc("can_notify_user", { p_caller: callerId, p_target: userIds[0] })
+        // Fails CLOSED, unlike the rate limiter: this one is the authorization
+        // boundary, so an error here must not become an open door.
+        if (relErr || allowed !== true) {
+          if (relErr) console.error("[can_notify_user] check failed:", relErr.message)
+          return new Response(JSON.stringify({
+            error: "You can only notify people you share a course, club, mentorship or request with.",
+          }), { status: 403, headers: corsHeaders })
+        }
+        targetUserIds = userIds
       }
-      targetUserIds = userIds
     } else if (roleFilter || departmentFilter || broadcastAll) {
       const { data: callerProfile } = await supabase.from("profiles").select("role").eq("id", callerId).maybeSingle()
       const broadcastRoles = ["admin", "super_admin", "dept_admin", "teacher"]

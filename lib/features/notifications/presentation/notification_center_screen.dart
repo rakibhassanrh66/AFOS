@@ -13,7 +13,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
   @override State<NotificationCenterScreen> createState() => _NotifState();
@@ -115,6 +115,12 @@ class _NotifState extends State<NotificationCenterScreen> {
     'club'        => AppIcons.clubs,
     'message'     => AppIcons.deptChat,
     'exam'        => AppIcons.examSeat,
+    // Emitted by CourseOfferingRepository (approve/reject/new-course) and by
+    // the course group chat. Both previously fell through to the generic
+    // bell, so a course notification was indistinguishable from any other.
+    'course_offering' => AppIcons.schedule,
+    'course_message'  => AppIcons.deptChat,
+    'assignment'  => AppIcons.assignments,
     _             => AppIcons.notifications,
   };
 
@@ -127,6 +133,9 @@ class _NotifState extends State<NotificationCenterScreen> {
     'club'        => AppColors.pink,
     'message'     => AppColors.blue,
     'exam'        => AppColors.orange,
+    'course_offering' => AppColors.green,
+    'course_message'  => AppColors.blue,
+    'assignment'  => AppColors.purple,
     _             => AppColors.blue,
   };
 
@@ -168,7 +177,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                   onRefresh: _load,
                   color: AppColors.blue,
                   child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12 + GlassBottomNav.navContentClearance),
+                    padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + NavInsets.of(context)),
                     itemCount: _notifs.length + (_hasMore ? 1 : 0),
                     itemBuilder: (ctx, i) {
                       if (i == _notifs.length) {

@@ -49,26 +49,26 @@ class GlassBottomNav extends StatefulWidget {
   static const double bottomMargin = 24;
   static const double sideMargin = 16;
 
-  /// Total vertical footprint the floating nav needs, so routed content can
-  /// physically clear it (see `AppShell`'s `barSpace`). Carries a few px slack
-  /// over the real height (`planetLift + barHeight + bottomMargin`).
-  static const double reservedHeight = barHeight + planetLift + bottomMargin + 6;
-
-  /// Bottom padding a SCROLLABLE must add to its own content so the last row
-  /// can be scrolled clear of the floating bar.
+  /// How much room routed content leaves below itself for the bar.
   ///
-  /// The shell hands clearance down as a `MediaQuery` bottom inset rather than
-  /// as physical padding, so that routed content runs full-bleed and actually
-  /// scrolls *under* the glass — a `BackdropFilter` with nothing painted behind
-  /// it renders as an opaque slab, which is what made the bar read as "a
-  /// rectangle inside a rectangle". `BoxScrollView` adopts that inset
-  /// automatically, but ONLY when its `padding` is null; every scrollable in
-  /// this app hard-codes its padding and therefore opts out. Those add this
-  /// constant explicitly.
+  /// Covers the bar's actual glass surface (`barHeight + bottomMargin`) plus
+  /// 8px of breathing room — deliberately NOT the widget's full layout box,
+  /// which also spans `planetLift`. The planet is a 50px circle over a single
+  /// tab, not a full-width surface; reserving for it left ~30px of dead band
+  /// across the entire screen width, and with nothing painted behind the
+  /// `BackdropFilter` the frost read as a flat opaque slab instead of glass.
+  /// Content clearing the surface and passing *under* the planet is what
+  /// produces the frosted read-through.
   ///
-  /// Deliberately a compile-time `const` (not a MediaQuery read) so the call
-  /// sites stay `const` and need no `BuildContext` in scope.
-  static const double navContentClearance = reservedHeight;
+  /// This is GEOMETRY, consumed in exactly one place: `AppShell` turns it into
+  /// the MediaQuery bottom inset every screen reads back via `NavInsets`
+  /// (core/layout/nav_insets.dart). Screens must never reference it directly.
+  ///
+  /// There used to be a second constant here, `navContentClearance`, that
+  /// screens hard-coded into their own scroll padding *in addition to* the
+  /// shell's inset. The two double-counted — content ended up to 219px above a
+  /// 129px bar. It is deleted rather than deprecated so it cannot come back.
+  static const double contentClearance = barHeight + bottomMargin + 8;
 
   @override
   State<GlassBottomNav> createState() => _GlassBottomNavState();

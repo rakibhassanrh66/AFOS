@@ -11,6 +11,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/glass_sheet.dart';
@@ -20,8 +21,8 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'club_chat_screen.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../core/services/realtime_channel.dart';
+import '../../../core/layout/nav_insets.dart';
 IconData categoryIcon(String? category) => switch (category) {
       'Tech' => Icons.memory_rounded,
       'Sports' => Icons.sports_soccer_rounded,
@@ -441,16 +442,8 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     return _clubs.where((c) => (c['name'] as String? ?? '').toLowerCase().contains(q)).toList();
   }
 
-  Widget _errorView(BuildContext context) => Center(child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-        const SizedBox(height: 12),
-        Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 12),
-        TextButton(onPressed: _load, child: const Text('Retry')),
-      ])));
+  Widget _errorView(BuildContext context) =>
+      ErrorView(message: _error ?? 'Something went wrong', onRetry: _load);
 
   @override
   Widget build(BuildContext context) {
@@ -551,7 +544,7 @@ class _ClubList extends StatelessWidget {
     if (clubs.isEmpty) return const EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
     final canJoin = RoleSession.role == 'student';
-    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: clubs.length,
+    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: clubs.length,
         // Guarded by the `if (clubs.isEmpty) return EmptyState(...)`
         // early-return above, so .first is safe. The index only drives the
         // stagger fade-in delay, not row height, so 0 is fine for the
@@ -625,7 +618,7 @@ class _MyClubsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.group_add_rounded,
         title: 'No clubs joined', subtitle: 'Discover and request to join clubs from the Discover tab');
     }
-    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: myClubs.length,
+    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: myClubs.length,
         itemBuilder: (ctx, i) {
           final m = myClubs[i];
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
@@ -728,7 +721,7 @@ class _EventsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.event_rounded,
         title: 'No upcoming events', subtitle: 'Events will appear here');
     }
-    return ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: events.length,
+    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: events.length,
         itemBuilder: (ctx, i) {
           final e = events[i];
           final eventId = e['id'] as String?;

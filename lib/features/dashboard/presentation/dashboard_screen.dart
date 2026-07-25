@@ -12,6 +12,7 @@ import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../core/layout/nav_insets.dart';
 import '../../schedule/data/models/class_slot.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -449,6 +450,11 @@ class _DashboardState extends State<DashboardScreen> {
               const SizedBox(height: 32),
             ]),
           )),
+          // CustomScrollView, unlike ListView/GridView, does NOT adopt
+          // MediaQuery's bottom padding, so this screen was the one place the
+          // shell's inset reached nothing: the last notice card sat permanently
+          // under the floating nav with no way to scroll it clear.
+          SliverToBoxAdapter(child: SizedBox(height: NavInsets.of(context))),
         ]),
       ),
     );

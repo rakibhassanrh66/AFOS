@@ -11,7 +11,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/grades_repository.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 const _publisherRoles = ['admin', 'dept_admin', 'super_admin', 'exam_controller'];
 const _gradeLetters = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'F'];
 
@@ -102,7 +102,7 @@ class _StudentResultsTabState extends State<_StudentResultsTab> {
     }
     final semesters = bySemester.keys.toList()..sort((a, b) => b.compareTo(a));
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: semesters.expand((sem) sync* {
+        child: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: semesters.expand((sem) sync* {
           yield Padding(padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text('Semester $sem', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))));
           for (final g in bySemester[sem]!) {
@@ -213,7 +213,7 @@ class _TeacherUploadTabState extends State<_TeacherUploadTab> {
         Expanded(child: _students.isEmpty
             ? const EmptyState(icon: Icons.people_outline, title: 'No students found', subtitle: 'No students are set to this batch/section yet')
             : Column(children: [
-                Expanded(child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 0, 16, 0 + GlassBottomNav.navContentClearance), itemCount: _students.length,
+                Expanded(child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 0, 16, 0 + NavInsets.of(context)), itemCount: _students.length,
                     // Guarded by the _students.isEmpty ternary above, so .first is safe.
                     prototypeItem: _buildStudentRow(context, _students.first),
                     itemBuilder: (ctx, i) => _buildStudentRow(ctx, _students[i]))),
@@ -278,7 +278,7 @@ class _PublishTabState extends State<_PublishTab> {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     if (_pending.isEmpty) return const EmptyState(icon: Icons.publish_outlined, title: 'Nothing waiting to publish', subtitle: 'Teacher-uploaded results will show up here');
     return Column(children: [
-      Expanded(child: ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _pending.length,
+      Expanded(child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
           // Guarded by the `if (_pending.isEmpty) return EmptyState(...)`
           // early-return above, so .first is safe.
           prototypeItem: _buildPendingRow(context, _pending.first),

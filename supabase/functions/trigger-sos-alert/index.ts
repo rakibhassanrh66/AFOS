@@ -16,9 +16,35 @@ const CAMPUS_LNG = 90.4044
 const CAMPUS_RADIUS_KM = 3
 const NEARBY_RADIUS_KM = 5
 const NEARBY_STALE_MINUTES = 60
-const RATE_LIMIT_MINUTES = 5
 const STAFF_TIER_ROLES = ["staff", "admin", "dept_admin", "super_admin", "exam_controller", "teacher"]
 const ONESIGNAL_CHUNK_SIZE = 2000
+
+// Consumes one token from a named bucket, returning whether the call is
+// allowed. Capacity and refill rate live in the rate_limit_policies table
+// (see sec_token_bucket_rate_limiting), so a threshold can be retuned with
+// an UPDATE instead of a redeploy.
+//
+// The key MUST be passed explicitly: consume_rate_limit() defaults it to
+// auth.uid(), which is NULL under the service-role client this function
+// uses -- and a NULL key is DENIED, not allowed, so relying on the default
+// here would reject every SOS.
+//
+// Fails OPEN if the limiter itself errors. An outage in rate limiting must
+// never be the reason an emergency alert doesn't go out; a genuine `false`
+// (bucket actually empty) is still enforced.
+async function consumeRateLimit(
+  // deno-lint-ignore no-explicit-any
+  supabase: any, bucket: string, key: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("consume_rate_limit", {
+    p_bucket: bucket, p_key: key, p_cost: 1,
+  })
+  if (error) {
+    console.error(`[rate_limit] ${bucket} check failed, allowing:`, error.message)
+    return true
+  }
+  return data !== false
+}
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
@@ -65,11 +91,15 @@ serve(async (req) => {
 
     // Rate limit -- prevents spam/duplicate taps from re-alerting the same
     // people every few seconds.
-    const rateLimitSince = new Date(Date.now() - RATE_LIMIT_MINUTES * 60_000).toISOString()
-    const { data: recentAlert } = await supabase.from("sos_alerts")
-      .select("id").eq("user_id", callerId).eq("status", "active")
-      .gte("created_at", rateLimitSince).limit(1).maybeSingle()
-    if (recentAlert) {
+    //
+    // Was a hardcoded 5-minute window over recent ACTIVE alerts. Now a token
+    // bucket whose capacity/refill live in rate_limit_policies, so the
+    // threshold is tunable without a redeploy. The 'sos_alert' policy is
+    // deliberately set to burst 2 / refill 0.2 per minute: the same sustained
+    // one-per-5-minutes as before, plus one spare token so a second genuine
+    // emergency right after a resolved one is not swallowed (the old check
+    // ignored resolved alerts; a plain 1-token bucket would not have).
+    if (!await consumeRateLimit(supabase, "sos_alert", callerId)) {
       return new Response(JSON.stringify({ error: "You already sent an alert in the last few minutes." }), { status: 429, headers: corsHeaders })
     }
 

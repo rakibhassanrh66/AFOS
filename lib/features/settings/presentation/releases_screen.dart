@@ -9,7 +9,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Public version history / changelog -- pulls from app_releases (a real
 /// table, not a hardcoded list, so future releases can be added without a
 /// redeploy) rather than just showing the single current build number the
@@ -69,7 +69,7 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
                       constraints: BoxConstraints(
                           maxWidth: Responsive.isDesktop(context) ? 720 : double.infinity),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
+                        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           _HeroLatest(release: _releases.first, textPrimary: textPrimary, textSecondary: textSecondary),
                           const SizedBox(height: 28),

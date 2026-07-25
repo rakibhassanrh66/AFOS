@@ -75,12 +75,71 @@ class AppValidators {
     if(v==null||v.trim().isEmpty) return '$f is required';
     return null;
   }
+  // ── Curriculum identity fields ──────────────────────────────────────
+  // These mirror the DB CHECK constraints added in
+  // sec_input_validation_and_normalisation (profiles_teacher_initial_format,
+  // students_section_format, students_batch_label_format,
+  // course_offerings_*_format, courses_code_format).
+  //
+  // The database is the real boundary — PostgREST is directly reachable, so a
+  // client rule alone is advisory. But without a matching client rule the
+  // user's only feedback is a rejected write, and on the signup path a
+  // rejected write fails account creation outright rather than just losing
+  // the field. Case is not enforced here because the DB normalises to
+  // upper-case on write, so 'a' and 'A' are both accepted and both stored 'A'.
+  static final RegExp _sectionShape = RegExp(r'^[A-Za-z0-9]{1,4}$');
+  static final RegExp _batchShape = RegExp(r'^[A-Za-z0-9-]{1,10}$');
+  static final RegExp _initialShape = RegExp(r'^[A-Za-z]{2,6}$');
+  static final RegExp _courseCodeShape = RegExp(r'^[A-Za-z0-9 -]{2,20}$');
+
+  /// [req] is false where the field is genuinely optional (Settings, where a
+  /// student may clear it), true on the onboarding forms that demand it.
+  static String? section(String? v, {bool req = true}) {
+    final s = v?.trim() ?? '';
+    if (s.isEmpty) return req ? 'Section is required' : null;
+    if (!_sectionShape.hasMatch(s)) return 'Use 1-4 letters or digits (e.g. A, B2)';
+    return null;
+  }
+
+  static String? batch(String? v, {bool req = true}) {
+    final s = v?.trim() ?? '';
+    if (s.isEmpty) return req ? 'Batch is required' : null;
+    if (!_batchShape.hasMatch(s)) return 'Use 1-10 letters, digits or "-" (e.g. 66)';
+    return null;
+  }
+
+  static String? teacherInitial(String? v, {bool req = true}) {
+    final s = v?.trim() ?? '';
+    if (s.isEmpty) return req ? 'Teacher initials are required' : null;
+    if (!_initialShape.hasMatch(s)) return 'Use 2-6 letters, no digits (e.g. AS, FNN)';
+    return null;
+  }
+
+  static String? courseCode(String? v, {bool req = true}) {
+    final s = v?.trim() ?? '';
+    if (s.isEmpty) return req ? 'Course code is required' : null;
+    if (!_courseCodeShape.hasMatch(s)) {
+      return 'Use 2-20 letters, digits, spaces or "-" (e.g. CSE 412)';
+    }
+    return null;
+  }
+
   static String? confirmPassword(String? v,String original) {
     if(v==null||v.isEmpty) return 'Confirm password';
     if(v!=original) return 'Passwords do not match';
     return null;
   }
+  /// Strips angle-bracketed tags and stray quote/bracket characters from free
+  /// text. Defence in depth for display only — it is NOT an escaping function
+  /// and must never be relied on for SQL (PostgREST parameterises) or for
+  /// rendering untrusted HTML.
+  ///
+  /// The second pattern used to be written `RegExp(r'[<>"\'']')`. A raw string
+  /// cannot escape its own quote, so Dart read that as the raw string `[<>"\`
+  /// adjacent to the string `]` and concatenated them into `[<>"\]` — an
+  /// unterminated character class that threw on every call. Triple quotes let
+  /// both `"` and `'` sit in one raw string.
   static String sanitize(String s) =>
-    s.trim().replaceAll(RegExp(r'<[^>]*>'),'').replaceAll(RegExp(r'[<>"\'']'),'');
+    s.trim().replaceAll(RegExp(r'<[^>]*>'),'').replaceAll(RegExp(r'''[<>"']'''),'');
   static bool validFileSize(int bytes,{int maxMB=5}) => bytes<=maxMB*1024*1024;
 }

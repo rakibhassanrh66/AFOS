@@ -13,7 +13,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../transport/data/transport_display.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Lightweight cross-module search: one query fans out to notices, class
 /// schedule, library books, lost & found, and clubs; results are grouped by
 /// module and tap through to the relevant screen. All reads go through the
@@ -178,7 +178,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         subtitle: 'Try a different keyword.',
       );
     }
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24 + GlassBottomNav.navContentClearance), children: [
+    return ListView(padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + NavInsets.of(context)), children: [
       for (final g in _groups) ...[
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),

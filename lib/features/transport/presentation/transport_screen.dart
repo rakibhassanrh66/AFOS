@@ -25,7 +25,7 @@ import '../data/stop_time_calculator.dart';
 import '../data/transport_display.dart';
 import 'manage_stop_times_screen.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Reads a route row's per-trip objects ({time, note, status}) for one
 /// direction into typed [Trip]s, dropping blanks.
 List<Trip> _tripsOf(Map r, String key) =>
@@ -206,11 +206,20 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
     // never overflows the top on the rare device where the keyboard is tall
     // enough to matter once the field IS tapped.
     final mq = MediaQuery.of(context);
-    return Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, bottom: mq.viewInsets.bottom),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: (mq.size.height - mq.viewInsets.bottom) * 0.72),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // Height is budgeted against the space this sheet was ACTUALLY given, not
+    // against MediaQuery.size. Inside AppShell the routed overlay is already
+    // lifted clear of the keyboard (and viewInsets is zeroed there, since the
+    // shell consumed it), so `size.height - viewInsets.bottom` over-estimated
+    // by the whole keyboard height — the sheet then asked for more room than
+    // existed and the list underneath it collapsed to nothing, which is what
+    // made the glass panel look like it was covering the stops. LayoutBuilder
+    // is correct in both cases without needing to know which one it is in.
+    return LayoutBuilder(builder: (context, constraints) {
+      return Padding(
+        padding: EdgeInsets.only(left: 20, right: 20, bottom: mq.viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.72),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(widget.title, style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
         const SizedBox(height: 12),
         TextField(
@@ -258,9 +267,10 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
                 );
               },
             )),
-      ]),
-      ),
-    );
+        ]),
+        ),
+      );
+    });
   }
 }
 
@@ -286,10 +296,24 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
   // Import metadata for the "Schedule for <semester> · Updated <date>" header.
   Map<String, dynamic>? _meta;
 
+  // Owned here, used by _AllRoutesTab's search box: the header this folds away
+  // sits above the TabBarView, so the tab can't collapse it on its own.
+  final _searchFocus = FocusNode();
+  bool _searchFocused = false;
+
   @override
   void initState() {
     super.initState();
     _tab = TabController(length:4,vsync:this);
+    // FeatureHeader + tab bar are ~150px of permanently pinned chrome. With the
+    // keyboard up that left the route list about two rows tall, so the header
+    // folds away while the user is typing and returns when the field is
+    // dismissed.
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus != _searchFocused && mounted) {
+        setState(() => _searchFocused = _searchFocus.hasFocus);
+      }
+    });
     _repo.fetchCurrentMeta().then((m) { if (mounted) setState(() => _meta = m); });
   }
 
@@ -306,7 +330,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
   }
 
   @override
-  void dispose() { _tab.dispose(); super.dispose(); }
+  void dispose() { _tab.dispose(); _searchFocus.dispose(); super.dispose(); }
 
   void _viewOnMap(String routeId) {
     setState(() => _selectedRouteId = routeId);
@@ -333,7 +357,16 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                 final liveStatus = statusSnap.data ?? const <String, Map<String, dynamic>>{};
                 final liveCount = liveStatus.values.where((s) => s['status'] != 'departed' && s['status'] != 'cancelled').length;
                 return Column(children: [
-                  FeatureHeader(
+                  // Collapsed (not removed) while the All Routes search box has
+                  // focus: an AnimatedAlign height factor keeps the header
+                  // mounted so its entrance animation runs once on open rather
+                  // than replaying every time the keyboard is dismissed.
+                  ClipRect(child: AnimatedAlign(
+                    duration: LiquidGlass.motionStandard,
+                    curve: LiquidGlass.motionCurve,
+                    alignment: Alignment.topCenter,
+                    heightFactor: _searchFocused ? 0.0 : 1.0,
+                    child: FeatureHeader(
                     title: 'Campus Transport',
                     subtitle: _scheduleSubtitle(loading, routes.length),
                     icon: Icons.directions_bus_filled_rounded,
@@ -353,6 +386,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                           )
                         : null,
                   ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+                  )),
                   AnimatedBuilder(
                     animation: _tab,
                     builder: (ctx3, _) => GlassTabBar(
@@ -369,7 +403,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                   Expanded(child: TabBarView(controller:_tab,children:[
                     loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_FindRouteTab(routes:routes, liveStatus: liveStatus),
                     loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_MyRouteTab(routes:routes, liveStatus: liveStatus),
-                    loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_AllRoutesTab(routes:routes, liveStatus: liveStatus, repo: _repo, onViewOnMap: _viewOnMap),
+                    loading?const Padding(padding:EdgeInsets.all(16),child:ShimmerList()):_AllRoutesTab(routes:routes, liveStatus: liveStatus, repo: _repo, onViewOnMap: _viewOnMap, searchFocus: _searchFocus),
                     _MapTab(
                       // The whole route row, not just its id: with no stop
                       // coordinates in the database the map can't draw a path,
@@ -590,7 +624,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     final matches = _matches;
     // The stop whose times the user is really asking about.
     final focusStop = _from ?? _to;
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
       Text('Where are you, and where are you going?',
           style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 4),
@@ -1097,7 +1131,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'to_dsc_trips');
     final fromDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'from_dsc_trips');
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),children:[
+    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),children:[
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
       if (_autoSuggested && selected != null) ...[
@@ -1498,7 +1532,10 @@ class _AllRoutesTab extends StatefulWidget {
   final Map<String, Map<String, dynamic>> liveStatus;
   final TransportRepository repo;
   final ValueChanged<String> onViewOnMap;
-  const _AllRoutesTab({required this.routes, required this.liveStatus, required this.repo, required this.onViewOnMap});
+  /// Owned by _TransportState, which folds the FeatureHeader away while this
+  /// tab's search box is focused — so the node has to outlive this tab's state.
+  final FocusNode searchFocus;
+  const _AllRoutesTab({required this.routes, required this.liveStatus, required this.repo, required this.onViewOnMap, required this.searchFocus});
   @override State<_AllRoutesTab> createState() => _AllRoutesTabState();
 }
 
@@ -1692,6 +1729,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         child: TextField(
           controller: _searchCtrl,
+          focusNode: widget.searchFocus,
           onChanged: (v) => setState(() => _query = v),
           textInputAction: TextInputAction.search,
           onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -1718,7 +1756,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ),
       ),
       Expanded(child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16 + GlassBottomNav.navContentClearance),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
         children: children)),
     ]);
   }
@@ -1883,7 +1921,10 @@ class _MapTabState extends State<_MapTab> {
           initialCenter:LatLng(_diuLat,_diuLng), initialZoom:14),
         children:[
           TileLayer(urlTemplate:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName:'com.example.afos_v7'),
+            // Real app ID, not the Flutter scaffold default: OSM's tile usage
+            // policy requires a User-Agent identifying the app, and
+            // com.example.* is the generic value they rate-limit.
+            userAgentPackageName:'bd.edu.diu.afos'),
           if (routePoints.length >= 2) PolylineLayer(polylines: [
             Polyline(points: routePoints, strokeWidth: 4, color: AppColors.holoTeal),
           ]),
@@ -1912,7 +1953,7 @@ class _MapTabState extends State<_MapTab> {
       // `bottom:`, which put the FAB on top of the panel's action button.
       Positioned(
         left: 16, right: 16,
-        bottom: 16 + MediaQuery.of(context).padding.bottom,
+        bottom: 16 + NavInsets.of(context),
         // stretch (not end) so the panel spans the full width; the FAB is
         // right-aligned individually.
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [

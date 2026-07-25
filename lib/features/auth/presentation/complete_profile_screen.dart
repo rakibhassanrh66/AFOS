@@ -9,6 +9,7 @@ import '../../../core/data/bd_geography.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -327,7 +328,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.surfaceOf(context),
       body: SafeArea(child: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: SupernovaBusy(label: 'Loading your details'))
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: GlassCard(
@@ -457,10 +458,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     else ...[
                       Row(children: [
                         Expanded(child: AfosTextField(hint: 'Batch (e.g. 61)', controller: _batchCtrl,
-                            validator: (v) => AppValidators.required(v, f: 'Batch'))),
+                            validator: AppValidators.batch)),
                         const SizedBox(width: 12),
                         Expanded(child: AfosTextField(hint: 'Section (e.g. A)', controller: _sectionCtrl,
-                            validator: (v) => AppValidators.required(v, f: 'Section'))),
+                            validator: AppValidators.section)),
                       ]),
                       const SizedBox(height: 20),
                       Text('Semester: ${_sem.toInt()}', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),

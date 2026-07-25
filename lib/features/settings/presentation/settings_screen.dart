@@ -16,6 +16,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../core/services/sos_location_service.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/validators.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -25,7 +26,7 @@ import '../../../shared/widgets/radial_logout_menu.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
   @override State<SettingsScreen> createState() => _SettingsState();
@@ -301,6 +302,20 @@ class _SettingsState extends State<SettingsScreen> {
   bool get _routineApplicable => _isFacultyRole || _isStudentRole;
 
   Future<void> _saveRoutineInfo() async {
+    // Checked before the write, not just after it: these fields are covered by
+    // DB CHECK constraints, so an unvalidated save comes back as a rejected
+    // write with nothing pointing at the field that caused it. Each is
+    // optional here — a user may legitimately clear one — so only a non-empty
+    // value is format-checked.
+    final formatError = _isFacultyRole
+        ? AppValidators.teacherInitial(_teacherInitialCtrl.text, req: false)
+        : AppValidators.batch(_batchCtrl.text, req: false) ??
+            AppValidators.section(_sectionCtrl.text, req: false);
+    if (formatError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatError), backgroundColor: AppColors.red));
+      return;
+    }
     setState(() => _saving = true);
     try {
       final batch = _batchCtrl.text.trim().isEmpty ? null : _batchCtrl.text.trim();
@@ -325,9 +340,11 @@ class _SettingsState extends State<SettingsScreen> {
           const SnackBar(content: Text('Routine info saved ✓'), backgroundColor: AppColors.green));
       }
     } catch (e) {
-      final msg = e.toString().contains('profiles_teacher_initial_unique')
-          ? 'That initial is already taken by another teacher — try a longer one (e.g. "MR" → "MAR").'
-          : friendlyError(e);
+      // The teacher-initial uniqueness case used to be special-cased here by
+      // string-matching the constraint name; friendlyError now owns that
+      // mapping (along with the format constraints) so every screen that
+      // writes these fields gets the same wording.
+      final msg = friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg), backgroundColor: AppColors.red));
@@ -352,7 +369,7 @@ class _SettingsState extends State<SettingsScreen> {
       appBar: const AfosAppBar(title: 'Settings'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+          : ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
 
               // Profile identity now lives on its own /profile screen (bottom
               // nav) so it isn't shown in two places — Settings keeps only

@@ -8,11 +8,12 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Shows which room(s) the student's own batch+section is assigned for
 /// each exam — confirmed against a real DIU seat-plan document that this
 /// is genuinely all it publishes (room capacity per section, split across
@@ -112,21 +113,14 @@ class _ExamSeatState extends State<ExamSeatScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                    const SizedBox(height: 12),
-                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                    const SizedBox(height: 12),
-                    TextButton(onPressed: _load, child: const Text('Retry')),
-                  ])))
+                ? ErrorView(message: _error!, onRetry: _load)
                 : sessions.isEmpty
                 ? const EmptyState(icon: AppIcons.examSeat,
                     title: 'No seat plan yet', subtitle: 'Room allocations will appear here once published')
                 : RefreshIndicator(
                     onRefresh: _load, color: AppColors.blue,
                     child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16 + GlassBottomNav.navContentClearance),
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
                         itemCount: sessions.length,
                         itemBuilder: (ctx, i) => _SessionCard(session: sessions[i], index: i)))),
       ]),

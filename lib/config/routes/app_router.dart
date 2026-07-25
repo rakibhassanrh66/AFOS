@@ -154,14 +154,18 @@ class AppRouter {
       if (loc == '/manage-notices') {
         final role = await RoleSession.ensureLoaded();
         if (!_adminRoles.contains(role) && role != 'teacher'
-            && !(await PermissionSession.ensureHas('notice', 'publish'))) return '/home';
+            && !(await PermissionSession.ensureHas('notice', 'publish'))) {
+          return '/home';
+        }
       }
       // Exam seat assignment is done by exam_controller too, which isn't
       // in _adminRoles and isn't under /admin — same reasoning as notices.
       if (loc == '/manage-exam-seats') {
         final role = await RoleSession.ensureLoaded();
         if (!_adminRoles.contains(role) && role != 'exam_controller'
-            && !(await PermissionSession.ensureHas('exam_seat', 'upload'))) return '/home';
+            && !(await PermissionSession.ensureHas('exam_seat', 'upload'))) {
+          return '/home';
+        }
       }
       // Hall allocation, exam seating, and payment are personal student
       // records — a teacher has none of their own, so hide these routes

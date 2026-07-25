@@ -14,7 +14,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/exam_room_pdf_parser.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// admin/dept_admin/super_admin/exam_controller: upload one or more real
 /// exam seat-plan PDFs. Confirmed against an actual DIU sample document —
 /// these publish room *capacity* per batch+section (a section spans
@@ -60,7 +60,7 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
       }
       if (mounted) setState(() => _parsedRows = allRows);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e));
     }
     if (mounted) setState(() => _parsing = false);
   }
@@ -121,7 +121,7 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Exam Seat Plan Upload'),
-      body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), children: [
+      body: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
         const FeatureHeader(
           title: 'Exam Seat Plan Upload',
           subtitle: 'Publish room allocations from the official PDF',

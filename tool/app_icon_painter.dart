@@ -23,7 +23,7 @@ class AfosIconPainter extends CustomPainter {
     // Outer hexagon frame (electric blue, glowing).
     final hexPath = _hexPath(center, r * 0.92);
     final glow = Paint()
-      ..color = const Color(0xFF1E6FFF).withOpacity(0.55)
+      ..color = const Color(0xFF1E6FFF).withValues(alpha: 0.55)
       ..style = PaintingStyle.stroke
       ..strokeWidth = w * 0.028
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
@@ -39,7 +39,7 @@ class AfosIconPainter extends CustomPainter {
     // Inner hexagon (thin, faint) for a circuit-board layered look.
     final innerHex = _hexPath(center, r * 0.78);
     final innerStroke = Paint()
-      ..color = const Color(0xFF5294FF).withOpacity(0.35)
+      ..color = const Color(0xFF5294FF).withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = w * 0.006;
     canvas.drawPath(innerHex, innerStroke);
@@ -48,7 +48,7 @@ class AfosIconPainter extends CustomPainter {
     final verts = _hexVertices(center, r * 0.92);
     final nodePaint = Paint()..color = const Color(0xFFFFD700);
     final tracePaint = Paint()
-      ..color = const Color(0xFFFFD700).withOpacity(0.7)
+      ..color = const Color(0xFFFFD700).withValues(alpha: 0.7)
       ..style = PaintingStyle.stroke
       ..strokeWidth = w * 0.01;
     for (final v in verts) {

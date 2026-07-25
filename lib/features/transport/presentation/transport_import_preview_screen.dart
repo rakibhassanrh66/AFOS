@@ -687,7 +687,11 @@ class _ConfirmBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
+      // No nav clearance added here: this bar is built INSIDE the screen's
+      // body SafeArea (:97), which has already consumed the shell's bottom
+      // inset for the whole column — so MediaQuery.padding.bottom reads 0 at
+      // this point and adding it was a no-op that looked like it did something.
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border(top: BorderSide(color: AppColors.borderOf(context), width: 0.5)),

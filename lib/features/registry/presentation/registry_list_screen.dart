@@ -12,8 +12,8 @@ import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../core/services/realtime_channel.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Faculties/Departments registry — read is open to any authenticated user
 /// (public_read_* policies), but only super_admin has an RLS path to write
 /// (super_admin_all), so the add/edit/delete affordances are hidden for
@@ -199,7 +199,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                   ? EmptyState(icon: Icons.account_balance_outlined, title: 'No ${widget.title.toLowerCase()} yet',
                       subtitle: _canWrite ? 'Tap + to add one' : 'Nothing has been added yet')
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8 + GlassBottomNav.navContentClearance),
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + NavInsets.of(context)),
                       itemCount: _items.length,
                       // Guarded by the _items.isEmpty ternary above — this
                       // branch never renders with an empty list, so .first is safe.

@@ -9,6 +9,7 @@ import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -16,7 +17,7 @@ import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Open to every user (unlike ManageFeedbackScreen, which is the
 /// super_admin-only moderation queue for the same `feedback` table) — a
 /// place to share an idea or contribution plan and see the status of what
@@ -137,7 +138,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       body: RefreshIndicator(onRefresh: _load, color: AppColors.teal,
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-            : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96 + GlassBottomNav.navContentClearance), children: [
+            : ListView(padding: NavInsets.content(context, fab: true), children: [
                 const FeatureHeader(
                   title: 'Feedback & Ideas',
                   subtitle: 'Anyone can share one — a super admin reviews every submission',
@@ -149,11 +150,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 Text('Your submissions', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 if (_error != null)
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Column(children: [
-                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                    const SizedBox(height: 8),
-                    TextButton(onPressed: _load, child: const Text('Retry')),
-                  ]))
+                  ErrorView(message: _error!, onRetry: _load)
                 else if (_mine.isEmpty)
                   const Padding(padding: EdgeInsets.symmetric(vertical: 24),
                       child: EmptyState(icon: Icons.feedback_outlined, title: 'Nothing shared yet',

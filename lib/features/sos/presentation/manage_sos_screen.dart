@@ -8,14 +8,15 @@ import '../../../core/auth/role_session.dart';
 import '../../../core/services/app_config_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../core/services/realtime_channel.dart';
+import '../../../core/layout/nav_insets.dart';
 /// Admin/staff oversight of every SOS alert system-wide -- same filter-tab
 /// + refetch-on-any-change pattern as manage_hall_screen.dart, since
 /// sos_alerts.stream() can't embed the sender's profile either.
@@ -152,16 +153,10 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                    const SizedBox(height: 12),
-                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                    const SizedBox(height: 12),
-                    TextButton(onPressed: _load, child: const Text('Retry')),
-                  ])))
+                ? ErrorView(message: _error!, onRetry: _load)
                 : _visible.isEmpty
                     ? EmptyState(icon: Icons.sos_rounded, title: 'Nothing here', subtitle: 'No "$_filter" alerts right now')
-                    : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance), itemCount: _visible.length,
+                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final a = _visible[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};

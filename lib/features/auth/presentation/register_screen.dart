@@ -353,7 +353,11 @@ class _AccountTypeToggle extends StatelessWidget {
       const SizedBox(width:10),
       option('Teacher', AccountType.teacher),
       const SizedBox(width:10),
-      option('Staff', AccountType.staff),
+      // Label only — the stored profiles.role stays 'staff'. Officers sign up
+      // through this same option, and the old wording read as excluding them.
+      // Changing the DB value instead would mean rewriting the role CHECK
+      // constraint and 30+ RLS policies that test for 'staff'.
+      option('Staff/Officer', AccountType.staff),
     ]);
   }
 }
@@ -478,7 +482,7 @@ class _Step2 extends StatelessWidget {
     final isStaff = accountType == AccountType.staff;
     final semRange = selectedProgram?.semesterRange ?? 12;
     return Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-      Text(isStaff ? 'Staff Info' : 'Academic Info', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
+      Text(isStaff ? 'Staff/Officer Info' : 'Academic Info', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height:6),
       Text(isStudent ? 'Your department and program' : isStaff ? 'Your designation' : 'Your department',
           style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
@@ -521,13 +525,18 @@ class _Step2 extends StatelessWidget {
           ),
         const SizedBox(height:16),
         Row(children:[
+          // Format-checked, not just non-empty: these go into the signup
+          // metadata that handle_new_user copies into students.batch_label/
+          // section, which now carry CHECK constraints -- so an out-of-format
+          // value here would surface as a failed *account creation* rather
+          // than a field-level complaint.
           Expanded(child: AfosTextField(hint:'Batch (e.g. 61)', controller:batchCtrl,
             prefixIcon:Icons.groups_outlined,
-            validator:(v)=>AppValidators.required(v,f:'Batch'))),
+            validator:AppValidators.batch)),
           const SizedBox(width:12),
           Expanded(child: AfosTextField(hint:'Section (e.g. A)', controller:sectionCtrl,
             prefixIcon:Icons.class_outlined,
-            validator:(v)=>AppValidators.required(v,f:'Section'))),
+            validator:AppValidators.section)),
         ]),
         const SizedBox(height:24),
         Text('Semester: ${sem.toInt()} of $semRange', style:AppTextStyles.titleMedium.copyWith(color: textPrimary)),

@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../core/layout/nav_insets.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
@@ -169,7 +170,10 @@ class _ErrorPane extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
+        // Centred pane: without the nav clearance the "visual centre" is the
+        // centre of the window, not of the *visible* area, so the buttons drift
+        // under the floating bar.
+        padding: NavInsets.content(context, h: 28, top: 28, bottom: 28),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.public_off_rounded, size: 44, color: AppColors.amber),
           const SizedBox(height: 16),
@@ -205,7 +209,7 @@ class _Fallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
+        padding: NavInsets.content(context, h: 28, top: 28, bottom: 28),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.open_in_browser_rounded, size: 44, color: AppColors.holoBlue),
           const SizedBox(height: 16),

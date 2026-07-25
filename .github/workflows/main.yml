@@ -25,6 +25,21 @@ jobs:
       # this step fail on every push/PR regardless of real correctness.
       - run: flutter analyze --no-fatal-infos
 
+  # Standing assertion that no SECURITY DEFINER function is reachable by
+  # `anon`. CREATE FUNCTION grants EXECUTE to PUBLIC by default, so a new
+  # definer RPC is exposed unless its author remembers to REVOKE — which has
+  # now been missed three times in this repo (see the script's own docstring).
+  # Runs on every push/PR because the drift arrives with a migration, not with
+  # a release. Cheap: one PostgREST call, no Flutter toolchain.
+  db_security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit SECURITY DEFINER function ACLs
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 .github/scripts/check_definer_acls.py
+
   # No Mac in this project's dev environment (Windows), so this is the only
   # way to know an iOS-breaking change shipped -- macos-latest runners
   # ship Xcode, so this actually compiles the app for iOS (catching missing
@@ -103,7 +118,80 @@ jobs:
             || { echo "::error::Restored google-services.json is not valid JSON."; exit 1; }
           echo "google-services.json restored ($(wc -c < android/app/google-services.json) bytes)"
 
+      # Reconstructs android/key.properties + the keystore from repo secrets so
+      # the APK is signed with the project's real key instead of the public
+      # Android debug key (which would let anyone forge an "update" for it).
+      #
+      # Warns rather than fails when the secrets are absent: until the
+      # maintainer has generated a keystore there is nothing to sign with, and
+      # refusing to publish at all would be a worse outcome than publishing a
+      # debug-signed build the way every release so far already has. The
+      # warning is deliberately loud because a silent fallback is exactly how
+      # this went unnoticed.
+      #
+      # Generate and register the key once with:
+      #   keytool -genkey -v -keystore afos-release.jks -keyalg RSA \
+      #           -keysize 2048 -validity 10000 -alias afos
+      #   base64 -w0 afos-release.jks | gh secret set ANDROID_KEYSTORE_BASE64
+      #   gh secret set ANDROID_KEYSTORE_PASSWORD
+      #   gh secret set ANDROID_KEY_ALIAS
+      #   gh secret set ANDROID_KEY_PASSWORD
+      # Keep afos-release.jks backed up: losing it means you can never ship an
+      # upgrade to an already-installed app again.
+      - name: Restore release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - this APK will be signed with the PUBLIC Android debug key."
+            echo "::warning::Anyone can forge an update for a debug-signed build. See this step's comment for the keytool + gh secret commands."
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/afos-release.jks
+          # Written with a restrictive mode and never echoed.
+          umask 077
+          cat > android/key.properties <<EOF
+          storeFile=afos-release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          echo "Release keystore restored ($(wc -c < android/app/afos-release.jks) bytes)."
+
       - run: flutter build apk --release
+
+      # Proves the APK is NOT debug-signed before it is published. Without
+      # this, a mistyped secret would silently produce a debug-signed release
+      # that looks completely normal until users can't install the next update.
+      - name: Verify release signature
+        env:
+          # Via env, not `${{ }}` inline: interpolating a secret into the
+          # command line puts it in the process table and in `set -x` output.
+          # Only its emptiness is ever tested.
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          # Several build-tools versions can be installed; take the newest so
+          # the glob can't expand to multiple arguments.
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::warning::apksigner not found, skipping signature verification."
+            exit 0
+          fi
+          SIGNER=$("$APKSIGNER" verify --print-certs "$APK" | grep -m1 'Signer #1 certificate DN' || true)
+          echo "$SIGNER"
+          if echo "$SIGNER" | grep -q 'CN=Android Debug'; then
+            if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+              echo "::error::A keystore secret is set but the APK is still debug-signed - the signing config did not apply."
+              exit 1
+            fi
+            echo "::warning::Publishing a DEBUG-SIGNED release APK (no keystore secret configured)."
+          else
+            echo "APK is signed with a non-debug certificate."
+          fi
 
       # Name the artifact after the tag so downloads are self-identifying
       # rather than a pile of interchangeable app-release.apk files.

@@ -10,12 +10,13 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/animations/page_transitions.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
-import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../core/layout/nav_insets.dart';
 class DeptChatScreen extends StatefulWidget {
   const DeptChatScreen({super.key});
   @override State<DeptChatScreen> createState() => _DeptChatState();
@@ -72,18 +73,11 @@ class _DeptChatState extends State<DeptChatScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                    const SizedBox(height: 12),
-                    Text('Couldn\'t load: $_error', textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                    const SizedBox(height: 12),
-                    TextButton(onPressed: _load, child: const Text('Retry')),
-                  ])))
+                ? ErrorView(message: _error!, onRetry: _load)
                 : _channels.isEmpty
                 ? _EmptyChannels(dept: _user?.department ?? '')
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12 + GlassBottomNav.navContentClearance),
+                    padding: EdgeInsets.fromLTRB(12, 0, 12, 12 + NavInsets.of(context)),
                     itemCount: _channels.length,
                     itemBuilder: (ctx, i) => _ChannelTile(
                         channel: _channels[i], user: _user!, index: i))),
@@ -280,7 +274,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
       if (mounted) {
         setState(() => _messages.removeWhere((m) => m['id'] == tempId));
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to send: $e'), backgroundColor: AppColors.red));
+            SnackBar(content: Text('Failed to send: ${friendlyError(e)}'), backgroundColor: AppColors.red));
       }
     }
   }
@@ -336,7 +330,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16 + GlassBottomNav.navContentClearance),
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
                     itemCount: _messages.length,
                     itemBuilder: (ctx, i) => _MsgBubble(
                         msg: _messages[i], isMe: _messages[i]['sender_id'] == SupabaseConfig.uid,
