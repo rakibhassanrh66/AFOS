@@ -4,11 +4,14 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
+import '../../../shared/widgets/pill_badge.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../schedule/data/repositories/course_offering_repository.dart';
 import '../../schedule/presentation/widgets/offering_card.dart';
@@ -17,6 +20,12 @@ import '../../../core/layout/nav_insets.dart';
 /// Admin-facing approval queue for teacher-declared course offerings.
 /// Approving publishes one `schedule_slots` row per declared meeting, so it
 /// immediately shows up in every student/teacher schedule view.
+///
+/// The Reviewed tab exists because approving used to be a one-way door: the
+/// card left the pending queue behind a snackbar and there was no record an
+/// admin could look at afterwards, so nobody could see who had decided what,
+/// or notice a wrong call. `reviewed_by`/`reviewed_at` were written all along
+/// and simply never read back.
 class ManageCourseOfferingsAdminScreen extends StatefulWidget {
   const ManageCourseOfferingsAdminScreen({super.key});
   @override
@@ -24,9 +33,12 @@ class ManageCourseOfferingsAdminScreen extends StatefulWidget {
       _ManageCourseOfferingsAdminScreenState();
 }
 
-class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferingsAdminScreen> {
+class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferingsAdminScreen>
+    with SingleTickerProviderStateMixin {
   final _repo = CourseOfferingRepository();
+  late final TabController _tab = TabController(length: 2, vsync: this);
   List<Map<String, dynamic>> _pending = [];
+  List<Map<String, dynamic>> _reviewed = [];
   bool _loading = true;
   String? _error;
 
@@ -40,11 +52,25 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
     _load();
   }
 
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await _repo.fetchPendingOfferings();
-      if (mounted) setState(() => _pending = res);
+      final results = await Future.wait([
+        _repo.fetchPendingOfferings(),
+        _repo.fetchReviewedOfferings(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _pending = results[0];
+          _reviewed = results[1];
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
     }
@@ -161,8 +187,10 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
       appBar: const AfosAppBar(title: 'Course Offerings'),
       body: Column(children: [
         FeatureHeader(
-          title: 'Pending Offerings',
-          subtitle: _loading ? 'Loading…' : '${_pending.length} awaiting review',
+          title: 'Course Offerings',
+          subtitle: _loading
+              ? 'Loading…'
+              : '${_pending.length} awaiting review · ${_reviewed.length} decided',
           icon: AppIcons.schedule,
           gradient: const LinearGradient(
               begin: Alignment.topLeft,
@@ -170,12 +198,94 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               colors: [AppColors.amber, AppColors.orange]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        AnimatedBuilder(
+          animation: _tab,
+          builder: (ctx, _) => GlassTabBar(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            currentIndex: _tab.index,
+            onChanged: (i) => setState(() => _tab.animateTo(i)),
+            tabs: [
+              GlassTab(_pending.isEmpty ? 'Pending' : 'Pending (${_pending.length})',
+                  icon: Icons.inbox_rounded),
+              const GlassTab('Reviewed', icon: Icons.history_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(
           child: _error != null
               ? ErrorView(message: _error!, onRetry: _load)
-              : RefreshIndicator(onRefresh: _load, child: _body(context)),
+              : TabBarView(controller: _tab, children: [
+                  RefreshIndicator(onRefresh: _load, child: _body(context)),
+                  RefreshIndicator(onRefresh: _load, child: _reviewedTab(context)),
+                ]),
         ),
       ]),
+    );
+  }
+
+  /// The decision record. Read-only on purpose: undoing an approval would
+  /// have to unpick the generated schedule_slots rows and every student's
+  /// pins, which is what `archiveOffering` is for.
+  Widget _reviewedTab(BuildContext context) {
+    if (_loading) return const OfferingCardSkeleton();
+    if (_reviewed.isEmpty) {
+      return ListView(children: const [
+        SizedBox(height: 40),
+        EmptyState(
+            icon: Icons.history_rounded,
+            title: 'Nothing reviewed yet',
+            subtitle: 'Offerings you approve or decline will be listed here with who decided and when'),
+      ]);
+    }
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+      itemCount: _reviewed.length,
+      itemBuilder: (ctx, i) {
+        final o = _reviewed[i];
+        final status = o['status'] as String? ?? '';
+        final approved = status == 'approved';
+        final reviewer = o['reviewer'] as Map<String, dynamic>?;
+        final reviewedAtRaw = o['reviewed_at'] as String?;
+        final reviewedAt = reviewedAtRaw == null ? null : DateTime.tryParse(reviewedAtRaw);
+        final reason = (o['rejection_reason'] as String?)?.trim() ?? '';
+
+        // "Unknown" rather than blank: reviewed_by is ON DELETE SET NULL, so
+        // a decision made by a since-deleted admin legitimately has no name.
+        final who = reviewer?['full_name'] as String? ?? 'Unknown admin';
+        final when = reviewedAt == null ? '' : ' · ${AppFormatters.dateTime(reviewedAt.toLocal())}';
+
+        return OfferingCard(
+          offering: o,
+          index: i,
+          trailing: PillBadge(
+            label: approved ? 'APPROVED' : 'DECLINED',
+            color: approved ? AppColors.green : AppColors.red,
+          ),
+          footer: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(approved ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+                  size: 13, color: AppColors.textSecondaryOf(ctx)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${approved ? 'Approved' : 'Declined'} by $who$when',
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(ctx)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ]),
+            if (!approved && reason.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('Reason: $reason',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.red),
+                  maxLines: 3, overflow: TextOverflow.ellipsis),
+            ],
+          ]),
+        );
+      },
     );
   }
 
