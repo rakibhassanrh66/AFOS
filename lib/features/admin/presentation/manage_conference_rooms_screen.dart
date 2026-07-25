@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -194,7 +195,11 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                             Text('${requester['full_name'] ?? 'Unknown'} (${requester['role'] ?? ''})',
                                 style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                             Text(r['purpose'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                            Text('${r['requested_date']} · ${r['start_time']}–${r['end_time']}',
+                            // See conference_room_screen: raw Postgres `time`
+                            // rendered as "14:00:00–15:00:00".
+                            Text('${r['requested_date']} · '
+                                '${AppFormatters.time12(r['start_time'].toString())}–'
+                                '${AppFormatters.time12(r['end_time'].toString())}',
                                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
                             if (status == 'pending') Padding(padding: const EdgeInsets.only(top: 10), child: Row(children: [
                               Expanded(child: OutlinedButton(onPressed: () => _reject(r),

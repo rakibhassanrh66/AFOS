@@ -14,6 +14,23 @@ class AppFormatters {
     if (h == null || m == null) return hhmmss;
     return DateFormat('h:mm a').format(DateTime(2000, 1, 1, h, m));
   }
+  /// A class time range, e.g. "8:00\u20138:35 AM". When both ends fall in the same
+  /// half of the day \u2014 nearly every single class \u2014 the first meridiem is
+  /// dropped, which keeps the range one character off the old raw 24-hour
+  /// "08:00\u201308:35" it replaced. That matters: this string goes in a chip that
+  /// already overflowed a 320dp card, so buying clarity with ~7 extra
+  /// characters would have pushed the room number back behind an ellipsis.
+  static String timeRange12(String startHhmm, String endHhmm) {
+    final s = time12(startHhmm);
+    final e = time12(endHhmm);
+    if (s.length > 3 && e.length > 3 && s.contains(' ') && e.contains(' ')) {
+      final sMeridiem = s.substring(s.length - 2);
+      final eMeridiem = e.substring(e.length - 2);
+      if (sMeridiem == eMeridiem) return '${s.substring(0, s.length - 3)}\u2013$e';
+    }
+    return '$s\u2013$e';
+  }
+
   static String currency(double amount,{String symbol='\u09F3'}) =>
     '$symbol${amount.toStringAsFixed(2)}';
   static String greeting() {
