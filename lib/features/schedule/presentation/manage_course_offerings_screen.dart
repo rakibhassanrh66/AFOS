@@ -437,6 +437,18 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
           content: Text('Add at least one class meeting'), backgroundColor: AppColors.amber));
       return;
     }
+    // An empty department is silently fatal further downstream: it is not
+    // NULL, so approve_course_offering's `department IS NULL` guard lets it
+    // through, and the offering is published with department '' — which no
+    // student's department-filtered browse query can ever match. The offering
+    // would look approved to everyone and be visible to nobody.
+    if (widget.myDepartment.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Your profile has no department set — add it in Profile before '
+              'creating an offering, or students will never see this course.'),
+          backgroundColor: AppColors.red));
+      return;
+    }
     setState(() => _saving = true);
     try {
       final courseId = await widget.repo.resolveOrCreateCourse(
@@ -490,7 +502,14 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
               const SizedBox(height: 4),
               Text('Sent to admin for approval before it appears on the schedule',
                   style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-              const SizedBox(height: 18),
+              const SizedBox(height: 10),
+
+              // The department is taken from the teacher's own profile and was
+              // applied invisibly — there was no way to tell what an offering
+              // would be filed under, and no warning at all when the profile
+              // had none, which produces a course no student can ever see.
+              _DepartmentNotice(department: widget.myDepartment),
+              const SizedBox(height: 14),
 
               AfosTextField(
                 hint: 'Course code (e.g. CSE431)',
@@ -630,6 +649,43 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
               AfosButton(label: 'Submit for Approval', loading: _saving, onTap: _submit),
             ]),
       ),
+    );
+  }
+}
+
+/// Shows which department the offering will be filed under, or warns when the
+/// teacher's profile has none. Missing is the interesting case: an offering
+/// created with department '' is approvable but invisible to every student.
+class _DepartmentNotice extends StatelessWidget {
+  final String department;
+  const _DepartmentNotice({required this.department});
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = department.trim().isEmpty;
+    final color = missing ? AppColors.red : AppColors.blue;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 0.5),
+      ),
+      child: Row(children: [
+        Icon(missing ? Icons.error_outline_rounded : Icons.apartment_rounded,
+            size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            missing
+                ? 'No department on your profile — set it before submitting, or no student will see this course.'
+                : 'Filed under $department · visible to that department only',
+            style: AppTextStyles.labelSmall.copyWith(
+                color: missing ? color : AppColors.textSecondaryOf(context)),
+          ),
+        ),
+      ]),
     );
   }
 }

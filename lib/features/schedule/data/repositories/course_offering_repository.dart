@@ -156,6 +156,13 @@ class CourseOfferingRepository {
   /// Creates a pending offering plus one `course_offering_meetings` row per
   /// declared meeting. The offering row is inserted first because the
   /// meetings reference its id.
+  ///
+  /// Does NOT notify the reviewing admins from here, deliberately: the
+  /// `trg_notify_offering_submitted` trigger does it in the same transaction
+  /// as the insert. A client-side call would be a second, independent request
+  /// that is silently lost if the app is backgrounded or the network drops
+  /// between the two — which is how an offering once sat ~6h with no admin
+  /// aware of it. Do not add one back.
   Future<String> createOffering({
     required String courseId,
     required String section,
@@ -225,6 +232,29 @@ class CourseOfferingRepository {
           return res.cast<Map<String, dynamic>>();
         },
       );
+
+  /// Offerings that have already been decided, newest decision first — the
+  /// "who did what" record behind the admin screen's Reviewed tab.
+  ///
+  /// Approving used to just drop the card out of the pending queue behind a
+  /// snackbar, so an admin had no way to see what they or anyone else had
+  /// decided, or to catch a mistaken approval. `reviewed_by`/`reviewed_at`
+  /// were already being written; nothing ever read them back.
+  ///
+  /// The teacher embed stays unaliased because OfferingCard reads
+  /// `offering['profiles']`; only the reviewer is aliased. Both resolve
+  /// through `course_offerings_teacher_id_profiles_fkey` and
+  /// `course_offerings_reviewed_by_fkey` respectively.
+  Future<List<Map<String, dynamic>>> fetchReviewedOfferings({int limit = 50}) async {
+    final res = await _client.from('course_offerings')
+        .select('$_offeringSelect, '
+            'profiles!teacher_id(full_name, avatar_url, teacher_initial), '
+            'reviewer:profiles!reviewed_by(full_name, avatar_url)')
+        .inFilter('status', ['approved', 'rejected'])
+        .order('reviewed_at', ascending: false)
+        .limit(limit) as List;
+    return res.cast<Map<String, dynamic>>();
+  }
 
   /// Approves via RPC so the status flip and every generated schedule_slots
   /// row land together, then notifies the teacher and the batch+section the
@@ -353,6 +383,11 @@ class CourseOfferingRepository {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// The offering's teacher is notified by `trg_notify_enrollment_requested`,
+  /// not from here — see [createOffering] for why this is a trigger. Before
+  /// that trigger existed nothing told the teacher a request had arrived, so
+  /// requests sat at REQUEST PENDING forever and the student never reached
+  /// the course group. The group's RLS was never the problem.
   Future<void> requestJoin(String offeringId) async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return;
@@ -374,6 +409,10 @@ class CourseOfferingRepository {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// Both outcomes notify the student via `trg_notify_enrollment_reviewed`,
+  /// which fires on the status transition itself — so it covers this RPC and
+  /// the plain UPDATE below identically, and cannot be bypassed by an admin
+  /// acting through some other path.
   Future<void> approveJoin(String enrollmentId) =>
       _client.rpc('approve_course_join', params: {'p_enrollment_id': enrollmentId});
 
