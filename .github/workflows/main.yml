@@ -130,14 +130,22 @@ jobs:
       # user session, matching how supabase/functions/send-notification
       # already does system-initiated writes — there is no human "admin" user
       # to authenticate as inside a CI runner.
+      #
+      # A missing secret is reported as a WARNING (exit 0), not a job failure:
+      # by this point the GitHub Release + APK are already published, so
+      # failing the job here would mark a genuinely successful release as
+      # "failed" over a step that only mirrors a summary into the app's own
+      # database. This matches record_release.py's own best-effort handling
+      # of Supabase HTTP errors below — only the pre-flight secret check used
+      # to disagree with that, hard-failing where the script itself wouldn't.
       - name: Record release in app_releases (What's New)
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set. Set it with:"
-            echo "::error::  gh secret set SUPABASE_SERVICE_ROLE_KEY"
-            echo "::error::(paste the 'service_role' secret key from Supabase Dashboard > Project Settings > API)"
-            exit 1
+            echo "::warning::SUPABASE_SERVICE_ROLE_KEY secret is not set, skipping What's New row. Set it with:"
+            echo "::warning::  gh secret set SUPABASE_SERVICE_ROLE_KEY"
+            echo "::warning::(paste the 'service_role' secret key from Supabase Dashboard > Project Settings > API)"
+            exit 0
           fi
           python3 .github/scripts/record_release.py
