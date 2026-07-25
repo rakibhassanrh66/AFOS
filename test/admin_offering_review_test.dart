@@ -172,7 +172,10 @@ void main() {
 
     expect(find.textContaining('CSE221'), findsOneWidget);
     expect(find.textContaining('Masuk'), findsOneWidget);
-    expect(find.textContaining('08:00'), findsOneWidget,
+    // 12-hour, matching every other time in the app and the time picker the
+    // teacher used to enter it. The card used to render the stored 24-hour
+    // "08:00" verbatim, so this assertion pinned that inconsistency in place.
+    expect(find.textContaining('8:00–8:35 AM'), findsOneWidget,
         reason: 'the class time must be on the card for a reviewer to judge it');
   });
 }

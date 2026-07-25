@@ -3,6 +3,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -122,7 +123,13 @@ class _RequestsList extends StatelessWidget {
                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
-                Text('${r['requested_date']} · ${r['start_time']}–${r['end_time']}',
+                // start_time/end_time are Postgres `time` columns, which
+                // PostgREST returns as "14:00:00" — rendered raw this read
+                // "14:00:00–15:00:00", seconds and all, in an app that shows
+                // 12-hour times everywhere else.
+                Text('${r['requested_date']} · '
+                    '${AppFormatters.time12(r['start_time'].toString())}–'
+                    '${AppFormatters.time12(r['end_time'].toString())}',
                     style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                 if (status == 'approved')
                   Padding(padding: const EdgeInsets.only(top: 6), child: Text('Room: ${r['assigned_room'] ?? '-'}',

@@ -8,6 +8,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -366,6 +367,14 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
   List<Map<String, dynamic>> _suggestions = [];
   bool _saving = false;
 
+  /// Search state. [_searchedFor] is the query the current [_suggestions]
+  /// belong to — non-null means a search actually completed, which is what
+  /// separates "no matches, this will be a new course" from "haven't looked
+  /// yet". Without it an empty result was indistinguishable from idle.
+  bool _searching = false;
+  String? _searchedFor;
+  int _searchSeq = 0;
+
   /// Owned here rather than left to AfosTextField's internal node, so the code
   /// field can be focused on open — the sheet used to appear with nothing
   /// focused and no keyboard, which read as "search doesn't work".
@@ -385,26 +394,60 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
   /// Debounced at 320ms, matching global_search_screen. Previously this fired
   /// a network round-trip on EVERY keystroke and rebuilt the whole form with
   /// the result, so the suggestion chips flickered in and out while typing.
+  ///
+  /// [_searchSeq] guards against a slow earlier request landing after a newer
+  /// one and overwriting it — debouncing alone doesn't prevent that, because
+  /// two searches that each survive the debounce still race on the network,
+  /// and the loser was silently winning whenever it was slower.
+  ///
+  /// The throw was also unhandled: `searchCourses` on a dropped connection
+  /// produced an unhandled async error and left the spinner up forever.
   void _searchCourses(String q) {
     _searchDebounce?.cancel();
-    if (q.trim().length < 2) {
-      if (_suggestions.isNotEmpty) setState(() => _suggestions = []);
+    final query = q.trim();
+    if (query.length < 2) {
+      if (_suggestions.isNotEmpty || _searching || _searchedFor != null) {
+        setState(() {
+          _suggestions = [];
+          _searching = false;
+          _searchedFor = null;
+        });
+      }
       return;
     }
+    if (!_searching) setState(() => _searching = true);
     _searchDebounce = Timer(const Duration(milliseconds: 320), () async {
-      final res = await widget.repo.searchCourses(q);
-      if (mounted) setState(() => _suggestions = res);
+      final seq = ++_searchSeq;
+      try {
+        final res = await widget.repo.searchCourses(query);
+        if (!mounted || seq != _searchSeq) return;
+        setState(() {
+          _suggestions = res;
+          _searching = false;
+          _searchedFor = query;
+        });
+      } catch (_) {
+        if (mounted && seq == _searchSeq) setState(() => _searching = false);
+      }
     });
   }
 
   void _pickSuggestion(Map<String, dynamic> c) {
+    // Cancel any in-flight search: without this a request already on the wire
+    // lands a moment later and re-opens the suggestion list over the fields
+    // the teacher just had filled in for them.
+    _searchDebounce?.cancel();
+    _searchSeq++;
     setState(() {
       _codeCtrl.text = c['code'] as String? ?? '';
       _titleCtrl.text = c['title'] as String? ?? '';
       _creditsCtrl.text = '${c['credit_hours'] ?? 3}';
       _courseType = c['course_type'] as String? ?? 'theory';
       _suggestions = [];
+      _searching = false;
+      _searchedFor = null;
     });
+    FocusScope.of(context).unfocus();
   }
 
   Future<void> _addMeeting() async {
@@ -521,18 +564,50 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                 // courses.code, which carries a format CHECK.
                 validator: AppValidators.courseCode,
               ),
-              if (_suggestions.isNotEmpty)
+              // Was a Wrap of ActionChips at a hardcoded fontSize 11 carrying
+              // "CODE · Full Course Title" — on a phone one chip wrapped to
+              // three lines and several were unreadable, and there was no way
+              // to tell whether the search had run, was running, or had found
+              // nothing. The last case matters most: no match means
+              // resolveOrCreateCourse will CREATE the course, which the
+              // teacher should know before submitting.
+              if (_searching)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(children: [
+                    const SizedBox(
+                        width: 13, height: 13,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 10),
+                    Text('Searching…',
+                        style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                  ]),
+                )
+              else if (_suggestions.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Wrap(
-                      spacing: 6, runSpacing: 6,
-                      children: _suggestions
-                          .map((c) => ActionChip(
-                                label: Text('${c['code']} · ${c['title']}',
-                                    style: const TextStyle(fontSize: 11)),
-                                onPressed: () => _pickSuggestion(c),
-                              ))
-                          .toList()),
+                  child: Column(
+                    children: [
+                      for (final c in _suggestions)
+                        _CourseSuggestionRow(course: c, onTap: () => _pickSuggestion(c)),
+                    ],
+                  ),
+                )
+              else if (_searchedFor != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(children: [
+                    const Icon(Icons.add_circle_outline_rounded,
+                        size: 14, color: AppColors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'No existing course matches "$_searchedFor" — it will be '
+                        'created from the title and credits below.',
+                        style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+                      ),
+                    ),
+                  ]),
                 ),
               const SizedBox(height: 12),
               AfosTextField(
@@ -653,6 +728,61 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
   }
 }
 
+/// One course-search result. Full-width and tappable rather than a chip, so
+/// the code stays scannable and a long title can ellipsize instead of
+/// reflowing the whole list. Credits and type are shown because picking a
+/// suggestion overwrites both fields — previously that happened invisibly.
+class _CourseSuggestionRow extends StatelessWidget {
+  final Map<String, dynamic> course;
+  final VoidCallback onTap;
+  const _CourseSuggestionRow({required this.course, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLab = (course['course_type'] as String?) == 'lab';
+    final accent = isLab ? AppColors.purple : AppColors.blue;
+    final credits = course['credit_hours'];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+            border: Border.all(color: accent.withValues(alpha: 0.22), width: 0.5),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(course['code'] as String? ?? '—',
+                    style: AppTextStyles.titleMedium.copyWith(color: accent)),
+                Text(course['title'] as String? ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelSmall
+                        .copyWith(color: AppColors.textSecondaryOf(context))),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            if (credits != null)
+              Text('$credits cr',
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+            if (isLab) ...[
+              const SizedBox(width: 6),
+              const PillBadge(label: 'LAB', color: AppColors.purple),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 /// Shows which department the offering will be filed under, or warns when the
 /// teacher's profile has none. Missing is the interesting case: an offering
 /// created with department '' is approvable but invisible to every student.
@@ -717,7 +847,11 @@ class _MeetingRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$day ${meeting.startTime}–${meeting.endTime}'
+            // 12-hour, matching the picker that produced it. The editor shows
+            // "8:00 AM" via TimeOfDay.format but this row rendered the stored
+            // raw "08:00", so a meeting displayed differently from the time
+            // the teacher had just chosen.
+            Text('$day ${AppFormatters.timeRange12(meeting.startTime, meeting.endTime)}'
                 '${meeting.labSubgroup > 0 ? ' · J${meeting.labSubgroup}' : ''}',
                 style: AppTextStyles.titleMedium.copyWith(color: accent)),
             if (where.isNotEmpty)
@@ -764,6 +898,15 @@ class _MeetingEditorState extends State<_MeetingEditor> {
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   int _minutes(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  /// [start] + [mins], clamped to the same day rather than wrapping past
+  /// midnight — a 6pm start with a 3h lab must not become 9pm "yesterday",
+  /// which is what modulo arithmetic would produce and _done() would then
+  /// reject as "end before start".
+  TimeOfDay _plus(TimeOfDay start, int mins) {
+    final total = (_minutes(start) + mins).clamp(0, 23 * 60 + 59);
+    return TimeOfDay(hour: total ~/ 60, minute: total % 60);
+  }
 
   Future<void> _pick(bool isStart) async {
     final picked = await showTimePicker(context: context, initialTime: isStart ? _start : _end);
@@ -839,6 +982,32 @@ class _MeetingEditorState extends State<_MeetingEditor> {
                   child: OutlinedButton(
                       onPressed: () => _pick(false),
                       child: Text('End ${_end.format(context)}'))),
+            ]),
+
+            // Every meeting used to cost two full time-picker dialogs even
+            // for the handful of lengths DIU actually timetables. These set
+            // the end from the start in one tap; the pickers remain for
+            // anything irregular.
+            const SizedBox(height: 8),
+            Row(children: [
+              Text('Duration',
+                  style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final mins in const [60, 90, 120, 180])
+                      GlassChip(
+                        label: mins % 60 == 0 ? '${mins ~/ 60}h' : '${mins ~/ 60}h${mins % 60}',
+                        selected: _minutes(_end) - _minutes(_start) == mins,
+                        onTap: () => setState(() => _end = _plus(_start, mins)),
+                      ),
+                  ],
+                ),
+              ),
             ]),
             const SizedBox(height: 14),
             Row(children: [

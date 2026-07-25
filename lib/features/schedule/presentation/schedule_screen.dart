@@ -432,7 +432,10 @@ class _ExamCard extends StatelessWidget {
             if (exam['start_time'] != null) ...[
               Icon(Icons.access_time_rounded, size: 12, color: textSecondary),
               const SizedBox(width: 3),
-              Text(exam['start_time'].toString().substring(0, 5), style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+              // substring(0,5) turned "13:00:00" into a bare 24-hour "13:00";
+              // every other time in the app is 12-hour.
+              Text(AppFormatters.time12(exam['start_time'].toString()),
+                  style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
             ],
           ]),
         ])),

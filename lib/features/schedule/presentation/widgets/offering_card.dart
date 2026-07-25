@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_text_styles.dart';
 import '../../../../config/theme/liquid_glass_tokens.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/info_card.dart';
 import '../../../../core/layout/nav_insets.dart';
 import '../../../../shared/widgets/pill_badge.dart';
@@ -181,7 +182,8 @@ class _MeetingChip extends StatelessWidget {
         // Flexible still sizes to content whenever there IS room.
         Flexible(
           child: Text(
-            '$day ${meeting.startTime}–${meeting.endTime}$subgroup${where.isEmpty ? '' : ' · $where'}',
+            '$day ${AppFormatters.timeRange12(meeting.startTime, meeting.endTime)}'
+            '$subgroup${where.isEmpty ? '' : ' · $where'}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.labelSmall.copyWith(
