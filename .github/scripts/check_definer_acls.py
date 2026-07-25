@@ -51,8 +51,8 @@ def main() -> None:
         with urllib.request.urlopen(req) as resp:
             offenders = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        # Unlike record_release.py, a failure here IS fatal: this is a
-        # security assertion, and "we couldn't tell" must not read as "fine".
+        # A failure here IS fatal: this is a security assertion, and
+        # "we couldn't tell" must not read as "fine".
         print(f"::error::definer-ACL audit could not run ({e.code}): {e.read().decode()}")
         sys.exit(1)
 
