@@ -166,32 +166,58 @@ jobs:
       # Proves the APK is NOT debug-signed before it is published. Without
       # this, a mistyped secret would silently produce a debug-signed release
       # that looks completely normal until users can't install the next update.
+      # Pins the exact certificate the APK must be signed with. An earlier
+      # version of this step only checked that the DN wasn't "CN=Android
+      # Debug", which passed VACUOUSLY: apksigner produced no matching line,
+      # the empty string didn't match the debug pattern, and it reported
+      # success without ever having seen a certificate. v2.5.4 shipped signed
+      # with a stale keystore that way, because ANDROID_KEYSTORE_BASE64 still
+      # held the first key generated on 2026-07-25 and was never re-set after
+      # the keystore was regenerated on 2026-07-26.
+      #
+      # A certificate fingerprint is public (it ships inside every APK), so
+      # pinning it here in cleartext discloses nothing. It is the app's
+      # permanent identity: Android refuses an update signed by a different
+      # key, so shipping the wrong one forces every user to uninstall and
+      # reinstall. That mistake is only cheap before the first install, which
+      # is exactly why this must fail the build rather than warn.
       - name: Verify release signature
         env:
           # Via env, not `${{ }}` inline: interpolating a secret into the
           # command line puts it in the process table and in `set -x` output.
           # Only its emptiness is ever tested.
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          EXPECTED_SHA256: 2f49802b7533aa2f193b30de86edd7f124c3ebbf0e6196fb0c05ca614a03623f
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
           # Several build-tools versions can be installed; take the newest so
           # the glob can't expand to multiple arguments.
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
           if [ -z "$APKSIGNER" ]; then
-            echo "::warning::apksigner not found, skipping signature verification."
+            echo "::error::apksigner not found - cannot verify the signature, refusing to publish."
+            exit 1
+          fi
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+          echo "$CERTS" | grep -E 'Signer #1 certificate (DN|SHA-256 digest)' || true
+
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::Publishing a DEBUG-SIGNED release APK (no keystore secret configured)."
             exit 0
           fi
-          SIGNER=$("$APKSIGNER" verify --print-certs "$APK" | grep -m1 'Signer #1 certificate DN' || true)
-          echo "$SIGNER"
-          if echo "$SIGNER" | grep -q 'CN=Android Debug'; then
-            if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-              echo "::error::A keystore secret is set but the APK is still debug-signed - the signing config did not apply."
-              exit 1
-            fi
-            echo "::warning::Publishing a DEBUG-SIGNED release APK (no keystore secret configured)."
-          else
-            echo "APK is signed with a non-debug certificate."
+
+          ACTUAL=$(echo "$CERTS" | grep -m1 'Signer #1 certificate SHA-256 digest:' | awk '{print $NF}')
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::Could not read the APK's signing certificate. Refusing to publish an unverified build."
+            exit 1
           fi
+          if [ "$ACTUAL" != "$EXPECTED_SHA256" ]; then
+            echo "::error::APK is signed with the WRONG key."
+            echo "::error::  expected $EXPECTED_SHA256"
+            echo "::error::  actual   $ACTUAL"
+            echo "::error::Re-set ANDROID_KEYSTORE_BASE64 (and the password/alias secrets) from the current android/app/afos-release.jks."
+            exit 1
+          fi
+          echo "APK signature verified against the pinned certificate ($ACTUAL)."
 
       # Name the artifact after the tag so downloads are self-identifying
       # rather than a pile of interchangeable app-release.apk files.
