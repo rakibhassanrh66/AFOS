@@ -190,24 +190,58 @@ jobs:
           EXPECTED_SHA256: 2f49802b7533aa2f193b30de86edd7f124c3ebbf0e6196fb0c05ca614a03623f
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
-          # Several build-tools versions can be installed; take the newest so
-          # the glob can't expand to multiple arguments.
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::apksigner not found - cannot verify the signature, refusing to publish."
-            exit 1
+
+          # Diagnostics, unconditionally. The v2.5.4 and v2.5.5 runs both got
+          # NOTHING out of apksigner — empty capture, exit 0 — and the log gave
+          # no way to tell why, because the previous version of this step threw
+          # away stderr and printed only its own conclusion. That silence is
+          # exactly what let the old "is the DN CN=Android Debug?" check pass
+          # without ever having seen a certificate.
+          echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
+          echo "APKSIGNER=${APKSIGNER:-<none>}"
+          ls -l "$APK" || true
+
+          CERTS=""
+          RC=0
+          if [ -n "$APKSIGNER" ]; then
+            # 2>&1: apksigner puts warnings, and on some setups everything, on
+            # stderr. set +e so a non-zero verdict is reported here rather than
+            # aborting the step via `bash -e` with no explanation.
+            set +e
+            CERTS=$("$APKSIGNER" verify --print-certs "$APK" 2>&1)
+            RC=$?
+            set -e
           fi
-          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
-          echo "$CERTS" | grep -E 'Signer #1 certificate (DN|SHA-256 digest)' || true
+          echo "apksigner exit=$RC"
+          echo "----- apksigner output -----"
+          echo "$CERTS"
+          echo "----------------------------"
+
+          ACTUAL=$(printf '%s\n' "$CERTS" | grep -m1 -i 'certificate SHA-256 digest:' \
+                   | awk '{print $NF}' | tr 'A-Z' 'a-z' | tr -d '[:space:]')
+
+          # Fallback only. keytool ships with the JDK this job already installs,
+          # but -printcert -jarfile reads the v1/JAR signature ONLY — a Flutter
+          # release APK signed with just v2/v3 yields nothing here, which was
+          # verified locally against a real published APK before relying on it.
+          if [ -z "$ACTUAL" ]; then
+            echo "apksigner gave no digest; trying keytool (v1 signatures only)"
+            ACTUAL=$(keytool -printcert -jarfile "$APK" 2>/dev/null \
+                     | grep -m1 -i 'SHA256:' \
+                     | sed 's/.*SHA256:[[:space:]]*//; s/://g' \
+                     | tr 'A-Z' 'a-z' | tr -d '[:space:]')
+          fi
+          echo "resolved SHA-256: ${ACTUAL:-<none>}"
 
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "::warning::Publishing a DEBUG-SIGNED release APK (no keystore secret configured)."
             exit 0
           fi
 
-          ACTUAL=$(echo "$CERTS" | grep -m1 'Signer #1 certificate SHA-256 digest:' | awk '{print $NF}')
           if [ -z "$ACTUAL" ]; then
             echo "::error::Could not read the APK's signing certificate. Refusing to publish an unverified build."
+            echo "::error::See the apksigner output above for why."
             exit 1
           fi
           if [ "$ACTUAL" != "$EXPECTED_SHA256" ]; then
