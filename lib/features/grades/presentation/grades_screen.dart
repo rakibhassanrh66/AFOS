@@ -49,10 +49,27 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
   List<Map<String, dynamic>> _results = [];
   Map<String, Map<String, dynamic>> _labels = {};
   Map<String, dynamic>? _cgpa;
+  /// semester -> SGPA, from `student_sgpa()`. Results are grouped under a
+  /// per-semester header carrying this, which is how a DIU transcript reads and
+  /// how students actually think about their record.
+  Map<int, double> _sgpas = {};
   final Map<String, List<Map<String, dynamic>>> _breakdowns = {};
   String? _expanded;
   bool _loading = true;
   String? _error;
+
+  /// Published results bucketed by the semester of their offering, newest
+  /// first. The semester lives on `course_offerings`, not on
+  /// `enrollment_results`, so it comes from the labels already fetched for
+  /// course titles rather than from a second query.
+  Map<int, List<Map<String, dynamic>>> get _bySemester {
+    final out = <int, List<Map<String, dynamic>>>{};
+    for (final r in _results) {
+      final sem = (_labels[r['offering_id']]?['semester'] as num?)?.toInt() ?? 0;
+      (out[sem] ??= []).add(r);
+    }
+    return out;
+  }
 
   @override
   void initState() {
@@ -67,8 +84,17 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
       final labels = await _repo.fetchOfferingLabels(
           [for (final r in results) r['offering_id'] as String]);
       final cgpa = await _repo.fetchMyCgpa();
+      final sgpas = await _repo.fetchMySemesterGpas([
+        for (final r in results)
+          (labels[r['offering_id']]?['semester'] as num?)?.toInt() ?? 0,
+      ]);
       if (!mounted) return;
-      setState(() { _results = results; _labels = labels; _cgpa = cgpa; });
+      setState(() {
+        _results = results;
+        _labels = labels;
+        _cgpa = cgpa;
+        _sgpas = sgpas;
+      });
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
     }
@@ -125,7 +151,15 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                                   'A result appears here once your teacher submits it and the admin approves it'),
                         )
                       else
-                        for (final r in _results) _resultCard(r),
+                        // Grouped by semester, newest first, each group headed
+                        // by its own SGPA. A flat list gave no sense of how a
+                        // particular term had gone, which is the comparison a
+                        // student actually makes.
+                        for (final sem in (_bySemester.keys.toList()..sort((a, b) => b.compareTo(a)))) ...[
+                          _SemesterHeader(semester: sem, sgpa: _sgpas[sem]),
+                          for (final r in _bySemester[sem]!) _resultCard(r),
+                          const SizedBox(height: 6),
+                        ],
                     ],
                   ),
                 ),
@@ -214,6 +248,41 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                       ),
                   ]),
           ),
+      ]),
+    );
+  }
+}
+
+/// Header above one semester's results, carrying that semester's own GPA.
+class _SemesterHeader extends StatelessWidget {
+  final int semester;
+  final double? sgpa;
+  const _SemesterHeader({required this.semester, required this.sgpa});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = sgpa;
+    final color = v == null
+        ? AppColors.textSecondaryOf(context)
+        : v < 2.0
+            ? AppColors.red
+            : v >= 3.75
+                ? AppColors.gold
+                : AppColors.green;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      child: Row(children: [
+        Text(semester > 0 ? 'Semester $semester' : 'Other',
+            style: AppTextStyles.titleMedium
+                .copyWith(color: AppColors.textPrimaryOf(context))),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Divider(
+              color: AppColors.borderOf(context), thickness: 0.5, height: 1),
+        ),
+        const SizedBox(width: 8),
+        if (v != null)
+          PillBadge(label: 'SGPA ${v.toStringAsFixed(2)}', color: color),
       ]),
     );
   }
