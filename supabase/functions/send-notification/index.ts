@@ -80,7 +80,14 @@ serve(async (req) => {
     const callerId = authData.user.id
 
     const body = await req.json()
-    const { title, message, deepLink, category, userIds, roleFilter, departmentFilter, broadcastAll, clubId } = body
+    // pushOnly: send the OneSignal banner but do NOT insert user_notifications.
+    // For events whose in-app row is already written by a database trigger --
+    // offering approved, results published, teaching allocated -- so the
+    // durable record is transactional and unlosable while the banner, which is
+    // ephemeral by nature, stays best-effort. Without this the caller has to
+    // choose between a reliable record with no banner, or a banner plus a
+    // duplicate row in the student's notification list.
+    const { title, message, deepLink, category, userIds, roleFilter, departmentFilter, broadcastAll, clubId, pushOnly } = body
     if (!title || !message) {
       return new Response(JSON.stringify({ error: "title and message are required." }), { status: 400, headers: corsHeaders })
     }
@@ -154,7 +161,11 @@ serve(async (req) => {
       user_id: uid, title, body: message, category: category ?? "general",
       deep_link_route: deepLink ?? null,
     }))
-    const { error: insertErr } = await supabase.from("user_notifications").insert(rows)
+    let insertErr: { message: string } | null = null
+    if (!pushOnly) {
+      const { error } = await supabase.from("user_notifications").insert(rows)
+      insertErr = error
+    }
 
     let pushTargeted = 0
     let pushError: string | null = null
@@ -179,7 +190,9 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      success: true, inAppInserted: insertErr ? 0 : rows.length, insertError: insertErr?.message, pushTargeted, pushError,
+      success: true,
+      inAppInserted: pushOnly ? 0 : (insertErr ? 0 : rows.length),
+      insertError: insertErr?.message, pushTargeted, pushError,
     }), { headers: corsHeaders })
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders })
