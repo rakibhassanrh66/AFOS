@@ -507,7 +507,24 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
               ],
             ]),
           ),
-        ).animate(delay: Duration(milliseconds: i * 55)).fadeIn().slideY(begin: 0.05);
+        );
+        // NO entrance animation here, deliberately.
+        //
+        // This was `.animate(delay: i * 55ms).fadeIn().slideY(...)`, and it is
+        // why the Join Requests tab looked permanently empty while its title
+        // showed a live count. fadeIn() starts at opacity ZERO, and TabBarView
+        // builds the page you are not looking at inside a disabled TickerMode
+        // — so the controller never advances and the cards sit there, laid out
+        // and occupying space, at opacity 0. Tab 0 is the default and animates
+        // normally, which is exactly why My Offerings looked fine and only this
+        // tab was blank.
+        //
+        // The staggered delay made it worse: with i * 55ms, later rows stayed
+        // invisible longest, and every setState (a busy flag, a tab swipe)
+        // restarted the fade from zero.
+        //
+        // A queue of decisions does not need an entrance. If an animation is
+        // ever wanted back here, it must not be one that gates visibility.
       },
     );
   }
