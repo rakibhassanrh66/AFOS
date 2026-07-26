@@ -23,6 +23,7 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/course_offering_repository.dart';
+import '../data/repositories/teaching_assignment_repository.dart';
 import 'course_group_screen.dart';
 import 'widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -407,6 +408,14 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
   List<Map<String, dynamic>> _suggestions = [];
   bool _saving = false;
 
+  /// Teaching allocated to this teacher by their department's module leader
+  /// and not yet turned into an offering. Picking one fills the form in, which
+  /// is the whole point of the allocation existing — the teacher previously
+  /// typed the course code, batch and section from memory.
+  final _assignmentRepo = TeachingAssignmentRepository();
+  List<Map<String, dynamic>> _assignments = [];
+  Map<String, dynamic>? _fromAssignment;
+
   /// Search state. [_searchedFor] is the query the current [_suggestions]
   /// belong to; it is what lets the in-flight guard in [_searchCourses] tell a
   /// completed search from an idle field. It no longer drives any "no match"
@@ -420,6 +429,42 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
   /// focused and no keyboard, which read as "search doesn't work".
   final _codeFocus = FocusNode();
   Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssignments();
+  }
+
+  Future<void> _loadAssignments() async {
+    try {
+      final rows = await _assignmentRepo.fetchMyAssignments(unclaimedOnly: true);
+      if (mounted) setState(() => _assignments = rows);
+    } catch (_) {
+      // Silent: allocations are a shortcut, not a requirement. A teacher whose
+      // department has not appointed a module leader yet must still be able to
+      // fill the form in by hand.
+    }
+  }
+
+  /// Fills the form from an allocation. The fields stay editable — a module
+  /// leader can mistype a section, and blocking the teacher from fixing it
+  /// would just push them back to creating the offering from scratch.
+  void _applyAssignment(Map<String, dynamic> a) {
+    setState(() {
+      _fromAssignment = a;
+      _codeCtrl.text = a['course_code'] as String? ?? '';
+      final title = a['course_title'] as String? ?? '';
+      if (title.isNotEmpty) _titleCtrl.text = title;
+      _courseType = a['course_type'] as String? ?? 'theory';
+      _batchCtrl.text = a['batch'] as String? ?? '';
+      _sectionCtrl.text = a['section'] as String? ?? '';
+      _semesterCtrl.text = (a['semester'] as num?)?.toString() ?? '';
+      _suggestions = [];
+      _searchedFor = null;
+    });
+    FocusScope.of(context).unfocus();
+  }
 
   @override
   void dispose() {
@@ -513,7 +558,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
         courseType: _courseType,
         departmentCode: widget.myDepartment,
       );
-      await widget.repo.createOffering(
+      final offeringId = await widget.repo.createOffering(
         courseId: courseId,
         section: _sectionCtrl.text.trim(),
         department: widget.myDepartment,
@@ -521,6 +566,14 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
         semester: int.parse(_semesterCtrl.text.trim()),
         outlineText: _outlineCtrl.text,
       );
+      // Stamps the allocation so the module leader can see it has been acted
+      // on. Best-effort inside the repository — the offering is the thing that
+      // matters and must not fail because the bookkeeping did.
+      final from = _fromAssignment;
+      if (from != null) {
+        await _assignmentRepo.markClaimed(
+            assignmentId: from['id'] as String, offeringId: offeringId);
+      }
       widget.onCreated();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -564,6 +617,26 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
               // had none, which produces a course no student can ever see.
               _DepartmentNotice(department: widget.myDepartment),
               const SizedBox(height: 14),
+
+              // Anything the module leader allocated and the teacher has not
+              // yet opened an offering for. Absent entirely when there is
+              // nothing outstanding, so a department without a module leader
+              // sees the plain form exactly as before.
+              if (_assignments.isNotEmpty) ...[
+                Text('Allocated to you',
+                    style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+                const SizedBox(height: 6),
+                Text('Tap one to fill this form in. You can still edit anything after.',
+                    style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+                const SizedBox(height: 8),
+                for (final a in _assignments)
+                  _AssignmentChoice(
+                    assignment: a,
+                    selected: _fromAssignment?['id'] == a['id'],
+                    onTap: () => _applyAssignment(a),
+                  ),
+                const SizedBox(height: 16),
+              ],
 
               AfosTextField(
                 hint: 'Course code (e.g. CSE431)',
@@ -799,6 +872,66 @@ class _DepartmentNotice extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+/// One outstanding teaching allocation, offered as a starting point for the
+/// New Course Offering form.
+class _AssignmentChoice extends StatelessWidget {
+  final Map<String, dynamic> assignment;
+  final bool selected;
+  final VoidCallback onTap;
+  const _AssignmentChoice({
+    required this.assignment,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLab = assignment['course_type'] == 'lab';
+    final color = selected ? AppColors.green : AppColors.blue;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: selected ? 0.14 : 0.06),
+            borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+            border: Border.all(
+                color: color.withValues(alpha: selected ? 0.5 : 0.22), width: 0.8),
+          ),
+          child: Row(children: [
+            Icon(selected ? Icons.check_circle_rounded : Icons.assignment_outlined,
+                size: 17, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${assignment['course_code']} · ${isLab ? 'Lab' : 'Theory'}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                        fontWeight: FontWeight.w600)),
+                Text(
+                    'Batch ${assignment['batch']} · Section ${assignment['section']}'
+                    ' · Semester ${assignment['semester']}',
+                    style: AppTextStyles.labelSmall
+                        .copyWith(color: AppColors.textSecondaryOf(context))),
+                if ((assignment['note'] as String?)?.isNotEmpty == true)
+                  Text(assignment['note'] as String,
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textSecondaryOf(context))),
+              ]),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }
