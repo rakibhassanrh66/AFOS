@@ -9,6 +9,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -265,12 +266,24 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
   Widget _joinRequestsTab() {
     if (_loading) return const OfferingCardSkeleton();
     if (_joinRequests.isEmpty) {
-      return ListView(children: const [
-        SizedBox(height: 40),
+      // Two very different situations used to share one message. A teacher who
+      // owns no approved offering CANNOT receive a request at all, and telling
+      // them "no requests yet" left them waiting for something that could never
+      // arrive — which reads as the screen being broken.
+      final approved = _offerings
+          .where((o) => o['status'] == 'approved' && o['is_archived'] != true)
+          .length;
+      return ListView(children: [
+        const SizedBox(height: 40),
         EmptyState(
-            icon: Icons.how_to_reg_outlined,
-            title: 'No join requests yet',
-            subtitle: 'Students requesting to join your offerings show up here'),
+          icon: approved == 0 ? Icons.menu_book_outlined : Icons.how_to_reg_outlined,
+          title: approved == 0 ? 'No approved course yet' : 'No join requests yet',
+          subtitle: approved == 0
+              ? 'Students can only apply once one of your offerings is approved. '
+                  'Create one with New Offering, then wait for admin approval.'
+              : 'Students who apply to your $approved approved '
+                  'offering${approved == 1 ? '' : 's'} appear here for review',
+        ),
       ]);
     }
     return ListView.builder(
@@ -284,6 +297,18 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
         final course = offering['courses'] as Map<String, dynamic>? ?? const {};
         final status = r['status'] as String? ?? 'pending';
         final busy = _busyIds.contains(id);
+        final requestedAt = DateTime.tryParse(r['created_at'] as String? ?? '');
+
+        // The vetting detail a teacher needs but the chat caller must not
+        // reveal: the university email (which encodes the student ID) and the
+        // semester they say they are in. Passed as extra rows rather than
+        // added to the shared sheet, so this stays scoped to join requests.
+        void openDetails() => showUserDetailsSheet(ctx, student, extraRows: {
+              'Email': student['email'] as String? ?? '',
+              if ((student['semester'] as num?) != null)
+                'Semester': '${student['semester']}',
+              if (requestedAt != null) 'Requested': AppFormatters.dateTime(requestedAt),
+            });
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -297,7 +322,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
                 // recognise rather than a bare name string. Tapping anywhere
                 // on the identity row opens the full profile sheet.
                 GestureDetector(
-                  onTap: () => showUserDetailsSheet(ctx, student),
+                  onTap: openDetails,
                   child: _StudentAvatar(
                       name: student['full_name'] as String?,
                       avatarUrl: student['avatar_url'] as String?),
@@ -305,7 +330,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
                 const SizedBox(width: 12),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => showUserDetailsSheet(ctx, student),
+                    onTap: openDetails,
                     behavior: HitTestBehavior.opaque,
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
