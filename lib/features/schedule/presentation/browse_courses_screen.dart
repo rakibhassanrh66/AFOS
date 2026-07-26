@@ -94,6 +94,26 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
 
   bool get _canScopeToSection => _batch.isNotEmpty && _section.isNotEmpty;
 
+  Future<void> _cancelRequest(String offeringId) async {
+    final enrollmentId = _myEnrollmentsByOffering[offeringId]?['id'] as String?;
+    if (enrollmentId == null) return;
+    setState(() => _busyOfferings.add(offeringId));
+    try {
+      await _repo.withdrawJoinRequest(enrollmentId);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Request cancelled'), backgroundColor: AppColors.amber));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+    if (mounted) setState(() => _busyOfferings.remove(offeringId));
+  }
+
   Future<void> _requestJoin(String offeringId) async {
     setState(() => _busyOfferings.add(offeringId));
     try {
@@ -237,8 +257,30 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
         Icon(Icons.forum_outlined, size: 16, color: AppColors.textSecondaryOf(context)),
       ]);
     }
+    if (status == 'pending') {
+      // Was a dead 'REQUEST PENDING' badge with nothing to press. A request
+      // sent to the wrong section sat in the teacher's queue forever and the
+      // student had no way to take it back — there was no DELETE policy on
+      // enrollments at all, so the missing button was the symptom, not the
+      // cause. Cancelling is allowed only while it is still undecided.
+      final busy = _busyOfferings.contains(offeringId);
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        const PillBadge(label: 'PENDING', color: AppColors.amber),
+        const SizedBox(width: 6),
+        TextButton(
+          onPressed: busy ? null : () => _cancelRequest(offeringId),
+          style: TextButton.styleFrom(
+              foregroundColor: AppColors.red,
+              visualDensity: VisualDensity.compact),
+          child: busy
+              ? const SizedBox(
+                  width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Cancel'),
+        ),
+      ]);
+    }
     return PillBadge(
-      label: status == 'pending' ? 'REQUEST PENDING' : status.toUpperCase(),
+      label: status.toUpperCase(),
       color: offeringStatusColor(status),
     );
   }

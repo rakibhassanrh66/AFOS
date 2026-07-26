@@ -436,6 +436,23 @@ class CourseOfferingRepository {
   /// which fires on the status transition itself — so it covers this RPC and
   /// the plain UPDATE below identically, and cannot be bypassed by an admin
   /// acting through some other path.
+  /// Takes back a join request the student sent but the teacher has not yet
+  /// decided on.
+  ///
+  /// Deletes rather than marking withdrawn: a request nobody ruled on is not a
+  /// decision worth keeping, and a new status would have to be filtered out of
+  /// every teacher-facing query afterwards.
+  ///
+  /// The `status = 'pending'` filter mirrors the RLS policy exactly, so this
+  /// never silently no-ops against a row the database would refuse anyway — an
+  /// approved enrolment is a drop, not a cancel, and stays with the teacher.
+  Future<void> withdrawJoinRequest(String enrollmentId) =>
+      _client.from('enrollments')
+          .delete()
+          .eq('id', enrollmentId)
+          .eq('student_id', SupabaseConfig.uid ?? '')
+          .eq('status', 'pending');
+
   /// [studentId] is optional and only used for the push banner. The trigger
   /// writes the in-app row transactionally; a trigger cannot reach OneSignal,
   /// so without this the student is admitted with nothing on their phone —
