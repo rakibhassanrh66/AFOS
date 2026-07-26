@@ -8,6 +8,7 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -62,6 +63,12 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
   final _repo = CourseOfferingRepository();
   late final TabController _tab = TabController(length: 2, vsync: this);
   List<Map<String, dynamic>> _offerings = [], _joinRequests = [];
+
+  /// Ended offerings. Loaded and SHOWN, where before fetchMyArchivedOfferings()
+  /// existed but no screen called it -- so ending a course made it vanish with
+  /// no trace and no way back, and the only symptom was a teacher seeing none
+  /// of their own courses anywhere in the app.
+  List<Map<String, dynamic>> _archived = [];
   String _myDepartment = '';
   Map<String, dynamic>? _term;
   bool _loading = true;
@@ -91,6 +98,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
         _repo.fetchMyOfferings(),
         _repo.fetchOfferingJoinRequests(),
         _repo.fetchActiveTerm(),
+        _repo.fetchMyArchivedOfferings(),
       ]);
       if (mounted) {
         setState(() {
@@ -98,6 +106,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
           _offerings = results[1] as List<Map<String, dynamic>>;
           _joinRequests = results[2] as List<Map<String, dynamic>>;
           _term = results[3] as Map<String, dynamic>?;
+          _archived = results[4] as List<Map<String, dynamic>>;
         });
       }
     } catch (e) {
@@ -118,6 +127,27 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
       }
     }
     if (mounted) setState(() => _busyIds.remove(id));
+  }
+
+  Future<void> _restore(Map<String, dynamic> offering) async {
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Bring this course back?'),
+        content: Text(
+            '${course['code'] ?? 'This course'} (Section ${offering['section']}) '
+            'will reappear in your class lists for Results, Attendance and '
+            'Assignments, and students will be able to find it again.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Restore')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _guard(offering['id'] as String,
+        () => _repo.restoreOffering(offering['id'] as String));
   }
 
   Future<void> _withdraw(String offeringId) => _guard(offeringId, () => _repo.withdrawOffering(offeringId));
@@ -209,7 +239,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
 
   Widget _offeringsTab() {
     if (_loading) return const OfferingCardSkeleton();
-    if (_offerings.isEmpty) {
+    if (_offerings.isEmpty && _archived.isEmpty) {
       return ListView(children: const [
         SizedBox(height: 40),
         EmptyState(
@@ -218,10 +248,25 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
             subtitle: 'Tap "New Offering" to declare a course you teach'),
       ]);
     }
+    // The ended courses are appended after the live ones. Showing them at all
+    // is the point: an archived offering is filtered out of every other list in
+    // the app, so if this screen hides it too there is nowhere left that
+    // explains where the course went.
     return ListView.builder(
       padding: NavInsets.content(context, top: 0, fab: true),
-      itemCount: _offerings.length,
-      itemBuilder: (ctx, i) {
+      itemCount: _offerings.length + (_archived.isEmpty ? 0 : _archived.length + 1),
+      itemBuilder: (ctx, rawIndex) {
+        if (rawIndex >= _offerings.length) {
+          final ai = rawIndex - _offerings.length;
+          if (ai == 0) return _EndedHeader(count: _archived.length);
+          final a = _archived[ai - 1];
+          return _EndedOfferingRow(
+            offering: a,
+            busy: _busyIds.contains(a['id']),
+            onRestore: () => _restore(a),
+          );
+        }
+        final i = rawIndex;
         final o = _offerings[i];
         final id = o['id'] as String;
         final status = o['status'] as String? ?? 'pending';
@@ -818,6 +863,84 @@ class _DepartmentNotice extends StatelessWidget {
             style: AppTextStyles.labelSmall.copyWith(
                 color: missing ? color : AppColors.textSecondaryOf(context)),
           ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Separates live offerings from ended ones, and says plainly what ending a
+/// course did — the consequence is invisible everywhere else.
+class _EndedHeader extends StatelessWidget {
+  final int count;
+  const _EndedHeader({required this.count});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 18, bottom: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.archive_outlined,
+                size: 16, color: AppColors.textSecondaryOf(context)),
+            const SizedBox(width: 6),
+            Text('Ended ($count)',
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textPrimaryOf(context))),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+              'These are hidden from your class lists, from Attendance and '
+              'Results, and from students. Restore one to bring it back.',
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.textSecondaryOf(context))),
+        ]),
+      );
+}
+
+/// An ended offering, with the way back.
+class _EndedOfferingRow extends StatelessWidget {
+  final Map<String, dynamic> offering;
+  final bool busy;
+  final VoidCallback onRestore;
+  const _EndedOfferingRow({
+    required this.offering,
+    required this.busy,
+    required this.onRestore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final endedAt = DateTime.tryParse(offering['archived_at'] as String? ?? '');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: AppColors.borderOf(context), width: 0.5),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${course['code'] ?? ''} — ${course['title'] ?? ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context))),
+            Text(
+                'Batch ${offering['batch'] ?? ''} · Section ${offering['section'] ?? ''}'
+                '${endedAt == null ? '' : ' · ended ${AppFormatters.dateTime(endedAt)}'}',
+                style: AppTextStyles.labelSmall
+                    .copyWith(color: AppColors.textSecondaryOf(context))),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        OutlinedButton(
+          onPressed: busy ? null : onRestore,
+          child: busy
+              ? const SizedBox(
+                  width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Restore'),
         ),
       ]),
     );

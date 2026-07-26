@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../config/app_config.dart';
+import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
@@ -73,6 +75,16 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   bool _loading = true, _bulkBusy = false;
   String? _error;
 
+  /// Identity of the signed-in teacher and how many offerings they own.
+  ///
+  /// Fetched purely so an empty list can explain ITSELF. "No requests" has
+  /// three completely different causes that look identical on screen — signed
+  /// in as a teacher who owns no course, signed in as the wrong teacher, or a
+  /// query that genuinely returns nothing — and without this the only way to
+  /// tell them apart was for me to guess.
+  String? _whoEmail;
+  int _myOfferings = 0;
+
   @override
   void initState() {
     super.initState();
@@ -83,7 +95,23 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final rows = await _repo.fetchOfferingJoinRequests();
-      if (mounted) setState(() => _requests = rows);
+      final mine = await _repo.fetchMyOfferings();
+      final uid = SupabaseConfig.uid;
+      final me = uid == null
+          ? null
+          : await SupabaseConfig.client
+              .from('profiles').select('email, role').eq('id', uid).maybeSingle();
+      if (mounted) {
+        setState(() {
+          _requests = rows;
+          _myOfferings = mine
+              .where((o) => o['status'] == 'approved' && o['is_archived'] != true)
+              .length;
+          _whoEmail = me == null
+              ? null
+              : '${me['email'] ?? 'unknown'} · ${me['role'] ?? '?'}';
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
     }
@@ -201,7 +229,11 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                       // count and the visible rows ever disagree again, that
                       // is now readable on the device instead of being an
                       // invisible contradiction.
-                      _CountLine(total: _requests.length, pending: pending),
+                      _CountLine(
+                          total: _requests.length,
+                          pending: pending,
+                          who: _whoEmail,
+                          offerings: _myOfferings),
                       const SizedBox(height: 10),
                       if (matching >= 2) ...[
                         _BulkAdmitBar(
@@ -245,17 +277,47 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
 /// States plainly how many rows were loaded, so a blank list can never again be
 /// mistaken for an empty one.
 class _CountLine extends StatelessWidget {
-  final int total, pending;
-  const _CountLine({required this.total, required this.pending});
+  final int total, pending, offerings;
+  final String? who;
+  const _CountLine({
+    required this.total,
+    required this.pending,
+    required this.who,
+    required this.offerings,
+  });
 
   @override
-  Widget build(BuildContext context) => Text(
+  Widget build(BuildContext context) {
+    final dim = AppTextStyles.labelSmall
+        .copyWith(color: AppColors.textSecondaryOf(context));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(
         total == 0
             ? 'No requests loaded'
             : '$total request${total == 1 ? '' : 's'} loaded · $pending awaiting your decision',
-        style: AppTextStyles.labelSmall
-            .copyWith(color: AppColors.textSecondaryOf(context)),
-      );
+        style: dim,
+      ),
+      const SizedBox(height: 2),
+      // Deliberately always shown, not hidden behind a debug flag. Three very
+      // different causes of an empty list look identical on screen — the wrong
+      // teacher is signed in, the right one owns no approved course, or the
+      // query really is returning nothing — and this is the difference between
+      // reading the answer off the device and me guessing at it again.
+      Text(
+        'v${AppConfig.appVersion} · ${who ?? 'not signed in'} · '
+        '$offerings approved offering${offerings == 1 ? '' : 's'}',
+        style: dim.copyWith(fontSize: 10),
+      ),
+      if (total == 0 && offerings == 0) ...[
+        const SizedBox(height: 6),
+        Text(
+          'You own no approved offering, so no student can apply to you yet. '
+          'That is why this is empty.',
+          style: dim.copyWith(color: AppColors.amber),
+        ),
+      ],
+    ]);
+  }
 }
 
 /// Catches a build failure in one row and shows it, rather than letting the
