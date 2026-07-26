@@ -156,7 +156,17 @@ class _DashboardState extends State<DashboardScreen> {
           if (mounted) setState(() => _weekSlots = mine);
         } catch (_) {}
       }
-    } else if (role == 'super_admin') {
+    } else if (_adminTierRoles.contains(role)) {
+      // Extended past super_admin: trg_notify_offering_submitted already
+      // notifies admin and dept_admin too, so a dept_admin was being told a
+      // course needed review and then shown a dashboard that said nothing.
+      //
+      // course_offerings is world-readable (public_read_offerings USING true),
+      // so a dept_admin's count has to be narrowed here or they would see
+      // every department's backlog as their own.
+      final dept = p['department'] as String?;
+      final offeringsQuery = SupabaseConfig.client.from('course_offerings')
+          .select('id').eq('status', 'pending').eq('is_archived', false);
       try {
         final results = await Future.wait([
           SupabaseConfig.client.from('profiles').select('id').eq('is_verified', false) as Future,
@@ -167,6 +177,11 @@ class _DashboardState extends State<DashboardScreen> {
           SupabaseConfig.client.from('conference_room_requests').select('id').eq('status', 'pending') as Future,
           SupabaseConfig.client.from('cr_requests').select('id').eq('status', 'pending') as Future,
           SupabaseConfig.client.from('feedback').select('id').eq('status', 'new') as Future,
+          (role == 'dept_admin' && dept != null && dept.isNotEmpty
+              ? offeringsQuery.eq('department', dept)
+              : offeringsQuery) as Future,
+          SupabaseConfig.client.from('offering_result_submissions').select('id')
+              .eq('status', 'submitted') as Future,
         ]);
         if (mounted) {
           setState(() => _adminPending = {
@@ -176,6 +191,8 @@ class _DashboardState extends State<DashboardScreen> {
           'conference': (results[4] as List).length,
           'cr': (results[5] as List).length,
           'feedback': (results[6] as List).length,
+          'offerings': (results[7] as List).length,
+          'results': (results[8] as List).length,
         });
         }
       } catch (_) {}
@@ -254,6 +271,10 @@ class _DashboardState extends State<DashboardScreen> {
     return _ClassStatus(current: current);
   }
 
+  /// Roles that get the pending-queue grid instead of the personal quick
+  /// chips. An admin has no hall room or library loan of their own to report.
+  static const _adminTierRoles = ['super_admin', 'admin', 'dept_admin'];
+
   static const _adminCategories = {
     'users':      ('New Signups',       Icons.how_to_reg_rounded, AppColors.holoviolet, '/admin/users'),
     'hall':       ('Hall Requests',      AppIcons.hall,            AppColors.amber,      '/admin/hall'),
@@ -261,6 +282,12 @@ class _DashboardState extends State<DashboardScreen> {
     'conference': ('Conference Rooms',   AppIcons.conferenceRoom,  AppColors.holoTeal,   '/admin/conference-rooms'),
     'cr':         ('CR Requests',        Icons.badge_rounded,      AppColors.gold,       '/admin/users'),
     'feedback':   ('Feedback',           Icons.feedback_rounded,   AppColors.red,        '/admin/feedback'),
+    // Both queues existed and neither was surfaced here: a teacher's course
+    // offering and their submitted results each sat waiting with nothing on
+    // the dashboard to say so, so the only way to notice was to open the
+    // screen and look.
+    'offerings':  ('Course Offerings',   AppIcons.schedule,        AppColors.blue,       '/admin/course-offerings'),
+    'results':    ('Results to Publish', Icons.grading_rounded,    AppColors.indigo,     '/grades'),
   };
 
   /// Highest-count pending category, surfaced the same way student/teacher
@@ -340,7 +367,7 @@ class _DashboardState extends State<DashboardScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       _Greeting(user: _user, loading: _loading),
                       const SizedBox(height: 16),
-                      _user?.role == 'super_admin'
+                      _adminTierRoles.contains(_user?.role)
                           ? _AdminPendingGrid(pending: _adminPending, categories: _adminCategories, loading: _statsLoading)
                           : _QuickChips(chips: _quickChips, loading: _statsLoading),
                     ]),
@@ -352,7 +379,7 @@ class _DashboardState extends State<DashboardScreen> {
                   const SizedBox(height: 16),
                   _ClassStatusCard(status: _classStatus),
                 ],
-                if (_user?.role == 'super_admin' && _adminFeatured != null) ...[
+                if (_adminTierRoles.contains(_user?.role) && _adminFeatured != null) ...[
                   const SizedBox(height: 16),
                   _FeaturedCard(module: _adminFeatured!.$1, reason: _adminFeatured!.$2),
                 ] else if (_user?.role != 'super_admin' && _featured != null) ...[

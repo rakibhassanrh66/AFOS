@@ -42,6 +42,7 @@ import '../../features/schedule/presentation/schedule_screen.dart';
 import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
 import '../../features/schedule/presentation/browse_courses_screen.dart';
 import '../../features/schedule/presentation/manage_course_offerings_screen.dart';
+import '../../features/schedule/presentation/module_leader_screen.dart';
 import '../../features/schedule/presentation/room_availability_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/releases_screen.dart';
@@ -230,6 +231,7 @@ class AppRouter {
           GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
           GoRoute(path: '/room-availability', pageBuilder: (c,s) => slideRightPage(const RoomAvailabilityScreen(), s)),
           GoRoute(path: '/schedule/my-offerings', pageBuilder: (c,s) => slideRightPage(const ManageCourseOfferingsScreen(), s)),
+          GoRoute(path: '/schedule/teaching-load', pageBuilder: (c,s) => slideRightPage(const ModuleLeaderScreen(), s)),
           GoRoute(path: '/schedule/browse-courses', pageBuilder: (c,s) => slideRightPage(const BrowseCoursesScreen(), s)),
           GoRoute(path: '/admin/course-offerings', pageBuilder: (c,s) => slideRightPage(const ManageCourseOfferingsAdminScreen(), s)),
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),

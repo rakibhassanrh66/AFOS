@@ -123,6 +123,13 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _attendanceItem =
     _MenuItem('Attendance', Icons.how_to_reg_rounded, '/attendance', AppColors.green);
 
+  // Shown to every teacher rather than only to appointed module leaders: the
+  // appointment lives in a table, not in RoleSession, so the menu cannot know
+  // without a query. The screen itself says "Not a module leader" to anyone
+  // who opens it without the appointment.
+  static const _teachingLoadItem =
+    _MenuItem('Teaching Load', Icons.assignment_ind_rounded, '/schedule/teaching-load', AppColors.indigo);
+
   static const _browseCoursesItem =
     _MenuItem('Browse Courses', Icons.menu_book_rounded, '/schedule/browse-courses', AppColors.blue);
 
@@ -198,15 +205,15 @@ class _SlideMenuState extends State<SlideMenu> {
     // room, exam seat, or payment of their own to apply for, so showing
     // those would be nonsensical, not just redundant.
     if (role == 'super_admin') {
-      return [..._commonItems, ..._adminItems, ..._superAdminItems, _feedbackItem];
+      return [..._commonItems, ..._adminItems, _teachingLoadItem, ..._superAdminItems, _feedbackItem];
     }
     if (const ['admin', 'dept_admin'].contains(role)) {
-      return [..._commonItems, ..._adminItems, _feedbackItem];
+      return [..._commonItems, ..._adminItems, _teachingLoadItem, _feedbackItem];
     }
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _myOfferingsItem, _attendanceItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
+      return [..._commonItems, _myOfferingsItem, _attendanceItem, _teachingLoadItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
     }
     if (role == 'staff') {
       return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem, _feedbackItem];
