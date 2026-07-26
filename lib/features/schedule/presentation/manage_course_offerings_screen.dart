@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
@@ -8,7 +9,6 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
-import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -20,6 +20,7 @@ import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/info_card.dart';
 import '../../../shared/widgets/pill_badge.dart';
+import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/course_offering_repository.dart';
 import 'course_group_screen.dart';
@@ -290,23 +291,63 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
             stripe: true,
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Photo + ID, so the teacher is approving a person they can
+                // recognise rather than a bare name string. Tapping anywhere
+                // on the identity row opens the full profile sheet.
+                GestureDetector(
+                  onTap: () => showUserDetailsSheet(ctx, student),
+                  child: _StudentAvatar(
+                      name: student['full_name'] as String?,
+                      avatarUrl: student['avatar_url'] as String?),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(student['full_name'] as String? ?? 'Student',
-                      style: AppTextStyles.titleMedium
-                          .copyWith(color: AppColors.textPrimaryOf(ctx)),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: GestureDetector(
+                    onTap: () => showUserDetailsSheet(ctx, student),
+                    behavior: HitTestBehavior.opaque,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Flexible(
+                          child: Text(student['full_name'] as String? ?? 'Student',
+                              style: AppTextStyles.titleMedium
+                                  .copyWith(color: AppColors.textPrimaryOf(ctx)),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        if (student['is_verified'] == true)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 5),
+                            child: Icon(Icons.verified_rounded,
+                                size: 15, color: AppColors.blue),
+                          ),
+                      ]),
+                      if ((student['university_id'] as String?)?.isNotEmpty == true)
+                        Text(student['university_id'] as String,
+                            style: AppTextStyles.labelSmall
+                                .copyWith(color: AppColors.textSecondaryOf(ctx))),
+                      Text('Tap for full details',
+                          style: AppTextStyles.labelSmall
+                              .copyWith(color: AppColors.blue.withValues(alpha: 0.85))),
+                    ]),
+                  ),
                 ),
                 PillBadge(label: status.toUpperCase(), color: offeringStatusColor(status)),
               ]),
-              const SizedBox(height: 4),
+              const SizedBox(height: 10),
               Text('wants to join ${course['code'] ?? ''} · Section ${offering['section'] ?? ''}',
                   style: AppTextStyles.bodyMedium
                       .copyWith(color: AppColors.textSecondaryOf(ctx))),
-              if ((student['batch'] as String?)?.isNotEmpty == true)
-                Text('Their batch/section: ${student['batch']}/${student['section'] ?? ''}',
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.textSecondaryOf(ctx))),
+              const SizedBox(height: 6),
+              // The decision this card exists for is "is this student actually
+              // in the batch/section I'm teaching?", so answer it directly
+              // instead of printing two strings and leaving the teacher to
+              // compare them.
+              _BatchMatchNotice(
+                studentBatch: student['batch'] as String?,
+                studentSection: student['section'] as String?,
+                offeringBatch: offering['batch'] as String?,
+                offeringSection: offering['section'] as String?,
+              ),
               if (status == 'pending') ...[
                 const SizedBox(height: 12),
                 // Paired Outlined/Filled buttons, matching the admin queue's
@@ -363,14 +404,13 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
   final _semesterCtrl = TextEditingController();
   final _outlineCtrl = TextEditingController();
   String _courseType = 'theory';
-  final List<OfferingMeeting> _meetings = [];
   List<Map<String, dynamic>> _suggestions = [];
   bool _saving = false;
 
   /// Search state. [_searchedFor] is the query the current [_suggestions]
-  /// belong to — non-null means a search actually completed, which is what
-  /// separates "no matches, this will be a new course" from "haven't looked
-  /// yet". Without it an empty result was indistinguishable from idle.
+  /// belong to; it is what lets the in-flight guard in [_searchCourses] tell a
+  /// completed search from an idle field. It no longer drives any "no match"
+  /// message — an unmatched code is perfectly valid and simply gets created.
   bool _searching = false;
   String? _searchedFor;
   int _searchSeq = 0;
@@ -450,36 +490,8 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
     FocusScope.of(context).unfocus();
   }
 
-  Future<void> _addMeeting() async {
-    // showGlassModal (not showGlassSheet): _MeetingEditor supplies its own
-    // padding and keyboard lift, and this variant deliberately doesn't
-    // double them.
-    final m = await showGlassModal<OfferingMeeting>(
-      context,
-      builder: (_) => _MeetingEditor(defaultType: _courseType),
-    );
-    if (m == null) return;
-    // Catching the clash here rather than at the DB's unique constraint means
-    // the teacher sees which meeting conflicts, not a raw 23505.
-    final clash = _meetings.where((e) => e.overlaps(m)).isNotEmpty;
-    if (clash) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('That overlaps a meeting you already added'),
-            backgroundColor: AppColors.amber));
-      }
-      return;
-    }
-    setState(() => _meetings.add(m));
-  }
-
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_meetings.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Add at least one class meeting'), backgroundColor: AppColors.amber));
-      return;
-    }
     // An empty department is silently fatal further downstream: it is not
     // NULL, so approve_course_offering's `department IS NULL` guard lets it
     // through, and the offering is published with department '' — which no
@@ -507,7 +519,6 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
         department: widget.myDepartment,
         batch: _batchCtrl.text.trim(),
         semester: int.parse(_semesterCtrl.text.trim()),
-        meetings: _meetings,
         outlineText: _outlineCtrl.text,
       );
       widget.onCreated();
@@ -564,13 +575,14 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                 // courses.code, which carries a format CHECK.
                 validator: AppValidators.courseCode,
               ),
-              // Was a Wrap of ActionChips at a hardcoded fontSize 11 carrying
-              // "CODE · Full Course Title" — on a phone one chip wrapped to
-              // three lines and several were unreadable, and there was no way
-              // to tell whether the search had run, was running, or had found
-              // nothing. The last case matters most: no match means
-              // resolveOrCreateCourse will CREATE the course, which the
-              // teacher should know before submitting.
+              // Suggestions are a CONVENIENCE ONLY — tapping one just fills in
+              // the title/credits. Any code is accepted whether or not it
+              // matches something already on file; resolveOrCreateCourse
+              // creates it on the fly. There used to be a "no existing course
+              // matches X" notice on the empty result, which read as though
+              // the code were being checked against the routine and had
+              // failed. Codes are routinely new or merged, so that notice was
+              // wrong to show and is deliberately gone — do not add it back.
               if (_searching)
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
@@ -592,22 +604,6 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                         _CourseSuggestionRow(course: c, onTap: () => _pickSuggestion(c)),
                     ],
                   ),
-                )
-              else if (_searchedFor != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(children: [
-                    const Icon(Icons.add_circle_outline_rounded,
-                        size: 14, color: AppColors.amber),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'No existing course matches "$_searchedFor" — it will be '
-                        'created from the title and credits below.',
-                        style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
-                      ),
-                    ),
-                  ]),
                 ),
               const SizedBox(height: 12),
               AfosTextField(
@@ -680,45 +676,32 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                   hint: 'Course outline (optional)', controller: _outlineCtrl, maxLines: 3),
 
               const SizedBox(height: 18),
-              Row(children: [
-                Expanded(
-                  child: Text('Class meetings',
-                      style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+              // Meetings used to be declared here, one row per session, and at
+              // least one was required before the form would submit. They are
+              // gone on purpose: the class itself IS the meeting, so there is
+              // nothing separate to schedule. Kept as a visible note so a
+              // teacher looking for the old "Add" button knows it was removed
+              // deliberately rather than hunting for it.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+                  border: Border.all(color: AppColors.blue.withValues(alpha: 0.25), width: 0.5),
                 ),
-                TextButton.icon(
-                  onPressed: _addMeeting,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Add'),
-                ),
-              ]),
-              Text(
-                'One per session. A course meeting twice a week is two meetings; '
-                'a lab split into J1/J2 is one per subgroup.',
-                style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
-              ),
-              const SizedBox(height: 8),
-              if (_meetings.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.amber.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
-                    border: Border.all(color: AppColors.amber.withValues(alpha: 0.25), width: 0.5),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.groups_2_outlined, size: 18, color: AppColors.blue),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Course meetings are held in class, just before the '
+                      'session starts — no separate meeting time to set up.',
+                      style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
+                    ),
                   ),
-                  child: Text('No meetings added yet — tap "Add".',
-                      style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                )
-              else
-                Column(
-                  children: [
-                    for (var i = 0; i < _meetings.length; i++)
-                      _MeetingRow(
-                        meeting: _meetings[i],
-                        onRemove: () => setState(() => _meetings.removeAt(i)),
-                      ),
-                  ],
-                ),
+                ]),
+              ),
 
               const SizedBox(height: 20),
               AfosButton(label: 'Submit for Approval', loading: _saving, onTap: _submit),
@@ -820,242 +803,89 @@ class _DepartmentNotice extends StatelessWidget {
   }
 }
 
-class _MeetingRow extends StatelessWidget {
-  final OfferingMeeting meeting;
-  final VoidCallback onRemove;
-  const _MeetingRow({required this.meeting, required this.onRemove});
+/// Requester's profile photo, falling back to their initial. Small enough to
+/// sit in a list row but large enough to actually recognise a face.
+class _StudentAvatar extends StatelessWidget {
+  final String? name;
+  final String? avatarUrl;
+  const _StudentAvatar({required this.name, required this.avatarUrl});
 
   @override
   Widget build(BuildContext context) {
-    final isLab = meeting.classType == 'lab';
-    final accent = isLab ? AppColors.purple : AppColors.blue;
-    final where = [meeting.building, meeting.roomNumber]
-        .where((s) => s.trim().isNotEmpty).join(' ');
-    final day = meeting.dayOfWeek >= 0 && meeting.dayOfWeek < 7
-        ? kDayLabels[meeting.dayOfWeek] : '—';
+    final url = avatarUrl;
+    final hasUrl = url != null && url.isNotEmpty;
+    final initial = (name?.trim().isNotEmpty == true ? name!.trim()[0] : '?').toUpperCase();
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: AppColors.blue.withValues(alpha: 0.15),
+      backgroundImage: hasUrl ? CachedNetworkImageProvider(url) : null,
+      child: hasUrl
+          ? null
+          : Text(initial,
+              style: const TextStyle(
+                  color: AppColors.blue, fontSize: 17, fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
+/// Answers the one question the join-request card exists to answer: is this
+/// requester actually in the batch and section being taught?
+///
+/// The teacher used to be shown the offering's batch/section in one line and
+/// the student's in another and left to compare them by eye. A mismatch is
+/// legitimate (a retaker, or someone who moved section), so this informs
+/// rather than blocks — but it must be impossible to miss.
+class _BatchMatchNotice extends StatelessWidget {
+  final String? studentBatch, studentSection, offeringBatch, offeringSection;
+  const _BatchMatchNotice({
+    required this.studentBatch,
+    required this.studentSection,
+    required this.offeringBatch,
+    required this.offeringSection,
+  });
+
+  static String _norm(String? v) => (v ?? '').trim().toUpperCase();
+
+  @override
+  Widget build(BuildContext context) {
+    final sb = _norm(studentBatch), ss = _norm(studentSection);
+    final ob = _norm(offeringBatch), os = _norm(offeringSection);
+
+    final Color color;
+    final IconData icon;
+    final String message;
+
+    if (sb.isEmpty && ss.isEmpty) {
+      color = AppColors.amber;
+      icon = Icons.help_outline_rounded;
+      message = 'This student has not set their batch or section yet.';
+    } else if (sb == ob && ss == os) {
+      color = AppColors.green;
+      icon = Icons.check_circle_outline_rounded;
+      message = 'In batch $sb, section $ss — matches this offering.';
+    } else {
+      color = AppColors.amber;
+      icon = Icons.error_outline_rounded;
+      message = 'In batch ${sb.isEmpty ? '—' : sb}, section ${ss.isEmpty ? '—' : ss}'
+          ' — this offering is batch $ob, section $os.';
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.07),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
-        border: Border.all(color: accent.withValues(alpha: 0.22), width: 0.5),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 0.5),
       ),
-      child: Row(children: [
-        Icon(isLab ? Icons.science_outlined : Icons.schedule_rounded, size: 16, color: accent),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 15, color: color),
         const SizedBox(width: 8),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // 12-hour, matching the picker that produced it. The editor shows
-            // "8:00 AM" via TimeOfDay.format but this row rendered the stored
-            // raw "08:00", so a meeting displayed differently from the time
-            // the teacher had just chosen.
-            Text('$day ${AppFormatters.timeRange12(meeting.startTime, meeting.endTime)}'
-                '${meeting.labSubgroup > 0 ? ' · J${meeting.labSubgroup}' : ''}',
-                style: AppTextStyles.titleMedium.copyWith(color: accent)),
-            if (where.isNotEmpty)
-              Text(where,
-                  style: AppTextStyles.labelSmall
-                      .copyWith(color: AppColors.textSecondaryOf(context))),
-          ]),
-        ),
-        IconButton(
-          onPressed: onRemove,
-          icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.red),
-          visualDensity: VisualDensity.compact,
+          child: Text(message,
+              style: AppTextStyles.labelSmall.copyWith(color: color)),
         ),
       ]),
-    );
-  }
-}
-
-/// Compact editor for a single meeting; returns it via [Navigator.pop].
-class _MeetingEditor extends StatefulWidget {
-  final String defaultType;
-  const _MeetingEditor({required this.defaultType});
-  @override
-  State<_MeetingEditor> createState() => _MeetingEditorState();
-}
-
-class _MeetingEditorState extends State<_MeetingEditor> {
-  final _roomCtrl = TextEditingController();
-  final _buildingCtrl = TextEditingController();
-  int _day = 2; // Mon
-  TimeOfDay _start = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay _end = const TimeOfDay(hour: 9, minute: 30);
-  late String _type = widget.defaultType;
-  int _subgroup = 0;
-
-  @override
-  void dispose() {
-    _roomCtrl.dispose();
-    _buildingCtrl.dispose();
-    super.dispose();
-  }
-
-  String _fmt(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
-  int _minutes(TimeOfDay t) => t.hour * 60 + t.minute;
-
-  /// [start] + [mins], clamped to the same day rather than wrapping past
-  /// midnight — a 6pm start with a 3h lab must not become 9pm "yesterday",
-  /// which is what modulo arithmetic would produce and _done() would then
-  /// reject as "end before start".
-  TimeOfDay _plus(TimeOfDay start, int mins) {
-    final total = (_minutes(start) + mins).clamp(0, 23 * 60 + 59);
-    return TimeOfDay(hour: total ~/ 60, minute: total % 60);
-  }
-
-  Future<void> _pick(bool isStart) async {
-    final picked = await showTimePicker(context: context, initialTime: isStart ? _start : _end);
-    if (picked == null) return;
-    setState(() {
-      if (isStart) {
-        _start = picked;
-        // Keep end after start automatically rather than rejecting later.
-        if (_minutes(_end) <= _minutes(_start)) {
-          _end = TimeOfDay(hour: (picked.hour + 1) % 24, minute: picked.minute);
-        }
-      } else {
-        _end = picked;
-      }
-    });
-  }
-
-  void _done() {
-    if (_minutes(_end) <= _minutes(_start)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('End time must be after start time'), backgroundColor: AppColors.amber));
-      return;
-    }
-    Navigator.pop(
-      context,
-      OfferingMeeting(
-        dayOfWeek: _day,
-        startTime: _fmt(_start),
-        endTime: _fmt(_end),
-        roomNumber: _roomCtrl.text,
-        building: _buildingCtrl.text,
-        classType: _type,
-        labSubgroup: _type == 'lab' ? _subgroup : 0,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textPrimary = AppColors.textPrimaryOf(context);
-    final textSecondary = AppColors.textSecondaryOf(context);
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Add a meeting',
-                style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-            const SizedBox(height: 14),
-            Text('Day', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6, runSpacing: 6,
-              children: [
-                for (var i = 0; i < kDayLabels.length; i++)
-                  GlassChip(
-                    label: kDayLabels[i],
-                    selected: _day == i,
-                    onTap: () => setState(() => _day = i),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(
-                  child: OutlinedButton(
-                      onPressed: () => _pick(true),
-                      child: Text('Start ${_start.format(context)}'))),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: OutlinedButton(
-                      onPressed: () => _pick(false),
-                      child: Text('End ${_end.format(context)}'))),
-            ]),
-
-            // Every meeting used to cost two full time-picker dialogs even
-            // for the handful of lengths DIU actually timetables. These set
-            // the end from the start in one tap; the pickers remain for
-            // anything irregular.
-            const SizedBox(height: 8),
-            Row(children: [
-              Text('Duration',
-                  style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final mins in const [60, 90, 120, 180])
-                      GlassChip(
-                        label: mins % 60 == 0 ? '${mins ~/ 60}h' : '${mins ~/ 60}h${mins % 60}',
-                        selected: _minutes(_end) - _minutes(_start) == mins,
-                        onTap: () => setState(() => _end = _plus(_start, mins)),
-                      ),
-                  ],
-                ),
-              ),
-            ]),
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(
-                child: GlassChip(
-                    label: 'Theory',
-                    selected: _type == 'theory',
-                    expand: true,
-                    onTap: () => setState(() { _type = 'theory'; _subgroup = 0; })),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: GlassChip(
-                    label: 'Lab',
-                    selected: _type == 'lab',
-                    expand: true,
-                    color: AppColors.purple,
-                    onTap: () => setState(() => _type = 'lab')),
-              ),
-            ]),
-            if (_type == 'lab') ...[
-              const SizedBox(height: 14),
-              Text('Lab subgroup', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-              const SizedBox(height: 6),
-              Row(children: [
-                for (final s in const [0, 1, 2]) ...[
-                  Expanded(
-                    child: GlassChip(
-                      label: s == 0 ? 'Whole class' : 'J$s',
-                      selected: _subgroup == s,
-                      expand: true,
-                      color: AppColors.purple,
-                      onTap: () => setState(() => _subgroup = s),
-                    ),
-                  ),
-                  if (s != 2) const SizedBox(width: 6),
-                ],
-              ]),
-            ],
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(child: AfosTextField(hint: 'Building', controller: _buildingCtrl)),
-              const SizedBox(width: 10),
-              Expanded(child: AfosTextField(hint: 'Room number', controller: _roomCtrl)),
-            ]),
-            const SizedBox(height: 20),
-            AfosButton(label: 'Add meeting', onTap: _done),
-          ]),
     );
   }
 }

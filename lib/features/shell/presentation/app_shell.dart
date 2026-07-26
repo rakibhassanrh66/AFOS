@@ -10,6 +10,7 @@ import '../../../core/navigation/back_press_tracker.dart';
 import '../../../core/navigation/router_location.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/glass_bottom_nav.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/liquid_backdrop.dart';
 import '../../../shared/widgets/offline_banner.dart';
 import '../../sos/presentation/sos_floating_button.dart';
@@ -230,26 +231,39 @@ class _ShellBody extends StatelessWidget {
           const SosGate(),
           // Floating quick-access bottom nav (mobile/tablet). Placed before
           // the scrim + drawer so an open drawer overlays it.
-          Positioned(
-            left: 0, right: 0, bottom: 0,
-            child: SafeArea(
-              top: false,
-              // Rebuilt off the router delegate (a ChangeNotifier) rather than
-              // off this Bloc build, so the indicator is guaranteed to re-read
-              // after ANY navigation -- imperative pushes included -- instead of
-              // depending on the shell happening to rebuild.
-              child: ListenableBuilder(
-                listenable: GoRouter.of(context).routerDelegate,
-                builder: (_, __) => GlassBottomNav(
-                  destinations: kQuickNavDestinations,
-                  currentIndex: navIndexForRouter(GoRouter.of(context)),
-                  // `go` for the 4 quick destinations specifically: these are
-                  // top-level tabs, so re-selecting one should replace, not
-                  // stack Home on top of Home.
-                  onTap: (i) => context.go(kQuickNavDestinations[i].route),
-                ),
-              ),
-            ),
+          // Hidden while any glass sheet is open. Sheets sit on the SHELL
+          // navigator (deliberately -- see showGlassSheet), which makes them a
+          // sibling of this Positioned rather than a child of it, and this one
+          // comes later in the Stack so it painted straight over them. On the
+          // New Course Offering form that put the frosted bar on top of the
+          // Submit button, which read as "an extra square box" cutting the
+          // form off. GlassSheet drops the matching bottom clearance for the
+          // same window, so nothing is left reserving space for a hidden bar.
+          ValueListenableBuilder<int>(
+            valueListenable: openGlassSheetCount,
+            builder: (_, sheetCount, __) => sheetCount > 0
+                ? const SizedBox.shrink()
+                : Positioned(
+                    left: 0, right: 0, bottom: 0,
+                    child: SafeArea(
+                      top: false,
+                      // Rebuilt off the router delegate (a ChangeNotifier) rather than
+                      // off this Bloc build, so the indicator is guaranteed to re-read
+                      // after ANY navigation -- imperative pushes included -- instead of
+                      // depending on the shell happening to rebuild.
+                      child: ListenableBuilder(
+                        listenable: GoRouter.of(context).routerDelegate,
+                        builder: (_, __) => GlassBottomNav(
+                          destinations: kQuickNavDestinations,
+                          currentIndex: navIndexForRouter(GoRouter.of(context)),
+                          // `go` for the 4 quick destinations specifically: these are
+                          // top-level tabs, so re-selecting one should replace, not
+                          // stack Home on top of Home.
+                          onTap: (i) => context.go(kQuickNavDestinations[i].route),
+                        ),
+                      ),
+                    ),
+                  ),
           ),
           // The only part of this shell that reads ShellBloc's isOpen state
           // — scoped here (not around the whole build method above) so

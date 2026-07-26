@@ -153,9 +153,12 @@ class CourseOfferingRepository {
 
   // -------------------------------------------------------------- offerings
 
-  /// Creates a pending offering plus one `course_offering_meetings` row per
-  /// declared meeting. The offering row is inserted first because the
-  /// meetings reference its id.
+  /// Creates a pending offering.
+  ///
+  /// Teachers no longer declare meeting times: the class itself is the
+  /// meeting, so there is nothing separate to schedule and no
+  /// `course_offering_meetings` rows are written. The table and its RPCs are
+  /// left in place for the existing rows rather than dropped.
   ///
   /// Does NOT notify the reviewing admins from here, deliberately: the
   /// `trg_notify_offering_submitted` trigger does it in the same transaction
@@ -169,7 +172,6 @@ class CourseOfferingRepository {
     required String department,
     required String batch,
     required int semester,
-    required List<OfferingMeeting> meetings,
     String outlineText = '',
     int? maxStudents,
   }) async {
@@ -184,12 +186,7 @@ class CourseOfferingRepository {
       if (maxStudents != null) 'max_students': maxStudents,
     }).select('id').single();
 
-    final offeringId = offering['id'] as String;
-    if (meetings.isNotEmpty) {
-      await _client.from('course_offering_meetings')
-          .insert(meetings.map((m) => m.toInsert(offeringId)).toList());
-    }
-    return offeringId;
+    return offering['id'] as String;
   }
 
   Future<List<Map<String, dynamic>>> fetchMyOfferings() async {
@@ -403,7 +400,12 @@ class CourseOfferingRepository {
   /// offerings, so no explicit teacher_id filter is needed client-side.
   Future<List<Map<String, dynamic>>> fetchOfferingJoinRequests() async {
     final res = await _client.from('enrollments')
-        .select('*, profiles!student_id(full_name, avatar_url, batch, section), '
+        // university_id / is_verified / role / department are here so the
+        // teacher can actually identify who is asking to join — a name and a
+        // batch string alone were not enough to tell whether the requester
+        // really belongs to that batch.
+        .select('*, profiles!student_id(id, full_name, avatar_url, batch, section, '
+            'university_id, email, department, role, is_verified), '
             'course_offerings!inner(id, section, department, batch, courses(code, title))')
         .order('created_at', ascending: false) as List;
     return res.cast<Map<String, dynamic>>();

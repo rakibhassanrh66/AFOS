@@ -41,8 +41,17 @@ class UserDetailsSheet extends StatelessWidget {
     } else if (rawStudents is Map<String, dynamic>) {
       student = rawStudents;
     }
-    final batch = student?['batch_label'] as String?;
-    final section = student?['section'] as String?;
+    // `students` is the registry row; `profiles` carries the student's own
+    // self-declared batch/section. The two are known to drift, and not every
+    // caller embeds `students` at all (the course join-request card passes a
+    // bare profiles row), so fall back rather than silently showing nothing.
+    final batch = (student?['batch_label'] as String?)?.trim().isNotEmpty == true
+        ? student!['batch_label'] as String?
+        : profile['batch'] as String?;
+    final section = (student?['section'] as String?)?.trim().isNotEmpty == true
+        ? student!['section'] as String?
+        : profile['section'] as String?;
+    final universityId = profile['university_id'] as String?;
 
     String? profDesignation = designation;
     if (profDesignation == null) {
@@ -77,6 +86,8 @@ class UserDetailsSheet extends StatelessWidget {
           ])),
           const SizedBox(height: 20),
           _DetailRow(label: 'Role', value: _roleLabel(role)),
+          if (universityId != null && universityId.isNotEmpty)
+            _DetailRow(label: 'Student ID', value: universityId),
           if (dept != null && dept.isNotEmpty) _DetailRow(label: 'Department', value: dept),
           if (profDesignation != null && profDesignation.isNotEmpty)
             _DetailRow(label: 'Designation', value: profDesignation),
