@@ -1702,7 +1702,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ));
       }
       for (final r in group) {
-        children.add(_routeCard(context, r, idx++, animate: _query.isEmpty));
+        children.add(_routeCard(context, r, idx++));
       }
     }
     if (visible.isEmpty) {
@@ -1774,7 +1774,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
   /// completes before the next keystroke. Typing a search query should show
   /// results instantly, not stagger them in, so the entrance is skipped
   /// entirely rather than just capped.
-  Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i, {bool animate = true}) {
+  Widget _routeCard(BuildContext context, Map<String,dynamic> r, int i) {
     final ctx = context;
     final stops = ((r['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = _tripsOf(r, 'to_dsc_trips');
@@ -1818,9 +1818,23 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
       ]),
     );
-    if (!animate) return card;
-    return card.animate(delay: Duration(milliseconds: i * 50))
-        .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
+    // Entrance animation removed, not merely opted out of.
+    //
+    // These cards live in _AllRoutesTab, which is TabBarView child index 2.
+    // TabBarView builds the page you are not looking at inside a DISABLED
+    // TickerMode, so a fadeIn() — which starts at opacity ZERO — never
+    // advances: the cards are laid out, take up space, and stay invisible.
+    // Only the default tab escapes it, which is why this looked fine in some
+    // places and blank in others.
+    //
+    // The staggered `i * 50` made it worse, and the existing `animate` flag
+    // (passed as `_query.isEmpty`) accidentally masked it — searching turned
+    // the animation off and the routes appeared, which reads as "search fixes
+    // it" rather than as the bug it is.
+    //
+    // Same fault made the Join Requests tab look permanently empty. If an
+    // entrance is ever wanted back, it must not gate visibility.
+    return card;
   }
 }
 
