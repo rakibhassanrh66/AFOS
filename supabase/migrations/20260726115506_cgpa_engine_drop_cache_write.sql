@@ -1,0 +1,23 @@
+-- Removes the students.cgpa cache refresher introduced moments earlier in
+-- 20260726115302_cgpa_engine.sql, before it was ever relied on.
+--
+-- The first cut of the CGPA engine wrote a denormalised copy of each student's
+-- CGPA back into students.cgpa when results were published. Applying it failed
+-- against the live database, and the reason was the right one:
+-- protect_student_admin_columns() restricts students.cgpa to holders of
+-- `students:all:all`. An exam_controller does not necessarily hold that, so
+-- publication would have succeeded for some approvers and failed for others,
+-- depending on who happened to press the button.
+--
+-- Making the refresher SECURITY DEFINER to punch through that guard was the
+-- obvious workaround and the wrong one: it would defeat a deliberate
+-- protection on the most sensitive column a student row has. The cache is also
+-- a second copy of something already derivable, so it could only ever drift.
+--
+-- student_cgpa() computes it live through RLS'd views and is cheap, so every
+-- read surface calls that instead and no cached column is needed.
+--
+-- Written idempotently so a fresh replay of the migration history reaches the
+-- same state as the live database, where this function no longer exists.
+
+DROP FUNCTION IF EXISTS refresh_student_cgpa_cache(uuid);
