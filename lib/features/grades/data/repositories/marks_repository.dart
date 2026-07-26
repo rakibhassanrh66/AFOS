@@ -193,6 +193,29 @@ class MarksRepository {
     return res.isEmpty ? null : res.first as Map<String, dynamic>;
   }
 
+  /// Per-semester GPA, one entry per semester the student has results in.
+  ///
+  /// One RPC per semester rather than a single client-side calculation: the
+  /// credit weighting and the retake rule live in `student_sgpa()`, and a
+  /// second implementation here would be free to drift from it. A student has
+  /// at most twelve semesters and usually far fewer, so the calls are issued
+  /// together and the cost is one round-trip's latency.
+  Future<Map<int, double>> fetchMySemesterGpas(List<int> semesters) async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null || semesters.isEmpty) return {};
+    final distinct = semesters.toSet().toList();
+    final values = await Future.wait([
+      for (final s in distinct)
+        _client.rpc('student_sgpa', params: {'p_student_id': uid, 'p_semester': s}),
+    ]);
+    final out = <int, double>{};
+    for (var i = 0; i < distinct.length; i++) {
+      final v = (values[i] as num?)?.toDouble();
+      if (v != null) out[distinct[i]] = v;
+    }
+    return out;
+  }
+
   /// Course code/title for a set of offerings, for labelling a result list.
   Future<Map<String, Map<String, dynamic>>> fetchOfferingLabels(
       List<String> offeringIds) async {

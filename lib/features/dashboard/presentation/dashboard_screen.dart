@@ -180,8 +180,12 @@ class _DashboardState extends State<DashboardScreen> {
           (role == 'dept_admin' && dept != null && dept.isNotEmpty
               ? offeringsQuery.eq('department', dept)
               : offeringsQuery) as Future,
+          // 'pending', not 'submitted' — the CHECK on this table allows only
+          // pending/approved/rejected, so filtering on 'submitted' matched
+          // nothing and the tile sat at 0 no matter how many results were
+          // waiting. Matches submitResults() and fetchPendingSubmissions().
           SupabaseConfig.client.from('offering_result_submissions').select('id')
-              .eq('status', 'submitted') as Future,
+              .eq('status', 'pending') as Future,
         ]);
         if (mounted) {
           setState(() => _adminPending = {
