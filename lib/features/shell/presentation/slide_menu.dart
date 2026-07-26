@@ -127,6 +127,13 @@ class _SlideMenuState extends State<SlideMenu> {
   // appointment lives in a table, not in RoleSession, so the menu cannot know
   // without a query. The screen itself says "Not a module leader" to anyone
   // who opens it without the appointment.
+  // Its own menu entry, not just a tab inside My Course Offerings. As a tab it
+  // was undiscoverable, and it reproducibly rendered blank while its title
+  // showed a live count -- see JoinRequestsScreen for why that path was
+  // abandoned rather than patched.
+  static const _joinRequestsItem =
+    _MenuItem('Join Requests', Icons.how_to_reg_rounded, '/schedule/join-requests', AppColors.green);
+
   static const _teachingLoadItem =
     _MenuItem('Teaching Load', Icons.assignment_ind_rounded, '/schedule/teaching-load', AppColors.indigo);
 
@@ -213,7 +220,7 @@ class _SlideMenuState extends State<SlideMenu> {
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _myOfferingsItem, _attendanceItem, _teachingLoadItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
+      return [..._commonItems, _myOfferingsItem, _joinRequestsItem, _attendanceItem, _teachingLoadItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
     }
     if (role == 'staff') {
       return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem, _feedbackItem];
