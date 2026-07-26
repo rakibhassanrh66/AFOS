@@ -80,10 +80,16 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
+      // Three round-trips, not four. The CGPA depends on nothing this screen
+      // fetches, so it rides along with the offering labels instead of waiting
+      // behind them; only the SGPAs genuinely need the labels first, because
+      // the semester lives on the offering rather than on the result row.
       final results = await _repo.fetchMyResults();
-      final labels = await _repo.fetchOfferingLabels(
-          [for (final r in results) r['offering_id'] as String]);
-      final cgpa = await _repo.fetchMyCgpa();
+      final offeringIds = [for (final r in results) r['offering_id'] as String];
+      final (labels, cgpa) = await (
+        _repo.fetchOfferingLabels(offeringIds),
+        _repo.fetchMyCgpa(),
+      ).wait;
       final sgpas = await _repo.fetchMySemesterGpas([
         for (final r in results)
           (labels[r['offering_id']]?['semester'] as num?)?.toInt() ?? 0,

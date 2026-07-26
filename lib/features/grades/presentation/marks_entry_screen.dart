@@ -87,19 +87,25 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     setState(() { _loadingDetail = true; _error = null; });
     try {
       final id = offering['id'] as String;
-      final components = await _repo.fetchComponents(_courseType);
-      final data = await _repo.fetchOfferingMarks(id);
-      final results = await Future.wait([
+      // All four are independent of each other, so they go out together —
+      // this was three sequential trips before, and opening a class is the
+      // screen's slowest moment on a phone connection.
+      // Record `.wait` rather than Future.wait's list: fetchOfferingMarks
+      // returns a record, which a List<Object?> cannot carry without an
+      // untyped cast, and this keeps every element's static type intact.
+      final (components, data, totals, submission) = await (
+        _repo.fetchComponents(_courseType),
+        _repo.fetchOfferingMarks(id),
         _repo.fetchTotals(id),
         _repo.fetchSubmission(id),
-      ]);
+      ).wait;
       if (!mounted) return;
       setState(() {
         _components = components;
         _roster = data.roster;
         _marks = data.marks;
-        _totals = results[0] as Map<String, Map<String, dynamic>>;
-        _submission = results[1];
+        _totals = totals;
+        _submission = submission;
       });
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));

@@ -65,14 +65,20 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
   }
 
   Future<void> _load() async {
-    final existing = await StopOffsetsRepository.fetchForRoute(widget.routeNumber, widget.scheduleType);
+    // Guarded so a failed fetch opens the editor with blank fields — which is
+    // a usable starting point — rather than stranding it on the spinner.
+    try {
+      final existing =
+          await StopOffsetsRepository.fetchForRoute(widget.routeNumber, widget.scheduleType);
+      if (!mounted) return;
+      for (var i = 0; i < widget.stops.length; i++) {
+        final o = existing[widget.stops[i].toLowerCase()];
+        if (o == null) continue;
+        if (o.minutesFromOrigin != null) _toCampus[i].text = '${o.minutesFromOrigin}';
+        if (o.minutesFromDsc != null) _fromCampus[i].text = '${o.minutesFromDsc}';
+      }
+    } catch (_) {}
     if (!mounted) return;
-    for (var i = 0; i < widget.stops.length; i++) {
-      final o = existing[widget.stops[i].toLowerCase()];
-      if (o == null) continue;
-      if (o.minutesFromOrigin != null) _toCampus[i].text = '${o.minutesFromOrigin}';
-      if (o.minutesFromDsc != null) _fromCampus[i].text = '${o.minutesFromDsc}';
-    }
     setState(() => _loading = false);
   }
 
