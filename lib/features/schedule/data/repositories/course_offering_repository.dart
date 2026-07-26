@@ -289,14 +289,50 @@ class CourseOfferingRepository {
         category: 'course_offering',
       );
     }
-    // The class is NOT notified from here any more. trg_notify_offering_approved
-    // does it inside the same transaction as the status flip. This call was
-    // client-side and wrapped in a bare catch, so a backgrounded app or a
-    // dropped request meant the whole batch was silently never told their
-    // course had opened -- and its audience came from a students table that had
-    // quietly diverged from profiles. Both are fixed in the DB now; re-adding a
-    // call here would double-notify every student.
+    // The class's in-app row is written by trg_notify_offering_approved, in the
+    // same transaction as the status flip, so it cannot be lost. What that
+    // trigger CANNOT do is send the OneSignal banner -- pg_net is not installed
+    // and the OneSignal key lives in the edge function's environment, not in
+    // the database. So the banner is sent from here, push-only.
+    //
+    // Do not switch this to sendToUsers: that would insert a second in-app row
+    // and show every student the same notification twice. Do not drop it
+    // either -- without it students get a silent list entry and no banner,
+    // which reads as "no notification at all".
+    await _pushOfferingAudience(
+      offeringId: offeringId,
+      title: 'New course available',
+      message: '$label is open to join for Batch ${offering['batch']}.',
+      deepLink: '/schedule/browse-courses',
+    );
     return created;
+  }
+
+  /// Sends the push banner to the offering's batch+section.
+  ///
+  /// Best-effort: the approval and its in-app notifications have already
+  /// committed, so a failed banner must never surface as a failed approval.
+  Future<void> _pushOfferingAudience({
+    required String offeringId,
+    required String title,
+    required String message,
+    String? deepLink,
+  }) async {
+    try {
+      final rows = await _client.rpc('list_offering_audience',
+          params: {'p_offering_id': offeringId}) as List;
+      final ids = rows
+          .map((r) => (r as Map<String, dynamic>)['profile_id'] as String?)
+          .whereType<String>()
+          .toList();
+      await NotificationService.pushToUsers(
+        userIds: ids,
+        title: title, message: message,
+        deepLink: deepLink, category: 'course_offering',
+      );
+    } catch (_) {
+      // Intentionally swallowed -- see doc comment.
+    }
   }
 
   Future<void> rejectOffering({

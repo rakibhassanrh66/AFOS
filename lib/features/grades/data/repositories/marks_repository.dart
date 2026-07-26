@@ -1,4 +1,5 @@
 import '../../../../config/supabase_config.dart';
+import '../../../notifications/data/repositories/notification_service.dart';
 
 /// Marks, results and CGPA.
 ///
@@ -137,20 +138,52 @@ class MarksRepository {
     return res.cast<Map<String, dynamic>>();
   }
 
-  /// Approving fires `trg_on_results_approved`, which notifies the whole class
-  /// in the same transaction — deliberately server-side, so a backgrounded app
-  /// cannot lose the announcement.
+  /// Approving fires `trg_on_results_approved`, which writes the whole class's
+  /// in-app notification in the same transaction — deliberately server-side, so
+  /// a backgrounded app cannot lose the announcement.
+  ///
+  /// The banner is a separate, push-only send: a trigger cannot reach OneSignal
+  /// (no pg_net, and the key lives in the edge function's environment), so
+  /// without this students would get a silent list entry and no notification on
+  /// their phone. `pushToUsers`, not `sendToUsers` — the latter would insert a
+  /// second in-app row on top of the trigger's.
   Future<void> reviewSubmission({
     required String submissionId,
     required bool approve,
     String? reason,
-  }) =>
-      _client.from('offering_result_submissions').update({
-        'status': approve ? 'approved' : 'rejected',
-        'reviewed_by': SupabaseConfig.uid,
-        'reviewed_at': DateTime.now().toIso8601String(),
-        if (!approve) 'rejection_reason': reason,
-      }).eq('id', submissionId);
+  }) async {
+    final row = await _client
+        .from('offering_result_submissions')
+        .update({
+          'status': approve ? 'approved' : 'rejected',
+          'reviewed_by': SupabaseConfig.uid,
+          'reviewed_at': DateTime.now().toIso8601String(),
+          if (!approve) 'rejection_reason': reason,
+        })
+        .eq('id', submissionId)
+        .select('offering_id, course_offerings(courses(code))')
+        .maybeSingle();
+
+    if (!approve || row == null) return;
+    try {
+      final ids = await _client.rpc('list_offering_audience',
+          params: {'p_offering_id': row['offering_id']}) as List;
+      final code = ((row['course_offerings'] as Map?)?['courses'] as Map?)?['code'] as String?;
+      await NotificationService.pushToUsers(
+        userIds: ids
+            .map((r) => (r as Map<String, dynamic>)['profile_id'] as String?)
+            .whereType<String>()
+            .toList(),
+        title: 'Results published',
+        message: '${code ?? 'Your course'} results are now available.',
+        deepLink: '/grades',
+        category: 'exam',
+      );
+    } catch (_) {
+      // Best-effort: the publication already committed and the in-app rows are
+      // written, so a failed banner must not surface as a failed approval.
+    }
+  }
 
   // --------------------------------------------------------------- student
 

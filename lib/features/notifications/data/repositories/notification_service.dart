@@ -26,6 +26,39 @@ class NotificationService {
     });
   }
 
+  /// Push banner ONLY — no `user_notifications` row is written.
+  ///
+  /// For events whose in-app record is already inserted by a database trigger:
+  /// an offering being approved, results being published, teaching being
+  /// allocated. Those triggers run in the same transaction as the change, so
+  /// the durable record cannot be lost; this adds the phone banner, which is
+  /// ephemeral and best-effort by nature.
+  ///
+  /// Calling [sendToUsers] for these would insert a SECOND in-app row and show
+  /// the student the same notification twice. Skipping the call entirely is
+  /// what caused "students are not getting any notification at all" — the row
+  /// was there, but no banner ever reached the phone.
+  static Future<void> pushToUsers({
+    required List<String> userIds,
+    required String title,
+    required String message,
+    String? deepLink,
+    String? category,
+  }) async {
+    if (userIds.isEmpty) return;
+    // Chunked to the same 20-per-call cap the edge function enforces.
+    for (var i = 0; i < userIds.length; i += 20) {
+      await _invoke({
+        'userIds': userIds.sublist(i, i + 20 > userIds.length ? userIds.length : i + 20),
+        'title': title,
+        'message': message,
+        'pushOnly': true,
+        if (deepLink != null) 'deepLink': deepLink,
+        if (category != null) 'category': category,
+      });
+    }
+  }
+
   /// Pass neither roleFilter nor departmentFilter to notify every user
   /// (e.g. a university-wide notice/rule) — the edge function requires
   /// broadcastAll explicitly in that case so an empty target can never be

@@ -1,4 +1,5 @@
 import '../../../../config/supabase_config.dart';
+import '../../../notifications/data/repositories/notification_service.dart';
 
 /// Module leaders and the teaching loads they allocate.
 ///
@@ -110,22 +111,36 @@ class TeachingAssignmentRepository {
     required String section,
     required int semester,
     String note = '',
-  }) =>
-      // No notification call here on purpose: trg_notify_teaching_assigned
-      // tells the teacher in the same transaction as the insert, so a
-      // backgrounded app cannot lose it.
-      _client.from('teaching_assignments').insert({
-        'department': department,
-        'teacher_id': teacherId,
-        'course_code': courseCode.trim().toUpperCase(),
-        'course_title': courseTitle.trim(),
-        'course_type': courseType,
-        'batch': batch.trim(),
-        'section': section.trim().toUpperCase(),
-        'semester': semester,
-        'note': note.trim(),
-        'assigned_by': SupabaseConfig.uid,
-      });
+  }) async {
+    // The teacher's in-app row is written by trg_notify_teaching_assigned, in
+    // the same transaction as the insert, so it cannot be lost.
+    await _client.from('teaching_assignments').insert({
+      'department': department,
+      'teacher_id': teacherId,
+      'course_code': courseCode.trim().toUpperCase(),
+      'course_title': courseTitle.trim(),
+      'course_type': courseType,
+      'batch': batch.trim(),
+      'section': section.trim().toUpperCase(),
+      'semester': semester,
+      'note': note.trim(),
+      'assigned_by': SupabaseConfig.uid,
+    });
+
+    // ...but a trigger cannot reach OneSignal, so the banner is sent from here,
+    // push-only. Without it the teacher gets a silent list entry and nothing on
+    // their phone. Best-effort: the allocation has already committed.
+    try {
+      await NotificationService.pushToUsers(
+        userIds: [teacherId],
+        title: 'New teaching assignment',
+        message: '${courseCode.trim().toUpperCase()} — Batch ${batch.trim()}, '
+            'Section ${section.trim().toUpperCase()}. Review it in Teaching Load.',
+        deepLink: '/schedule/teaching-load',
+        category: 'course_offering',
+      );
+    } catch (_) {}
+  }
 
   Future<void> unassign(String id) =>
       _client.from('teaching_assignments').delete().eq('id', id);
