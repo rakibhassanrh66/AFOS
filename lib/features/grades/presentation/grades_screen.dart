@@ -148,10 +148,11 @@ class _TeacherUploadTabState extends State<_TeacherUploadTab> {
   Future<void> _init() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
-    final profile = await SupabaseConfig.client.from('profiles').select('teacher_initial').eq('id', uid).maybeSingle();
-    final initial = profile?['teacher_initial'] as String?;
-    if (initial == null || initial.isEmpty) { setState(() => _loading = false); return; }
-    final sections = await widget.repo.getMyTaughtSections(initial);
+    // No longer gated on the teacher's self-typed initials. The list now comes
+    // from course_offerings.teacher_id, so a teacher who never filled in the
+    // Settings field still sees the courses they genuinely own — and, more to
+    // the point, stops seeing another faculty member's sections.
+    final sections = await widget.repo.getMyTaughtSections();
     if (mounted) setState(() { _sections = sections; _loading = false; });
   }
 

@@ -89,7 +89,8 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       // Narrowed to what _ClubList's card + _presidentIdFor/_anyClubNameFor
       // lookups actually read — president_id looks unused by the card but
       // is read later via _clubs.firstWhere(...) for the notice/notify flow.
-      var q = SupabaseConfig.client.from('clubs').select('id, name, tagline, category, president_id');
+      var q = SupabaseConfig.client.from('clubs')
+          .select('id, name, short_name, tagline, category, president_id');
       if (_filter != 'All') q = q.eq('category', _filter);
       final [clubs, events] = await Future.wait([
         q.order('name') as Future,
@@ -424,10 +425,20 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   }
 
   void _showPostDialog(BuildContext ctx, String clubId, String currentRole) {
-    final options = ['secretary', 'vice_president', 'president'].where((r) => r != currentRole).toList();
+    // Faculty apply to supervise; students stand for the elected officer
+    // posts. Offering one combined list would let a student apply to be a
+    // supervisor, which is a staff appointment, and a teacher to stand for
+    // president, which is a student one.
+    final isTeacher = RoleSession.role == 'teacher';
+    final options = (isTeacher
+            ? ['supervisor', 'assistant_supervisor']
+            : ['secretary', 'vice_president', 'president'])
+        .where((r) => r != currentRole)
+        .toList();
     showGlassModal(ctx,
         builder: (sheetCtx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.all(16), child: Text('Apply for a post',
+          Padding(padding: const EdgeInsets.all(16),
+              child: Text(isTeacher ? 'Apply to supervise this club' : 'Apply for a post',
               style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
           ...options.map((r) => ListTile(
               title: Text(r.replaceAll('_', ' ').toUpperCase()),
@@ -439,7 +450,12 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
   List<Map<String, dynamic>> get _searchFiltered {
     final q = _search.trim().toLowerCase();
     if (q.isEmpty) return _clubs;
-    return _clubs.where((c) => (c['name'] as String? ?? '').toLowerCase().contains(q)).toList();
+    // Match the abbreviation too — searching "CPC" or "DC" is the whole point
+    // of having short names, and it would be odd for the badge on the card to
+    // be the one thing search can't find.
+    return _clubs.where((c) =>
+        (c['name'] as String? ?? '').toLowerCase().contains(q) ||
+        (c['short_name'] as String? ?? '').toLowerCase().contains(q)).toList();
   }
 
   Widget _errorView(BuildContext context) =>
@@ -470,7 +486,9 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
             Expanded(child: _loading
                 ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5, itemHeight: 120))
                 : _error != null ? _errorView(context)
-                : _ClubList(clubs: _searchFiltered, myClubs: _myClubs, pendingClubIds: pendingClubIds, onJoin: _requestJoin)),
+                : _ClubList(clubs: _searchFiltered, myClubs: _myClubs, pendingClubIds: pendingClubIds,
+                    pendingPostClubIds: pendingPostClubIds, onJoin: _requestJoin,
+                    onApplyPost: (clubId, role) => _showPostDialog(context, clubId, role))),
           ]),
           _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
               : _error != null ? _errorView(context)
@@ -537,8 +555,15 @@ class _FilterBar extends StatelessWidget {
 class _ClubList extends StatelessWidget {
   final List<Map<String, dynamic>> clubs, myClubs;
   final Set<String> pendingClubIds;
+  /// Clubs this user already has a pending post application for. Supervisors
+  /// apply from THIS tab rather than My Clubs, because a faculty supervisor is
+  /// normally not a member of the club they supervise and so never appears
+  /// there — which is why the request had nowhere to start from before.
+  final Set<String> pendingPostClubIds;
   final ValueChanged<String> onJoin;
-  const _ClubList({required this.clubs, required this.myClubs, required this.pendingClubIds, required this.onJoin});
+  final void Function(String clubId, String currentRole) onApplyPost;
+  const _ClubList({required this.clubs, required this.myClubs, required this.pendingClubIds,
+      required this.pendingPostClubIds, required this.onJoin, required this.onApplyPost});
   @override
   Widget build(BuildContext context) {
     if (clubs.isEmpty) return const EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
@@ -569,7 +594,29 @@ class _ClubList extends StatelessWidget {
               child: Center(child: Icon(categoryIcon(c['category'] as String?), color: AppColors.pink, size: 36))),
           Padding(padding: const EdgeInsets.all(14), child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(c['name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(ctx)), maxLines: 1, overflow: TextOverflow.ellipsis),
+              // Short form leads, full proper name stays underneath — 55 clubs
+              // whose names nearly all begin "DIU …" were indistinguishable at
+              // a glance when only the full name was shown.
+              Row(children: [
+                if ((c['short_name'] as String?)?.isNotEmpty == true)
+                  Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: AppColors.pink.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text(c['short_name'] as String,
+                          textHeightBehavior: const TextHeightBehavior(
+                              applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                          style: const TextStyle(
+                              color: AppColors.pink, fontSize: 12, height: 1.0,
+                              fontWeight: FontWeight.w800, letterSpacing: 0.3))),
+                Flexible(
+                  child: Text(c['name'] ?? '',
+                      style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(ctx)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ]),
               const SizedBox(height: 3),
               Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx)), maxLines: 2, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 6),
@@ -579,7 +626,15 @@ class _ClubList extends StatelessWidget {
                       style: const TextStyle(color: AppColors.pink, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600))),
             ])),
             const SizedBox(width: 12),
-            if (canJoin || joined)
+            // Faculty get "Supervise" where a student gets "Join" — the two
+            // are mutually exclusive, and a teacher had no entry point at all
+            // before this.
+            if (RoleSession.role == 'teacher' && clubId != null)
+              _SuperviseButton(
+                pending: pendingPostClubIds.contains(clubId),
+                onTap: () => onApplyPost(clubId, ''),
+              )
+            else if (canJoin || joined)
               GestureDetector(onTap: (joined || pending || clubId == null) ? null : () => onJoin(clubId),
                   child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
@@ -593,6 +648,34 @@ class _ClubList extends StatelessWidget {
                               fontSize: 13, height: 1.0, fontWeight: FontWeight.w600)))),
           ])),
         ])).animate(delay: Duration(milliseconds: i * 60)).fadeIn().slideY(begin: 0.05);
+  }
+}
+
+/// Faculty-facing counterpart to the student "Join" button on a club card.
+class _SuperviseButton extends StatelessWidget {
+  final bool pending;
+  final VoidCallback onTap;
+  const _SuperviseButton({required this.pending, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = pending ? AppColors.amber : AppColors.teal;
+    return GestureDetector(
+      onTap: pending ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.4), width: 0.8),
+        ),
+        child: Text(pending ? 'Requested' : 'Supervise',
+            textHeightBehavior: const TextHeightBehavior(
+                applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+            style: TextStyle(
+                color: color, fontSize: 12, height: 1.0, fontWeight: FontWeight.w700)),
+      ),
+    );
   }
 }
 

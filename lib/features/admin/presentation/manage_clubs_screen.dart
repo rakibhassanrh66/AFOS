@@ -157,8 +157,13 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             .eq('club_id', clubId).eq('role', 'president');
         await SupabaseConfig.client.from('clubs').update({'president_id': memberId}).eq('id', clubId);
       }
-      await SupabaseConfig.client.from('club_members').update({'role': role})
-          .eq('club_id', clubId).eq('member_id', memberId);
+      // Upsert, not update. The officer posts are always held by an existing
+      // member so an UPDATE was enough, but a faculty supervisor normally is
+      // NOT a member of the club they supervise — an UPDATE would match zero
+      // rows and the approval would silently do nothing.
+      await SupabaseConfig.client.from('club_members').upsert(
+          {'club_id': clubId, 'member_id': memberId, 'role': role},
+          onConflict: 'club_id,member_id');
       await SupabaseConfig.client.from('club_post_requests').update({
         'status': 'approved', 'reviewed_by': SupabaseConfig.uid, 'reviewed_at': DateTime.now().toIso8601String(),
       }).eq('id', req['id']);

@@ -143,4 +143,50 @@ void main() {
             GlassBottomNav.bottomMargin +
             GlassBottomNav.planetLift));
   });
+
+  group('GlassSheet stays clear of the notch', () {
+    // A tall form in an `isScrollControlled` sheet (New Course Offering: code,
+    // title, credits, section, batch, semester, outline) grew to the full
+    // window height, sliding the drag handle and the first field up behind the
+    // status bar / camera cutout. The browser has no notch, which is why this
+    // reproduced only on the phone and looked fine on web.
+    Widget sheetIn({required Size size, required double topInset}) => MaterialApp(
+          theme: buildDarkTheme(),
+          home: MediaQuery(
+            data: MediaQueryData(
+                size: size, padding: EdgeInsets.only(top: topInset)),
+            // Bottom-aligned so the sheet receives LOOSE constraints, which is
+            // what showModalBottomSheet hands it. Under tight constraints a
+            // ConstrainedBox is enforced away and the cap would be untestable.
+            child: Material(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: GlassSheet(
+                    child: SizedBox(width: double.infinity, height: size.height * 3)),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('caps a tall sheet below the top inset', (tester) async {
+      const size = Size(400, 800);
+      const topInset = 60.0;
+      await tester.pumpWidget(sheetIn(size: size, topInset: topInset));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(tester.getSize(find.byType(GlassSheet)).height,
+          lessThanOrEqualTo(size.height - topInset),
+          reason: 'a full-height sheet must stop clear of the status bar');
+    });
+
+    testWidgets('falls back to unbounded on a degenerate surface', (tester) async {
+      // MediaQueryData() defaults size to Size.zero, so the cap subtraction
+      // goes negative — ConstrainedBox asserts on a negative maxHeight. The
+      // widget tests above construct exactly this, so the guard is load-bearing
+      // rather than theoretical.
+      await tester.pumpWidget(sheetIn(size: Size.zero, topInset: 0));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

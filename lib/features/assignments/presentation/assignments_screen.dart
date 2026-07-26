@@ -95,11 +95,10 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   Future<void> _init() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
-    final profile = await SupabaseConfig.client.from('profiles').select('teacher_initial').eq('id', uid).maybeSingle();
-    final initial = profile?['teacher_initial'] as String?;
-    if (initial != null && initial.isNotEmpty) {
-      _sections = await _gradesRepo.getMyTaughtSections(initial);
-    }
+    // Sourced from course_offerings.teacher_id, not the routine's scraped
+    // initials — which is what previously let a teacher post an assignment to
+    // a section belonging to someone who shares their initials.
+    _sections = await _gradesRepo.getMyTaughtSections();
     if (mounted) setState(() => _loading = false);
   }
 

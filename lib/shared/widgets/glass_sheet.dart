@@ -3,6 +3,32 @@ import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_theme.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
 
+/// How many glass sheets are currently on screen.
+///
+/// Sheets deliberately live on the SHELL navigator (see [showGlassSheet]), so
+/// they are a *sibling* of the floating bottom nav in AppShell's Stack — and
+/// the nav is a later child, so it paints straight over the sheet. On the New
+/// Course Offering form that put the frosted bar on top of the Submit button,
+/// reading as "an extra square box cutting things off".
+///
+/// AppShell watches this and hides the bar while any sheet is open. A counter
+/// rather than a bool because a sheet can open a second sheet over itself (the
+/// meeting editor used to do exactly that), and the nav must stay hidden until
+/// the last one closes.
+final ValueNotifier<int> openGlassSheetCount = ValueNotifier<int>(0);
+
+/// Runs [show] with the sheet counter held up for the whole lifetime of the
+/// route, so the count is correct however the sheet is dismissed — Navigator
+/// .pop, a drag, a scrim tap, or the hardware back button.
+Future<T?> _countedSheet<T>(Future<T?> Function() show) async {
+  openGlassSheetCount.value++;
+  try {
+    return await show();
+  } finally {
+    openGlassSheetCount.value--;
+  }
+}
+
 /// Floating-tier glass for modals and bottom sheets: heaviest frost, the
 /// signature 28px top radius, a drag handle, and one tuned entrance
 /// (LiquidGlass.motionStandard / motionCurve, scale-from + fade) so every
@@ -30,8 +56,32 @@ class GlassSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final glass = LiquidGlassTheme.of(context);
     const radius = BorderRadius.vertical(top: Radius.circular(LiquidGlass.radiusSheet));
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
-    final keyboardInset = liftForKeyboard ? MediaQuery.of(context).viewInsets.bottom : 0.0;
+    final mq = MediaQuery.of(context);
+    final reduceMotion = mq.disableAnimations;
+    final keyboardInset = liftForKeyboard ? mq.viewInsets.bottom : 0.0;
+
+    // AppShell inflates padding.bottom by the floating nav's clearance so that
+    // ordinary screens keep their content above the bar. A sheet must NOT
+    // reserve that: the bar is hidden for as long as one is open (see
+    // openGlassSheetCount), so honouring the inflated inset just leaves a tall
+    // empty frosted band under the form. Read the untouched window insets
+    // rather than subtracting the bar's height back off — no magic constant,
+    // and it stays correct if the bar is ever resized.
+    final deviceBottom = MediaQueryData.fromView(View.of(context)).padding.bottom;
+
+    // `isScrollControlled: true` lets a tall form (the New Course Offering one
+    // especially) grow to the full window height, which slid the drag handle
+    // and the first field up under the status bar / camera notch. The browser
+    // has no notch, which is why this only ever reproduced on the phone. Cap
+    // the sheet so it always stops clear of it.
+    //
+    // Guarded because the subtraction can go non-positive on a degenerate
+    // surface (a widget test harness whose top padding is as tall as the
+    // window, a zero-size view mid-teardown), and ConstrainedBox asserts on a
+    // negative maxHeight. Falling back to unbounded restores exactly the
+    // pre-cap behaviour instead of collapsing the sheet to nothing.
+    final rawMaxHeight = mq.size.height - mq.padding.top - LiquidGlass.radiusSheet;
+    final maxHeight = rawMaxHeight > 0 ? rawMaxHeight : double.infinity;
 
     final body = ClipRRect(
       borderRadius: radius,
@@ -90,7 +140,14 @@ class GlassSheet extends StatelessWidget {
       duration: LiquidGlass.motionStandard,
       curve: LiquidGlass.motionCurve,
       padding: EdgeInsets.only(bottom: keyboardInset),
-      child: body,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        // Above `body`, so the SafeArea inside it reads the corrected inset.
+        child: MediaQuery(
+          data: mq.copyWith(padding: mq.padding.copyWith(bottom: deviceBottom)),
+          child: body,
+        ),
+      ),
     );
 
     if (reduceMotion) return lifted;
@@ -129,12 +186,12 @@ Future<T?> showGlassSheet<T>(
   bool isScrollControlled = true,
   EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(20, 0, 20, 24),
 }) =>
-    showModalBottomSheet<T>(
-      context: context,
-      isScrollControlled: isScrollControlled,
-      backgroundColor: Colors.transparent,
-      builder: (_) => GlassSheet(padding: padding, child: child),
-    );
+    _countedSheet(() => showModalBottomSheet<T>(
+          context: context,
+          isScrollControlled: isScrollControlled,
+          backgroundColor: Colors.transparent,
+          builder: (_) => GlassSheet(padding: padding, child: child),
+        ));
 
 /// Wraps an existing sheet [builder] (that already supplies its own padding /
 /// keyboard handling / StatefulBuilder) in the glass frost + tuned entrance —
@@ -148,15 +205,15 @@ Future<T?> showGlassModal<T>(
   bool isDismissible = true,
   bool enableDrag = true,
 }) =>
-    showModalBottomSheet<T>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: isDismissible,
-      enableDrag: enableDrag,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => GlassSheet(
-        padding: padding,
-        liftForKeyboard: false,
-        child: Builder(builder: builder),
-      ),
-    );
+    _countedSheet(() => showModalBottomSheet<T>(
+          context: context,
+          isScrollControlled: true,
+          isDismissible: isDismissible,
+          enableDrag: enableDrag,
+          backgroundColor: Colors.transparent,
+          builder: (sheetCtx) => GlassSheet(
+            padding: padding,
+            liftForKeyboard: false,
+            child: Builder(builder: builder),
+          ),
+        ));
