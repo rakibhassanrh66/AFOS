@@ -144,12 +144,27 @@ class CourseOfferingRepository {
 
   /// The single active academic term. `semester_id` is defaulted server-side
   /// by a trigger, so this is only needed for display.
-  Future<Map<String, dynamic>?> fetchActiveTerm() => cachedMapFetch(
-        cacheKey: 'active_term',
-        liveFetch: () async => await _client.from('semesters')
-            .select('id, name, code, start_date, end_date')
-            .eq('is_active', true).limit(1).single(),
-      );
+  ///
+  /// `maybeSingle`, not `single`: this is fetched alongside the offering list,
+  /// and `single()` throws when the match count is not exactly one. With no
+  /// active semester — or two, if an admin activates the next term before
+  /// closing the current one — that throw took down the whole My Course
+  /// Offerings load, so a teacher would see no courses at all because of a
+  /// missing header label. A null term just hides the label.
+  /// Both callers already treat null as "no term to show", so the empty map
+  /// cachedMapFetch needs for its non-nullable contract is folded back to null
+  /// here rather than leaking a `{}` they would have to special-case.
+  Future<Map<String, dynamic>?> fetchActiveTerm() async {
+    final term = await cachedMapFetch(
+      cacheKey: 'active_term',
+      liveFetch: () async =>
+          await _client.from('semesters')
+              .select('id, name, code, start_date, end_date')
+              .eq('is_active', true).limit(1).maybeSingle() ??
+          const <String, dynamic>{},
+    );
+    return (term == null || term.isEmpty) ? null : term;
+  }
 
   // -------------------------------------------------------------- offerings
 
@@ -274,44 +289,14 @@ class CourseOfferingRepository {
         category: 'course_offering',
       );
     }
-    await _notifyOfferingAudience(
-      offeringId: offeringId,
-      title: 'New course available',
-      message: '$label is open to join for Batch ${offering['batch']}.',
-      deepLink: '/schedule/browse-courses',
-    );
+    // The class is NOT notified from here any more. trg_notify_offering_approved
+    // does it inside the same transaction as the status flip. This call was
+    // client-side and wrapped in a bare catch, so a backgrounded app or a
+    // dropped request meant the whole batch was silently never told their
+    // course had opened -- and its audience came from a students table that had
+    // quietly diverged from profiles. Both are fixed in the DB now; re-adding a
+    // call here would double-notify every student.
     return created;
-  }
-
-  /// Resolves the offering's batch+section roster and notifies it.
-  ///
-  /// `sendToUsers` is capped at 20 recipients per call server-side, so this
-  /// chunks -- the same shape assignments_repository.createAssignment uses.
-  /// Best-effort: a notification failure must never fail the approval that
-  /// already committed.
-  Future<void> _notifyOfferingAudience({
-    required String offeringId,
-    required String title,
-    required String message,
-    String? deepLink,
-  }) async {
-    try {
-      final rows = await _client.rpc('list_offering_audience',
-          params: {'p_offering_id': offeringId}) as List;
-      final ids = rows
-          .map((r) => (r as Map<String, dynamic>)['profile_id'] as String?)
-          .whereType<String>()
-          .toList();
-      for (var i = 0; i < ids.length; i += 20) {
-        await NotificationService.sendToUsers(
-          userIds: ids.sublist(i, i + 20 > ids.length ? ids.length : i + 20),
-          title: title, message: message,
-          deepLink: deepLink, category: 'course_offering',
-        );
-      }
-    } catch (_) {
-      // Intentionally swallowed -- see doc comment.
-    }
   }
 
   Future<void> rejectOffering({
