@@ -426,7 +426,7 @@ class CourseOfferingRepository {
         // batch string alone were not enough to tell whether the requester
         // really belongs to that batch.
         .select('*, profiles!student_id(id, full_name, avatar_url, batch, section, '
-            'university_id, email, department, role, is_verified), '
+            'semester, university_id, email, department, role, is_verified), '
             'course_offerings!inner(id, section, department, batch, courses(code, title))')
         .order('created_at', ascending: false) as List;
     return res.cast<Map<String, dynamic>>();

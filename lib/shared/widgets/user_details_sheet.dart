@@ -13,14 +13,34 @@ import 'glass_sheet.dart';
 /// person on the other end is real. [profile] is a raw Supabase row from a
 /// `profiles(...)` embed; [designation] is an optional extra label (e.g. a
 /// club officer's `club_members.role`) not carried on the profile row itself.
-void showUserDetailsSheet(BuildContext context, Map<String, dynamic> profile, {String? designation}) {
-  showGlassSheet(context, child: UserDetailsSheet(profile: profile, designation: designation));
+///
+/// [extraRows] appends caller-specific detail below the standard fields, in
+/// order. It exists so the course join-request card can show a teacher the
+/// email and semester it needs to vet a requester, WITHOUT those becoming
+/// visible everywhere this sheet is used — the chat caller deliberately
+/// reveals only enough to prove the person is real, and quietly widening that
+/// for every screen would be a privacy change, not a UI tweak.
+void showUserDetailsSheet(
+  BuildContext context,
+  Map<String, dynamic> profile, {
+  String? designation,
+  Map<String, String>? extraRows,
+}) {
+  showGlassSheet(context,
+      child: UserDetailsSheet(
+          profile: profile, designation: designation, extraRows: extraRows));
 }
 
 class UserDetailsSheet extends StatelessWidget {
   final Map<String, dynamic> profile;
   final String? designation;
-  const UserDetailsSheet({super.key, required this.profile, this.designation});
+  final Map<String, String>? extraRows;
+  const UserDetailsSheet({
+    super.key,
+    required this.profile,
+    this.designation,
+    this.extraRows,
+  });
 
   /// Delegates to the shared [roleLabel] so this sheet and the admin screens
   /// can't drift apart on what a role is called.
@@ -98,6 +118,9 @@ class UserDetailsSheet extends StatelessWidget {
             value: isVerified ? 'Verified by authority' : 'Pending verification',
             valueColor: isVerified ? AppColors.green : AppColors.amber,
           ),
+          if (extraRows != null)
+            for (final e in extraRows!.entries)
+              if (e.value.trim().isNotEmpty) _DetailRow(label: e.key, value: e.value),
         ]);
   }
 }
