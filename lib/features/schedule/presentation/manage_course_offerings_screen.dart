@@ -29,6 +29,28 @@ import 'course_group_screen.dart';
 import 'widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
 
+String _normKey(Object? v) => (v as String? ?? '').trim().toUpperCase();
+
+/// Whether a pending join request comes from a student already in the batch
+/// and section of the offering they applied to — the same comparison the
+/// card's notice shows the teacher.
+///
+/// Top-level and public rather than a private method on the State, because it
+/// decides who the bulk admit lets in WITHOUT individual review. That makes it
+/// the one piece of this screen that must be pinned by a test.
+///
+/// Deliberately conservative: a student with no batch or section recorded is
+/// NOT a match, so an incomplete profile is always reviewed by hand instead of
+/// being swept in by an empty-string comparison.
+bool joinRequestMatchesSection(Map<String, dynamic> request) {
+  if (request['status'] != 'pending') return false;
+  final s = request['profiles'] as Map<String, dynamic>? ?? const {};
+  final o = request['course_offerings'] as Map<String, dynamic>? ?? const {};
+  final sb = _normKey(s['batch']), ss = _normKey(s['section']);
+  if (sb.isEmpty || ss.isEmpty) return false;
+  return sb == _normKey(o['batch']) && ss == _normKey(o['section']);
+}
+
 /// Teacher-facing: declare course offerings (admin-approved before they go
 /// live on the schedule), review student join requests, open a section's
 /// group, and archive a course at the end of the term.
@@ -50,6 +72,10 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
 
   /// Per-row so responding to one request doesn't freeze every other button.
   final Set<String> _busyIds = {};
+
+  /// Separate from [_busyIds]: the bulk admit disables the whole tab, because
+  /// it is mid-way through a sequence and a stray single tap would race it.
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -125,12 +151,74 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
     await _guard(offering['id'] as String, () => _repo.archiveOffering(offering['id'] as String));
   }
 
+  static String? _studentIdOf(Map<String, dynamic> r) =>
+      (r['profiles'] as Map<String, dynamic>?)?['id'] as String?;
+
+  static String? _courseCodeOf(Map<String, dynamic> r) =>
+      ((r['course_offerings'] as Map?)?['courses'] as Map?)?['code'] as String?;
+
   Future<void> _respondToJoin(Map<String, dynamic> request, bool approve) => _guard(
         request['id'] as String,
         () => approve
-            ? _repo.approveJoin(request['id'] as String)
-            : _repo.rejectJoin(request['id'] as String),
+            ? _repo.approveJoin(request['id'] as String,
+                studentId: _studentIdOf(request), courseCode: _courseCodeOf(request))
+            : _repo.rejectJoin(request['id'] as String,
+                studentId: _studentIdOf(request), courseCode: _courseCodeOf(request)),
       );
+
+  /// Admits every pending requester whose batch and section match the offering.
+  ///
+  /// A theory section is fifty students, and approving them one at a time is
+  /// fifty taps and fifty round-trips. Mismatches are deliberately excluded and
+  /// left for individual review — a retaker or someone who moved section is a
+  /// real decision, and this must never make it silently.
+  Future<void> _approveAllMatching() async {
+    final matching = _joinRequests.where(joinRequestMatchesSection).toList();
+    if (matching.isEmpty) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('Admit ${matching.length} student${matching.length == 1 ? '' : 's'}?'),
+        content: const Text(
+            'These are the requesters already in the batch and section of the '
+            'offering they applied to.\n\n'
+            'Anyone whose batch or section does not match is left for you to '
+            'review one by one.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Admit all')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _bulkBusy = true);
+    var done = 0;
+    final failures = <String>[];
+    for (final r in matching) {
+      try {
+        await _repo.approveJoin(r['id'] as String,
+            studentId: _studentIdOf(r), courseCode: _courseCodeOf(r));
+        done++;
+      } catch (e) {
+        // Keep going: one rejection (a full section, say) must not strand the
+        // rest. Every failure is reported at the end rather than swallowed.
+        final name = (r['profiles'] as Map?)?['full_name'] as String? ?? 'A student';
+        failures.add('$name — ${friendlyError(e)}');
+      }
+    }
+    await _load();
+    if (!mounted) return;
+    setState(() => _bulkBusy = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(failures.isEmpty
+          ? 'Admitted $done student${done == 1 ? '' : 's'} ✓'
+          : 'Admitted $done · ${failures.length} failed: ${failures.first}'),
+      backgroundColor: failures.isEmpty ? AppColors.green : AppColors.amber,
+      duration: Duration(seconds: failures.isEmpty ? 3 : 6),
+    ));
+  }
 
   void _openGroup(Map<String, dynamic> offering) {
     Navigator.of(context).push(MaterialPageRoute(
@@ -286,17 +374,37 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
         ),
       ]);
     }
+    // Header row plus the requests, so the bulk action scrolls with the list
+    // rather than pinning a bar over a short queue.
+    final matching = _joinRequests.where(joinRequestMatchesSection).length;
     return ListView.builder(
       padding: NavInsets.content(context, top: 0, fab: true),
-      itemCount: _joinRequests.length,
-      itemBuilder: (ctx, i) {
+      itemCount: _joinRequests.length + (matching >= 2 ? 1 : 0),
+      itemBuilder: (ctx, rawIndex) {
+        // Offered only from two upwards: for a single request the per-card
+        // Accept button is already one tap, and a confirm dialog on top of it
+        // would be slower, not faster.
+        if (matching >= 2 && rawIndex == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _BulkAdmitBar(
+              matching: matching,
+              total: _joinRequests.where((r) => r['status'] == 'pending').length,
+              busy: _bulkBusy,
+              onTap: _approveAllMatching,
+            ),
+          );
+        }
+        final i = matching >= 2 ? rawIndex - 1 : rawIndex;
         final r = _joinRequests[i];
         final id = r['id'] as String;
         final student = r['profiles'] as Map<String, dynamic>? ?? const {};
         final offering = r['course_offerings'] as Map<String, dynamic>? ?? const {};
         final course = offering['courses'] as Map<String, dynamic>? ?? const {};
         final status = r['status'] as String? ?? 'pending';
-        final busy = _busyIds.contains(id);
+        // Also disabled mid-bulk: that sequence reloads the list as it goes,
+        // and a single tap landing in the middle would race it.
+        final busy = _busyIds.contains(id) || _bulkBusy;
         final requestedAt = DateTime.tryParse(r['created_at'] as String? ?? '');
 
         // The vetting detail a teacher needs but the chat caller must not
@@ -895,6 +1003,62 @@ class _DepartmentNotice extends StatelessWidget {
             style: AppTextStyles.labelSmall.copyWith(
                 color: missing ? color : AppColors.textSecondaryOf(context)),
           ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Offers to admit every requester whose batch and section already match.
+///
+/// Exists because a theory section is fifty students: reviewing each one
+/// individually is right for the exceptions and pure friction for the rest.
+class _BulkAdmitBar extends StatelessWidget {
+  final int matching, total;
+  final bool busy;
+  final VoidCallback onTap;
+  const _BulkAdmitBar({
+    required this.matching,
+    required this.total,
+    required this.busy,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final others = total - matching;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.green.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: AppColors.green.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Row(children: [
+        const Icon(Icons.done_all_rounded, size: 18, color: AppColors.green),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$matching in the right batch & section',
+                style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600)),
+            Text(
+                others > 0
+                    ? '$others other${others == 1 ? '' : 's'} need${others == 1 ? 's' : ''} a look first'
+                    : 'Everyone waiting matches',
+                style: AppTextStyles.labelSmall
+                    .copyWith(color: AppColors.textSecondaryOf(context))),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          onPressed: busy ? null : onTap,
+          style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+          child: busy
+              ? const SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Admit all'),
         ),
       ]),
     );
