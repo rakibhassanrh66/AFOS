@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:afos_v7/features/schedule/presentation/manage_course_offerings_screen.dart';
+import 'package:afos_v7/features/schedule/presentation/join_requests_screen.dart';
 
-/// The bulk admit on the Join Requests tab lets students into a course WITHOUT
+/// The bulk admit on the Join Requests screen lets students into a course WITHOUT
 /// the teacher looking at them individually, so the rule deciding who qualifies
 /// is the one piece of that screen that must not drift silently.
 void main() {
