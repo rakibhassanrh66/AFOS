@@ -9,6 +9,7 @@ import '../../features/admin/presentation/manage_feedback_screen.dart';
 import '../../features/admin/presentation/manage_users_screen.dart';
 import '../../features/assignments/presentation/assignments_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
+import '../../features/attendance/presentation/my_attendance_screen.dart';
 import '../../features/auth/presentation/complete_profile_screen.dart';
 import '../../features/auth/presentation/pending_approval_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
@@ -223,6 +224,7 @@ class AppRouter {
           GoRoute(path: '/grades',        pageBuilder: (c,s) => slideRightPage(const GradesScreen(), s)),
           GoRoute(path: '/assignments',   pageBuilder: (c,s) => slideRightPage(const AssignmentsScreen(), s)),
           GoRoute(path: '/attendance',    pageBuilder: (c,s) => slideRightPage(const AttendanceScreen(), s)),
+          GoRoute(path: '/my-attendance', pageBuilder: (c,s) => slideRightPage(const MyAttendanceScreen(), s)),
           GoRoute(path: '/dept-chat',     pageBuilder: (c,s) => slideRightPage(const DeptChatScreen(), s)),
           GoRoute(path: '/vr-id',         pageBuilder: (c,s) => slideRightPage(const VrIdScreen(), s)),
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),

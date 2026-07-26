@@ -223,6 +223,32 @@ class AttendanceRepository {
   /// Returns `studentId -> {present, late, excused, absent, sessions, bonus,
   /// percent}`. Late counts toward attendance; excused is removed from the
   /// denominator rather than counted as attended.
+  /// Every attendance record belonging to the signed-in student, newest first,
+  /// with the course it was taken in.
+  ///
+  /// Relies entirely on `student_read_own_attendance_records`, which restricts
+  /// this to `student_id = auth.uid()` — a student cannot see a classmate's
+  /// attendance even by asking for it. The explicit student_id filter mirrors
+  /// that policy rather than replacing it, so a policy change cannot silently
+  /// widen what this returns.
+  Future<List<Map<String, dynamic>>> fetchMyAttendance() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return [];
+    final res = await _client
+        .from('attendance_records')
+        .select('id, status, bonus, note, '
+            'attendance_sessions!inner(session_date, lab_subgroup, topic, '
+            'course_offerings!inner(batch, section, courses(code, title)))')
+        .eq('student_id', uid) as List;
+    final rows = res.cast<Map<String, dynamic>>().toList()
+      ..sort((a, b) {
+        final ad = (a['attendance_sessions'] as Map?)?['session_date'] as String? ?? '';
+        final bd = (b['attendance_sessions'] as Map?)?['session_date'] as String? ?? '';
+        return bd.compareTo(ad);
+      });
+    return rows;
+  }
+
   Future<Map<String, Map<String, num>>> fetchSummary(String offeringId) async {
     final sessions = await fetchSessions(offeringId);
     if (sessions.isEmpty) return {};

@@ -146,11 +146,31 @@ class _DashboardState extends State<DashboardScreen> {
         }
       } catch (_) {}
     } else if (role == 'teacher') {
+      // NOT joined through course_offerings.teacher_id, unlike Results and
+      // Assignments — because it cannot be. Every one of the ~1,850
+      // schedule_slots rows came from the routine PDF and none carries a
+      // course_offering_id, so there is no data path from an offering to a
+      // timetable slot. Offerings no longer declare meeting times either (the
+      // class itself is the meeting), so approving one generates no slots to
+      // join to. Until the routine importer records which offering a slot
+      // belongs to, teacher_initial is the only link that exists.
+      //
+      // What IS fixable is the collision. teacher_initial is free text scraped
+      // from the PDF: 221 distinct initials appear across the routine while
+      // only 2 teacher profiles have one set, so an initial is nowhere near
+      // unique and matching on it alone pulled in other faculty's classes
+      // (the "MSK" case). Narrowing by department removes the cross-department
+      // half of that — a teacher's own classes are necessarily in their own
+      // department — and leaves only same-department initial clashes, which
+      // this data genuinely cannot resolve.
       final initial = p['teacher_initial'] as String?;
-      if (initial != null) {
+      final dept = p['department'] as String?;
+      if (initial != null && initial.isNotEmpty) {
         try {
-          final rows = await SupabaseConfig.client.from('schedule_slots')
-              .select().eq('teacher_initial', initial) as List;
+          var q = SupabaseConfig.client.from('schedule_slots')
+              .select().eq('teacher_initial', initial);
+          if (dept != null && dept.isNotEmpty) q = q.eq('department', dept);
+          final rows = await q as List;
           final mine = rows.where((s) => s['is_cancelled'] != true)
               .map((s) => ClassSlot.fromJson(s as Map<String, dynamic>)).toList();
           if (mounted) setState(() => _weekSlots = mine);
