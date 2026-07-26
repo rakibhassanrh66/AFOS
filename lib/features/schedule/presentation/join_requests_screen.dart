@@ -92,7 +92,13 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    // _bulkBusy is cleared here as well as at the end of _admitAllMatching.
+    // It disables EVERY row's Accept and Decline, so if it ever stuck true the
+    // whole screen would look present and correct while no button did anything
+    // — indistinguishable from the buttons being missing, which is the exact
+    // complaint this screen already has a history of. A pull-to-refresh now
+    // always recovers it.
+    setState(() { _loading = true; _error = null; _bulkBusy = false; });
     try {
       final rows = await _repo.fetchOfferingJoinRequests();
       final mine = await _repo.fetchMyOfferings();
