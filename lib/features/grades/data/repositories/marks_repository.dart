@@ -114,16 +114,45 @@ class MarksRepository {
   /// The teacher's one-click "send it all in". Re-submitting after a rejection
   /// resets the row to pending rather than creating a second one — the table
   /// is unique per offering.
-  Future<void> submitResults(String offeringId) =>
-      _client.from('offering_result_submissions').upsert({
-        'offering_id': offeringId,
-        'status': 'pending',
-        'submitted_by': SupabaseConfig.uid,
-        'submitted_at': DateTime.now().toIso8601String(),
-        'reviewed_by': null,
-        'reviewed_at': null,
-        'rejection_reason': null,
-      }, onConflict: 'offering_id');
+  Future<void> submitResults(String offeringId) async {
+    await _client.from('offering_result_submissions').upsert({
+      'offering_id': offeringId,
+      'status': 'pending',
+      'submitted_by': SupabaseConfig.uid,
+      'submitted_at': DateTime.now().toIso8601String(),
+      'reviewed_by': null,
+      'reviewed_at': null,
+      'rejection_reason': null,
+    }, onConflict: 'offering_id');
+
+    // trg_notify_results_submitted writes the reviewers' in-app rows — before
+    // it existed this step told nobody at all, so a class's marks waited on an
+    // admin happening to open the screen. This adds the banner a trigger
+    // cannot send. pushToUsers, not sendToUsers: the rows are already written.
+    try {
+      final rows = await _client.rpc('list_role_holders', params: {
+        'p_roles': ['super_admin', 'admin', 'exam_controller'],
+      }) as List;
+      final course = await _client
+          .from('course_offerings')
+          .select('section, batch, courses(code)')
+          .eq('id', offeringId)
+          .maybeSingle();
+      await NotificationService.pushToUsers(
+        userIds: rows
+            .map((r) => (r as Map<String, dynamic>)['profile_id'] as String?)
+            .whereType<String>()
+            .toList(),
+        title: 'Results awaiting publication',
+        message: '${(course?['courses'] as Map?)?['code'] ?? 'A course'} '
+            '(Section ${course?['section'] ?? '?'}) has marks ready to review.',
+        deepLink: '/grades',
+        category: 'result',
+      );
+    } catch (_) {
+      // Best-effort: the submission is committed and the in-app rows exist.
+    }
+  }
 
   // ----------------------------------------------------------------- admin
 
