@@ -201,7 +201,20 @@ class CourseOfferingRepository {
       if (maxStudents != null) 'max_students': maxStudents,
     }).select('id').single();
 
-    return offering['id'] as String;
+    final offeringId = offering['id'] as String;
+
+    // trg_notify_offering_submitted writes the admins' in-app rows; this adds
+    // the banner it cannot send. Without it an offering could sit in the review
+    // queue with nothing on any reviewer's phone — which is how one previously
+    // sat ~6h unnoticed.
+    await _pushReviewers(
+      title: 'Course offering awaiting review',
+      message: 'A teacher submitted a course for Section '
+          '${section.trim()}, Batch ${batch.trim()}.',
+      deepLink: '/admin/course-offerings',
+      category: 'course_offering',
+    );
+    return offeringId;
   }
 
   Future<List<Map<String, dynamic>>> fetchMyOfferings() async {
@@ -422,6 +435,58 @@ class CourseOfferingRepository {
     await _client.from('enrollments').insert({
       'student_id': uid, 'offering_id': offeringId, 'status': 'pending',
     });
+
+    // The trigger writes the teacher's in-app row; it cannot reach OneSignal.
+    // Without this the teacher gets NO banner when someone applies, so the
+    // request only surfaces if they happen to open the screen — which is
+    // exactly how requests end up sitting undecided.
+    try {
+      final off = await _client
+          .from('course_offerings')
+          .select('teacher_id, courses(code)')
+          .eq('id', offeringId)
+          .maybeSingle();
+      final teacherId = off?['teacher_id'] as String?;
+      if (teacherId == null) return;
+      await NotificationService.pushToUsers(
+        userIds: [teacherId],
+        title: 'New join request',
+        message: '${(off?['courses'] as Map?)?['code'] ?? 'A course'} — '
+            'a student is waiting for your decision.',
+        deepLink: '/schedule/join-requests',
+        category: 'course_offering',
+      );
+    } catch (_) {
+      // Best-effort: the request itself is committed and the in-app row exists.
+    }
+  }
+
+  /// Push-only banner to the people who review a queue, resolved through the
+  /// existing list_role_holders RPC.
+  ///
+  /// The matching in-app rows are written by database triggers
+  /// (notify_offering_submitted, notify_results_submitted), so this must never
+  /// use sendToUsers — that would insert a duplicate row alongside the
+  /// trigger's. Without it the reviewers get a silent list entry and nothing on
+  /// their phone.
+  Future<void> _pushReviewers({
+    required String title,
+    required String message,
+    required String deepLink,
+    required String category,
+  }) async {
+    try {
+      final rows = await _client.rpc('list_role_holders', params: {
+        'p_roles': ['super_admin', 'admin', 'dept_admin'],
+      }) as List;
+      await NotificationService.pushToUsers(
+        userIds: rows
+            .map((r) => (r as Map<String, dynamic>)['profile_id'] as String?)
+            .whereType<String>()
+            .toList(),
+        title: title, message: message, deepLink: deepLink, category: category,
+      );
+    } catch (_) {}
   }
 
   // ------------------------------------------------------- teacher-facing
