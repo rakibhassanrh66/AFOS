@@ -218,6 +218,16 @@ class CourseOfferingRepository {
     );
   }
 
+  /// Brings an ended offering back into every list that filters
+  /// `is_archived = false` — which is nearly all of them.
+  ///
+  /// Archiving used to be one-way: no restore existed anywhere, so a single tap
+  /// on "End course" removed a course from the teacher's Results, Attendance
+  /// and Assignments lists, from student browsing and from the dashboard, with
+  /// no trace and no undo.
+  Future<void> restoreOffering(String offeringId) =>
+      _client.rpc('restore_course_offering', params: {'p_offering_id': offeringId});
+
   Future<List<Map<String, dynamic>>> fetchMyArchivedOfferings() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return [];
