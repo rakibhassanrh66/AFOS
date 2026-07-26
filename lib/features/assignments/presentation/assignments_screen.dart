@@ -11,6 +11,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -101,7 +102,11 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
     // Sourced from course_offerings.teacher_id, not the routine's scraped
     // initials — which is what previously let a teacher post an assignment to
     // a section belonging to someone who shares their initials.
-    _sections = await _gradesRepo.getMyTaughtSections();
+    // Guarded so a failed lookup falls through to the "no approved course
+    // offerings" copy below instead of leaving the sheet on its spinner.
+    try {
+      _sections = await _gradesRepo.getMyTaughtSections();
+    } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
@@ -201,12 +206,23 @@ class _TeacherAssignmentsTab extends StatefulWidget {
 class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
   List<Map<String, dynamic>> _assignments = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
+
+  /// The try/catch is load-bearing: without it a dropped request left
+  /// `_loading` true forever, so the tab sat on its shimmer with no error and
+  /// no way to retry.
   Future<void> _load() async {
-    final res = await widget.repo.getMyAssignments();
-    if (mounted) setState(() { _assignments = res; _loading = false; });
+    setState(() { _loading = true; _error = null; });
+    try {
+      final res = await widget.repo.getMyAssignments();
+      if (mounted) setState(() => _assignments = res);
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _delete(String id) async {
@@ -223,6 +239,7 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     if (_assignments.isEmpty) {
       return const EmptyState(icon: AppIcons.assignments,
@@ -288,12 +305,22 @@ class _StudentAssignmentsTab extends StatefulWidget {
 class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
   List<Map<String, dynamic>> _assignments = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
+
+  /// See the note on the teacher tab's _load: an unguarded failure here left
+  /// the shimmer up permanently.
   Future<void> _load() async {
-    final res = await widget.repo.getMyClassAssignments();
-    if (mounted) setState(() { _assignments = res; _loading = false; });
+    setState(() { _loading = true; _error = null; });
+    try {
+      final res = await widget.repo.getMyClassAssignments();
+      if (mounted) setState(() => _assignments = res);
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _submit(BuildContext context, Map<String, dynamic> a) async {
@@ -358,6 +385,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     if (_assignments.isEmpty) {
       return const EmptyState(icon: AppIcons.assignments,
@@ -449,21 +477,35 @@ class _ObserveTab extends StatefulWidget {
 class _ObserveTabState extends State<_ObserveTab> {
   List<Map<String, dynamic>> _all = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
+
+  /// Same guard as the other two tabs — an unguarded throw here stranded the
+  /// shimmer with no error and no retry.
   Future<void> _load() async {
-    final res = await SupabaseConfig.client.from('assignments')
-        .select('id, title, course_code, batch, section, profiles!teacher_id(full_name)')
-        .order('deadline', ascending: false).limit(100) as List;
-    if (mounted) setState(() { _all = res.cast(); _loading = false; });
+    setState(() { _loading = true; _error = null; });
+    try {
+      final res = await SupabaseConfig.client.from('assignments')
+          .select('id, title, course_code, batch, section, profiles!teacher_id(full_name)')
+          .order('deadline', ascending: false).limit(100) as List;
+      if (mounted) setState(() => _all = res.cast());
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) return ErrorView(message: _error!, onRetry: _load);
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
     if (_all.isEmpty) return const EmptyState(icon: AppIcons.assignments, title: 'No assignments yet', subtitle: 'System-wide assignments will show up here');
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
+    // Pull-to-refresh was missing here alone, so a super_admin had no way to
+    // re-read the list short of leaving the screen.
+    return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
+        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
         itemBuilder: (ctx, i) {
           final a = _all[i];
           final teacher = a['profiles'] as Map<String, dynamic>? ?? {};
@@ -475,6 +517,6 @@ class _ObserveTabState extends State<_ObserveTab> {
                 Text('${a['course_code']} · Batch ${a['batch']} Sec ${a['section']} · by ${teacher['full_name'] ?? 'Unknown'}',
                     style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
               ]));
-        });
+        }));
   }
 }

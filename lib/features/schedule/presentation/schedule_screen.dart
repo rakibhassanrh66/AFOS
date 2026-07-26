@@ -80,15 +80,23 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   Future<void> _loadUser() async {
     final uid = SupabaseConfig.uid;
     if(uid==null) { setState(()=>_loading=false); return; }
-    final p = await SupabaseConfig.client.from('profiles').select().eq('id',uid).single();
-    if(mounted) {
-      setState(() {
-      _user = UserModel.fromJson(p);
-      _myBatch = p['batch'] as String?;
-      _mySection = p['section'] as String?;
-      _myTeacherInitial = p['teacher_initial'] as String?;
-    });
-    }
+    // `.single()` throws on zero rows and on any dropped request, and this was
+    // unguarded — so a flaky connection left Schedule, a primary tab, on its
+    // shimmer permanently with no error and no way back. The screen degrades
+    // fine without the profile (the routine tabs still render), so swallow and
+    // let the load finish rather than blocking on it.
+    try {
+      final p = await SupabaseConfig.client.from('profiles').select().eq('id',uid).single();
+      if(mounted) {
+        setState(() {
+        _user = UserModel.fromJson(p);
+        _myBatch = p['batch'] as String?;
+        _mySection = p['section'] as String?;
+        _myTeacherInitial = p['teacher_initial'] as String?;
+      });
+      }
+    } catch (_) {}
+    if (!mounted) return;
     setState(()=>_loading=false);
     if (_user != null) {
       _repo.fetchRoutineHeader(_user!.department, 'class_routine')
