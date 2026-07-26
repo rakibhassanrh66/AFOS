@@ -436,11 +436,37 @@ class CourseOfferingRepository {
   /// which fires on the status transition itself — so it covers this RPC and
   /// the plain UPDATE below identically, and cannot be bypassed by an admin
   /// acting through some other path.
-  Future<void> approveJoin(String enrollmentId) =>
-      _client.rpc('approve_course_join', params: {'p_enrollment_id': enrollmentId});
+  /// [studentId] is optional and only used for the push banner. The trigger
+  /// writes the in-app row transactionally; a trigger cannot reach OneSignal,
+  /// so without this the student is admitted with nothing on their phone —
+  /// the same gap that made offering approvals look silent.
+  Future<void> approveJoin(String enrollmentId, {String? studentId, String? courseCode}) async {
+    await _client.rpc('approve_course_join', params: {'p_enrollment_id': enrollmentId});
+    if (studentId == null) return;
+    try {
+      await NotificationService.pushToUsers(
+        userIds: [studentId],
+        title: 'Course join approved',
+        message: '${courseCode ?? 'Your course'} — you are enrolled.',
+        deepLink: '/schedule/my-courses',
+        category: 'course_offering',
+      );
+    } catch (_) {}
+  }
 
-  Future<void> rejectJoin(String enrollmentId) =>
-      _client.from('enrollments').update({'status': 'rejected'}).eq('id', enrollmentId);
+  Future<void> rejectJoin(String enrollmentId, {String? studentId, String? courseCode}) async {
+    await _client.from('enrollments').update({'status': 'rejected'}).eq('id', enrollmentId);
+    if (studentId == null) return;
+    try {
+      await NotificationService.pushToUsers(
+        userIds: [studentId],
+        title: 'Course join declined',
+        message: '${courseCode ?? 'Your course'} — your request was not accepted.',
+        deepLink: '/schedule/browse-courses',
+        category: 'course_offering',
+      );
+    } catch (_) {}
+  }
 
   /// The section CR for an offering, so a teacher can reach them directly.
   /// Reuses the existing find_section_cr RPC rather than adding a lookup.
