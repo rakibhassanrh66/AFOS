@@ -1,306 +1,554 @@
 import 'package:flutter/material.dart';
-import '../../../config/supabase_config.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
-import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
-import '../data/repositories/grades_repository.dart';
+import '../data/repositories/marks_repository.dart';
+import 'marks_entry_screen.dart';
 
-import '../../../core/layout/nav_insets.dart';
 const _publisherRoles = ['admin', 'dept_admin', 'super_admin', 'exam_controller'];
-const _gradeLetters = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'F'];
 
-class GradesScreen extends StatefulWidget {
+/// Results, dispatched by role.
+///
+/// Supersedes the old single-letter flow, which wrote a hand-picked
+/// `grades.grade_letter` and never recorded a number at all. Grades are now
+/// derived from the DIU component distribution and `grading_scale` in the
+/// database, so a teacher enters marks and the letter follows.
+class GradesScreen extends StatelessWidget {
   const GradesScreen({super.key});
-  @override State<GradesScreen> createState() => _GradesScreenState();
+
+  @override
+  Widget build(BuildContext context) {
+    final role = RoleSession.role;
+    if (_publisherRoles.contains(role)) return const ResultApprovalScreen();
+    if (role == 'teacher') return const MarksEntryScreen();
+    return const StudentResultsScreen();
+  }
 }
 
-class _GradesScreenState extends State<GradesScreen> {
-  final _repo = GradesRepository();
-  bool get _isTeacher => RoleSession.role == 'teacher';
-  bool get _isPublisher => _publisherRoles.contains(RoleSession.role);
+// ---------------------------------------------------------------- student
 
-  Widget _header({required String title, required String subtitle, required IconData icon}) {
-    return FeatureHeader(
-      title: title,
-      subtitle: subtitle,
-      icon: icon,
-      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [AppColors.blue, AppColors.indigo]),
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-    );
+/// A student's published results, with the credit-weighted CGPA on top.
+class StudentResultsScreen extends StatefulWidget {
+  const StudentResultsScreen({super.key});
+  @override
+  State<StudentResultsScreen> createState() => _StudentResultsScreenState();
+}
+
+class _StudentResultsScreenState extends State<StudentResultsScreen> {
+  final _repo = MarksRepository();
+  List<Map<String, dynamic>> _results = [];
+  Map<String, Map<String, dynamic>> _labels = {};
+  Map<String, dynamic>? _cgpa;
+  final Map<String, List<Map<String, dynamic>>> _breakdowns = {};
+  String? _expanded;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final results = await _repo.fetchMyResults();
+      final labels = await _repo.fetchOfferingLabels(
+          [for (final r in results) r['offering_id'] as String]);
+      final cgpa = await _repo.fetchMyCgpa();
+      if (!mounted) return;
+      setState(() { _results = results; _labels = labels; _cgpa = cgpa; });
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _toggle(String enrollmentId) async {
+    if (_expanded == enrollmentId) {
+      setState(() => _expanded = null);
+      return;
+    }
+    setState(() => _expanded = enrollmentId);
+    if (_breakdowns.containsKey(enrollmentId)) return;
+    try {
+      final rows = await _repo.fetchMyBreakdown(enrollmentId);
+      if (mounted) setState(() => _breakdowns[enrollmentId] = rows);
+    } catch (_) {
+      // A failed breakdown must not take the whole result list down with it —
+      // the grade itself is already on screen and is the thing that matters.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isPublisher) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: const AfosAppBar(title: 'Publish Results'),
-        body: Column(children: [
-          _header(title: 'Publish Results', icon: Icons.publish_rounded,
-              subtitle: 'Review teacher-uploaded grades and release them to students'),
-          Expanded(child: _PublishTab(repo: _repo)),
-        ]),
-      );
-    }
-    if (_isTeacher) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: const AfosAppBar(title: 'Upload Grades'),
-        body: Column(children: [
-          _header(title: 'Upload Grades', icon: Icons.grade_rounded,
-              subtitle: 'Enter grades for your sections, then submit for department publish'),
-          Expanded(child: _TeacherUploadTab(repo: _repo)),
-        ]),
-      );
-    }
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'My Results'),
-      body: Column(children: [
-        _header(title: 'My Results', icon: Icons.school_rounded,
-            subtitle: 'Your published grades, organized by semester'),
-        Expanded(child: _StudentResultsTab(repo: _repo)),
+      body: _error != null
+          ? ErrorView(message: _error!, onRetry: _load)
+          : _loading
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(children: [
+                    ShimmerCard(height: 120), SizedBox(height: 12),
+                    ShimmerCard(height: 70), SizedBox(height: 12),
+                    ShimmerCard(height: 70),
+                  ]))
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: NavInsets.content(context),
+                    children: [
+                      _CgpaCard(cgpa: _cgpa)
+                          .animate().fadeIn(duration: 300.ms)
+                          .slideY(begin: -0.06, curve: Curves.easeOutCubic),
+                      const SizedBox(height: 14),
+                      if (_results.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 30),
+                          child: EmptyState(
+                              icon: Icons.assignment_turned_in_outlined,
+                              title: 'No published results yet',
+                              subtitle:
+                                  'A result appears here once your teacher submits it and the admin approves it'),
+                        )
+                      else
+                        for (final r in _results) _resultCard(r),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  Widget _resultCard(Map<String, dynamic> r) {
+    final eid = r['enrollment_id'] as String;
+    final offering = _labels[r['offering_id']] ?? const {};
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final letter = r['letter_grade'] as String?;
+    final color = gradeColor(letter);
+    final total = ((r['total_marks'] as num?) ?? 0).toDouble();
+    final gp = (r['grade_point'] as num?)?.toDouble();
+    final credits = (r['credit_hours'] as num?)?.toDouble();
+    final open = _expanded == eid;
+    final breakdown = _breakdowns[eid];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Column(children: [
+        InkWell(
+          onTap: () => _toggle(eid),
+          borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(course['title'] as String? ?? course['code'] as String? ?? '—',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleMedium
+                          .copyWith(color: AppColors.textPrimaryOf(context))),
+                  Text([
+                    course['code'] as String? ?? '',
+                    if (credits != null) '${credits.toStringAsFixed(0)} cr',
+                    if (gp != null) 'GP ${gp.toStringAsFixed(2)}',
+                  ].where((s) => s.isNotEmpty).join(' · '),
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textSecondaryOf(context))),
+                ]),
+              ),
+              Text(total.toStringAsFixed(total % 1 == 0 ? 0 : 1),
+                  style: AppTextStyles.titleMedium
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [color, color.withValues(alpha: 0.65)]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(letter ?? '—',
+                    textHeightBehavior: const TextHeightBehavior(
+                        applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                    style: const TextStyle(
+                        color: Colors.white, height: 1.0,
+                        fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+              Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: AppColors.textSecondaryOf(context)),
+            ]),
+          ),
+        ),
+        if (open)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            child: breakdown == null
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: LinearProgressIndicator(minHeight: 2))
+                : Column(children: [
+                    for (final row in breakdown)
+                      _BreakdownRow(
+                        label: (row['mark_components'] as Map?)?['label'] as String? ?? '',
+                        marks: ((row['marks'] as num?) ?? 0).toDouble(),
+                        max: (((row['mark_components'] as Map?)?['max_marks'] as num?) ?? 0)
+                            .toDouble(),
+                      ),
+                  ]),
+          ),
       ]),
     );
   }
 }
 
-class _StudentResultsTab extends StatefulWidget {
-  final GradesRepository repo;
-  const _StudentResultsTab({required this.repo});
-  @override State<_StudentResultsTab> createState() => _StudentResultsTabState();
-}
-
-class _StudentResultsTabState extends State<_StudentResultsTab> {
-  List<Map<String, dynamic>> _results = [];
-  bool _loading = true;
-
-  @override
-  void initState() { super.initState(); _load(); }
-  Future<void> _load() async {
-    final res = await widget.repo.getMyResults();
-    if (mounted) setState(() { _results = res; _loading = false; });
-  }
+class _BreakdownRow extends StatelessWidget {
+  final String label;
+  final double marks, max;
+  const _BreakdownRow({required this.label, required this.marks, required this.max});
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_results.isEmpty) {
-      return const EmptyState(icon: Icons.assignment_turned_in_outlined,
-        title: 'No published results yet', subtitle: 'Results appear here once your department publishes them');
-    }
-    final bySemester = <int, List<Map<String, dynamic>>>{};
-    for (final r in _results) {
-      (bySemester[r['semester'] as int? ?? 0] ??= []).add(r);
-    }
-    final semesters = bySemester.keys.toList()..sort((a, b) => b.compareTo(a));
-    return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: semesters.expand((sem) sync* {
-          yield Padding(padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text('Semester $sem', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))));
-          for (final g in bySemester[sem]!) {
-            yield Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-                child: Row(children: [
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(g['course_title'] ?? g['course_code'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                    Text(g['course_code'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-                  ])),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                              colors: [AppColors.blue, AppColors.indigo]),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
-                      child: Text(g['grade_letter'] ?? '',
-                          textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                          style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 16))),
-                ]));
-          }
-        }).toList()));
+    final ratio = max <= 0 ? 0.0 : (marks / max).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Expanded(
+          flex: 4,
+          child: Text(label,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.textSecondaryOf(context))),
+        ),
+        Expanded(
+          flex: 3,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 5,
+              backgroundColor: AppColors.textSecondaryOf(context).withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation(
+                  ratio >= 0.5 ? AppColors.green : AppColors.amber),
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 66,
+          child: Text(
+              '${marks.toStringAsFixed(marks % 1 == 0 ? 0 : 1)} / ${max.toStringAsFixed(0)}',
+              textAlign: TextAlign.right,
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.textPrimaryOf(context))),
+        ),
+      ]),
+    );
   }
 }
 
-class _TeacherUploadTab extends StatefulWidget {
-  final GradesRepository repo;
-  const _TeacherUploadTab({required this.repo});
-  @override State<_TeacherUploadTab> createState() => _TeacherUploadTabState();
-}
-
-class _TeacherUploadTabState extends State<_TeacherUploadTab> {
-  List<Map<String, String>> _sections = [];
-  Map<String, String>? _selectedSection;
-  List<Map<String, dynamic>> _students = [];
-  final Map<String, String> _grades = {};
-  bool _loading = true, _saving = false;
-
-  @override
-  void initState() { super.initState(); _init(); }
-
-  Future<void> _init() async {
-    final uid = SupabaseConfig.uid;
-    if (uid == null) { setState(() => _loading = false); return; }
-    // No longer gated on the teacher's self-typed initials. The list now comes
-    // from course_offerings.teacher_id, so a teacher who never filled in the
-    // Settings field still sees the courses they genuinely own — and, more to
-    // the point, stops seeing another faculty member's sections.
-    final sections = await widget.repo.getMyTaughtSections();
-    if (mounted) setState(() { _sections = sections; _loading = false; });
-  }
-
-  Future<void> _selectSection(Map<String, String> section) async {
-    setState(() { _selectedSection = section; _students = []; _grades.clear(); });
-    final students = await widget.repo.listSectionStudents(section['department']!, section['batch']!, section['section']!);
-    if (mounted) setState(() => _students = students);
-  }
-
-  Future<void> _submit() async {
-    if (_selectedSection == null) return;
-    setState(() => _saving = true);
-    try {
-      for (final s in _students) {
-        final grade = _grades[s['id']];
-        if (grade == null || grade.isEmpty) continue;
-        await widget.repo.upsertGrade(
-          studentId: s['id'] as String,
-          courseCode: _selectedSection!['subjectCode']!,
-          courseTitle: _selectedSection!['subject']!,
-          semester: int.tryParse(_selectedSection!['semester'] ?? '') ?? 1,
-          batch: _selectedSection!['batch']!,
-          section: _selectedSection!['section']!,
-          gradeLetter: grade,
-        );
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Grades submitted — waiting for department publish ✓'), backgroundColor: AppColors.green));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
-      }
-    }
-    if (mounted) setState(() => _saving = false);
-  }
+/// CGPA, standing and honours. Everything here is computed server-side by
+/// `student_cgpa()` from the counting attempt of each course — a retake
+/// replaces the earlier grade outright, per DIU policy.
+class _CgpaCard extends StatelessWidget {
+  final Map<String, dynamic>? cgpa;
+  const _CgpaCard({required this.cgpa});
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_sections.isEmpty) {
-      return const EmptyState(icon: Icons.class_outlined,
-        title: 'No classes found', subtitle: 'Set your teacher initials in Settings so we can find your sections');
-    }
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(16), child: DropdownButtonFormField<Map<String, String>>(
-          initialValue: _selectedSection,
-          isExpanded: true,
-          decoration: InputDecoration(hintText: 'Select a class', filled: true, fillColor: AppColors.glassFill(context),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderOf(context)))),
-          dropdownColor: AppColors.surfaceOf(context),
-          style: TextStyle(color: AppColors.textPrimaryOf(context)),
-          items: _sections.map((s) => DropdownMenuItem(value: s,
-              child: Text('${s['subjectCode']} — Batch ${s['batch']} Sec ${s['section']}', overflow: TextOverflow.ellipsis))).toList(),
-          onChanged: (v) { if (v != null) _selectSection(v); })),
-      if (_selectedSection != null)
-        Expanded(child: _students.isEmpty
-            ? const EmptyState(icon: Icons.people_outline, title: 'No students found', subtitle: 'No students are set to this batch/section yet')
-            : Column(children: [
-                Expanded(child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 0, 16, 0 + NavInsets.of(context)), itemCount: _students.length,
-                    // Guarded by the _students.isEmpty ternary above, so .first is safe.
-                    prototypeItem: _buildStudentRow(context, _students.first),
-                    itemBuilder: (ctx, i) => _buildStudentRow(ctx, _students[i]))),
-                Padding(padding: const EdgeInsets.all(16), child: AfosButton(label: 'Submit Grades', loading: _saving, onTap: _submit)),
-              ])),
-    ]);
-  }
+    final value = (cgpa?['cgpa'] as num?)?.toDouble();
+    final credits = (cgpa?['earned_credits'] as num?)?.toDouble() ?? 0;
+    final standing = cgpa?['standing'] as String?;
+    final honour = cgpa?['honour'] as String?;
+    final hasF = cgpa?['has_f'] as bool? ?? false;
+    final onProbation = standing == 'probation';
 
-  Widget _buildStudentRow(BuildContext ctx, Map<String, dynamic> s) {
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-      Expanded(child: Text('${s['full_name']} (${s['university_id'] ?? ''})',
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(ctx)),
-          maxLines: 1, overflow: TextOverflow.ellipsis)),
-      DropdownButton<String>(
-          value: _grades[s['id']],
-          hint: const Text('Grade'),
-          items: _gradeLetters.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-          onChanged: (v) => setState(() => _grades[s['id'] as String] = v ?? '')),
-    ]));
+    final accent = value == null
+        ? AppColors.textSecondaryOf(context)
+        : onProbation
+            ? AppColors.red
+            : value >= 3.75
+                ? AppColors.gold
+                : AppColors.green;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [accent.withValues(alpha: 0.22), accent.withValues(alpha: 0.06)]),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 0.8),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(value?.toStringAsFixed(2) ?? '—',
+              style: TextStyle(
+                  color: accent, fontSize: 42, height: 1.0, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: Text('/ 4.00',
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context))),
+          ),
+          const Spacer(),
+          if (honour != null) PillBadge(label: honour, color: AppColors.gold),
+        ]),
+        const SizedBox(height: 8),
+        Text(
+            value == null
+                ? 'No published results yet'
+                : 'Cumulative GPA · ${credits.toStringAsFixed(0)} credits earned',
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+        // Probation and a standing F are the two states that actually change
+        // what a student must do next, so neither is left to be inferred from
+        // the number.
+        if (onProbation) ...[
+          const SizedBox(height: 10),
+          const _Notice(
+              color: AppColors.red,
+              icon: Icons.warning_amber_rounded,
+              text: 'Below the 2.00 minimum — you are on academic probation. '
+                  'Three consecutive semesters below 2.00 means removal from the programme.'),
+        ],
+        if (hasF) ...[
+          const SizedBox(height: 8),
+          const _Notice(
+              color: AppColors.amber,
+              icon: Icons.error_outline_rounded,
+              text: 'You have a standing F. The degree cannot be awarded until '
+                  'it is cleared by repeating the course.'),
+        ],
+      ]),
+    );
   }
 }
 
-class _PublishTab extends StatefulWidget {
-  final GradesRepository repo;
-  const _PublishTab({required this.repo});
-  @override State<_PublishTab> createState() => _PublishTabState();
+class _Notice extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String text;
+  const _Notice({required this.color, required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: AppTextStyles.labelSmall.copyWith(color: color)),
+          ),
+        ]),
+      );
 }
 
-class _PublishTabState extends State<_PublishTab> {
+// ------------------------------------------------------------------ admin
+
+/// Admin/exam-controller queue: approve a teacher's marks to release them.
+class ResultApprovalScreen extends StatefulWidget {
+  const ResultApprovalScreen({super.key});
+  @override
+  State<ResultApprovalScreen> createState() => _ResultApprovalScreenState();
+}
+
+class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
+  final _repo = MarksRepository();
   List<Map<String, dynamic>> _pending = [];
-  final Set<String> _selected = {};
-  bool _loading = true, _publishing = false;
+  final Set<String> _busy = {};
+  bool _loading = true;
+  String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
-  Future<void> _load() async {
-    final res = await widget.repo.getPendingPublish();
-    if (mounted) setState(() { _pending = res; _loading = false; _selected.clear(); });
+  void initState() {
+    super.initState();
+    _load();
   }
 
-  Future<void> _publish() async {
-    if (_selected.isEmpty) return;
-    setState(() => _publishing = true);
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
-      await widget.repo.publishGrades(_selected.toList());
+      final pending = await _repo.fetchPendingSubmissions();
+      if (mounted) setState(() => _pending = pending);
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _review(Map<String, dynamic> row, bool approve) async {
+    final id = row['id'] as String;
+    String? reason;
+    if (!approve) {
+      reason = await _askReason();
+      if (reason == null) return;
+    }
+    setState(() => _busy.add(id));
+    try {
+      await _repo.reviewSubmission(
+          submissionId: id, approve: approve, reason: reason);
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Results published ✓'), backgroundColor: AppColors.green));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(approve
+                ? 'Results published — the class has been notified ✓'
+                : 'Returned to the teacher'),
+            backgroundColor: approve ? AppColors.green : AppColors.amber));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
       }
     }
-    if (mounted) setState(() => _publishing = false);
+    if (mounted) setState(() => _busy.remove(id));
+  }
+
+  Future<String?> _askReason() async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Return to teacher'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+              hintText: 'What needs fixing? The teacher sees this.'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(d, ctrl.text.trim()),
+              child: const Text('Return')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
-    if (_pending.isEmpty) return const EmptyState(icon: Icons.publish_outlined, title: 'Nothing waiting to publish', subtitle: 'Teacher-uploaded results will show up here');
-    return Column(children: [
-      Expanded(child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
-          // Guarded by the `if (_pending.isEmpty) return EmptyState(...)`
-          // early-return above, so .first is safe.
-          prototypeItem: _buildPendingRow(context, _pending.first),
-          itemBuilder: (ctx, i) => _buildPendingRow(ctx, _pending[i]))),
-      Padding(padding: const EdgeInsets.all(16), child: AfosButton(
-          label: 'Publish Selected (${_selected.length})', loading: _publishing,
-          onTap: _selected.isEmpty ? () {} : _publish)),
-    ]);
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: const AfosAppBar(title: 'Publish Results'),
+      body: Column(children: [
+        FeatureHeader(
+          title: 'Publish Results',
+          subtitle: _loading
+              ? 'Loading…'
+              : '${_pending.length} course${_pending.length == 1 ? '' : 's'} waiting for review',
+          icon: Icons.publish_rounded,
+          gradient: const LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [AppColors.blue, AppColors.indigo]),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        ),
+        Expanded(
+          child: _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(children: [
+                        ShimmerCard(height: 92), SizedBox(height: 10),
+                        ShimmerCard(height: 92),
+                      ]))
+                  : _pending.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.publish_outlined,
+                          title: 'Nothing waiting to publish',
+                          subtitle: 'Submitted results appear here for approval')
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView.builder(
+                            padding: NavInsets.content(context, top: 0),
+                            itemCount: _pending.length,
+                            itemBuilder: (ctx, i) => _card(_pending[i]),
+                          ),
+                        ),
+        ),
+      ]),
+    );
   }
 
-  Widget _buildPendingRow(BuildContext ctx, Map<String, dynamic> g) {
-    final student = g['profiles'] as Map<String, dynamic>? ?? {};
-    final teacher = g['teacher'] as Map<String, dynamic>? ?? {};
-    final id = g['id'] as String;
-    final sel = _selected.contains(id);
-    return CheckboxListTile(
-        value: sel,
-        onChanged: (v) => setState(() => v == true ? _selected.add(id) : _selected.remove(id)),
-        title: Text('${student['full_name'] ?? ''} — ${g['course_code']} (${g['grade_letter']})',
-            style: TextStyle(color: AppColors.textPrimaryOf(ctx))),
-        subtitle: Text('Sem ${g['semester']} · Batch ${g['batch']} Sec ${g['section']} · by ${teacher['full_name'] ?? 'Unknown'}',
-            style: TextStyle(color: AppColors.textSecondaryOf(ctx), fontSize: 12)));
+  Widget _card(Map<String, dynamic> row) {
+    final offering = row['course_offerings'] as Map<String, dynamic>? ?? const {};
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final teacher = offering['profiles'] as Map<String, dynamic>? ?? const {};
+    final busy = _busy.contains(row['id']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: AppColors.amber.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text('${course['code'] ?? ''} — ${course['title'] ?? ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textPrimaryOf(context))),
+          ),
+          PillBadge(
+              label: (course['course_type'] as String? ?? 'theory').toUpperCase(),
+              color: AppColors.purple),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+            'Batch ${offering['batch'] ?? ''} · Section ${offering['section'] ?? ''}'
+            ' · by ${teacher['full_name'] ?? 'Unknown'}',
+            style: AppTextStyles.labelSmall
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          OutlinedButton(
+            onPressed: busy ? null : () => _review(row, false),
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            child: const Text('Return'),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: busy ? null : () => _review(row, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            child: busy
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Approve & publish'),
+          ),
+        ]),
+      ]),
+    );
   }
 }
