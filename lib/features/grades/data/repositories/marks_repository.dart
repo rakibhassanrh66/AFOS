@@ -166,7 +166,12 @@ class MarksRepository {
 
     if (!approve || row == null) return;
     try {
-      final ids = await _client.rpc('list_offering_audience',
+      // list_offering_ENROLLED, not list_offering_audience. The latter is the
+      // whole batch+section roster — right for "a new course is open to join",
+      // badly wrong here: it would banner every student in the batch that their
+      // result was ready, including people who never took the course, while the
+      // in-app row from trg_on_results_approved went only to those who did.
+      final ids = await _client.rpc('list_offering_enrolled',
           params: {'p_offering_id': row['offering_id']}) as List;
       final code = ((row['course_offerings'] as Map?)?['courses'] as Map?)?['code'] as String?;
       await NotificationService.pushToUsers(
