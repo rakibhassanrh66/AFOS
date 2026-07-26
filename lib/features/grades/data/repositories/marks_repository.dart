@@ -130,8 +130,15 @@ class MarksRepository {
     // admin happening to open the screen. This adds the banner a trigger
     // cannot send. pushToUsers, not sendToUsers: the rows are already written.
     try {
-      final rows = await _client.rpc('list_role_holders', params: {
-        'p_roles': ['super_admin', 'admin', 'exam_controller'],
+      // offering_reviewer_audience(), the SAME function trg_notify_results_
+      // submitted uses to write the in-app rows, so the banner and the row
+      // cannot reach different people. This used to be list_role_holders with
+      // a hardcoded role list that omitted dept_admin entirely, while the
+      // trigger included them scoped to the offering's department -- a
+      // dept_admin would have got the row and never the banner.
+      final rows = await _client.rpc('offering_reviewer_audience', params: {
+        'p_offering_id': offeringId,
+        'p_include_exam_controller': true,
       }) as List;
       final course = await _client
           .from('course_offerings')

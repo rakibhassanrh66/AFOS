@@ -431,7 +431,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
 
   Future<void> _loadAssignments() async {
     try {
-      final rows = await _assignmentRepo.fetchMyAssignments(unclaimedOnly: true);
+      final rows = await _assignmentRepo.fetchMyAssignments(readyToOfferOnly: true);
       if (mounted) setState(() => _assignments = rows);
     } catch (_) {
       // Silent: allocations are a shortcut, not a requirement. A teacher whose

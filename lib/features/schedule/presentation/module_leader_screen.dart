@@ -160,6 +160,67 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
     if (mounted) setState(() => _loading = false);
   }
 
+  final Set<String> _busy = {};
+
+  /// A decline must carry a reason: the module leader is the one who has to
+  /// find somebody else, and "no" on its own tells them nothing. Enforced in
+  /// the database as well, so this dialog is convenience, not the guarantee.
+  Future<String?> _askReason() async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Decline this allocation'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+              hintText: 'Why? e.g. already teaching four sections, clashes with CSE221'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () {
+                final t = ctrl.text.trim();
+                if (t.isNotEmpty) Navigator.pop(d, t);
+              },
+              child: const Text('Decline')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return result;
+  }
+
+  Future<void> _respond(Map<String, dynamic> r, bool accept) async {
+    String? reason;
+    if (!accept) {
+      reason = await _askReason();
+      if (reason == null) return;
+    }
+    final id = r['id'] as String;
+    setState(() => _busy.add(id));
+    try {
+      await widget.repo.respondToAssignment(
+          assignmentId: id, accept: accept, reason: reason);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(accept
+                ? 'Accepted — create the offering when ready'
+                : 'Declined — your module leader has been told'),
+            backgroundColor: accept ? AppColors.green : AppColors.amber));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+    if (mounted) setState(() => _busy.remove(id));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) return ErrorView(message: _error!, onRetry: _load);
@@ -182,7 +243,17 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
           final r = _rows[i];
           final claimed = r['offering_id'] != null;
           final isLab = r['course_type'] == 'lab';
-          final color = claimed ? AppColors.green : AppColors.amber;
+          final status = r['status'] as String? ?? 'pending';
+          final busy = _busy.contains(r['id']);
+          // Four states, not two. "Waiting for you to answer" and "you said yes
+          // but haven't made the offering" are different jobs, and a declined
+          // one is finished business kept only as the record of why.
+          final (label, color) = switch ((status, claimed)) {
+            ('pending', _) => ('NEEDS YOUR ANSWER', AppColors.amber),
+            ('declined', _) => ('YOU DECLINED', AppColors.red),
+            ('accepted', true) => ('OFFERING CREATED', AppColors.green),
+            _ => ('ACCEPTED — CREATE OFFERING', AppColors.blue),
+          };
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
@@ -199,8 +270,7 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
                       style: AppTextStyles.titleMedium
                           .copyWith(color: AppColors.textPrimaryOf(ctx))),
                 ),
-                PillBadge(
-                    label: claimed ? 'OFFERING CREATED' : 'TO DO', color: color),
+                PillBadge(label: label, color: color),
               ]),
               const SizedBox(height: 3),
               Text(
@@ -212,6 +282,32 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
                 Text(r['note'] as String,
                     style: AppTextStyles.labelSmall
                         .copyWith(color: AppColors.textSecondaryOf(ctx))),
+              ],
+              if (status == 'declined' &&
+                  (r['decline_reason'] as String?)?.isNotEmpty == true) ...[
+                const SizedBox(height: 5),
+                Text('Your reason: ${r['decline_reason']}',
+                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
+              ],
+              if (status == 'pending') ...[
+                const SizedBox(height: 12),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  OutlinedButton(
+                    onPressed: busy ? null : () => _respond(r, false),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                    child: const Text('Decline'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: busy ? null : () => _respond(r, true),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+                    child: busy
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Accept'),
+                  ),
+                ]),
               ],
             ]),
           );
@@ -364,15 +460,17 @@ class _AllocationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final claimed = row['offering_id'] != null;
-    final status = row['offering_status'] as String?;
-    // Three states, not two: allocated, offering submitted, offering approved.
-    // A module leader chasing the semester's setup needs to tell "the teacher
-    // hasn't acted" apart from "it's sitting in the admin queue".
-    final (label, color) = switch ((claimed, status)) {
-      (false, _) => ('AWAITING TEACHER', AppColors.amber),
-      (true, 'approved') => ('LIVE', AppColors.green),
-      (true, 'rejected') => ('REJECTED', AppColors.red),
-      (true, _) => ('SUBMITTED', AppColors.blue),
+    final offeringStatus = row['offering_status'] as String?;
+    final response = row['status'] as String? ?? 'pending';
+    // Five states now the teacher can answer. A refusal is the one that needs
+    // action from the leader, so it reads loudest and carries the reason.
+    final (label, color) = switch ((response, claimed, offeringStatus)) {
+      ('declined', _, _) => ('DECLINED — REASSIGN', AppColors.red),
+      ('pending', _, _) => ('AWAITING TEACHER', AppColors.amber),
+      (_, true, 'approved') => ('LIVE', AppColors.green),
+      (_, true, 'rejected') => ('OFFERING REJECTED', AppColors.red),
+      (_, true, _) => ('SUBMITTED', AppColors.blue),
+      _ => ('ACCEPTED', AppColors.blue),
     };
     final isLab = row['course_type'] == 'lab';
 
@@ -406,7 +504,31 @@ class _AllocationCard extends StatelessWidget {
               style: AppTextStyles.labelSmall
                   .copyWith(color: AppColors.textSecondaryOf(context))),
         ],
-        if (!claimed)
+        // The whole point of a decline: say who refused and why, so the leader
+        // can act without chasing anyone. The class is already free -- the
+        // uniqueness index ignores declined rows -- so allocating it again
+        // needs no withdrawal step.
+        if (response == 'declined') ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+              border: Border.all(color: AppColors.red.withValues(alpha: 0.3), width: 0.5),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Reason: ${row['decline_reason'] ?? 'none given'}',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
+              const SizedBox(height: 3),
+              Text('This class is free — allocate it to someone else.',
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+            ]),
+          ),
+        ],
+        if (!claimed && response != 'declined')
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(

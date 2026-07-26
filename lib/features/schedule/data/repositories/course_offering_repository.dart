@@ -208,6 +208,8 @@ class CourseOfferingRepository {
     // queue with nothing on any reviewer's phone — which is how one previously
     // sat ~6h unnoticed.
     await _pushReviewers(
+      offeringId: offeringId,
+      includeExamController: false,
       title: 'Course offering awaiting review',
       message: 'A teacher submitted a course for Section '
           '${section.trim()}, Batch ${batch.trim()}.',
@@ -461,23 +463,29 @@ class CourseOfferingRepository {
     }
   }
 
-  /// Push-only banner to the people who review a queue, resolved through the
-  /// existing list_role_holders RPC.
+  /// Push-only banner to the people who review a queue.
   ///
-  /// The matching in-app rows are written by database triggers
-  /// (notify_offering_submitted, notify_results_submitted), so this must never
-  /// use sendToUsers — that would insert a duplicate row alongside the
-  /// trigger's. Without it the reviewers get a silent list entry and nothing on
-  /// their phone.
+  /// Resolves recipients through offering_reviewer_audience() — the SAME
+  /// function the trigger uses to write the in-app rows — so the two channels
+  /// cannot describe different audiences. They already had: this previously
+  /// called list_role_holders() and pushed to every dept_admin in the
+  /// university, while the trigger scoped them to the offering's own
+  /// department. Nothing surfaced it because the project has no dept_admin
+  /// yet, so a recipient count matched while the rule did not.
+  ///
+  /// Never sendToUsers: the in-app rows are already written by the trigger.
   Future<void> _pushReviewers({
+    required String offeringId,
+    required bool includeExamController,
     required String title,
     required String message,
     required String deepLink,
     required String category,
   }) async {
     try {
-      final rows = await _client.rpc('list_role_holders', params: {
-        'p_roles': ['super_admin', 'admin', 'dept_admin'],
+      final rows = await _client.rpc('offering_reviewer_audience', params: {
+        'p_offering_id': offeringId,
+        'p_include_exam_controller': includeExamController,
       }) as List;
       await NotificationService.pushToUsers(
         userIds: rows

@@ -137,6 +137,12 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _teachingLoadItem =
     _MenuItem('Teaching Load', Icons.assignment_ind_rounded, '/schedule/teaching-load', AppColors.indigo);
 
+  // Student-facing counterpart to the teacher's register. The RLS policy for
+  // it shipped with attendance and nothing ever called it, so a student had no
+  // way to see their own record until it showed up as a lost Attendance mark.
+  static const _myAttendanceItem =
+    _MenuItem('My Attendance', Icons.fact_check_outlined, '/my-attendance', AppColors.green);
+
   static const _browseCoursesItem =
     _MenuItem('Browse Courses', Icons.menu_book_rounded, '/schedule/browse-courses', AppColors.blue);
 
@@ -238,9 +244,9 @@ class _SlideMenuState extends State<SlideMenu> {
     // RLS policy on empty_room_requests already allows CR inserts; without
     // this the menu item simply never existed for them to reach it.
     if (_isCr) {
-      return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _roomAvailabilityItem, _feedbackItem];
+      return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _myAttendanceItem, _roomAvailabilityItem, _feedbackItem];
     }
-    return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _feedbackItem];
+    return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _myAttendanceItem, _feedbackItem];
   }
 
   @override

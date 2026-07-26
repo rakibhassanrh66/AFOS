@@ -86,19 +86,49 @@ class TeachingAssignmentRepository {
 
   /// What the signed-in teacher has been allocated.
   ///
-  /// [unclaimedOnly] filters to rows not yet turned into an offering — that is
-  /// the teacher's actual to-do list, and what the New Course Offering form
-  /// starts from.
-  Future<List<Map<String, dynamic>>> fetchMyAssignments({bool unclaimedOnly = false}) async {
+  /// [readyToOfferOnly] narrows to what the New Course Offering form should
+  /// list: ACCEPTED and not yet turned into an offering. A pending allocation
+  /// is excluded on purpose — accepting is the teacher's acknowledgement that
+  /// the class is theirs, and skipping straight to creating the offering would
+  /// leave the module leader with no answer either way.
+  Future<List<Map<String, dynamic>>> fetchMyAssignments({bool readyToOfferOnly = false}) async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return [];
     var q = _client
         .from('teaching_assignments')
         .select()
         .eq('teacher_id', uid);
-    if (unclaimedOnly) q = q.isFilter('offering_id', null);
+    if (readyToOfferOnly) {
+      q = q.eq('status', 'accepted').isFilter('offering_id', null);
+    }
     final res = await q.order('assigned_at', ascending: false) as List;
     return res.cast<Map<String, dynamic>>();
+  }
+
+  /// Accepts or declines an allocation.
+  ///
+  /// [reason] is required on a decline and enforced in the database too — a
+  /// refusal with no reason tells the module leader nothing, and they are the
+  /// one who has to find somebody else.
+  ///
+  /// Declining frees the class immediately: the uniqueness index is partial on
+  /// `status <> 'declined'`, so the leader can reassign without withdrawing
+  /// anything first, and this row stays as the record of who refused and why.
+  Future<void> respondToAssignment({
+    required String assignmentId,
+    required bool accept,
+    String? reason,
+  }) async {
+    if (!accept && (reason == null || reason.trim().isEmpty)) {
+      throw ArgumentError('A reason is required when declining');
+    }
+    // No notification call here: trg_notify_teaching_response tells the module
+    // leader in the same transaction as the status change.
+    await _client.from('teaching_assignments').update({
+      'status': accept ? 'accepted' : 'declined',
+      'decline_reason': accept ? null : reason!.trim(),
+      'responded_at': DateTime.now().toIso8601String(),
+    }).eq('id', assignmentId);
   }
 
   Future<void> assign({
