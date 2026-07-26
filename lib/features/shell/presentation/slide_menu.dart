@@ -118,6 +118,11 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _myOfferingsItem =
     _MenuItem('My Course Offerings', AppIcons.schedule, '/schedule/my-offerings', AppColors.blue);
 
+  // Teacher-only: the register is scoped to offerings they own, so it has
+  // nothing to show anyone else.
+  static const _attendanceItem =
+    _MenuItem('Attendance', Icons.how_to_reg_rounded, '/attendance', AppColors.green);
+
   static const _browseCoursesItem =
     _MenuItem('Browse Courses', Icons.menu_book_rounded, '/schedule/browse-courses', AppColors.blue);
 
@@ -201,7 +206,7 @@ class _SlideMenuState extends State<SlideMenu> {
     if (role == 'teacher') {
       // Teachers can author course notices/rules but don't get the rest
       // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _myOfferingsItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
+      return [..._commonItems, _myOfferingsItem, _attendanceItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
     }
     if (role == 'staff') {
       return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem, _feedbackItem];
