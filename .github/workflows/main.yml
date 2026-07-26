@@ -40,6 +40,16 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 .github/scripts/check_definer_acls.py
 
+      # Standing assertion that a notification's in-app audience (written by a
+      # trigger) and its push audience (sent by the client) cannot describe
+      # different people. They already had, twice, invisibly -- this project has
+      # no dept_admin, so a recipient COUNT matched while the rule was wrong.
+      # See the script's docstring for the two live cases.
+      - name: Audit notification audience consistency
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 .github/scripts/check_notification_audiences.py
+
   # No Mac in this project's dev environment (Windows), so this is the only
   # way to know an iOS-breaking change shipped -- macos-latest runners
   # ship Xcode, so this actually compiles the app for iOS (catching missing
