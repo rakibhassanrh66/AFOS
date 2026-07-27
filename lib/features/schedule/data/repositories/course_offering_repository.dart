@@ -723,7 +723,12 @@ class CourseOfferingRepository {
         userIds: [studentId],
         title: 'Course join approved',
         message: '${courseCode ?? 'Your course'} — you are enrolled.',
-        deepLink: '/schedule/my-courses',
+        // '/schedule/my-courses' looks right and does not exist: the screen is
+        // TITLED "My Courses" but is routed at /schedule/browse-courses. The
+        // banner a student gets on being admitted — the single most-tapped
+        // notification in this flow — therefore went nowhere. Pinned by
+        // deep_link_routes_test.
+        deepLink: '/schedule/browse-courses',
         category: 'course_offering',
       );
     } catch (_) {}

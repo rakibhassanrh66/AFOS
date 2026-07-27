@@ -3,6 +3,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
+import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -204,9 +206,31 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
     );
   }
 
+  /// The student's own requests and enrolments whose offering is NOT in the
+  /// browsable list — because it was archived, or because it belongs to a
+  /// batch/section the current filter excludes.
+  ///
+  /// Without this they simply vanish. A student who asked to join a course, or
+  /// was already enrolled in one, saw it disappear from this screen with no
+  /// row, no status and no explanation the moment the teacher ended it — while
+  /// the enrolment still existed and still carried their marks. The teacher has
+  /// an "Ended" section for exactly this reason; the student had nothing.
+  List<Map<String, dynamic>> get _offListEnrollments {
+    final shown = _offerings.map((o) => o['id'] as String).toSet();
+    final out = <Map<String, dynamic>>[];
+    for (final e in _myEnrollmentsByOffering.values) {
+      final id = e['offering_id'] as String?;
+      if (id == null || shown.contains(id)) continue;
+      if (e['course_offerings'] is Map<String, dynamic>) out.add(e);
+    }
+    return out;
+  }
+
   Widget _body(BuildContext context) {
     if (_loading) return const OfferingCardSkeleton();
-    if (_offerings.isEmpty) {
+    final elsewhere = _offListEnrollments;
+
+    if (_offerings.isEmpty && elsewhere.isEmpty) {
       return ListView(children: [
         const SizedBox(height: 40),
         EmptyState(
@@ -220,14 +244,19 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
     }
     return ListView.builder(
       padding: NavInsets.content(context, top: 0),
-      itemCount: _offerings.length,
-      itemBuilder: (ctx, i) {
-        final o = _offerings[i];
+      itemCount: _offerings.length + (elsewhere.isEmpty ? 0 : elsewhere.length + 1),
+      itemBuilder: (ctx, rawIndex) {
+        if (rawIndex >= _offerings.length) {
+          final ai = rawIndex - _offerings.length;
+          if (ai == 0) return UnlistedEnrollmentsHeader(count: elsewhere.length);
+          return UnlistedEnrollmentRow(enrollment: elsewhere[ai - 1]);
+        }
+        final o = _offerings[rawIndex];
         final id = o['id'] as String;
         final status = _myEnrollmentsByOffering[id]?['status'] as String?;
         return OfferingCard(
           offering: o,
-          index: i,
+          index: rawIndex,
           onTap: status == 'approved'
               ? () => Navigator.of(ctx).push(MaterialPageRoute(
                     builder: (_) => CourseGroupScreen(offering: o),
@@ -282,6 +311,88 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
     return PillBadge(
       label: status.toUpperCase(),
       color: offeringStatusColor(status),
+    );
+  }
+}
+
+/// Separates the browsable courses from the student's own history.
+class UnlistedEnrollmentsHeader extends StatelessWidget {
+  final int count;
+  const UnlistedEnrollmentsHeader({super.key, required this.count});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 18, bottom: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.history_rounded,
+                size: 16, color: AppColors.textSecondaryOf(context)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('Not in this list ($count)',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleMedium
+                      .copyWith(color: AppColors.textPrimaryOf(context))),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+              'Courses you asked to join or were enrolled in that are no longer '
+              'shown above — usually because the teacher ended them.',
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.textSecondaryOf(context))),
+        ]),
+      );
+}
+
+/// One such enrolment, stating plainly what happened to it.
+class UnlistedEnrollmentRow extends StatelessWidget {
+  final Map<String, dynamic> enrollment;
+  const UnlistedEnrollmentRow({super.key, required this.enrollment});
+
+  @override
+  Widget build(BuildContext context) {
+    final offering = enrollment['course_offerings'] as Map<String, dynamic>? ?? const {};
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final status = enrollment['status'] as String? ?? 'pending';
+    final archived = offering['is_archived'] == true;
+    final dim = AppTextStyles.labelSmall
+        .copyWith(color: AppColors.textSecondaryOf(context));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: AppColors.borderOf(context), width: 0.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text('${course['code'] ?? '—'} — ${course['title'] ?? ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context))),
+          ),
+          const SizedBox(width: 8),
+          PillBadge(label: status.toUpperCase(), color: offeringStatusColor(status)),
+        ]),
+        const SizedBox(height: 3),
+        Text(
+            'Batch ${offering['batch'] ?? '—'} · Section ${offering['section'] ?? '—'}',
+            maxLines: 1, overflow: TextOverflow.ellipsis, style: dim),
+        const SizedBox(height: 6),
+        Text(
+          archived
+              ? (status == 'approved'
+                  ? 'This course has ended. Your enrolment and your marks are kept.'
+                  : 'This course ended before your request was decided, so it can no longer be accepted.')
+              : 'This course is not shown for your current batch and section filter.',
+          maxLines: 3, overflow: TextOverflow.ellipsis,
+          style: dim.copyWith(color: archived ? AppColors.amber : null),
+        ),
+      ]),
     );
   }
 }

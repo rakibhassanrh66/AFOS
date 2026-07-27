@@ -35,6 +35,14 @@ const _constraintHelp = <String, String>{
   'course_offerings_batch_format': 'Batch must be 1-10 letters, digits or "-" (e.g. 66).',
   'courses_code_format':
       'Course code must be 2-20 letters, digits, spaces or "-" (e.g. CSE 412).',
+  // Hit by "Reconsider" on a declined join request. The index is partial on
+  // `status <> 'rejected'`, so a student whose request was declined is free to
+  // apply again — and once they have, putting the OLD row back to pending
+  // collides with the new one. The generic 23505 text ("That already exists")
+  // is useless here; what the teacher needs to know is that there is already a
+  // live request from this student that they can simply accept.
+  'enrollments_active_request_uniq':
+      'This student has already sent a fresh request for that course — accept that one instead, it is in the Waiting tab.',
 };
 
 String? _constraintMessage(String message) {
