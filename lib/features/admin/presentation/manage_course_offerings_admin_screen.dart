@@ -141,7 +141,10 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
       if (ok != true) return;
       await _act(offering['id'] as String, () async {
         final dropped = await _repo.revokeOffering(
-            offeringId: offering['id'] as String, reason: reasonCtrl.text.trim());
+            offeringId: offering['id'] as String,
+            reason: reasonCtrl.text.trim(),
+            teacherId: offering['teacher_id'] as String?,
+            courseLabel: label);
         return 'Approval withdrawn — $dropped '
             '${dropped == 1 ? 'class' : 'classes'} removed from the routine';
       });
@@ -153,12 +156,15 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
   /// Puts a declined offering back in the queue, because a decline was
   /// previously as final as an approval — the teacher's only route back was to
   /// submit the whole thing again from scratch.
-  Future<void> _reopen(Map<String, dynamic> offering) => _act(
-      offering['id'] as String,
-      () async {
-        await _repo.reopenOffering(offering['id'] as String);
-        return 'Back in the pending queue';
-      });
+  Future<void> _reopen(Map<String, dynamic> offering) {
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final label = '${course['code'] ?? 'this course'} · Section ${offering['section'] ?? ''}';
+    return _act(offering['id'] as String, () async {
+      await _repo.reopenOffering(offering['id'] as String,
+          teacherId: offering['teacher_id'] as String?, courseLabel: label);
+      return 'Back in the pending queue — the teacher has been told';
+    });
+  }
 
   /// Shared busy/refresh/report wrapper for the reviewed-tab actions.
   Future<void> _act(String id, Future<String> Function() action) async {

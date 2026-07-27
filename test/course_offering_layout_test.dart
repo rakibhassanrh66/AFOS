@@ -138,6 +138,13 @@ void main() {
     'TeachingAssignmentCard (accepted, claimed)': () => TeachingAssignmentCard(
         row: allocationRow('accepted', claimed: true),
         busy: false, onAccept: () {}, onDecline: () {}),
+    // The historical anomaly: a running offering on an allocation nobody ever
+    // answered. Its card shows a longer explanation and only one button.
+    'TeachingAssignmentCard (pending, claimed)': () => TeachingAssignmentCard(
+        row: allocationRow('pending', claimed: true),
+        busy: false, onAccept: () {}, onDecline: () {}),
+    'AllocationCard (pending, claimed)': () => AllocationCard(
+        row: allocationRow('pending', claimed: true), onRemove: () {}),
     for (final s in ['pending', 'accepted', 'declined'])
       'AllocationCard ($s)': () =>
           AllocationCard(row: allocationRow(s), onRemove: () {}, onReassign: () {}),
