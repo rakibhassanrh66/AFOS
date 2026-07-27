@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:afos_v7/config/theme/app_colors.dart';
+import 'package:afos_v7/features/schedule/presentation/browse_courses_screen.dart';
 import 'package:afos_v7/features/schedule/presentation/manage_course_offerings_screen.dart';
 import 'package:afos_v7/features/schedule/presentation/module_leader_screen.dart';
 import 'package:afos_v7/features/schedule/presentation/widgets/offering_card.dart';
@@ -150,6 +151,24 @@ void main() {
           AllocationCard(row: allocationRow(s), onRemove: () {}, onReassign: () {}),
     'AllocationCard (live)': () => AllocationCard(
         row: allocationRow('accepted', claimed: true), onRemove: () {}),
+
+    // --- Browse Courses: the student's own history section.
+    'UnlistedEnrollmentsHeader': () => const UnlistedEnrollmentsHeader(count: 2),
+    for (final s in ['pending', 'approved'])
+      'UnlistedEnrollmentRow ($s, ended course)': () => UnlistedEnrollmentRow(
+            enrollment: {
+              'status': s,
+              'offering_id': 'off-1',
+              'course_offerings': {...offeringRow(archived: true)},
+            },
+          ),
+    'UnlistedEnrollmentRow (filtered out, not ended)': () => UnlistedEnrollmentRow(
+          enrollment: {
+            'status': 'approved',
+            'offering_id': 'off-1',
+            'course_offerings': {...offeringRow()},
+          },
+        ),
 
     // --- OfferingCard with each screen's real trailing.
     'OfferingCard (teacher approved)': () => OfferingCard(
