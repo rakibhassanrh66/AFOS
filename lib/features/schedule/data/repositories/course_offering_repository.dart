@@ -387,6 +387,40 @@ class CourseOfferingRepository {
   Future<void> archiveOffering(String offeringId) =>
       _client.rpc('archive_course_offering', params: {'p_offering_id': offeringId});
 
+  /// Un-approves an offering an admin should not have approved.
+  ///
+  /// Approving is loud — it publishes schedule_slots and notifies a whole
+  /// batch+section — and until now it was also final: the Reviewed tab was
+  /// read-only, so a wrong call could only be undone by asking the teacher to
+  /// archive their own course, which is a different thing and reads to them as
+  /// their fault. The RPC drops the generated routine rows, returns the
+  /// offering to `rejected` with a reason, and tells both the teacher and
+  /// everyone already enrolled. Returns how many routine rows it removed.
+  Future<int> revokeOffering({required String offeringId, String reason = ''}) async =>
+      await _client.rpc('revoke_course_offering',
+          params: {'p_offering_id': offeringId, 'p_reason': reason}) as int? ?? 0;
+
+  /// Puts a declined offering back in the review queue.
+  ///
+  /// A plain UPDATE rather than an RPC because there is nothing to keep
+  /// consistent: a rejected offering never generated any schedule_slots, so
+  /// returning it to `pending` touches one row. It has to go through `pending`
+  /// at all because `approve_course_offering` refuses anything else — which is
+  /// correct, since approving is what generates the routine and it must run
+  /// exactly once. RLS (`admin_manage_offerings`) is what restricts this to
+  /// admins; there is no client-side check standing in for that.
+  ///
+  /// The previous decision is cleared, not kept: leaving `rejection_reason` on
+  /// a row that is once again awaiting review would show the next reviewer a
+  /// verdict that no longer applies.
+  Future<void> reopenOffering(String offeringId) =>
+      _client.from('course_offerings').update({
+        'status': 'pending',
+        'rejection_reason': null,
+        'reviewed_by': null,
+        'reviewed_at': null,
+      }).eq('id', offeringId);
+
   // ------------------------------------------------------- student-facing
 
   /// Courses for THIS student: active term, approved, and matching their own
@@ -508,12 +542,39 @@ class CourseOfferingRepository {
         // teacher can actually identify who is asking to join — a name and a
         // batch string alone were not enough to tell whether the requester
         // really belongs to that batch.
+        // `is_archived` is here because approving a request that points at an
+        // ended course is refused by trg_no_approval_into_archived, and a
+        // request CAN outlive the archiving of its course. Without this column
+        // the teacher taps Accept on a normal-looking card and gets a raw
+        // database error; with it the card can say so up front.
         .select('*, profiles!student_id(id, full_name, avatar_url, batch, section, '
             'semester, university_id, email, department, role, is_verified), '
-            'course_offerings!inner(id, section, department, batch, courses(code, title))')
+            'course_offerings!inner(id, section, department, batch, is_archived, '
+            'courses(code, title))')
         .order('created_at', ascending: false) as List;
     return res.cast<Map<String, dynamic>>();
   }
+
+  /// Takes an already-admitted student back out of the course.
+  ///
+  /// Goes through the RPC because approving PINNED every one of the offering's
+  /// schedule_slots into that student's routine, and deleting the enrolment row
+  /// alone would leave those pins behind for the rest of the term. There was no
+  /// path for this at all before: `enrollments` carries a DELETE policy for the
+  /// student withdrawing a pending request and one for admins, and none for the
+  /// teacher who owns the course — so admitting the wrong person was permanent.
+  Future<void> removeEnrollment(String enrollmentId, {String reason = ''}) =>
+      _client.rpc('remove_course_enrollment',
+          params: {'p_enrollment_id': enrollmentId, 'p_reason': reason});
+
+  /// Puts a declined request back in the queue.
+  ///
+  /// Deliberately returns it to `pending` rather than approving it outright:
+  /// `approve_course_join` only accepts a pending row, and reversing a decline
+  /// is a decision to look again, not a decision to admit. The student is told
+  /// by `trg_notify_enrollment_reviewed` on the transition, same as any other.
+  Future<void> reopenJoinRequest(String enrollmentId) =>
+      _client.from('enrollments').update({'status': 'pending'}).eq('id', enrollmentId);
 
   /// Both outcomes notify the student via `trg_notify_enrollment_reviewed`,
   /// which fires on the status transition itself — so it covers this RPC and

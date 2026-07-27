@@ -38,8 +38,20 @@ Stream<List<Map<String, dynamic>>> _cachedListStreamImpl({
 }
 
 /// Same idea for a one-shot fetch: serves the cache immediately while
-/// offline (or on a failed fetch), refreshes the cache on a successful
-/// online fetch.
+/// offline, refreshes the cache on a successful online fetch, and falls back
+/// to the cache when a live fetch fails.
+///
+/// A FAILED FETCH WITH NOTHING CACHED RETHROWS. It used to return `[]`, which
+/// made "the query blew up" and "you genuinely own nothing" produce the exact
+/// same screen: a calm empty state. That is how a teacher's My Course
+/// Offerings page could sit there reading "No offerings yet" while the database
+/// held two of their courses, with no error, no retry and nothing to report —
+/// the caller had already handled the error case and simply never saw one.
+///
+/// Every caller here already runs inside a `try` that renders an ErrorView with
+/// a retry, so rethrowing costs nothing and turns a silent wrong answer into a
+/// visible, recoverable one. Cached rows are still preferred over an error when
+/// they exist, so genuine offline use is unchanged.
 Future<List<Map<String, dynamic>>> cachedListFetch({
   required String cacheKey,
   required Future<List<Map<String, dynamic>>> Function() liveFetch,
@@ -52,13 +64,21 @@ Future<List<Map<String, dynamic>>> cachedListFetch({
     await LocalCacheService.instance.putList(cacheKey, fresh);
     return fresh;
   } catch (_) {
-    return LocalCacheService.instance.getList(cacheKey)?.data ?? [];
+    final cached = LocalCacheService.instance.getList(cacheKey)?.data;
+    if (cached != null) return cached;
+    rethrow;
   }
 }
 
 /// Single-object variant of [cachedListFetch] (e.g. a `.single()` profile
 /// fetch) — returns null only when there's genuinely neither a live result
 /// nor a cached one.
+///
+/// Deliberately still lenient where [cachedListFetch] now rethrows: what this
+/// returns is a decoration, not the page. `fetchActiveTerm()` is its main
+/// caller and both of ITS callers already treat null as "no term label to
+/// show" — making a missing semester name take down the whole My Course
+/// Offerings load would be the same class of mistake in the other direction.
 Future<Map<String, dynamic>?> cachedMapFetch({
   required String cacheKey,
   required Future<Map<String, dynamic>> Function() liveFetch,
