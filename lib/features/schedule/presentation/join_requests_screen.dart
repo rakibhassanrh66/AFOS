@@ -183,8 +183,9 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
       () => _repo.rejectJoin(r['id'] as String,
           studentId: _studentIdOf(r), courseCode: _courseCodeOf(r)));
 
-  Future<void> _reconsider(Map<String, dynamic> r) =>
-      _guard(r['id'] as String, () => _repo.reopenJoinRequest(r['id'] as String));
+  Future<void> _reconsider(Map<String, dynamic> r) => _guard(r['id'] as String,
+      () => _repo.reopenJoinRequest(r['id'] as String,
+          studentId: _studentIdOf(r), courseCode: _courseCodeOf(r)));
 
   /// Removing an admitted student unpins the course from their routine and
   /// deletes the enrolment, so it asks first and lets the teacher say why —
@@ -232,8 +233,12 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                     ]),
               ));
       if (ok != true) return;
-      await _guard(r['id'] as String,
-          () => _repo.removeEnrollment(r['id'] as String, reason: reasonCtrl.text.trim()));
+      await _guard(
+          r['id'] as String,
+          () => _repo.removeEnrollment(r['id'] as String,
+              reason: reasonCtrl.text.trim(),
+              studentId: _studentIdOf(r),
+              courseCode: _courseCodeOf(r)));
     } finally {
       reasonCtrl.dispose();
     }
@@ -352,10 +357,12 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                 studentId: _studentIdOf(r), courseCode: _courseCodeOf(r))
             : null,
         onRemove: status == 'approved'
-            ? () => _repo.removeEnrollment(r['id'] as String)
+            ? () => _repo.removeEnrollment(r['id'] as String,
+                studentId: _studentIdOf(r), courseCode: _courseCodeOf(r))
             : null,
         onReconsider: status == 'rejected'
-            ? () => _repo.reopenJoinRequest(r['id'] as String)
+            ? () => _repo.reopenJoinRequest(r['id'] as String,
+                studentId: _studentIdOf(r), courseCode: _courseCodeOf(r))
             : null,
       ),
     ));

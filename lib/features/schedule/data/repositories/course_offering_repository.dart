@@ -396,9 +396,55 @@ class CourseOfferingRepository {
   /// their fault. The RPC drops the generated routine rows, returns the
   /// offering to `rejected` with a reason, and tells both the teacher and
   /// everyone already enrolled. Returns how many routine rows it removed.
-  Future<int> revokeOffering({required String offeringId, String reason = ''}) async =>
-      await _client.rpc('revoke_course_offering',
-          params: {'p_offering_id': offeringId, 'p_reason': reason}) as int? ?? 0;
+  /// The enrolled students are resolved BEFORE the RPC runs, deliberately: the
+  /// RPC keeps their enrolment rows, but reading them afterwards would still be
+  /// a second query racing the UI reload, and the people who need the banner
+  /// most are the ones whose routine just lost a course.
+  Future<int> revokeOffering({
+    required String offeringId,
+    String reason = '',
+    String? teacherId,
+    String? courseLabel,
+  }) async {
+    List<String> enrolled = const [];
+    try {
+      final rows = await _client.from('enrollments')
+          .select('student_id').eq('offering_id', offeringId).eq('status', 'approved') as List;
+      enrolled = rows
+          .map((r) => (r as Map<String, dynamic>)['student_id'] as String?)
+          .whereType<String>()
+          .toList();
+    } catch (_) {
+      // Non-fatal: the withdrawal itself matters more than the banner.
+    }
+
+    final dropped = await _client.rpc('revoke_course_offering',
+        params: {'p_offering_id': offeringId, 'p_reason': reason}) as int? ?? 0;
+
+    // The RPC wrote both in-app rows inside the transaction; these are the
+    // banners it cannot send. Push-only — sendToUsers here would insert a
+    // second in-app row and show everyone the same notification twice.
+    try {
+      await NotificationService.pushToUsers(
+        userIds: [if (teacherId != null) teacherId],
+        title: 'Course offering approval withdrawn',
+        message: reason.isEmpty
+            ? '${courseLabel ?? 'Your course'} has been taken off the schedule by an admin.'
+            : '${courseLabel ?? 'Your course'} was taken off the schedule: $reason',
+        deepLink: '/schedule/my-offerings',
+        category: 'course_offering',
+      );
+      await NotificationService.pushToUsers(
+        userIds: enrolled,
+        title: 'A course was withdrawn',
+        message: '${courseLabel ?? 'A course'} is no longer running and has been '
+            'removed from your routine.',
+        deepLink: '/schedule/browse-courses',
+        category: 'course_offering',
+      );
+    } catch (_) {}
+    return dropped;
+  }
 
   /// Puts a declined offering back in the review queue.
   ///
@@ -413,13 +459,35 @@ class CourseOfferingRepository {
   /// The previous decision is cleared, not kept: leaving `rejection_reason` on
   /// a row that is once again awaiting review would show the next reviewer a
   /// verdict that no longer applies.
-  Future<void> reopenOffering(String offeringId) =>
-      _client.from('course_offerings').update({
-        'status': 'pending',
-        'rejection_reason': null,
-        'reviewed_by': null,
-        'reviewed_at': null,
-      }).eq('id', offeringId);
+  /// `sendToUsers`, NOT push-only: `trg_notify_offering_approved` fires only on
+  /// the transition INTO 'approved', and `trg_notify_offering_submitted` is an
+  /// INSERT trigger — so nothing at all writes an in-app row for a reopen. The
+  /// teacher has been sitting with "your course was declined" as the last thing
+  /// they heard; silently putting it back would leave them believing it is
+  /// still refused.
+  Future<void> reopenOffering(
+    String offeringId, {
+    String? teacherId,
+    String? courseLabel,
+  }) async {
+    await _client.from('course_offerings').update({
+      'status': 'pending',
+      'rejection_reason': null,
+      'reviewed_by': null,
+      'reviewed_at': null,
+    }).eq('id', offeringId);
+    if (teacherId == null) return;
+    try {
+      await NotificationService.sendToUsers(
+        userIds: [teacherId],
+        title: 'Course offering back under review',
+        message: '${courseLabel ?? 'Your course'} was put back in the review '
+            'queue. You do not need to submit it again.',
+        deepLink: '/schedule/my-offerings',
+        category: 'course_offering',
+      );
+    } catch (_) {}
+  }
 
   // ------------------------------------------------------- student-facing
 
@@ -563,18 +631,64 @@ class CourseOfferingRepository {
   /// path for this at all before: `enrollments` carries a DELETE policy for the
   /// student withdrawing a pending request and one for admins, and none for the
   /// teacher who owns the course — so admitting the wrong person was permanent.
-  Future<void> removeEnrollment(String enrollmentId, {String reason = ''}) =>
-      _client.rpc('remove_course_enrollment',
-          params: {'p_enrollment_id': enrollmentId, 'p_reason': reason});
+  /// [studentId] is only used for the push banner. The RPC writes the in-app
+  /// row transactionally; it cannot reach OneSignal, so without this the
+  /// student is removed from a course with nothing on their phone — the same
+  /// silent-list-entry gap that made offering approvals look like no
+  /// notification at all.
+  Future<void> removeEnrollment(
+    String enrollmentId, {
+    String reason = '',
+    String? studentId,
+    String? courseCode,
+  }) async {
+    await _client.rpc('remove_course_enrollment',
+        params: {'p_enrollment_id': enrollmentId, 'p_reason': reason});
+    if (studentId == null) return;
+    try {
+      await NotificationService.pushToUsers(
+        userIds: [studentId],
+        title: 'Removed from a course',
+        message: reason.isEmpty
+            ? '${courseCode ?? 'A course'} — your teacher removed you from this class.'
+            : '${courseCode ?? 'A course'} — removed: $reason',
+        deepLink: '/schedule/browse-courses',
+        category: 'course_offering',
+      );
+    } catch (_) {
+      // Best-effort: the removal has already committed and the in-app row exists.
+    }
+  }
 
   /// Puts a declined request back in the queue.
   ///
   /// Deliberately returns it to `pending` rather than approving it outright:
   /// `approve_course_join` only accepts a pending row, and reversing a decline
-  /// is a decision to look again, not a decision to admit. The student is told
-  /// by `trg_notify_enrollment_reviewed` on the transition, same as any other.
-  Future<void> reopenJoinRequest(String enrollmentId) =>
-      _client.from('enrollments').update({'status': 'pending'}).eq('id', enrollmentId);
+  /// is a decision to look again, not a decision to admit.
+  ///
+  /// `sendToUsers`, NOT push-only: `trg_notify_enrollment_reviewed` returns
+  /// early unless the new status is approved or rejected, so NOTHING writes an
+  /// in-app row for this transition. The student has already been told they
+  /// were declined, and leaving that as their last word while the request is
+  /// quietly live again is worse than not reversing it at all.
+  Future<void> reopenJoinRequest(
+    String enrollmentId, {
+    String? studentId,
+    String? courseCode,
+  }) async {
+    await _client.from('enrollments').update({'status': 'pending'}).eq('id', enrollmentId);
+    if (studentId == null) return;
+    try {
+      await NotificationService.sendToUsers(
+        userIds: [studentId],
+        title: 'Join request reopened',
+        message: '${courseCode ?? 'A course'} — your teacher is looking at your '
+            'request again. You do not need to reapply.',
+        deepLink: '/schedule/browse-courses',
+        category: 'course_offering',
+      );
+    } catch (_) {}
+  }
 
   /// Both outcomes notify the student via `trg_notify_enrollment_reviewed`,
   /// which fires on the status transition itself — so it covers this RPC and

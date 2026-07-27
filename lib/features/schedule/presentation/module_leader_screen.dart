@@ -296,7 +296,19 @@ class TeachingAssignmentCard extends StatelessWidget {
     // The instruction now lives in [hint] below, where it has the full card
     // width and can wrap like the prose it is.
     final (label, color, hint) = switch ((status, claimed)) {
-      ('pending', _) => (
+      // Already turned into a running course but never answered — a real state
+      // in this project, from before accept/decline existed. Telling this
+      // teacher to "accept to take the class" would be nonsense; they have been
+      // teaching it. Accepting is still the right button, because it is what
+      // clears the module leader's queue.
+      ('pending', true) => (
+          'UNANSWERED',
+          AppColors.amber,
+          'You already created the offering for this, but never answered the '
+              'allocation itself — so your module leader still has it open. '
+              'Accept to close it off.'
+        ),
+      ('pending', false) => (
           'PENDING',
           AppColors.amber,
           'Your module leader is waiting on you. Accept to take the class, or decline with a reason.'
@@ -362,11 +374,18 @@ class TeachingAssignmentCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton(
-                onPressed: busy ? null : onDecline,
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-                child: const Text('Decline', maxLines: 1),
-              ),
+              // No Decline once the offering exists: the class is already
+              // running with students in it, and declining would tell the
+              // module leader to reassign it out from under them. Refused by
+              // assert_teaching_assignment_edit() too — this only saves the
+              // teacher a pointless tap and an error. Archiving the offering is
+              // the supported way to call a class off.
+              if (!claimed)
+                OutlinedButton(
+                  onPressed: busy ? null : onDecline,
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                  child: const Text('Decline', maxLines: 1),
+                ),
               FilledButton(
                 onPressed: busy ? null : onAccept,
                 style: FilledButton.styleFrom(backgroundColor: AppColors.green),
@@ -587,9 +606,19 @@ class AllocationCard extends StatelessWidget {
     // Labels are one word: as a non-flex sibling of the Expanded title, a long
     // badge is laid out first at full width and starves the title to 0px, which
     // renders it one letter per line. 'DECLINED — REASSIGN' did exactly that.
+    //
+    // ('pending', claimed) is its own state and must NOT read as AWAITING.
+    // There is a real row in this project like that: a teacher turned an
+    // allocation into a running course without ever answering it, back before
+    // accept/decline existed. Lumping it in with "awaiting teacher" sends the
+    // module leader chasing somebody about a class that has been live for days.
+    // New ones cannot happen — assert_teaching_assignment_edit() refuses to
+    // stamp an offering onto an unaccepted allocation — but the existing row
+    // is history and a BEFORE UPDATE trigger cannot rewrite the past.
     final (label, color) = switch ((response, claimed, offeringStatus)) {
       ('declined', _, _) => ('DECLINED', AppColors.red),
-      ('pending', _, _) => ('AWAITING', AppColors.amber),
+      ('pending', true, _) => ('UNANSWERED', AppColors.amber),
+      ('pending', false, _) => ('AWAITING', AppColors.amber),
       (_, true, 'approved') => ('LIVE', AppColors.green),
       (_, true, 'rejected') => ('REJECTED', AppColors.red),
       (_, true, _) => ('SUBMITTED', AppColors.blue),
@@ -629,6 +658,25 @@ class AllocationCard extends StatelessWidget {
               maxLines: 4, overflow: TextOverflow.ellipsis,
               style: AppTextStyles.labelSmall
                   .copyWith(color: AppColors.textSecondaryOf(context))),
+        ],
+        // Explains the state above, so "UNANSWERED" does not just read as a
+        // stranger word for "awaiting".
+        if (response == 'pending' && claimed) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.amber.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
+              border: Border.all(color: AppColors.amber.withValues(alpha: 0.3), width: 0.5),
+            ),
+            child: Text(
+                'The offering for this already exists, but the allocation was '
+                'never answered — it predates accept/decline. Nothing is wrong '
+                'with the class; no need to chase anyone.',
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.amber)),
+          ),
         ],
         // The whole point of a decline: say who refused and why, so the leader
         // can act without chasing anyone. The class is already free -- the
