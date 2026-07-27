@@ -96,31 +96,42 @@ class _ModuleLeaderScreenState extends State<ModuleLeaderScreen> {
       );
     }
 
+    // "Mine" is here for everyone who can allocate, not just ordinary teachers.
+    // A module leader IS a teacher and gets allocated classes like anyone else,
+    // and an admin can be allocated one too — but the only path to
+    // [_MyAssignmentsTab] used to be the `!canAllocate` early return above, so
+    // the moment somebody was appointed module leader their own allocations
+    // became unreachable: they could not see them, accept them or decline them
+    // from anywhere in the app, and the module leader who allocated the class
+    // never got an answer.
+    final tabs = <GlassTab>[
+      const GlassTab('Allocations', icon: Icons.assignment_outlined),
+      const GlassTab('Mine', icon: Icons.assignment_ind_outlined),
+      if (_isAdmin) const GlassTab('Module Leaders', icon: Icons.manage_accounts_outlined),
+    ];
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Teaching Load'),
       body: Column(children: [
-        if (_isAdmin) ...[
-          const SizedBox(height: 10),
-          GlassTabBar(
-            tabs: const [
-              GlassTab('Allocations', icon: Icons.assignment_outlined),
-              GlassTab('Module Leaders', icon: Icons.manage_accounts_outlined),
-            ],
-            currentIndex: _tab,
-            onChanged: (i) => setState(() => _tab = i),
-          ),
-        ],
+        const SizedBox(height: 10),
+        GlassTabBar(
+          tabs: tabs,
+          currentIndex: _tab.clamp(0, tabs.length - 1),
+          onChanged: (i) => setState(() => _tab = i),
+        ),
         const SizedBox(height: 8),
         Expanded(
-          child: _tab == 1 && _isAdmin
-              ? _LeadersTab(repo: _repo, onChanged: _load)
-              : _AllocationsTab(
+          child: switch (_tab) {
+            1 => _MyAssignmentsTab(repo: _repo),
+            2 when _isAdmin => _LeadersTab(repo: _repo, onChanged: _load),
+            _ => _AllocationsTab(
                   repo: _repo,
                   department: _department ?? '',
                   departments: _myDepartments,
                   onDepartmentChanged: (d) => setState(() => _department = d),
                 ),
+          },
         ),
       ]),
     );
@@ -239,80 +250,136 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
       child: ListView.builder(
         padding: NavInsets.content(context),
         itemCount: _rows.length,
-        itemBuilder: (ctx, i) {
-          final r = _rows[i];
-          final claimed = r['offering_id'] != null;
-          final isLab = r['course_type'] == 'lab';
-          final status = r['status'] as String? ?? 'pending';
-          final busy = _busy.contains(r['id']);
-          // Four states, not two. "Waiting for you to answer" and "you said yes
-          // but haven't made the offering" are different jobs, and a declined
-          // one is finished business kept only as the record of why.
-          final (label, color) = switch ((status, claimed)) {
-            ('pending', _) => ('NEEDS YOUR ANSWER', AppColors.amber),
-            ('declined', _) => ('YOU DECLINED', AppColors.red),
-            ('accepted', true) => ('OFFERING CREATED', AppColors.green),
-            _ => ('ACCEPTED — CREATE OFFERING', AppColors.blue),
-          };
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceOf(ctx),
-              borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
-              border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(
-                  child: Text('${r['course_code']} · ${isLab ? 'Lab' : 'Theory'}',
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.titleMedium
-                          .copyWith(color: AppColors.textPrimaryOf(ctx))),
-                ),
-                PillBadge(label: label, color: color),
-              ]),
-              const SizedBox(height: 3),
-              Text(
-                  'Batch ${r['batch']} · Section ${r['section']} · Semester ${r['semester']}',
-                  style: AppTextStyles.labelSmall
-                      .copyWith(color: AppColors.textSecondaryOf(ctx))),
-              if ((r['note'] as String?)?.isNotEmpty == true) ...[
-                const SizedBox(height: 5),
-                Text(r['note'] as String,
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.textSecondaryOf(ctx))),
-              ],
-              if (status == 'declined' &&
-                  (r['decline_reason'] as String?)?.isNotEmpty == true) ...[
-                const SizedBox(height: 5),
-                Text('Your reason: ${r['decline_reason']}',
-                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
-              ],
-              if (status == 'pending') ...[
-                const SizedBox(height: 12),
-                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  OutlinedButton(
-                    onPressed: busy ? null : () => _respond(r, false),
-                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-                    child: const Text('Decline'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: busy ? null : () => _respond(r, true),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.green),
-                    child: busy
-                        ? const SizedBox(
-                            width: 16, height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Accept'),
-                  ),
-                ]),
-              ],
-            ]),
-          );
-        },
+        itemBuilder: (ctx, i) => TeachingAssignmentCard(
+          row: _rows[i],
+          busy: _busy.contains(_rows[i]['id']),
+          onAccept: () => _respond(_rows[i], true),
+          onDecline: () => _respond(_rows[i], false),
+        ),
       ),
+    );
+  }
+}
+
+/// One allocation as the TEACHER sees it: what they were given, and the answer
+/// they owe the module leader.
+///
+/// Public so `course_offering_layout_test` drives the real widget rather than a
+/// copy — this card is one of the two places where a long [PillBadge] label
+/// starved its sibling `Expanded(Text)` down to 0px.
+class TeachingAssignmentCard extends StatelessWidget {
+  final Map<String, dynamic> row;
+  final bool busy;
+  final VoidCallback onAccept, onDecline;
+  const TeachingAssignmentCard({
+    super.key,
+    required this.row,
+    required this.busy,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final claimed = row['offering_id'] != null;
+    final isLab = row['course_type'] == 'lab';
+    final status = row['status'] as String? ?? 'pending';
+
+    // Four states, not two. "Waiting for you to answer" and "you said yes but
+    // haven't made the offering" are different jobs, and a declined one is
+    // finished business kept only as the record of why.
+    //
+    // The badge is a WORD. It used to carry the whole instruction
+    // ('ACCEPTED — CREATE OFFERING', 26 characters) which, as a non-flex child
+    // of this Row, was laid out first at its full width and left the course
+    // code beside it with nothing — so the code rendered one letter per line.
+    // The instruction now lives in [hint] below, where it has the full card
+    // width and can wrap like the prose it is.
+    final (label, color, hint) = switch ((status, claimed)) {
+      ('pending', _) => (
+          'PENDING',
+          AppColors.amber,
+          'Your module leader is waiting on you. Accept to take the class, or decline with a reason.'
+        ),
+      ('declined', _) => ('DECLINED', AppColors.red, null),
+      ('accepted', true) => ('RUNNING', AppColors.green, null),
+      _ => (
+          'ACCEPTED',
+          AppColors.blue,
+          'Next: open New Course Offering — this allocation fills the form in for you.'
+        ),
+    };
+
+    final dim = AppTextStyles.labelSmall
+        .copyWith(color: AppColors.textSecondaryOf(context));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text('${row['course_code']} · ${isLab ? 'Lab' : 'Theory'}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleMedium
+                    .copyWith(color: AppColors.textPrimaryOf(context))),
+          ),
+          const SizedBox(width: 8),
+          PillBadge(label: label, color: color),
+        ]),
+        const SizedBox(height: 3),
+        Text('Batch ${row['batch']} · Section ${row['section']} · Semester ${row['semester']}',
+            maxLines: 2, overflow: TextOverflow.ellipsis, style: dim),
+        if ((row['note'] as String?)?.isNotEmpty == true) ...[
+          const SizedBox(height: 5),
+          Text(row['note'] as String,
+              maxLines: 4, overflow: TextOverflow.ellipsis, style: dim),
+        ],
+        if (status == 'declined' &&
+            (row['decline_reason'] as String?)?.isNotEmpty == true) ...[
+          const SizedBox(height: 5),
+          Text('Your reason: ${row['decline_reason']}',
+              maxLines: 4, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
+        ],
+        if (hint != null) ...[
+          const SizedBox(height: 8),
+          Text(hint, style: dim.copyWith(color: color)),
+        ],
+        if (status == 'pending') ...[
+          const SizedBox(height: 12),
+          // Wrap, not Row: at a large text scale these two buttons together are
+          // wider than the card, and a Row answers that by clipping the Accept
+          // button off the right edge — leaving the teacher looking at an
+          // allocation they cannot answer.
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                onPressed: busy ? null : onDecline,
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                child: const Text('Decline', maxLines: 1),
+              ),
+              FilledButton(
+                onPressed: busy ? null : onAccept,
+                style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+                child: busy
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Accept', maxLines: 1),
+              ),
+            ],
+          ),
+        ],
+      ]),
     );
   }
 }
@@ -377,6 +444,30 @@ class _AllocationsTabState extends State<_AllocationsTab> {
           backgroundColor: AppColors.amber));
       return;
     }
+    // Withdrawing DELETES the allocation and the teacher's notification about
+    // it, and it fired on a single tap with nothing to cancel it. It is
+    // materially different depending on whether they have answered yet, so the
+    // confirmation says which case this is rather than asking "are you sure".
+    final answered = (row['status'] as String? ?? 'pending') == 'accepted';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Withdraw this allocation?'),
+        content: Text(
+          '${row['course_code']} (Batch ${row['batch']}, Section ${row['section']}) '
+          'will be taken back from ${row['teacher_name'] ?? 'this teacher'} and '
+          'the class becomes free to allocate to somebody else.'
+          '${answered ? '\n\nThey have already ACCEPTED it, so tell them — they are expecting to teach this.' : ''}',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Keep it')),
+          TextButton(
+              onPressed: () => Navigator.pop(d, true),
+              child: const Text('Withdraw', style: TextStyle(color: AppColors.red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
       await widget.repo.unassign(row['id'] as String);
       await _load();
@@ -388,9 +479,13 @@ class _AllocationsTabState extends State<_AllocationsTab> {
     }
   }
 
-  Future<void> _openAssign() async {
+  /// [prefill] is a declined allocation being handed to somebody else: the
+  /// course, batch, section and semester are already decided, so only the
+  /// teacher actually changes.
+  Future<void> _openAssign({Map<String, dynamic>? prefill}) async {
     final created = await showGlassModal<bool>(context,
-        builder: (_) => _AssignSheet(repo: widget.repo, department: widget.department));
+        builder: (_) => _AssignSheet(
+            repo: widget.repo, department: widget.department, prefill: prefill));
     if (created == true) _load();
   }
 
@@ -443,8 +538,10 @@ class _AllocationsTabState extends State<_AllocationsTab> {
                         child: ListView.builder(
                           padding: NavInsets.content(context, top: 0),
                           itemCount: _rows.length,
-                          itemBuilder: (ctx, i) => _AllocationCard(
-                              row: _rows[i], onRemove: () => _remove(_rows[i])),
+                          itemBuilder: (ctx, i) => AllocationCard(
+                              row: _rows[i],
+                              onRemove: () => _remove(_rows[i]),
+                              onReassign: () => _openAssign(prefill: _rows[i])),
                         ),
                       ),
       ),
@@ -452,23 +549,49 @@ class _AllocationsTabState extends State<_AllocationsTab> {
   }
 }
 
-class _AllocationCard extends StatelessWidget {
+/// One allocation as the MODULE LEADER sees it: who has it, whether they have
+/// answered, and what became of it.
+///
+/// Public so `course_offering_layout_test` drives the real widget. See
+/// [TeachingAssignmentCard] for why a copy in a test would be worthless here.
+class AllocationCard extends StatelessWidget {
   final Map<String, dynamic> row;
   final VoidCallback onRemove;
-  const _AllocationCard({required this.row, required this.onRemove});
+
+  /// Only offered on a declined allocation — the one state that needs the
+  /// leader to act. Null in contexts that cannot open the Allocate sheet.
+  final VoidCallback? onReassign;
+  const AllocationCard({
+    super.key,
+    required this.row,
+    required this.onRemove,
+    this.onReassign,
+  });
 
   @override
   Widget build(BuildContext context) {
     final claimed = row['offering_id'] != null;
     final offeringStatus = row['offering_status'] as String?;
     final response = row['status'] as String? ?? 'pending';
-    // Five states now the teacher can answer. A refusal is the one that needs
+    // Six states now the teacher can answer. A refusal is the one that needs
     // action from the leader, so it reads loudest and carries the reason.
+    //
+    // Until 20260727094328 `row['status']` was ALWAYS null here — the accept/
+    // decline migration added the column to teaching_assignments and never to
+    // teaching_assignment_overview, which is what this reads. The `?? 'pending'`
+    // default then swallowed it silently, so every allocation showed AWAITING
+    // TEACHER forever and the decline panel below was unreachable code. If this
+    // ever reads 'pending' for a row you know was answered, suspect the view
+    // first.
+    //
+    // Labels are one word: as a non-flex sibling of the Expanded title, a long
+    // badge is laid out first at full width and starves the title to 0px, which
+    // renders it one letter per line. 'DECLINED — REASSIGN' did exactly that.
     final (label, color) = switch ((response, claimed, offeringStatus)) {
-      ('declined', _, _) => ('DECLINED — REASSIGN', AppColors.red),
-      ('pending', _, _) => ('AWAITING TEACHER', AppColors.amber),
+      ('declined', _, _) => ('DECLINED', AppColors.red),
+      ('pending', _, _) => ('AWAITING', AppColors.amber),
       (_, true, 'approved') => ('LIVE', AppColors.green),
-      (_, true, 'rejected') => ('OFFERING REJECTED', AppColors.red),
+      (_, true, 'rejected') => ('REJECTED', AppColors.red),
       (_, true, _) => ('SUBMITTED', AppColors.blue),
       _ => ('ACCEPTED', AppColors.blue),
     };
@@ -490,17 +613,20 @@ class _AllocationCard extends StatelessWidget {
                 style: AppTextStyles.titleMedium
                     .copyWith(color: AppColors.textPrimaryOf(context))),
           ),
+          const SizedBox(width: 8),
           PillBadge(label: label, color: color),
         ]),
         const SizedBox(height: 3),
         Text(
             '${isLab ? 'Lab' : 'Theory'} · Batch ${row['batch']} '
             'Section ${row['section']} · Semester ${row['semester']}',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
             style: AppTextStyles.labelSmall
                 .copyWith(color: AppColors.textSecondaryOf(context))),
         if ((row['note'] as String?)?.isNotEmpty == true) ...[
           const SizedBox(height: 5),
           Text(row['note'] as String,
+              maxLines: 4, overflow: TextOverflow.ellipsis,
               style: AppTextStyles.labelSmall
                   .copyWith(color: AppColors.textSecondaryOf(context))),
         ],
@@ -520,6 +646,7 @@ class _AllocationCard extends StatelessWidget {
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Reason: ${row['decline_reason'] ?? 'none given'}',
+                  maxLines: 5, overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
               const SizedBox(height: 3),
               Text('This class is free — allocate it to someone else.',
@@ -527,6 +654,19 @@ class _AllocationCard extends StatelessWidget {
                       .copyWith(color: AppColors.textSecondaryOf(context))),
             ]),
           ),
+          // The refusal is the one state that needs the leader to DO something,
+          // and it was the one state with no button at all — the card said "
+          // allocate it to someone else" and left them to find their own way
+          // back to the Allocate form.
+          if (onReassign != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onReassign,
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                label: const Text('Reassign'),
+              ),
+            ),
         ],
         if (!claimed && response != 'declined')
           Align(
@@ -546,7 +686,18 @@ class _AllocationCard extends StatelessWidget {
 class _AssignSheet extends StatefulWidget {
   final TeachingAssignmentRepository repo;
   final String department;
-  const _AssignSheet({required this.repo, required this.department});
+
+  /// A declined allocation being passed to somebody else. Everything except
+  /// the teacher is already settled, so those fields arrive filled in — the
+  /// leader was otherwise retyping a course code, batch and section they had
+  /// just been looking at, which is how a reassignment lands on the wrong
+  /// section.
+  final Map<String, dynamic>? prefill;
+  const _AssignSheet({
+    required this.repo,
+    required this.department,
+    this.prefill,
+  });
 
   @override
   State<_AssignSheet> createState() => _AssignSheetState();
@@ -568,6 +719,15 @@ class _AssignSheetState extends State<_AssignSheet> {
   @override
   void initState() {
     super.initState();
+    final p = widget.prefill;
+    if (p != null) {
+      _codeCtrl.text = p['course_code'] as String? ?? '';
+      _titleCtrl.text = p['course_title'] as String? ?? '';
+      _batchCtrl.text = p['batch'] as String? ?? '';
+      _sectionCtrl.text = p['section'] as String? ?? '';
+      _semesterCtrl.text = (p['semester'] as num?)?.toString() ?? '';
+      _courseType = p['course_type'] as String? ?? 'theory';
+    }
     _load();
   }
 

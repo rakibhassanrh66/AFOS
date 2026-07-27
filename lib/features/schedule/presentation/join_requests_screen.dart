@@ -8,15 +8,16 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
-import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/glass_sheet.dart';
+import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
-import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/course_offering_repository.dart';
-import 'widgets/offering_card.dart' show offeringStatusColor;
+import 'join_request_detail_screen.dart';
 
 String _normKey(Object? v) => (v as String? ?? '').trim().toUpperCase();
 
@@ -30,18 +31,24 @@ String _normKey(Object? v) => (v as String? ?? '').trim().toUpperCase();
 ///
 /// Deliberately conservative: a student with no batch or section recorded is
 /// NOT a match, so an incomplete profile is always reviewed by hand instead of
-/// being swept in by an empty-string comparison.
+/// being swept in by an empty-string comparison. A request against an ended
+/// course is never a match either — the database refuses that approval, so
+/// sweeping it into a bulk admit would guarantee a failure.
 bool joinRequestMatchesSection(Map<String, dynamic> request) {
   if (request['status'] != 'pending') return false;
   final s = request['profiles'] as Map<String, dynamic>? ?? const {};
   final o = request['course_offerings'] as Map<String, dynamic>? ?? const {};
+  if (o['is_archived'] == true) return false;
   final sb = _normKey(s['batch']), ss = _normKey(s['section']);
   if (sb.isEmpty || ss.isEmpty) return false;
   return sb == _normKey(o['batch']) && ss == _normKey(o['section']);
 }
 
-/// Students asking to join this teacher's courses — accept, decline, and
-/// review who is actually asking.
+/// The three things a request can be, and the three jobs the teacher has.
+enum _Filter { waiting, enrolled, declined }
+
+/// Students asking to join this teacher's courses — accept, decline, review who
+/// is actually asking, and undo any of it.
 ///
 /// WHY THIS IS ITS OWN SCREEN, not a tab.
 ///
@@ -57,10 +64,6 @@ bool joinRequestMatchesSection(Map<String, dynamic> request) {
 /// TabBarView, this removes the variable: a plain Scaffold with a plain
 /// ListView, reachable by its own route, with no PageView, no TickerMode
 /// subtlety and no lazily-built sibling page in the way.
-///
-/// It is also simply the better home for it. A teacher deciding who is in
-/// their class is a task, not a sub-view of managing offerings, and as a tab
-/// it was invisible from the menu and easy to never find.
 class JoinRequestsScreen extends StatefulWidget {
   const JoinRequestsScreen({super.key});
 
@@ -72,6 +75,13 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   final _repo = CourseOfferingRepository();
   List<Map<String, dynamic>> _requests = [];
   final Set<String> _busyIds = {};
+
+  /// Enrolment ids ticked for a batch decision. Only ever holds pending rows —
+  /// [_visible] clears it whenever the filter moves off Waiting, so a selection
+  /// can never survive into a tab where the buttons mean something else.
+  final Set<String> _selected = {};
+
+  _Filter _filter = _Filter.waiting;
   bool _loading = true, _bulkBusy = false;
   String? _error;
 
@@ -110,6 +120,11 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
       if (mounted) {
         setState(() {
           _requests = rows;
+          // A decision may have removed a row entirely (remove_course_enrollment
+          // deletes it), so anything selected that no longer exists is dropped
+          // rather than left to act on a dead id.
+          final live = rows.map((r) => r['id'] as String).toSet();
+          _selected.removeWhere((id) => !live.contains(id));
           _myOfferings = mine
               .where((o) => o['status'] == 'approved' && o['is_archived'] != true)
               .length;
@@ -124,8 +139,16 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  // --------------------------------------------------------------- selectors
+
   List<Map<String, dynamic>> get _pending =>
       _requests.where((r) => r['status'] == 'pending').toList();
+
+  List<Map<String, dynamic>> get _visible => switch (_filter) {
+        _Filter.waiting => _pending,
+        _Filter.enrolled => _requests.where((r) => r['status'] == 'approved').toList(),
+        _Filter.declined => _requests.where((r) => r['status'] == 'rejected').toList(),
+      };
 
   static String? _studentIdOf(Map<String, dynamic> r) =>
       (r['profiles'] as Map<String, dynamic>?)?['id'] as String?;
@@ -133,17 +156,15 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   static String? _courseCodeOf(Map<String, dynamic> r) =>
       ((r['course_offerings'] as Map?)?['courses'] as Map?)?['code'] as String?;
 
-  Future<void> _respond(Map<String, dynamic> r, bool approve) async {
-    final id = r['id'] as String;
+  static bool _isArchived(Map<String, dynamic> r) =>
+      (r['course_offerings'] as Map?)?['is_archived'] == true;
+
+  // ---------------------------------------------------------------- actions
+
+  Future<void> _guard(String id, Future<void> Function() action) async {
     setState(() => _busyIds.add(id));
     try {
-      if (approve) {
-        await _repo.approveJoin(id,
-            studentId: _studentIdOf(r), courseCode: _courseCodeOf(r));
-      } else {
-        await _repo.rejectJoin(id,
-            studentId: _studentIdOf(r), courseCode: _courseCodeOf(r));
-      }
+      await action();
       await _load();
     } catch (e) {
       if (mounted) {
@@ -152,6 +173,111 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
       }
     }
     if (mounted) setState(() => _busyIds.remove(id));
+  }
+
+  Future<void> _accept(Map<String, dynamic> r) => _guard(r['id'] as String,
+      () => _repo.approveJoin(r['id'] as String,
+          studentId: _studentIdOf(r), courseCode: _courseCodeOf(r)));
+
+  Future<void> _decline(Map<String, dynamic> r) => _guard(r['id'] as String,
+      () => _repo.rejectJoin(r['id'] as String,
+          studentId: _studentIdOf(r), courseCode: _courseCodeOf(r)));
+
+  Future<void> _reconsider(Map<String, dynamic> r) =>
+      _guard(r['id'] as String, () => _repo.reopenJoinRequest(r['id'] as String));
+
+  /// Removing an admitted student unpins the course from their routine and
+  /// deletes the enrolment, so it asks first and lets the teacher say why —
+  /// the student is notified either way and "you are out of this class" with
+  /// no explanation is worse than useless to them.
+  Future<void> _remove(Map<String, dynamic> r) async {
+    final name = (r['profiles'] as Map?)?['full_name'] as String? ?? 'This student';
+    final reasonCtrl = TextEditingController();
+    try {
+      final ok = await showGlassModal<bool>(context,
+          builder: (sheetCtx) => Padding(
+                padding: EdgeInsets.fromLTRB(
+                    24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+                child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Remove $name?',
+                          style: AppTextStyles.headlineLarge
+                              .copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+                      const SizedBox(height: 6),
+                      Text(
+                          '${_courseCodeOf(r) ?? 'This course'} comes off their routine '
+                          'and they lose the course group. They can apply again.',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondaryOf(sheetCtx))),
+                      const SizedBox(height: 14),
+                      AfosTextField(
+                          hint: 'Reason (optional, shown to them)',
+                          controller: reasonCtrl,
+                          maxLines: 2),
+                      const SizedBox(height: 16),
+                      Row(children: [
+                        Expanded(
+                            child: TextButton(
+                                onPressed: () => Navigator.pop(sheetCtx, false),
+                                child: const Text('Keep them'))),
+                        Expanded(
+                            child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.red),
+                                onPressed: () => Navigator.pop(sheetCtx, true),
+                                child: const Text('Remove'))),
+                      ]),
+                    ]),
+              ));
+      if (ok != true) return;
+      await _guard(r['id'] as String,
+          () => _repo.removeEnrollment(r['id'] as String, reason: reasonCtrl.text.trim()));
+    } finally {
+      reasonCtrl.dispose();
+    }
+  }
+
+  /// Runs one decision over every ticked row, or over everyone whose batch and
+  /// section already match.
+  ///
+  /// [rows] is captured before the loop: `_load()` runs at the end and would
+  /// otherwise mutate the list being iterated. Failures are collected rather
+  /// than thrown, so one rejection — a request against a course that has since
+  /// ended, say — cannot strand the rest of the batch.
+  Future<void> _runBatch(
+      List<Map<String, dynamic>> rows, bool approve, String verb) async {
+    if (rows.isEmpty) return;
+    setState(() => _bulkBusy = true);
+    var done = 0;
+    final failures = <String>[];
+    for (final r in rows) {
+      try {
+        if (approve) {
+          await _repo.approveJoin(r['id'] as String,
+              studentId: _studentIdOf(r), courseCode: _courseCodeOf(r));
+        } else {
+          await _repo.rejectJoin(r['id'] as String,
+              studentId: _studentIdOf(r), courseCode: _courseCodeOf(r));
+        }
+        done++;
+      } catch (e) {
+        final name = (r['profiles'] as Map?)?['full_name'] as String? ?? 'A student';
+        failures.add('$name — ${friendlyError(e)}');
+      }
+    }
+    _selected.clear();
+    await _load();
+    if (!mounted) return;
+    setState(() => _bulkBusy = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(failures.isEmpty
+          ? '$verb $done student${done == 1 ? '' : 's'} ✓'
+          : '$verb $done · ${failures.length} failed: ${failures.first}'),
+      backgroundColor: failures.isEmpty ? AppColors.green : AppColors.amber,
+      duration: Duration(seconds: failures.isEmpty ? 3 : 6),
+    ));
   }
 
   /// Admits every pending requester whose batch and section match the offering.
@@ -163,7 +289,6 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   Future<void> _admitAllMatching() async {
     final matching = _requests.where(joinRequestMatchesSection).toList();
     if (matching.isEmpty) return;
-
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
@@ -180,43 +305,87 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-
-    setState(() => _bulkBusy = true);
-    var done = 0;
-    final failures = <String>[];
-    for (final r in matching) {
-      try {
-        await _repo.approveJoin(r['id'] as String,
-            studentId: _studentIdOf(r), courseCode: _courseCodeOf(r));
-        done++;
-      } catch (e) {
-        // Keep going: one rejection (a full section, say) must not strand the
-        // rest. Failures are reported at the end rather than swallowed.
-        final name = (r['profiles'] as Map?)?['full_name'] as String? ?? 'A student';
-        failures.add('$name — ${friendlyError(e)}');
-      }
-    }
-    await _load();
-    if (!mounted) return;
-    setState(() => _bulkBusy = false);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(failures.isEmpty
-          ? 'Admitted $done student${done == 1 ? '' : 's'} ✓'
-          : 'Admitted $done · ${failures.length} failed: ${failures.first}'),
-      backgroundColor: failures.isEmpty ? AppColors.green : AppColors.amber,
-      duration: Duration(seconds: failures.isEmpty ? 3 : 6),
-    ));
+    await _runBatch(matching, true, 'Admitted');
   }
+
+  Future<void> _decideSelected(bool approve) async {
+    final rows = _pending.where((r) => _selected.contains(r['id'])).toList();
+    if (rows.isEmpty) return;
+    if (approve && rows.any(_isArchived)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('One of those is for a course that has ended — untick it first'),
+          backgroundColor: AppColors.amber));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('${approve ? 'Accept' : 'Decline'} ${rows.length} '
+            'selected student${rows.length == 1 ? '' : 's'}?'),
+        content: Text(approve
+            ? 'They are added to the class and the course lands on their routine.'
+            : 'They are told the request was not accepted. You can put any of them back afterwards.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(d, true),
+              child: Text(approve ? 'Accept' : 'Decline',
+                  style: TextStyle(color: approve ? AppColors.green : AppColors.red))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _runBatch(rows, approve, approve ? 'Accepted' : 'Declined');
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> r) async {
+    final status = r['status'] as String? ?? 'pending';
+    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => JoinRequestDetailScreen(
+        request: r,
+        onAccept: status == 'pending'
+            ? () => _repo.approveJoin(r['id'] as String,
+                studentId: _studentIdOf(r), courseCode: _courseCodeOf(r))
+            : null,
+        onDecline: status == 'pending'
+            ? () => _repo.rejectJoin(r['id'] as String,
+                studentId: _studentIdOf(r), courseCode: _courseCodeOf(r))
+            : null,
+        onRemove: status == 'approved'
+            ? () => _repo.removeEnrollment(r['id'] as String)
+            : null,
+        onReconsider: status == 'rejected'
+            ? () => _repo.reopenJoinRequest(r['id'] as String)
+            : null,
+      ),
+    ));
+    if (changed == true) await _load();
+  }
+
+  // ------------------------------------------------------------------ build
 
   @override
   Widget build(BuildContext context) {
     final pending = _pending.length;
     final matching = _requests.where(joinRequestMatchesSection).length;
+    final enrolled = _requests.where((r) => r['status'] == 'approved').length;
+    final declined = _requests.where((r) => r['status'] == 'rejected').length;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(
           title: pending > 0 ? 'Join Requests ($pending)' : 'Join Requests'),
+      // The batch bar is pinned to the bottom rather than floated in the list:
+      // a selection made at row 30 must stay actionable without scrolling back.
+      bottomNavigationBar: _selected.isEmpty
+          ? null
+          : _SelectionBar(
+              count: _selected.length,
+              busy: _bulkBusy,
+              onClear: () => setState(_selected.clear),
+              onAccept: () => _decideSelected(true),
+              onDecline: () => _decideSelected(false),
+            ),
       body: _error != null
           ? ErrorView(message: _error!, onRetry: _load)
           : _loading
@@ -226,56 +395,159 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                     ShimmerCard(height: 150), SizedBox(height: 12),
                     ShimmerCard(height: 150),
                   ]))
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: NavInsets.content(context),
-                    children: [
-                      // Always rendered, even when the list is empty. If the
-                      // count and the visible rows ever disagree again, that
-                      // is now readable on the device instead of being an
-                      // invisible contradiction.
-                      _CountLine(
-                          total: _requests.length,
-                          pending: pending,
-                          who: _whoEmail,
-                          offerings: _myOfferings),
-                      const SizedBox(height: 10),
-                      if (matching >= 2) ...[
-                        _BulkAdmitBar(
-                            matching: matching,
-                            total: pending,
-                            busy: _bulkBusy,
-                            onTap: _admitAllMatching),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_requests.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 30),
-                          child: EmptyState(
-                              icon: Icons.how_to_reg_outlined,
-                              title: 'No join requests',
-                              subtitle:
-                                  'Students who apply to your approved offerings appear here'),
-                        )
-                      else
-                        for (final r in _requests)
-                          // Each row is isolated: in a release build a widget
-                          // that throws paints as blank space, which is
-                          // indistinguishable from "no data" and is exactly how
-                          // a rendering fault could hide an entire list. This
-                          // turns that into a visible, reportable row.
-                          _SafeRow(
-                            child: _JoinRequestCard(
-                              request: r,
-                              busy: _busyIds.contains(r['id']) || _bulkBusy,
-                              onAccept: () => _respond(r, true),
-                              onDecline: () => _respond(r, false),
-                            ),
-                          ),
+              : Column(children: [
+                  const SizedBox(height: 8),
+                  GlassTabBar(
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    currentIndex: _Filter.values.indexOf(_filter),
+                    onChanged: (i) => setState(() {
+                      _filter = _Filter.values[i];
+                      // A tick means "accept or decline this"; neither verb
+                      // exists on the other two tabs, so carrying a selection
+                      // across would leave a bar offering the wrong action.
+                      _selected.clear();
+                    }),
+                    tabs: [
+                      GlassTab(pending == 0 ? 'Waiting' : 'Waiting ($pending)',
+                          icon: Icons.how_to_reg_rounded),
+                      GlassTab(enrolled == 0 ? 'Enrolled' : 'Enrolled ($enrolled)',
+                          icon: Icons.groups_2_outlined),
+                      GlassTab(declined == 0 ? 'Declined' : 'Declined ($declined)',
+                          icon: Icons.person_off_outlined),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: RefreshIndicator(onRefresh: _load, child: _list(matching)),
+                  ),
+                ]),
+    );
+  }
+
+  Widget _list(int matching) {
+    final rows = _visible;
+    return ListView(
+      padding: NavInsets.content(context, top: 0),
+      children: [
+        // Always rendered, even when the list is empty. If the count and the
+        // visible rows ever disagree again, that is now readable on the device
+        // instead of being an invisible contradiction.
+        _CountLine(
+            total: _requests.length,
+            pending: _pending.length,
+            who: _whoEmail,
+            offerings: _myOfferings),
+        const SizedBox(height: 10),
+        if (_filter == _Filter.waiting && matching >= 2) ...[
+          _BulkAdmitBar(
+              matching: matching,
+              total: _pending.length,
+              busy: _bulkBusy,
+              onTap: _admitAllMatching),
+          const SizedBox(height: 12),
+        ],
+        if (rows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 30),
+            child: EmptyState(
+              icon: switch (_filter) {
+                _Filter.waiting => Icons.how_to_reg_outlined,
+                _Filter.enrolled => Icons.groups_2_outlined,
+                _Filter.declined => Icons.person_off_outlined,
+              },
+              title: switch (_filter) {
+                _Filter.waiting => 'Nobody is waiting',
+                _Filter.enrolled => 'Nobody enrolled yet',
+                _Filter.declined => 'Nobody declined',
+              },
+              subtitle: switch (_filter) {
+                _Filter.waiting =>
+                  'Students who apply to your approved offerings appear here',
+                _Filter.enrolled =>
+                  'Students you accept show up here, and you can remove one if it was a mistake',
+                _Filter.declined =>
+                  'Requests you turn down stay here so you can put one back',
+              },
+            ),
+          )
+        else
+          for (final r in rows)
+            // Each row is isolated: in a release build a widget that throws
+            // paints as blank space, which is indistinguishable from "no data"
+            // and is exactly how a rendering fault could hide an entire list.
+            // This turns that into a visible, reportable row.
+            _SafeRow(
+              child: _JoinRequestCard(
+                request: r,
+                busy: _busyIds.contains(r['id']) || _bulkBusy,
+                selectable: _filter == _Filter.waiting,
+                selected: _selected.contains(r['id']),
+                onToggleSelected: () => setState(() {
+                  final id = r['id'] as String;
+                  _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
+                }),
+                onOpen: () => _openDetail(r),
+                onAccept: () => _accept(r),
+                onDecline: () => _decline(r),
+                onRemove: () => _remove(r),
+                onReconsider: () => _reconsider(r),
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+/// The batch action bar. Only mounted while something is ticked.
+class _SelectionBar extends StatelessWidget {
+  final int count;
+  final bool busy;
+  final VoidCallback onClear, onAccept, onDecline;
+  const _SelectionBar({
+    required this.count,
+    required this.busy,
+    required this.onClear,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + NavInsets.of(context)),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
+      ),
+      // Wrap, not Row: three controls plus a count do not fit side by side on a
+      // 320dp phone at a large text scale, and a Row answers that by clipping
+      // the last one off the edge — which here would be the Accept button.
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text('$count selected',
+              style: AppTextStyles.bodyMedium
+                  .copyWith(color: AppColors.textPrimaryOf(context))),
+          TextButton(onPressed: busy ? null : onClear, child: const Text('Clear')),
+          OutlinedButton(
+            onPressed: busy ? null : onDecline,
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: busy ? null : onAccept,
+            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            child: busy
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Accept'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -353,7 +625,7 @@ class _SafeRow extends StatelessWidget {
 }
 
 /// One join request: who is asking, whether they belong in this section, and
-/// the decision.
+/// the decision — including the decisions that undo an earlier one.
 ///
 /// A plain Container rather than the shared glass InfoCard, and no entrance
 /// animation. Both were suspects while this list was rendering blank, and
@@ -361,13 +633,20 @@ class _SafeRow extends StatelessWidget {
 /// that the row is visible unconditionally.
 class _JoinRequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
-  final bool busy;
-  final VoidCallback onAccept, onDecline;
+  final bool busy, selectable, selected;
+  final VoidCallback onToggleSelected, onOpen;
+  final VoidCallback onAccept, onDecline, onRemove, onReconsider;
   const _JoinRequestCard({
     required this.request,
     required this.busy,
+    required this.selectable,
+    required this.selected,
+    required this.onToggleSelected,
+    required this.onOpen,
     required this.onAccept,
     required this.onDecline,
+    required this.onRemove,
+    required this.onReconsider,
   });
 
   @override
@@ -376,95 +655,148 @@ class _JoinRequestCard extends StatelessWidget {
     final offering = request['course_offerings'] as Map<String, dynamic>? ?? const {};
     final course = offering['courses'] as Map<String, dynamic>? ?? const {};
     final status = request['status'] as String? ?? 'pending';
-    final accent = offeringStatusColor(status);
-    final requestedAt = DateTime.tryParse(request['created_at'] as String? ?? '');
-
-    void openDetails() => showUserDetailsSheet(context, student, extraRows: {
-          'Email': student['email'] as String? ?? '',
-          if ((student['semester'] as num?) != null) 'Semester': '${student['semester']}',
-          if (requestedAt != null) 'Requested': AppFormatters.dateTime(requestedAt),
-        });
+    final archived = offering['is_archived'] == true;
+    final accent = selected ? AppColors.blue : _statusColor(status);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
+        color: selected
+            ? AppColors.blue.withValues(alpha: 0.08)
+            : AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
-        border: Border.all(color: accent.withValues(alpha: 0.35), width: 0.8),
+        border: Border.all(
+            color: accent.withValues(alpha: selected ? 0.6 : 0.35),
+            width: selected ? 1.2 : 0.8),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          GestureDetector(
-            onTap: openDetails,
-            child: _StudentAvatar(
-                name: student['full_name'] as String?,
-                avatarUrl: student['avatar_url'] as String?),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: openDetails,
-              behavior: HitTestBehavior.opaque,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Flexible(
-                    child: Text(student['full_name'] as String? ?? 'Student',
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.titleMedium
-                            .copyWith(color: AppColors.textPrimaryOf(context))),
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (selectable)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Checkbox(
+                    value: selected,
+                    onChanged: busy ? null : (_) => onToggleSelected(),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  if (student['is_verified'] == true)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 5),
-                      child: Icon(Icons.verified_rounded, size: 15, color: AppColors.blue),
+                ),
+              _StudentAvatar(
+                  name: student['full_name'] as String?,
+                  avatarUrl: student['avatar_url'] as String?),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Flexible(
+                      child: Text(student['full_name'] as String? ?? 'Student',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.titleMedium
+                              .copyWith(color: AppColors.textPrimaryOf(context))),
                     ),
-                ]),
-                if ((student['university_id'] as String?)?.isNotEmpty == true)
-                  Text(student['university_id'] as String,
+                    if (student['is_verified'] == true)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 5),
+                        child: Icon(Icons.verified_rounded, size: 15, color: AppColors.blue),
+                      ),
+                  ]),
+                  if ((student['university_id'] as String?)?.isNotEmpty == true)
+                    Text(student['university_id'] as String,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelSmall
+                            .copyWith(color: AppColors.textSecondaryOf(context))),
+                  Text('Tap to review the full profile',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.labelSmall
-                          .copyWith(color: AppColors.textSecondaryOf(context))),
-                Text('Tap for full details',
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.blue.withValues(alpha: 0.85))),
-              ]),
+                          .copyWith(color: AppColors.blue.withValues(alpha: 0.85))),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              PillBadge(label: status.toUpperCase(), color: _statusColor(status)),
+            ]),
+            const SizedBox(height: 10),
+            Text(
+                '${status == 'approved' ? 'enrolled in' : 'wants to join'} '
+                '${course['code'] ?? ''} · Section ${offering['section'] ?? ''}',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context))),
+            const SizedBox(height: 6),
+            _BatchMatchNotice(
+              studentBatch: student['batch'] as String?,
+              studentSection: student['section'] as String?,
+              offeringBatch: offering['batch'] as String?,
+              offeringSection: offering['section'] as String?,
             ),
-          ),
-          PillBadge(label: status.toUpperCase(), color: accent),
-        ]),
-        const SizedBox(height: 10),
-        Text('wants to join ${course['code'] ?? ''} · Section ${offering['section'] ?? ''}',
-            style: AppTextStyles.bodyMedium
-                .copyWith(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 6),
-        _BatchMatchNotice(
-          studentBatch: student['batch'] as String?,
-          studentSection: student['section'] as String?,
-          offeringBatch: offering['batch'] as String?,
-          offeringSection: offering['section'] as String?,
-        ),
-        if (status == 'pending') ...[
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            OutlinedButton(
-              onPressed: busy ? null : onDecline,
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-              child: const Text('Decline'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: busy ? null : onAccept,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.green),
-              child: busy
-                  ? const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Accept'),
-            ),
+            if (archived && status != 'approved') ...[
+              const SizedBox(height: 6),
+              Text(
+                  'This course has ended — it cannot take anyone new until it is restored.',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
+            ],
+            const SizedBox(height: 12),
+            _actions(status, archived),
           ]),
-        ],
-      ]),
+        ),
+      ),
     );
+  }
+
+  static Color _statusColor(String s) => switch (s) {
+        'approved' => AppColors.green,
+        'rejected' => AppColors.red,
+        _ => AppColors.amber,
+      };
+
+  /// Every state now has something to do. Before this, only `pending` did — an
+  /// admitted student could not be removed and a declined one could not be
+  /// reconsidered, so two thirds of this queue was a read-only archive.
+  Widget _actions(String status, bool archived) {
+    final children = switch (status) {
+      'pending' => [
+          OutlinedButton(
+            onPressed: busy ? null : onDecline,
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            child: const Text('Decline', maxLines: 1),
+          ),
+          FilledButton(
+            onPressed: (busy || archived) ? null : onAccept,
+            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            child: busy
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Accept', maxLines: 1),
+          ),
+        ],
+      'approved' => [
+          OutlinedButton.icon(
+            onPressed: busy ? null : onRemove,
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            icon: const Icon(Icons.person_remove_outlined, size: 16),
+            label: const Text('Remove', maxLines: 1),
+          ),
+        ],
+      'rejected' => [
+          OutlinedButton.icon(
+            onPressed: busy ? null : onReconsider,
+            icon: const Icon(Icons.undo_rounded, size: 16),
+            label: const Text('Reconsider', maxLines: 1),
+          ),
+        ],
+      _ => const <Widget>[],
+    };
+    if (children.isEmpty) return const SizedBox.shrink();
+    // Wrap, not Row: the Decline/Accept pair needs ~301px and a 360dp card
+    // offers 297, which clipped Accept off the right edge and left the teacher
+    // looking at a request they could see and could not act on.
+    return Wrap(
+        alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: children);
   }
 }
 
@@ -496,12 +828,14 @@ class _BulkAdmitBar extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('$matching in the right batch & section',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600)),
             Text(
                 others > 0
                     ? '$others other${others == 1 ? '' : 's'} need${others == 1 ? 's' : ''} a look first'
                     : 'Everyone waiting matches',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.labelSmall
                     .copyWith(color: AppColors.textSecondaryOf(context))),
           ]),
@@ -514,7 +848,7 @@ class _BulkAdmitBar extends StatelessWidget {
               ? const SizedBox(
                   width: 16, height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Admit all'),
+              : const Text('Admit all', maxLines: 1),
         ),
       ]),
     );

@@ -25,6 +25,21 @@ class PillBadge extends StatelessWidget {
   final Color? backgroundColor;
   final BorderSide? border;
 
+  /// Hard ceiling on how much room a badge may take.
+  ///
+  /// A `Row` lays its non-flex children out FIRST with unbounded width and
+  /// gives an `Expanded` sibling only the remainder — so a badge with a long
+  /// label takes the entire row and leaves the title beside it with 0.0px, i.e.
+  /// invisible. That is not a RenderFlex overflow and no overflow test catches
+  /// it. It shipped twice on the Teaching Load cards.
+  ///
+  /// 160 is deliberately generous for a real badge ('SUBMITTED', 'AWAITING',
+  /// 'SUPER ADMIN' all fit unclipped even at a large text scale) and still
+  /// leaves the title a usable share on a 320dp phone. It does NOT scale with
+  /// the text scaler, on purpose: the point is to bound the badge's appetite,
+  /// and a cap that grew with the font would stop capping anything.
+  final double maxWidth;
+
   const PillBadge({
     super.key,
     required this.label,
@@ -36,10 +51,13 @@ class PillBadge extends StatelessWidget {
     this.letterSpacing = 0.3,
     this.backgroundColor,
     this.border,
+    this.maxWidth = 160,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Container(
         padding: padding,
         decoration: BoxDecoration(
           color: backgroundColor ?? color.withValues(alpha: 0.14),
@@ -48,8 +66,18 @@ class PillBadge extends StatelessWidget {
         ),
         child: Text(
           label,
+          // A pill is one line, always. Without this a long label in a badge
+          // that ends up width-constrained wraps into a vertical column of
+          // single letters -- and worse, an UNCONSTRAINED long label makes the
+          // badge demand the whole Row, leaving a sibling `Expanded(Text)` with
+          // 0.0px and rendering THAT one letter per line. Both were live on the
+          // Teaching Load cards ('ACCEPTED — CREATE OFFERING' at 26 characters),
+          // reproducing from 1.0x text scale on a 320dp phone upward.
+          // Keep labels to a word or two; see course_offering_layout_test.dart.
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
           style: TextStyle(color: color, fontSize: fontSize, height: 1.0, fontWeight: fontWeight, letterSpacing: letterSpacing),
         ),
-      );
+      ));
 }

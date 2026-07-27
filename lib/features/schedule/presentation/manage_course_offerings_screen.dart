@@ -258,9 +258,9 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
       itemBuilder: (ctx, rawIndex) {
         if (rawIndex >= _offerings.length) {
           final ai = rawIndex - _offerings.length;
-          if (ai == 0) return _EndedHeader(count: _archived.length);
+          if (ai == 0) return EndedHeader(count: _archived.length);
           final a = _archived[ai - 1];
-          return _EndedOfferingRow(
+          return EndedOfferingRow(
             offering: a,
             busy: _busyIds.contains(a['id']),
             onRestore: () => _restore(a),
@@ -871,9 +871,13 @@ class _DepartmentNotice extends StatelessWidget {
 
 /// Separates live offerings from ended ones, and says plainly what ending a
 /// course did — the consequence is invisible everywhere else.
-class _EndedHeader extends StatelessWidget {
+///
+/// Public so `course_offering_layout_test` can drive the real widget. A test
+/// that re-declares a private row is a copy, and a copy is exactly how the
+/// unbounded `Text` in [EndedOfferingRow] below survived review.
+class EndedHeader extends StatelessWidget {
   final int count;
-  const _EndedHeader({required this.count});
+  const EndedHeader({super.key, required this.count});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -898,11 +902,12 @@ class _EndedHeader extends StatelessWidget {
 }
 
 /// An ended offering, with the way back.
-class _EndedOfferingRow extends StatelessWidget {
+class EndedOfferingRow extends StatelessWidget {
   final Map<String, dynamic> offering;
   final bool busy;
   final VoidCallback onRestore;
-  const _EndedOfferingRow({
+  const EndedOfferingRow({
+    super.key,
     required this.offering,
     required this.busy,
     required this.onRestore,
@@ -927,20 +932,34 @@ class _EndedOfferingRow extends StatelessWidget {
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.titleMedium
                     .copyWith(color: AppColors.textSecondaryOf(context))),
+            // maxLines + ellipsis, NOT a bare Text. This line is the longest in
+            // the card ('Batch 68 · Section D · ended 27 Jul 2026, 4:56 AM')
+            // and it sits in an Expanded next to a fixed-width button. At a
+            // large text scale the button leaves the Expanded barely one glyph
+            // wide, and an uncapped Text answers that by wrapping ONE LETTER
+            // PER LINE — a 1178px-tall column of characters directly under the
+            // "Ended" header, overflowing the card by 689px. Reproduced in
+            // course_offering_layout_test.
             Text(
                 'Batch ${offering['batch'] ?? ''} · Section ${offering['section'] ?? ''}'
                 '${endedAt == null ? '' : ' · ended ${AppFormatters.dateTime(endedAt)}'}',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.labelSmall
                     .copyWith(color: AppColors.textSecondaryOf(context))),
           ]),
         ),
         const SizedBox(width: 8),
-        OutlinedButton(
-          onPressed: busy ? null : onRestore,
-          child: busy
-              ? const SizedBox(
-                  width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Restore'),
+        // Flexible so the button gives ground before the text is crushed. A
+        // bare OutlinedButton is laid out first at its full intrinsic width,
+        // which is what left the Expanded with nothing.
+        Flexible(
+          child: OutlinedButton(
+            onPressed: busy ? null : onRestore,
+            child: busy
+                ? const SizedBox(
+                    width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Restore', maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
         ),
       ]),
     );
