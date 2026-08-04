@@ -202,13 +202,38 @@ class _SlideMenuState extends State<SlideMenu> {
   }
 
   List<_MenuItem> get _effectiveItems {
-    final items = _roleItems;
+    var items = _roleItems;
     // "Nearby SOS Alerts" is gated behind the campus-emergency SOS toggle:
     // general users see it only when a super-admin has switched SOS ON;
     // super_admin always sees it. Pure visibility filter — the route/RLS are
     // unchanged.
     final sosVisible = _user?.role == 'super_admin' || AppConfigService.instance.sosEnabled.value;
-    return sosVisible ? items : items.where((it) => it.route != '/sos/nearby').toList();
+    if (!sosVisible) {
+      items = items.where((it) => it.route != '/sos/nearby').toList();
+    }
+
+    // On the web rail ONLY, drop anything the pinned quick-access strip is
+    // already showing.
+    //
+    // The rail pins Home/Search/Profile/Settings at the top and then lists the
+    // role's menu underneath — and that menu opens with 'Dashboard' → /home and
+    // ends with 'Settings' → /settings. Same routes, same icons, different
+    // labels. So on /home BOTH "Home" and "Dashboard" highlighted at once, and
+    // the second copy sat further down the rail behind the divider looking like
+    // a stray entry. Same for Settings.
+    //
+    // Filtered by route, not by label, because that is what actually makes them
+    // the same destination — 'Home' and 'Dashboard' were never going to match
+    // on text.
+    //
+    // Only when `permanent`: on a phone the quick-access four are the floating
+    // bottom bar, not part of this drawer, so removing them here would leave no
+    // way to reach Dashboard or Settings from the menu at all.
+    if (widget.permanent) {
+      final pinned = _quickAccessItems.map((it) => it.route).toSet();
+      items = items.where((it) => !pinned.contains(it.route)).toList();
+    }
+    return items;
   }
 
   List<_MenuItem> get _roleItems {
