@@ -103,6 +103,9 @@ Deno.serve(async () => {
       : "A new version of AFOS is ready to install."
 
     let targeted = 0
+    // OneSignal recognised none of the external_ids we sent. That is NOT a
+    // failure to retry — see the decision below.
+    let noSubscribers = false
     const failures: string[] = []
 
     for (const batch of chunk(userIds, ALIAS_CHUNK)) {
@@ -123,22 +126,54 @@ Deno.serve(async () => {
           }),
         })
         const json = await res.json()
-        if (res.ok && !json.errors) targeted += batch.length
-        else failures.push(JSON.stringify(json.errors ?? json))
+
+        // `errors` alone does NOT mean the send failed. When some external_ids
+        // are unknown to OneSignal and others are fine, it returns 200 with
+        // BOTH an `id` (the notification it created) and
+        // `errors.invalid_aliases` listing the ones it skipped. Treating that
+        // as a failure — which the first version of this did — released the
+        // claim and had the cron job re-send to everyone who IS subscribed,
+        // every five minutes, forever.
+        //
+        // The notification's own `id` is the only real proof of delivery.
+        const created = typeof json.id === "string" && json.id.length > 0
+
+        if (res.ok && created) {
+          targeted += typeof json.recipients === "number" ? json.recipients : batch.length
+          if (json.errors) {
+            failures.push(`partial (${JSON.stringify(json.errors)})`)
+          }
+        } else if (json?.errors?.invalid_aliases) {
+          // Nothing was created AND every alias was unknown: no device on this
+          // project has logged in and registered its external_id. There is no
+          // one to push to, and no amount of retrying invents a subscriber.
+          noSubscribers = true
+          failures.push(`no push subscription for any recipient (HTTP ${res.status}): ${JSON.stringify(json.errors)}`)
+        } else {
+          failures.push(`HTTP ${res.status}: ${JSON.stringify(json.errors ?? json)}`)
+        }
       } catch (e) {
         failures.push(String(e))
       }
     }
 
-    // Nothing got through: hand the claim back so the cron job tries again
-    // rather than leaving the release permanently marked as announced. A
-    // partial success is kept as-is — re-sending would double-notify everyone
-    // who already got it, which is worse than a few people missing the banner
-    // when they still have the in-app row waiting for them.
-    if (targeted === 0 && userIds.length > 0) {
+    // Hand the claim back ONLY for a fault that retrying could fix — OneSignal
+    // down, a network blip, a bad REST key. The cron job then picks it up
+    // within five minutes.
+    //
+    // "Nobody is subscribed" is explicitly NOT such a fault. Retrying it every
+    // five minutes until the end of time would never succeed, and the moment
+    // one person did register they would receive an announcement for a release
+    // that had long since been superseded. Those users are not missing out
+    // either: the in-app notification is already written and durable, and the
+    // update banner is waiting for them in Settings.
+    //
+    // A partial success is also kept as-is — re-sending would double-notify
+    // everyone who already got it.
+    if (targeted === 0 && userIds.length > 0 && !noSubscribers) {
       await supabase.rpc("release_announcement_failed", { p_id: release.id })
       return new Response(
-        JSON.stringify({ announced: false, version: release.version, errors: failures }),
+        JSON.stringify({ announced: false, willRetry: true, version: release.version, errors: failures }),
         { status: 502, headers },
       )
     }
@@ -148,6 +183,9 @@ Deno.serve(async () => {
         announced: true,
         version: release.version,
         pushTargeted: targeted,
+        // Surfaced rather than buried: zero push recipients on a release is
+        // worth noticing, even though it is not an error here.
+        noSubscribers: noSubscribers || undefined,
         errors: failures.length ? failures : undefined,
       }),
       { headers },
