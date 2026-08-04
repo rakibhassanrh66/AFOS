@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -606,21 +607,24 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
             style: AppTextStyles.labelSmall
                 .copyWith(color: AppColors.textSecondaryOf(context))),
         const SizedBox(height: 12),
-        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        // Wrap + rowAction, not a bare Row: the theme gives OutlinedButton
+        // `minimumSize: Size(double.infinity, 52)`, so 'Return' demanded the
+        // whole row and pushed 'Approve & publish' off the right edge — the
+        // reviewer could see the submission and could not publish it.
+        Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
           OutlinedButton(
             onPressed: busy ? null : () => _review(row, false),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-            child: const Text('Return'),
+            style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
+            child: const Text('Return', maxLines: 1),
           ),
-          const SizedBox(width: 8),
           FilledButton(
             onPressed: busy ? null : () => _review(row, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            style: rowAction(FilledButton.styleFrom(backgroundColor: AppColors.green)),
             child: busy
                 ? const SizedBox(
                     width: 16, height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('Approve & publish'),
+                : const Text('Approve & publish', maxLines: 1),
           ),
         ]),
       ]),

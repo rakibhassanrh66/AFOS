@@ -342,7 +342,14 @@ class _InputBar extends StatelessWidget {
 
     return Container(
       color: AppColors.surfaceOf(context),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      // The bottom pad has to clear the floating nav bar, which the shell
+      // injects as a MediaQuery bottom inset. With a hard-coded 16 the send
+      // button and the input sat UNDER the glass bar — reachable only by
+      // guessing where the bar ends. NavInsets exists for exactly this: a
+      // non-scrolling widget pinned to the bottom. It also collapses to 0 while
+      // the keyboard is open, because the bar is behind the IME then, so the
+      // composer still sits directly on the keyboard while typing.
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + NavInsets.of(context)),
       child: Row(children: [
         Expanded(
           child: TextField(

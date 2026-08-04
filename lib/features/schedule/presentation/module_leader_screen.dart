@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
@@ -383,12 +384,12 @@ class TeachingAssignmentCard extends StatelessWidget {
               if (!claimed)
                 OutlinedButton(
                   onPressed: busy ? null : onDecline,
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                  style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
                   child: const Text('Decline', maxLines: 1),
                 ),
               FilledButton(
                 onPressed: busy ? null : onAccept,
-                style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+                style: rowAction(FilledButton.styleFrom(backgroundColor: AppColors.green)),
                 child: busy
                     ? const SizedBox(
                         width: 16, height: 16,

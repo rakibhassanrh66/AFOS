@@ -243,13 +243,35 @@ class CourseOfferingRepository {
   Future<void> restoreOffering(String offeringId) =>
       _client.rpc('restore_course_offering', params: {'p_offering_id': offeringId});
 
+  /// Ended offerings, each carrying how many people are enrolled on it.
+  ///
+  /// The count rides along in the same query rather than being fetched when the
+  /// teacher taps Delete: [deleteOffering] destroys the enrolments, and a
+  /// confirm dialog that cannot say how many people that is would be asking
+  /// them to agree to something it has not told them.
   Future<List<Map<String, dynamic>>> fetchMyArchivedOfferings() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return [];
-    final res = await _client.from('course_offerings').select(_offeringSelect)
+    final res = await _client.from('course_offerings')
+        .select('$_offeringSelect, enrollments(count)')
         .eq('teacher_id', uid).eq('is_archived', true)
         .order('archived_at', ascending: false) as List;
     return res.cast<Map<String, dynamic>>();
+  }
+
+  /// Reads the enrolment count PostgREST embeds as `enrollments: [{count: n}]`.
+  ///
+  /// Defensive about the shape on purpose: the embed is absent entirely on rows
+  /// that came from a different query (or from the offline cache written before
+  /// this column existed), and a hard cast there would crash the Ended list
+  /// rather than the count merely reading as zero.
+  static int enrolmentCountOf(Map<String, dynamic> offering) {
+    final embed = offering['enrollments'];
+    if (embed is List && embed.isNotEmpty) {
+      final first = embed.first;
+      if (first is Map && first['count'] is int) return first['count'] as int;
+    }
+    return 0;
   }
 
   /// Only succeeds while still pending (RLS-enforced) -- once an admin has
@@ -386,6 +408,63 @@ class CourseOfferingRepository {
   /// as the record of who took the course.
   Future<void> archiveOffering(String offeringId) =>
       _client.rpc('archive_course_offering', params: {'p_offering_id': offeringId});
+
+  /// Destroys an ended offering for good. Returns how many enrolments went
+  /// with it.
+  ///
+  /// [archiveOffering] is the right default and this is not a louder version of
+  /// it: ending a course keeps the record and can be undone, and a course
+  /// created by mistake — a typo'd section, a duplicate — had no way out at all
+  /// and sat in the Ended list forever.
+  ///
+  /// Goes through an RPC because a client-side delete would silently do
+  /// nothing: the only DELETE policy a teacher holds on `course_offerings` is
+  /// `teacher_delete_own_pending_offering`, and an archived offering was
+  /// approved, so the delete matches zero rows and PostgREST still reports
+  /// success. The RPC also refuses when any mark or attendance record exists,
+  /// which is the guard that makes this safe to expose at all.
+  ///
+  /// `sendToUsers`, NOT push-only. Every other decision in this file has a
+  /// trigger writing the in-app row inside the transaction — but the row being
+  /// deleted here is the very thing those triggers hang off, so nothing writes
+  /// anything and the student would otherwise find a course simply missing from
+  /// their routine with no explanation anywhere. The recipients are read BEFORE
+  /// the RPC for the obvious reason: afterwards there is nothing left to read.
+  Future<int> deleteOffering(
+    String offeringId, {
+    String? courseLabel,
+  }) async {
+    List<String> enrolled = const [];
+    try {
+      final rows = await _client.from('enrollments')
+          .select('student_id').eq('offering_id', offeringId)
+          .eq('status', 'approved') as List;
+      enrolled = rows
+          .map((r) => (r as Map<String, dynamic>)['student_id'] as String?)
+          .whereType<String>()
+          .toList();
+    } catch (_) {
+      // Non-fatal: the delete itself matters more than the banner.
+    }
+
+    final dropped =
+        await _client.rpc('delete_course_offering', params: {'p_offering_id': offeringId})
+            as int? ?? 0;
+
+    try {
+      await NotificationService.sendToUsers(
+        userIds: enrolled,
+        title: 'A course was removed',
+        message: '${courseLabel ?? 'A course'} has been deleted by its teacher '
+            'and is no longer on your record.',
+        deepLink: '/schedule/browse-courses',
+        category: 'course_offering',
+      );
+    } catch (_) {
+      // Best-effort: the delete has already committed and cannot be undone.
+    }
+    return dropped;
+  }
 
   /// Un-approves an offering an admin should not have approved.
   ///

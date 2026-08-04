@@ -435,7 +435,7 @@ class _InputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surfaceOf(context),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + NavInsets.of(context)),
       child: Row(children: [
         Expanded(child: TextField(
             controller: ctrl,

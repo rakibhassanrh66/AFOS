@@ -705,12 +705,29 @@ class _UserCard extends StatelessWidget {
               decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
               child: Text(roleLabel(role), style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
           const SizedBox(width: 8),
+          // Expanded, not Flexible-beside-a-Spacer. `Spacer` is an `Expanded`
+          // with flex 1 and `Flexible` defaults to flex 1, so the two split the
+          // free space 50/50: the department could only use HALF of what was
+          // left before ellipsising, with an identical gap sitting next to it.
+          // On a narrow phone that rendered a real department as "C…" beside
+          // blank space. The Spacer is only needed when there is no department
+          // to push "Joined" to the right.
           if ((user['department'] as String?)?.isNotEmpty == true)
-            Flexible(child: Text(user['department'], style: TextStyle(color: textSecondary, fontSize: 11),
-                maxLines: 1, overflow: TextOverflow.ellipsis)),
-          const Spacer(),
-          if (createdAt != null) Text('Joined ${AppFormatters.relativeTime(createdAt)}',
-              style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 10)),
+            Expanded(child: Text(user['department'], style: TextStyle(color: textSecondary, fontSize: 11),
+                maxLines: 1, overflow: TextOverflow.ellipsis))
+          else
+            const Spacer(),
+          if (createdAt != null) ...[
+            const SizedBox(width: 8),
+            // Flexible + ellipsis: this is unbounded text at the end of a Row,
+            // so at a large text scale it overflowed the card rather than
+            // shortening.
+            Flexible(
+              child: Text('Joined ${AppFormatters.relativeTime(createdAt)}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 10)),
+            ),
+          ],
         ]),
         if (pending) ...[
           const SizedBox(height: 10),

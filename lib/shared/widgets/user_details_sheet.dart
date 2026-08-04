@@ -130,15 +130,39 @@ class _DetailRow extends StatelessWidget {
   final Color? valueColor;
   const _DetailRow({required this.label, required this.value, this.valueColor});
 
+  /// Label left, value hard against the right edge — every row on the same
+  /// column, whatever the width.
+  ///
+  /// This was `[Text(label), Spacer(), Flexible(value)]`, and `Spacer` is an
+  /// `Expanded` with flex 1 while `Flexible` also defaults to flex 1. So the
+  /// free space was split 50/50 and `TextAlign.end` aligned each value against
+  /// the right edge of ITS OWN HALF rather than the row's — putting every
+  /// value's right edge in a different place, in proportion to how long it was.
+  /// In a narrow bottom sheet that reads as slightly untidy; on the full-screen
+  /// Review Request page it reads as scrambled, which is what it was reported
+  /// as.
+  ///
+  /// `Expanded` on the value (tight, so it fills) is what actually makes
+  /// `TextAlign.end` mean the right edge. The label is `Flexible` so a long one
+  /// wraps instead of starving the value at a large text scale.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(children: [
-      Text(label, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-      const Spacer(),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Flexible(
-          child: Text(value, textAlign: TextAlign.end,
-              style: AppTextStyles.titleMedium.copyWith(color: valueColor ?? AppColors.textPrimaryOf(context)))),
+        flex: 4,
+        child: Text(label,
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+        flex: 6,
+        child: Text(value,
+            textAlign: TextAlign.end,
+            style: AppTextStyles.titleMedium
+                .copyWith(color: valueColor ?? AppColors.textPrimaryOf(context))),
+      ),
     ]),
   );
 }

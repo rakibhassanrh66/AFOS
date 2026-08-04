@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
@@ -150,6 +151,80 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
         () => _repo.restoreOffering(offering['id'] as String));
   }
 
+  /// Destroys an ended offering for good.
+  ///
+  /// Deliberately two taps away from anything: only an ALREADY ended course
+  /// offers it, and the sheet spells out the enrolment count before the button
+  /// says Delete. The RPC refuses outright once any mark or attendance record
+  /// exists, so the failure a teacher is most likely to hit is a refusal, not a
+  /// loss — which is why the error goes to a SnackBar and the row stays put.
+  Future<void> _deleteForever(Map<String, dynamic> offering) async {
+    final course = offering['courses'] as Map<String, dynamic>? ?? const {};
+    final label = '${course['code'] ?? 'This course'} · Section ${offering['section'] ?? ''}';
+    final enrolled = CourseOfferingRepository.enrolmentCountOf(offering);
+    final id = offering['id'] as String;
+
+    final ok = await showGlassModal<bool>(context,
+        builder: (sheetCtx) => Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Delete $label?',
+                        style: AppTextStyles.headlineLarge
+                            .copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+                    const SizedBox(height: 6),
+                    Text(
+                        enrolled == 0
+                            ? 'This cannot be undone. Ending a course keeps it and lets '
+                                'you restore it; deleting removes it for good.'
+                            : 'This cannot be undone, and it drops '
+                                '$enrolled ${enrolled == 1 ? 'person' : 'people'} from the '
+                                'class. They are told the course was removed.',
+                        style: AppTextStyles.bodyMedium
+                            .copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                    const SizedBox(height: 10),
+                    Text(
+                        'If any marks or attendance have been recorded, this will be '
+                        'refused — that history cannot be rebuilt.',
+                        style: AppTextStyles.labelSmall
+                            .copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
+                    const SizedBox(height: 18),
+                    Row(children: [
+                      Expanded(
+                          child: TextButton(
+                              onPressed: () => Navigator.pop(sheetCtx, false),
+                              child: const Text('Keep it'))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: FilledButton(
+                              style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+                              onPressed: () => Navigator.pop(sheetCtx, true),
+                              child: const Text('Delete forever', maxLines: 1))),
+                    ]),
+                  ]),
+            ));
+    if (ok != true || !mounted) return;
+
+    // Deliberately NOT optimistic. Removing the row before the round trip would
+    // be more responsive and wrong: _guard only reloads on success, so a refusal
+    // — which is the likely outcome here, the RPC rejects anything with marks or
+    // attendance — would leave the row gone from the list while it still exists
+    // in the database, showing the teacher a delete that did not happen. The row
+    // spins via _busyIds instead, and the list updates when the answer is real.
+    await _guard(id, () async {
+      final dropped = await _repo.deleteOffering(id, courseLabel: label);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(dropped == 0
+            ? '$label deleted'
+            : '$label deleted · ${dropped == 1 ? '1 person' : '$dropped people'} dropped'),
+        backgroundColor: AppColors.green,
+      ));
+    });
+  }
+
   Future<void> _withdraw(String offeringId) => _guard(offeringId, () => _repo.withdrawOffering(offeringId));
 
   Future<void> _archive(Map<String, dynamic> offering) async {
@@ -264,6 +339,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
             offering: a,
             busy: _busyIds.contains(a['id']),
             onRestore: () => _restore(a),
+            onDelete: () => _deleteForever(a),
           );
         }
         final i = rawIndex;
@@ -901,22 +977,29 @@ class EndedHeader extends StatelessWidget {
       );
 }
 
-/// An ended offering, with the way back.
+/// An ended offering: the way back, and the way out.
 class EndedOfferingRow extends StatelessWidget {
   final Map<String, dynamic> offering;
   final bool busy;
   final VoidCallback onRestore;
+
+  /// Absent on a row that must not offer deletion. Nothing does today, but the
+  /// action destroys student records, so it is opt-in rather than assumed.
+  final VoidCallback? onDelete;
+
   const EndedOfferingRow({
     super.key,
     required this.offering,
     required this.busy,
     required this.onRestore,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
     final course = offering['courses'] as Map<String, dynamic>? ?? const {};
     final endedAt = DateTime.tryParse(offering['archived_at'] as String? ?? '');
+    final enrolled = CourseOfferingRepository.enrolmentCountOf(offering);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -925,42 +1008,54 @@ class EndedOfferingRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
         border: Border.all(color: AppColors.borderOf(context), width: 0.5),
       ),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${course['code'] ?? ''} — ${course['title'] ?? ''}',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
-            // maxLines + ellipsis, NOT a bare Text. This line is the longest in
-            // the card ('Batch 68 · Section D · ended 27 Jul 2026, 4:56 AM')
-            // and it sits in an Expanded next to a fixed-width button. At a
-            // large text scale the button leaves the Expanded barely one glyph
-            // wide, and an uncapped Text answers that by wrapping ONE LETTER
-            // PER LINE — a 1178px-tall column of characters directly under the
-            // "Ended" header, overflowing the card by 689px. Reproduced in
-            // course_offering_layout_test.
-            Text(
-                'Batch ${offering['batch'] ?? ''} · Section ${offering['section'] ?? ''}'
-                '${endedAt == null ? '' : ' · ended ${AppFormatters.dateTime(endedAt)}'}',
-                maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelSmall
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        // Flexible so the button gives ground before the text is crushed. A
-        // bare OutlinedButton is laid out first at its full intrinsic width,
-        // which is what left the Expanded with nothing.
-        Flexible(
-          child: OutlinedButton(
+      // Text above, actions below — NOT text beside button.
+      //
+      // Sharing a Row with the buttons is what starved this text in the first
+      // place: a Row lays its non-flex children out first at their full
+      // intrinsic width and hands the Expanded whatever is left, which at a
+      // large text scale was barely one glyph. An uncapped Text answers a
+      // ~1-glyph box by wrapping ONE LETTER PER LINE — a 1178px column of
+      // characters under the "Ended" header, overflowing the card by 689px.
+      // Giving the text the card's full width removes the competition
+      // altogether; the maxLines below stay as a second line of defence, and
+      // course_offering_layout_test holds both.
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${course['code'] ?? ''} — ${course['title'] ?? ''}',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.titleMedium
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 2),
+        Text(
+            'Batch ${offering['batch'] ?? ''} · Section ${offering['section'] ?? ''}'
+            '${endedAt == null ? '' : ' · ended ${AppFormatters.dateTime(endedAt)}'}',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelSmall
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+        if (enrolled > 0)
+          Text('$enrolled ${enrolled == 1 ? 'student' : 'students'} enrolled',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelSmall
+                  .copyWith(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 10),
+        // Wrap so the pair drops to a second line instead of clipping, and
+        // rowAction so neither button claims the full width on its own.
+        Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
+          if (onDelete != null)
+            TextButton.icon(
+              onPressed: busy ? null : onDelete,
+              style: TextButton.styleFrom(foregroundColor: AppColors.red),
+              icon: const Icon(Icons.delete_outline_rounded, size: 16),
+              label: const Text('Delete', maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          OutlinedButton(
             onPressed: busy ? null : onRestore,
+            style: rowAction(),
             child: busy
                 ? const SizedBox(
                     width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Text('Restore', maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
-        ),
+        ]),
       ]),
     );
   }

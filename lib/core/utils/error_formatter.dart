@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'offline_cache.dart';
+
 /// Matches a Postgres/PostgREST message that names schema internals.
 ///
 /// These arrive verbatim from the database and routinely contain table,
@@ -58,6 +60,14 @@ String? _constraintMessage(String message) {
 /// 23505, ...)`) that every screen used to shove straight into a SnackBar.
 String friendlyError(Object err) {
   if (err is AuthException) return err.message;
+
+  // Ahead of the generic branches: this one carries no message of its own, and
+  // the class-dump fallback at the bottom would turn it into "Something went
+  // wrong" — which is exactly the dead end it was introduced to replace.
+  if (err is OfflineNoDataException) {
+    return 'You appear to be offline, and this hasn\'t been saved for offline '
+        'use yet — reconnect and pull down to retry.';
+  }
 
   if (err is PostgrestException) {
     // Named-constraint help first: these are this project's own constraints,
