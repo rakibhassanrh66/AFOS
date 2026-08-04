@@ -56,6 +56,25 @@
                 <data android:scheme="afos"/>
             </intent-filter>
         </activity>
+        <!-- Brings AFOS back after the in-app updater replaces it. Installing
+             an update kills this app's process, so without this the user taps
+             Update and is left on the installer's "Done" screen with AFOS gone.
+
+             Must be declared in the manifest, not registered in code: there is
+             no running process to register anything at the moment this fires.
+
+             exported="false" — MY_PACKAGE_REPLACED is delivered by the system
+             regardless, and leaving it exported would let any app on the device
+             broadcast a fake "you were updated" to trigger the notification.
+
+             See UpdateRelaunchReceiver for why it both relaunches AND notifies. -->
+        <receiver
+            android:name=".UpdateRelaunchReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

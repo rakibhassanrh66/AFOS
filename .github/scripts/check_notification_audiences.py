@@ -1,11 +1,11 @@
 """Fails CI if a notification's in-app audience and its push audience can drift.
 
-WHY THIS CHECK EXISTS. Every notification in this app is written twice: a
+WHY THIS CHECK EXISTS. Almost every notification in this app is written twice: a
 database trigger inserts the durable `user_notifications` row, and the Flutter
-client sends the OneSignal banner — because a trigger cannot reach OneSignal
-(pg_net is not installed, and the REST key lives in the edge function's
-environment, not the database). Two implementations of one rule is exactly the
-shape that rots, and it already had, twice, without anyone noticing:
+client sends the OneSignal banner — because the OneSignal REST key lives in an
+edge function's environment, not in the database. Two implementations of one
+rule is exactly the shape that rots, and it already had, twice, without anyone
+noticing:
 
   * offering submitted — the trigger scoped `dept_admin` to the offering's own
     department; the client pushed to EVERY dept_admin in the university.
@@ -25,6 +25,12 @@ audience functions (offering_reviewer_audience / offering_section_audience),
 which the client also calls over RPC — so both sides read one definition and
 cannot disagree. Single-recipient triggers ("tell this student") have no role
 list and are not flagged.
+
+ONE TRIGGER IS EXEMPT BY CONSTRUCTION. notify_new_release() sends its own push
+rather than leaving it to the client, via pg_net -> the announce-release edge
+function (see 20260805061500). It cannot drift: its in-app audience is "every
+profile" with no role test at all, and announce-release resolves its push
+audience from that same table. There is no second definition to disagree with.
 
 Mirrors check_definer_acls.py: the audit itself runs server-side in
 audit_notification_audiences() and is reached over PostgREST with the
