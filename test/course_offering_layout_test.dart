@@ -117,7 +117,12 @@ void main() {
             spacing: 8, runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const PillBadge(label: 'APPROVED', color: AppColors.green),
+              // maxWidth mirrors the screen: this Wrap is OfferingCard's
+              // full-width `trailing`, so the badge is uncapped there.
+              const PillBadge(
+                  label: 'APPROVED',
+                  color: AppColors.green,
+                  maxWidth: double.infinity),
               TextButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.forum_outlined, size: 15),
@@ -135,7 +140,12 @@ void main() {
             spacing: 8, runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const PillBadge(label: 'APPROVED', color: AppColors.green),
+              // maxWidth mirrors the screen: this Wrap is OfferingCard's
+              // full-width `trailing`, so the badge is uncapped there.
+              const PillBadge(
+                  label: 'APPROVED',
+                  color: AppColors.green,
+                  maxWidth: double.infinity),
               OutlinedButton(onPressed: () {}, child: const Text('Withdraw', maxLines: 1)),
             ],
           ),
@@ -155,5 +165,14 @@ void main() {
         ]),
   };
 
-  runLayoutSweep('layout', cases);
+  runLayoutSweep('layout', cases, expectTruncated: {
+    // The badge clipping its own sentence IS the assertion here. This case
+    // exists to prove that an over-long label ellipsises instead of taking the
+    // whole row and starving the title, so the title is what must come through
+    // intact — and it does. Without this the starved-text check would report
+    // the guard's success as the guard's failure.
+    'PillBadge with an over-long label beside a title': {
+      'ACCEPTED — CREATE OFFERING NOW',
+    },
+  });
 }

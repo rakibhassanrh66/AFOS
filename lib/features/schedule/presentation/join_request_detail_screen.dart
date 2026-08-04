@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/formatters.dart';
@@ -83,9 +84,19 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
                     .copyWith(color: AppColors.textPrimaryOf(context)),
               ),
             ),
-            const SizedBox(width: 8),
-            PillBadge(label: status.toUpperCase(), color: offeringStatusColor(status)),
           ]),
+          const SizedBox(height: 6),
+          // Own line, uncapped. Beside the title it was a non-flex sibling
+          // competing for the same row; capped small enough not to starve the
+          // title, it clipped its own word instead. There is no width that
+          // satisfies both, so they stop sharing a line.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PillBadge(
+                label: status.toUpperCase(),
+                color: offeringStatusColor(status),
+                maxWidth: double.infinity),
+          ),
           const SizedBox(height: 4),
           Text(
             'Batch ${offering['batch'] ?? '—'}'
@@ -180,23 +191,40 @@ class JoinRequestActions extends StatelessWidget {
     // text scale on a narrow phone the label is wider than the button it is
     // inside and overflows it — the button does not shrink to fit its text.
     return switch (status) {
-      'pending' => Row(children: [
-          Expanded(
-            child: OutlinedButton(
+      // A Wrap, not a Row of two Expandeds.
+      //
+      // Two Expandeds split the row in half whether or not half is enough. On a
+      // 320dp phone at a 1.6x text scale each half gave the label 105px of the
+      // 158px "Decline" needs, so a THIRD of the word was cut off — the buttons
+      // fit, their text did not.
+      //
+      // A Wrap sizes each button to its own label and moves the second one to a
+      // line of its own only when they genuinely cannot share one, so nothing
+      // is ever truncated and the common 1.0x case still reads as a pair. This
+      // only works with rowAction(): the theme sets
+      // `minimumSize: Size(double.infinity, 52)`, and inside a Wrap an
+      // infinitely-wide button takes a line to itself at EVERY scale — which is
+      // exactly how these cards shipped once before, a full-width Decline with
+      // a stranded Accept beneath it.
+      'pending' => Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            OutlinedButton(
               onPressed: onDecline,
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-              child: const Text('Decline', maxLines: 1, overflow: TextOverflow.ellipsis),
+              style: rowAction(
+                  OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
+              child: const Text('Decline', maxLines: 1),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: FilledButton(
+            FilledButton(
               onPressed: archived ? null : onAccept,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.green),
-              child: const Text('Accept', maxLines: 1, overflow: TextOverflow.ellipsis),
+              style: rowAction(
+                  FilledButton.styleFrom(backgroundColor: AppColors.green)),
+              child: const Text('Accept', maxLines: 1),
             ),
-          ),
-        ]),
+          ],
+        ),
       // No Flexible around these labels: `label` is not a direct child of a
       // Flex — the button builds its own Row and already wraps the label in a
       // Flexible itself — so adding one throws "Incorrect use of

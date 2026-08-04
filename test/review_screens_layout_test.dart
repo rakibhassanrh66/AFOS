@@ -216,7 +216,12 @@ void main() {
             spacing: 8, runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const PillBadge(label: 'APPROVED', color: AppColors.green),
+              // maxWidth mirrors the admin screen, where this badge sits in
+              // OfferingCard's full-width `trailing` and is uncapped.
+              const PillBadge(
+                  label: 'APPROVED',
+                  color: AppColors.green,
+                  maxWidth: double.infinity),
               OutlinedButton(
                 onPressed: () {},
                 style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
@@ -233,7 +238,10 @@ void main() {
             spacing: 8, runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const PillBadge(label: 'DECLINED', color: AppColors.red),
+              const PillBadge(
+                  label: 'DECLINED',
+                  color: AppColors.red,
+                  maxWidth: double.infinity),
               OutlinedButton.icon(
                 onPressed: () {},
                 style: rowAction(),

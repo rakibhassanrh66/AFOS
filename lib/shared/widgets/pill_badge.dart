@@ -34,10 +34,21 @@ class PillBadge extends StatelessWidget {
   /// it. It shipped twice on the Teaching Load cards.
   ///
   /// 160 is deliberately generous for a real badge ('SUBMITTED', 'AWAITING',
-  /// 'SUPER ADMIN' all fit unclipped even at a large text scale) and still
-  /// leaves the title a usable share on a 320dp phone. It does NOT scale with
-  /// the text scaler, on purpose: the point is to bound the badge's appetite,
-  /// and a cap that grew with the font would stop capping anything.
+  /// 'SUPER ADMIN' all fit unclipped at normal scale) and still leaves the
+  /// title a usable share on a 320dp phone. It does NOT scale with the text
+  /// scaler, on purpose: the point is to bound the badge's appetite, and a cap
+  /// that grew with the font would stop capping anything.
+  ///
+  /// That was tested rather than assumed. Making it scale — to fix a badge
+  /// clipping its own 'UNANSWERED' at 2.0x — immediately re-broke the guard
+  /// case in `course_offering_layout_test`: a 29-character label was free to
+  /// take 60% of the screen and left the title beside it 26px of the 182px it
+  /// needed. The cap exists precisely for that shape and cannot be relaxed
+  /// globally.
+  ///
+  /// **Pass `maxWidth: double.infinity` when the badge is on a line of its
+  /// own.** There it competes with nothing, so the cap has nothing to defend
+  /// and only gets in the way of showing the label at a large text scale.
   final double maxWidth;
 
   const PillBadge({
@@ -55,7 +66,8 @@ class PillBadge extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Container(
         padding: padding,
@@ -79,5 +91,7 @@ class PillBadge extends StatelessWidget {
           textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
           style: TextStyle(color: color, fontSize: fontSize, height: 1.0, fontWeight: fontWeight, letterSpacing: letterSpacing),
         ),
-      ));
+      ),
+    );
+  }
 }
