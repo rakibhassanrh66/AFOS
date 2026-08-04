@@ -267,9 +267,11 @@ class _RoutePreviewCard extends StatelessWidget {
             const PillBadge(label: 'EDITED', color: AppColors.holoBlue),
             const SizedBox(width: 6),
           ],
-          PillBadge(
-            label: level == IssueLevel.ok ? 'OK' : level.name.toUpperCase(),
-            color: accent,
+          Flexible(
+            child: PillBadge(
+              label: level == IssueLevel.ok ? 'OK' : level.name.toUpperCase(),
+              color: accent,
+            ),
           ),
           IconButton(
             onPressed: onEdit,

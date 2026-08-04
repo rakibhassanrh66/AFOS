@@ -91,7 +91,11 @@ class OfferingCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (isLab) const PillBadge(label: 'LAB', color: AppColors.purple),
+            // Flexible so it can never take width the title needs. Loose fit,
+            // so at any normal size it is still exactly as wide as "LAB".
+            if (isLab)
+              const Flexible(
+                  child: PillBadge(label: 'LAB', color: AppColors.purple)),
           ]),
           const SizedBox(height: 6),
 

@@ -596,9 +596,12 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
                 style: AppTextStyles.titleMedium
                     .copyWith(color: AppColors.textPrimaryOf(context))),
           ),
-          PillBadge(
-              label: (course['course_type'] as String? ?? 'theory').toUpperCase(),
-              color: AppColors.purple),
+          Flexible(
+            child: PillBadge(
+                label:
+                    (course['course_type'] as String? ?? 'theory').toUpperCase(),
+                color: AppColors.purple),
+          ),
         ]),
         const SizedBox(height: 4),
         Text(

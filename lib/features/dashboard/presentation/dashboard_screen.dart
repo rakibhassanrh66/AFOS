@@ -485,9 +485,13 @@ class _DashboardState extends State<DashboardScreen> {
                       .copyWith(color: AppColors.textPrimaryOf(context)),
                       maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ])),
-                TextButton(
-                  onPressed: () => context.push('/notifications'),
-                  child: const Text('See all →', style: TextStyle(color: AppColors.holoBlue))),
+                Flexible(
+                  child: TextButton(
+                      onPressed: () => context.push('/notifications'),
+                      child: const Text('See all →',
+                          maxLines: 1,
+                          style: TextStyle(color: AppColors.holoBlue))),
+                ),
               ]),
               const SizedBox(height: 12),
               if (_loading) const ShimmerList(count: 3, itemHeight: 80)

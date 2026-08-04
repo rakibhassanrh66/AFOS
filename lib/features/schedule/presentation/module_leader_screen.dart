@@ -551,10 +551,12 @@ class _AllocationsTabState extends State<_AllocationsTab> {
               onChanged: (v) { if (v != null) widget.onDepartmentChanged(v); },
             ),
           const SizedBox(width: 6),
-          FilledButton.icon(
-            onPressed: widget.department.isEmpty ? null : _openAssign,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Allocate'),
+          Flexible(
+            child: FilledButton.icon(
+              onPressed: widget.department.isEmpty ? null : _openAssign,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Allocate', maxLines: 1),
+            ),
           ),
         ]),
       ),
@@ -991,10 +993,12 @@ class _LeadersTabState extends State<_LeadersTab> {
                 style: AppTextStyles.titleMedium
                     .copyWith(color: AppColors.textPrimaryOf(context))),
           ),
-          FilledButton.icon(
-            onPressed: _openAppoint,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Appoint'),
+          Flexible(
+            child: FilledButton.icon(
+              onPressed: _openAppoint,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Appoint', maxLines: 1),
+            ),
           ),
         ]),
       ),
