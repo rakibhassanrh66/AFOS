@@ -11,6 +11,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 
+import '../../../core/layout/immersive_scope.dart';
 import '../../../core/layout/nav_insets.dart';
 /// One implicit chat room per club (no sub-channels, since a club has a
 /// single membership list, not department-style sub-audiences) — same
@@ -128,7 +129,7 @@ class _ClubChatState extends State<ClubChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.surfaceOf(context),
@@ -150,7 +151,10 @@ class _ClubChatState extends State<ClubChatScreen> {
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                    // No bottom inset: _ClubInputBar sits below this list and
+                    // owns the bottom edge, so clearance here only opened a gap
+                    // between the last message and the field.
+                    padding: const EdgeInsets.all(16),
                     itemCount: _messages.length,
                     itemBuilder: (ctx, i) {
                       final m = _messages[i];
@@ -164,6 +168,10 @@ class _ClubChatState extends State<ClubChatScreen> {
         _ClubInputBar(ctrl: _msgCtrl, onSend: _send),
       ]),
     );
+
+    // No floating nav over a conversation — it lands on the composer, and the
+    // app bar's back arrow already leaves. See immersive_scope.dart.
+    return ImmersiveScope(child: scaffold);
   }
 
   Future<void> _delete(String id) async {

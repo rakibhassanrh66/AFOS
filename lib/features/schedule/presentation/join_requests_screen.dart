@@ -728,10 +728,24 @@ class JoinRequestCard extends StatelessWidget {
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.labelSmall
                           .copyWith(color: AppColors.blue.withValues(alpha: 0.85))),
+                  const SizedBox(height: 6),
+                  // The status pill lives INSIDE the Expanded column, not
+                  // beside it.
+                  //
+                  // As a direct child of the header Row it was non-flex, so it
+                  // was laid out first at its full width — and next to a 44px
+                  // avatar, a checkbox and their gaps on a 320dp phone that
+                  // left the Expanded with 0.0px. The name, the student ID and
+                  // the hint line then each wrapped ONE LETTER PER LINE, and
+                  // the row overflowed by 20px on top of that. Measured by
+                  // review_screens_layout_test at 1.6x and 2.0x; the same
+                  // starve-the-Expanded shape as the Teaching Load badges.
+                  //
+                  // Inside the column it simply takes a line of its own when
+                  // the card is narrow, and nothing has to compete.
+                  PillBadge(label: status.toUpperCase(), color: _statusColor(status)),
                 ]),
               ),
-              const SizedBox(width: 8),
-              PillBadge(label: status.toUpperCase(), color: _statusColor(status)),
             ]),
             const SizedBox(height: 10),
             Text(
@@ -838,33 +852,46 @@ class BulkAdmitBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
         border: Border.all(color: AppColors.green.withValues(alpha: 0.3), width: 0.8),
       ),
-      child: Row(children: [
-        const Icon(Icons.done_all_rounded, size: 18, color: AppColors.green),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$matching in the right batch & section',
-                maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600)),
-            Text(
-                others > 0
-                    ? '$others other${others == 1 ? '' : 's'} need${others == 1 ? 's' : ''} a look first'
-                    : 'Everyone waiting matches',
-                maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelSmall
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        FilledButton(
-          onPressed: busy ? null : onTap,
-          style: FilledButton.styleFrom(backgroundColor: AppColors.green),
-          child: busy
-              ? const SizedBox(
-                  width: 16, height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Admit all', maxLines: 1),
+      // Explanation above, button below — NOT text beside button.
+      //
+      // 'Admit all' is non-flex, so the Row laid it out first at its full
+      // intrinsic width and handed the Expanded what was left: 0.0px on a
+      // 320dp phone from 1.6x upwards, which turned both sentences into
+      // columns of single letters and overflowed the bar by 9.7px. Stacking
+      // gives the text the full width and costs one row of height on a bar
+      // that is only shown when there are at least two people to admit.
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.done_all_rounded, size: 18, color: AppColors.green),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$matching in the right batch & section',
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600)),
+              Text(
+                  others > 0
+                      ? '$others other${others == 1 ? '' : 's'} need${others == 1 ? 's' : ''} a look first'
+                      : 'Everyone waiting matches',
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton(
+            onPressed: busy ? null : onTap,
+            style: rowAction(FilledButton.styleFrom(backgroundColor: AppColors.green)),
+            child: busy
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Admit all', maxLines: 1),
+          ),
         ),
       ]),
     );

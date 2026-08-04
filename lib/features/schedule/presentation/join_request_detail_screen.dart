@@ -129,54 +129,92 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
           ),
 
           const SizedBox(height: 24),
-          ..._actionsFor(status, archived),
+          JoinRequestActions(
+            status: status,
+            archived: archived,
+            busy: _busy,
+            onAccept: widget.onAccept == null ? null : () => _run(widget.onAccept!),
+            onDecline: widget.onDecline == null ? null : () => _run(widget.onDecline!),
+            onRemove: widget.onRemove == null ? null : () => _run(widget.onRemove!),
+            onReconsider:
+                widget.onReconsider == null ? null : () => _run(widget.onReconsider!),
+          ),
         ],
       ),
     );
   }
+}
 
-  List<Widget> _actionsFor(String status, bool archived) {
-    if (_busy) {
-      return const [Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))];
+/// The decision buttons at the foot of the Review Request page.
+///
+/// A widget of its own rather than a method on the State so
+/// `review_screens_layout_test` can measure it. The whole screen cannot go
+/// through that harness — it is a full Scaffold with an AppBar, and nesting one
+/// inside the probe's scroll view trips a framework focus assertion — but these
+/// buttons are the part that carries the risk, because the app theme gives
+/// OutlinedButton `minimumSize: Size(double.infinity, 52)` and a long label on
+/// a full-width button still has to fit its own text.
+class JoinRequestActions extends StatelessWidget {
+  final String status;
+  final bool archived, busy;
+  final VoidCallback? onAccept, onDecline, onRemove, onReconsider;
+
+  const JoinRequestActions({
+    super.key,
+    required this.status,
+    required this.archived,
+    required this.busy,
+    this.onAccept,
+    this.onDecline,
+    this.onRemove,
+    this.onReconsider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy) {
+      return const Center(
+          child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()));
     }
+    // Every label is capped. These sit on full-width buttons, so at a large
+    // text scale on a narrow phone the label is wider than the button it is
+    // inside and overflows it — the button does not shrink to fit its text.
     return switch (status) {
-      'pending' => [
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: widget.onDecline == null ? null : () => _run(widget.onDecline!),
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-                child: const Text('Decline'),
-              ),
+      'pending' => Row(children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: onDecline,
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+              child: const Text('Decline', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton(
-                onPressed: (archived || widget.onAccept == null)
-                    ? null
-                    : () => _run(widget.onAccept!),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.green),
-                child: const Text('Accept'),
-              ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton(
+              onPressed: archived ? null : onAccept,
+              style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+              child: const Text('Accept', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
-          ]),
-        ],
-      'approved' => [
-          OutlinedButton.icon(
-            onPressed: widget.onRemove == null ? null : () => _run(widget.onRemove!),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
-            icon: const Icon(Icons.person_remove_outlined, size: 18),
-            label: const Text('Remove from this course'),
           ),
-        ],
-      'rejected' => [
-          OutlinedButton.icon(
-            onPressed: widget.onReconsider == null ? null : () => _run(widget.onReconsider!),
-            icon: const Icon(Icons.undo_rounded, size: 18),
-            label: const Text('Put back in the queue'),
-          ),
-        ],
-      _ => const [],
+        ]),
+      // No Flexible around these labels: `label` is not a direct child of a
+      // Flex — the button builds its own Row and already wraps the label in a
+      // Flexible itself — so adding one throws "Incorrect use of
+      // ParentDataWidget". maxLines + ellipsis is the whole fix.
+      'approved' => OutlinedButton.icon(
+          onPressed: onRemove,
+          style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+          icon: const Icon(Icons.person_remove_outlined, size: 18),
+          label: const Text('Remove from this course',
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      'rejected' => OutlinedButton.icon(
+          onPressed: onReconsider,
+          icon: const Icon(Icons.undo_rounded, size: 18),
+          label: const Text('Put back in the queue',
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      _ => const SizedBox.shrink(),
     };
   }
 }
