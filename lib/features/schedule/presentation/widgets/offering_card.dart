@@ -96,6 +96,17 @@ class OfferingCard extends StatelessWidget {
           const SizedBox(height: 6),
 
           // Who teaches it, and which cohort it's for.
+          //
+          // Cohort badge on its own line, not beside the name.
+          //
+          // As a non-flex sibling it was laid out first and left the Expanded
+          // 80.9px for a name needing 300+ — "Md. Masukur Rahman Chowdhury"
+          // reduced to "Md…" at a 2.0x text scale. Making it `Flexible` instead
+          // just moved the damage: the badge then shrank below its own label
+          // and hid half of "B68 · D". A person's name and their cohort are
+          // both short strings that must be read in full, so neither can be the
+          // one that gives way — they need separate lines rather than a
+          // negotiation.
           Row(children: [
             Icon(Icons.person_outline_rounded, size: 14, color: textSecondary),
             const SizedBox(width: 4),
@@ -103,15 +114,21 @@ class OfferingCard extends StatelessWidget {
               child: Text(
                 teacher['full_name'] as String? ?? 'Faculty',
                 style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            PillBadge(
+          ]),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PillBadge(
               label: 'B${offering['batch'] ?? '—'} · ${offering['section'] ?? '—'}',
               color: AppColors.blue,
+              // Uncapped: nothing beside it to starve.
+              maxWidth: double.infinity,
             ),
-          ]),
+          ),
 
           // Meetings get their own chips: a course meeting twice a week, or a
           // lab split into J1/J2, is several rows here rather than one line.

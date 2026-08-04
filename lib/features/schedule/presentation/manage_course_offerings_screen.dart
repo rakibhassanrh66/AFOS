@@ -366,7 +366,14 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              PillBadge(label: status.toUpperCase(), color: offeringStatusColor(status)),
+              // Uncapped: this Wrap is OfferingCard's `trailing`, which gets a
+              // full-width line of its own, so there is nothing beside the
+              // badge to starve — and the default cap hid half its label at a
+              // 2.0x text scale.
+              PillBadge(
+                  label: status.toUpperCase(),
+                  color: offeringStatusColor(status),
+                  maxWidth: double.infinity),
               if (status == 'pending')
                 TextButton(
                   onPressed: busy ? null : () => _withdraw(id),

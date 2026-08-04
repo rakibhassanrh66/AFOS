@@ -384,6 +384,9 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               PillBadge(
                 label: approved ? 'APPROVED' : 'DECLINED',
                 color: approved ? AppColors.green : AppColors.red,
+                // Uncapped: inside OfferingCard's full-width `trailing` line,
+                // so nothing sits beside it to starve.
+                maxWidth: double.infinity,
               ),
               if (approved)
                 OutlinedButton(

@@ -368,16 +368,23 @@ class UnlistedEnrollmentRow extends StatelessWidget {
         border: Border.all(color: AppColors.borderOf(context), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text('${course['code'] ?? '—'} — ${course['title'] ?? ''}',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
-          ),
-          const SizedBox(width: 8),
-          PillBadge(label: status.toUpperCase(), color: offeringStatusColor(status)),
-        ]),
+        // Badge under the title. Beside it, the status pill is laid out first
+        // at its full width and leaves the Expanded the remainder, which on a
+        // narrow phone at a large text scale is not enough for a course code
+        // plus a title — the same starve fixed on the Teaching Load and
+        // Allocation cards, and the reason those needed fixing twice.
+        Text('${course['code'] ?? '—'} — ${course['title'] ?? ''}',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.titleMedium
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: PillBadge(
+              label: status.toUpperCase(),
+              color: offeringStatusColor(status),
+              maxWidth: double.infinity),
+        ),
         const SizedBox(height: 3),
         Text(
             'Batch ${offering['batch'] ?? '—'} · Section ${offering['section'] ?? '—'}',

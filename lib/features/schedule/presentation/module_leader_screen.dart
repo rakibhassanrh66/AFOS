@@ -335,16 +335,31 @@ class TeachingAssignmentCard extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text('${row['course_code']} · ${isLab ? 'Lab' : 'Theory'}',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textPrimaryOf(context))),
-          ),
-          const SizedBox(width: 8),
-          PillBadge(label: label, color: color),
-        ]),
+        // Badge UNDER the title, not beside it.
+        //
+        // Beside it, the badge is a non-flex child: the Row lays it out first
+        // at up to its full cap and hands the Expanded whatever is left. On a
+        // 320dp phone at a 1.6x text scale that left the title 90px for a
+        // string needing 424px — 79% of "CSE321 · Theory" invisible, measured
+        // by layout_probe's starved-text check. Capping the badge and adding
+        // `maxLines: 1` to the title (the previous round of fixes) stopped it
+        // rendering one letter per line, but the title was still gone; the
+        // ellipsis just made its absence tidy.
+        //
+        // On its own line the badge competes with nothing. Costs one row of
+        // height on a card that is already several lines tall.
+        Text('${row['course_code']} · ${isLab ? 'Lab' : 'Theory'}',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.titleMedium
+                .copyWith(color: AppColors.textPrimaryOf(context))),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          // Uncapped: on its own line the badge has nothing to starve, and the
+          // default 160 cap would clip its own label at a large text scale.
+          child: PillBadge(
+              label: label, color: color, maxWidth: double.infinity),
+        ),
         const SizedBox(height: 3),
         Text('Batch ${row['batch']} · Section ${row['section']} · Semester ${row['semester']}',
             maxLines: 2, overflow: TextOverflow.ellipsis, style: dim),
@@ -636,16 +651,21 @@ class AllocationCard extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text('${row['course_code']} — ${row['teacher_name'] ?? 'Unknown'}',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.titleMedium
-                    .copyWith(color: AppColors.textPrimaryOf(context))),
-          ),
-          const SizedBox(width: 8),
-          PillBadge(label: label, color: color),
-        ]),
+        // Same starve as TeachingAssignmentCard above, same fix. This line
+        // carries a person's name, which is the worst thing to truncate: at
+        // 2.0x on a 320dp phone "CSE321 — Md. Masukur Rahman Chowdhury" was
+        // given 90px of the 424px it needs, so the teacher this allocation is
+        // about was simply not on screen.
+        Text('${row['course_code']} — ${row['teacher_name'] ?? 'Unknown'}',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.titleMedium
+                .copyWith(color: AppColors.textPrimaryOf(context))),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: PillBadge(
+              label: label, color: color, maxWidth: double.infinity),
+        ),
         const SizedBox(height: 3),
         Text(
             '${isLab ? 'Lab' : 'Theory'} · Batch ${row['batch']} '

@@ -743,7 +743,12 @@ class JoinRequestCard extends StatelessWidget {
                   //
                   // Inside the column it simply takes a line of its own when
                   // the card is narrow, and nothing has to compete.
-                  PillBadge(label: status.toUpperCase(), color: _statusColor(status)),
+                  // Uncapped: on its own line it has nothing to starve, and the
+                  // default 160 cap hid half of "APPROVED" at a 2.0x scale.
+                  PillBadge(
+                      label: status.toUpperCase(),
+                      color: _statusColor(status),
+                      maxWidth: double.infinity),
                 ]),
               ),
             ]),
