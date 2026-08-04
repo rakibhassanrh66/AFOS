@@ -64,9 +64,22 @@ class FeatureHeader extends StatelessWidget {
                 ),
                 Padding(
                   padding: padding,
-                  child: Row(
-                    children: [
-                      if (icon != null) ...[
+                  // On a phone the title and a trailing action cannot both have
+                  // a fair share of the row: at 1.0x on a 320dp screen an equal
+                  // split left the title 91px for 319px of course title, so 82%
+                  // of the header's own headline was missing. Bounding the
+                  // action does not help — the width genuinely is not there.
+                  //
+                  // So on anything narrower than a tablet the action moves to
+                  // its own line under the title, where both are readable in
+                  // full. Wide layouts (the web rail, tablets) keep them
+                  // side by side, which is where that arrangement earns its
+                  // keep.
+                  child: LayoutBuilder(builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 480;
+                    final row = Row(
+                      children: [
+                        if (icon != null) ...[
                         Container(
                           width: 44,
                           height: 44,
@@ -86,7 +99,12 @@ class FeatureHeader extends StatelessWidget {
                           children: [
                             Text(
                               title,
-                              maxLines: 1,
+                              // Two lines, not one. A real course title next to
+                              // a trailing action has ~226px on a 320dp phone
+                              // and needs 319px, so on one line 91% of it was
+                              // simply not there. Short titles are unaffected —
+                              // the second line is only used when needed.
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.headlineLarge
                                   .copyWith(color: Colors.white),
@@ -104,12 +122,27 @@ class FeatureHeader extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (trailing != null) ...[
+                      // Trailing lives BELOW the title on a phone — see the
+                      // Column wrapper further down — so it only appears here
+                      // when the header is wide enough to seat both.
+                      if (trailing != null && wide) ...[
                         const SizedBox(width: 12),
-                        trailing!,
+                        Flexible(child: trailing!),
                       ],
-                    ],
-                  ),
+                      ],
+                    );
+
+                    if (trailing == null || wide) return row;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        row,
+                        const SizedBox(height: 12),
+                        Align(alignment: Alignment.centerLeft, child: trailing!),
+                      ],
+                    );
+                  }),
                 ),
               ],
             ),
