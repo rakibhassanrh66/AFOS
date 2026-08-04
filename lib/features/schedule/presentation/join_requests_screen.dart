@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -386,7 +387,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
       // a selection made at row 30 must stay actionable without scrolling back.
       bottomNavigationBar: _selected.isEmpty
           ? null
-          : _SelectionBar(
+          : SelectionBar(
               count: _selected.length,
               busy: _bulkBusy,
               onClear: () => setState(_selected.clear),
@@ -446,7 +447,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
             offerings: _myOfferings),
         const SizedBox(height: 10),
         if (_filter == _Filter.waiting && matching >= 2) ...[
-          _BulkAdmitBar(
+          BulkAdmitBar(
               matching: matching,
               total: _pending.length,
               busy: _bulkBusy,
@@ -484,7 +485,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
             // and is exactly how a rendering fault could hide an entire list.
             // This turns that into a visible, reportable row.
             _SafeRow(
-              child: _JoinRequestCard(
+              child: JoinRequestCard(
                 request: r,
                 busy: _busyIds.contains(r['id']) || _bulkBusy,
                 selectable: _filter == _Filter.waiting,
@@ -506,11 +507,16 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
 }
 
 /// The batch action bar. Only mounted while something is ticked.
-class _SelectionBar extends StatelessWidget {
+///
+/// Public so `review_screens_layout_test` can drive the real widget. A test
+/// that re-declares a private card is a copy, and a copy is exactly how the
+/// full-width Decline button survived review here.
+class SelectionBar extends StatelessWidget {
   final int count;
   final bool busy;
   final VoidCallback onClear, onAccept, onDecline;
-  const _SelectionBar({
+  const SelectionBar({
+    super.key,
     required this.count,
     required this.busy,
     required this.onClear,
@@ -541,12 +547,12 @@ class _SelectionBar extends StatelessWidget {
           TextButton(onPressed: busy ? null : onClear, child: const Text('Clear')),
           OutlinedButton(
             onPressed: busy ? null : onDecline,
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
             child: const Text('Decline'),
           ),
           FilledButton(
             onPressed: busy ? null : onAccept,
-            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            style: rowAction(FilledButton.styleFrom(backgroundColor: AppColors.green)),
             child: busy
                 ? const SizedBox(
                     width: 16, height: 16,
@@ -638,12 +644,13 @@ class _SafeRow extends StatelessWidget {
 /// animation. Both were suspects while this list was rendering blank, and
 /// neither is worth reintroducing for a queue of decisions — the point here is
 /// that the row is visible unconditionally.
-class _JoinRequestCard extends StatelessWidget {
+class JoinRequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
   final bool busy, selectable, selected;
   final VoidCallback onToggleSelected, onOpen;
   final VoidCallback onAccept, onDecline, onRemove, onReconsider;
-  const _JoinRequestCard({
+  const JoinRequestCard({
+    super.key,
     required this.request,
     required this.busy,
     required this.selectable,
@@ -734,7 +741,7 @@ class _JoinRequestCard extends StatelessWidget {
                 style: AppTextStyles.bodyMedium
                     .copyWith(color: AppColors.textSecondaryOf(context))),
             const SizedBox(height: 6),
-            _BatchMatchNotice(
+            BatchMatchNotice(
               studentBatch: student['batch'] as String?,
               studentSection: student['section'] as String?,
               offeringBatch: offering['batch'] as String?,
@@ -768,12 +775,12 @@ class _JoinRequestCard extends StatelessWidget {
       'pending' => [
           OutlinedButton(
             onPressed: busy ? null : onDecline,
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
             child: const Text('Decline', maxLines: 1),
           ),
           FilledButton(
             onPressed: (busy || archived) ? null : onAccept,
-            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            style: rowAction(FilledButton.styleFrom(backgroundColor: AppColors.green)),
             child: busy
                 ? const SizedBox(
                     width: 16, height: 16,
@@ -784,7 +791,7 @@ class _JoinRequestCard extends StatelessWidget {
       'approved' => [
           OutlinedButton.icon(
             onPressed: busy ? null : onRemove,
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+            style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
             icon: const Icon(Icons.person_remove_outlined, size: 16),
             label: const Text('Remove', maxLines: 1),
           ),
@@ -792,6 +799,7 @@ class _JoinRequestCard extends StatelessWidget {
       'rejected' => [
           OutlinedButton.icon(
             onPressed: busy ? null : onReconsider,
+            style: rowAction(),
             icon: const Icon(Icons.undo_rounded, size: 16),
             label: const Text('Reconsider', maxLines: 1),
           ),
@@ -808,11 +816,12 @@ class _JoinRequestCard extends StatelessWidget {
 }
 
 /// Offers to admit every requester whose batch and section already match.
-class _BulkAdmitBar extends StatelessWidget {
+class BulkAdmitBar extends StatelessWidget {
   final int matching, total;
   final bool busy;
   final VoidCallback onTap;
-  const _BulkAdmitBar({
+  const BulkAdmitBar({
+    super.key,
     required this.matching,
     required this.total,
     required this.busy,
@@ -891,9 +900,10 @@ class _StudentAvatar extends StatelessWidget {
 ///
 /// A mismatch is legitimate — a retaker, or someone who moved section — so this
 /// informs rather than blocks, but it must be impossible to miss.
-class _BatchMatchNotice extends StatelessWidget {
+class BatchMatchNotice extends StatelessWidget {
   final String? studentBatch, studentSection, offeringBatch, offeringSection;
-  const _BatchMatchNotice({
+  const BatchMatchNotice({
+    super.key,
     required this.studentBatch,
     required this.studentSection,
     required this.offeringBatch,

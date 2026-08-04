@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -387,7 +388,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               if (approved)
                 OutlinedButton(
                   onPressed: busy ? null : () => _revoke(o),
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                  style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
                   child: busy
                       ? const SizedBox(
                           width: 14, height: 14,
@@ -397,6 +398,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               else
                 OutlinedButton.icon(
                   onPressed: busy ? null : () => _reopen(o),
+                  style: rowAction(),
                   icon: const Icon(Icons.undo_rounded, size: 16),
                   label: busy
                       ? const SizedBox(
@@ -465,12 +467,12 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
             children: [
               OutlinedButton(
                 onPressed: busy ? null : () => _reject(o),
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.red),
+                style: rowAction(OutlinedButton.styleFrom(foregroundColor: AppColors.red)),
                 child: const Text('Decline'),
               ),
               FilledButton(
                 onPressed: busy ? null : () => _approve(o),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+                style: rowAction(FilledButton.styleFrom(backgroundColor: AppColors.green)),
                 child: busy
                     ? const SizedBox(
                         width: 16, height: 16,

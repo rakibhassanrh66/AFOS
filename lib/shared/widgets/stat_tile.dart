@@ -41,23 +41,36 @@ class StatTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Expanded + textAlign, NOT Spacer + Flexible.
+          //
+          // `Spacer` is an `Expanded` with flex 1, and `Flexible` defaults to
+          // flex 1 too, so the pair split the free space 50/50: the number
+          // could only ever use HALF the tile before ellipsising, with an equal
+          // gap sitting beside it, and — because a loose `Flexible` gives back
+          // whatever it doesn't use — it came to rest in a different horizontal
+          // position on every tile, in proportion to how many digits it had.
+          // Three of these side by side on the admin summary bars is where that
+          // reads as scrambled.
+          //
+          // `Expanded` is tight, so the text gets the whole remaining width and
+          // `textAlign` is what decides the edge. maxLines/ellipsis stay: they
+          // do not prevent overflow on their own (the Text still claims its
+          // intrinsic width), and these tiles are genuinely narrower than their
+          // own number at a large text scale.
           Row(
             children: [
               if (icon != null) ...[
                 Icon(icon, size: 16, color: on ? color : AppColors.textSecondaryOf(context)),
-                const Spacer(),
+                const SizedBox(width: 8),
               ],
-              // Flexible: maxLines/ellipsis alone do NOT prevent overflow --
-              // the Text still claims its full intrinsic width, leaving the
-              // Spacer at zero and pushing the Row past the tile. These sit
-              // three-across in an Expanded Row on the admin summary bars, so
-              // at a large text scale each tile is genuinely narrower than its
-              // own number.
-              Flexible(
+              Expanded(
                 child: Text(
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  // Right when an icon holds the left, left when nothing does —
+                  // which is where the label underneath starts.
+                  textAlign: icon != null ? TextAlign.end : TextAlign.start,
                   style: TextStyle(
                     color: on ? color : AppColors.textPrimaryOf(context),
                     fontWeight: FontWeight.w800,
@@ -65,7 +78,6 @@ class StatTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (icon == null) const Spacer(),
             ],
           ),
           const SizedBox(height: 6),

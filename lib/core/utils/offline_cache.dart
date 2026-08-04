@@ -2,6 +2,18 @@ import 'dart:async';
 import '../services/connectivity_service.dart';
 import '../services/local_cache_service.dart';
 
+/// Thrown when a list fetch is skipped because the device is offline and there
+/// is nothing cached to serve instead.
+///
+/// Exists so this case reaches the user as an offline notice with a retry,
+/// rather than as an empty list that every screen renders as a calm "nothing
+/// here yet". Mapped to its user-facing text in `friendlyError`.
+class OfflineNoDataException implements Exception {
+  const OfflineNoDataException();
+  @override
+  String toString() => 'OfflineNoDataException';
+}
+
 /// Wraps a live Supabase `.stream()`-backed query with a local cache: emits
 /// the last-cached rows immediately (if any), then subscribes to the live
 /// stream only while online. Without this, a `.stream()` never emits at all
@@ -57,7 +69,21 @@ Future<List<Map<String, dynamic>>> cachedListFetch({
   required Future<List<Map<String, dynamic>>> Function() liveFetch,
 }) async {
   if (!ConnectivityService.instance.isOnline.value) {
-    return LocalCacheService.instance.getList(cacheKey)?.data ?? [];
+    // Never act on the cached flag alone. It is set once before the first frame
+    // and only updated on a transport TRANSITION, so a wrong reading at startup
+    // persists for the whole session -- and the cost of believing it here is a
+    // screen that renders empty with no error and no retry. One re-read of the
+    // platform state is cheap; see ConnectivityService.recheck.
+    final online = await ConnectivityService.instance.recheck();
+    if (!online) {
+      final cached = LocalCacheService.instance.getList(cacheKey)?.data;
+      // Same reasoning as the failed-fetch path below: returning `[]` here made
+      // "we never even tried" indistinguishable from "you genuinely own
+      // nothing". The caller renders a calm empty state either way and the user
+      // has nothing to retry.
+      if (cached == null) throw const OfflineNoDataException();
+      return cached;
+    }
   }
   try {
     final fresh = await liveFetch();
