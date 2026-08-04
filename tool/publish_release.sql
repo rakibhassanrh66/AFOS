@@ -46,10 +46,13 @@ INSERT INTO app_releases (version, release_date, title, highlights, platforms)
 VALUES (
   '2.7.7',
   current_date,
-  'TITLE HERE — what changed, in the user''s words',
+  'Updates That Actually Install',
   ARRAY[
-    'One sentence per change, written for someone deciding whether to install.',
-    'Say what they will notice, not which function was edited.'
+    'Tapping Update now installs. The download link pointed at a release that did not exist, and the error page it fetched was handed to Android as if it were the app — which is exactly what "There was a problem parsing the package" was telling you.',
+    'A half-finished or corrupted download is now detected and thrown away instead of being installed, and a failed attempt can no longer poison the next one.',
+    'When Android refuses an install you are told why, instead of nothing happening. Usually it is "Install unknown apps", which needs turning on for AFOS once.',
+    'You are told as soon as a new version is released — including when AFOS is closed — instead of having to open Settings and check.',
+    'After an update finishes installing, AFOS comes back on its own. Where Android blocks that, you get a tap-to-open notification instead.'
   ],
   ARRAY['android']
 );
@@ -78,14 +81,54 @@ BEGIN;
 
 SET LOCAL afos.suppress_release_announce = 'on';
 
+--  DRAFTED, NOT FINAL. Written by reading each tag's actual commit range and
+--  saying what a student or teacher would notice — not generated from commit
+--  subjects. Edit freely before running; you know what these felt like to use.
+
 INSERT INTO app_releases (version, release_date, title, highlights, platforms) VALUES
-  ('1.2.1',  '2026-07-18', 'TITLE', ARRAY['TODO'], ARRAY['android']),
-  ('2.3.3',  '2026-07-23', 'TITLE', ARRAY['TODO'], ARRAY['android']),
-  ('2.5.2',  '2026-07-24', 'TITLE', ARRAY['TODO'], ARRAY['android']),
-  ('2.5.21', '2026-07-26', 'TITLE', ARRAY['TODO'], ARRAY['android']),
-  ('2.6.0',  '2026-07-26', 'TITLE', ARRAY['TODO'], ARRAY['android']),
-  ('2.6.1',  '2026-07-26', 'TITLE', ARRAY['TODO'], ARRAY['android']),
-  ('2.6.2',  '2026-07-26', 'TITLE', ARRAY['TODO'], ARRAY['android'])
+
+  ('1.2.1', '2026-07-18', 'Fingerprint Login, New Navigation & Transport', ARRAY[
+    'Sign in with your fingerprint or face instead of typing your password every time.',
+    'A new floating bottom navigation bar, with the SOS button moved somewhere it is not in the way, and a proper side rail on desktop web.',
+    'Transport rebuilt: routes grouped sensibly, working time pickers, and schedule data that is actually normalised.',
+    'Fixed the navigation labels overlapping their icons, and the splash screen popping out of place on launch.'
+  ], ARRAY['android', 'web']),
+
+  ('2.3.3', '2026-07-23', 'Smoother Live Screens & Transport Search', ARRAY[
+    'Live screens no longer flicker when several updates land at once — they are batched instead of redrawing on every single change.',
+    'Search every transport route from one place, rather than opening them one at a time.',
+    'Transport stops stay in step with the route they belong to.',
+    'Search no longer errors on unusual characters.'
+  ], ARRAY['android', 'web']),
+
+  ('2.5.2', '2026-07-24', 'Network Performance', ARRAY[
+    'Fewer and smaller network requests throughout the app, so screens settle noticeably faster on a slow or crowded connection.'
+  ], ARRAY['android', 'web']),
+
+  ('2.5.21', '2026-07-26', 'Attendance, Grading & Joining a Course', ARRAY[
+    'Attendance registers, including lab groups and bonus marks.',
+    'Full DIU mark components, a CGPA and SGPA engine, and assignment grading.',
+    'Module leaders can allocate teaching load to their team.',
+    'Students can cancel a join request they no longer want; teachers can admit everyone matching the right batch and section in one action.',
+    'Ended courses are visible again and can be restored if one was closed by mistake.',
+    'Results are grouped by semester and show SGPA.',
+    'Fixed: Join Requests and All Routes rendered as empty pages when they had data all along, results notifications went to the entire batch instead of the class, and some students were missing from rosters and notifications entirely.'
+  ], ARRAY['android', 'web']),
+
+  ('2.6.0', '2026-07-26', 'Teaching Allocations & Student Attendance', ARRAY[
+    'Teachers can accept or decline a teaching allocation rather than having it simply assigned.',
+    'Students can see their own attendance record.',
+    'Who gets notified now comes from a single shared definition, so the people told in the app and the people sent a push are always the same people.'
+  ], ARRAY['android', 'web']),
+
+  ('2.6.1', '2026-07-26', 'Notification Safeguard', ARRAY[
+    'A standing automated check that a notification''s in-app audience and its push audience cannot quietly drift apart. Invisible day to day — it exists because they had already drifted twice without anyone noticing.'
+  ], ARRAY['android', 'web']),
+
+  ('2.6.2', '2026-07-26', 'Offering Approvals Tightened', ARRAY[
+    'A course offering can only be created from a teaching allocation that was actually accepted, closing a gap where one could be raised against an allocation nobody had agreed to.'
+  ], ARRAY['android', 'web'])
+
 ON CONFLICT (version) DO NOTHING;
 
 -- Confirm nothing was announced before committing. Expect 0.
