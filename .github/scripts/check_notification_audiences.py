@@ -28,7 +28,7 @@ list and are not flagged.
 
 ONE TRIGGER IS EXEMPT BY CONSTRUCTION. notify_new_release() sends its own push
 rather than leaving it to the client, via pg_net -> the announce-release edge
-function (see 20260805061500). It cannot drift: its in-app audience is "every
+function (see 20260804180927). It cannot drift: its in-app audience is "every
 profile" with no role test at all, and announce-release resolves its push
 audience from that same table. There is no second definition to disagree with.
 
