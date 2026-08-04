@@ -35,9 +35,16 @@ class _GlassChipState extends State<GlassChip> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = widget.color ?? AppColors.blue;
+    // Falls back to the USER'S accent, not a fixed blue. A caller that passes
+    // an explicit colour still wins — those are the semantic ones (a red
+    // "Cancelled" filter must stay red).
+    final accent = widget.color ?? AppColors.accentOf(context);
     final selected = widget.selected;
-    final fg = selected ? Colors.white : AppColors.textSecondaryOf(context);
+    // Foreground by luminance rather than a hardcoded white: several pickable
+    // accents (amber, teal) are light enough that white on them is unreadable.
+    final fg = selected
+        ? (accent.computeLuminance() > 0.45 ? const Color(0xFF0B1220) : Colors.white)
+        : AppColors.textSecondaryOf(context);
 
     final chip = AnimatedContainer(
       duration: const Duration(milliseconds: 160),
