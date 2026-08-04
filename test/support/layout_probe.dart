@@ -40,11 +40,20 @@ Future<List<String>> probeLayout(
     WidgetTester tester, Widget child, Size size, double scale) async {
   final faults = <String>[];
   final previous = FlutterError.onError;
+  // EVERY error is captured, not just overflows.
+  //
+  // This used to record only messages containing 'overflowed' and silently
+  // drop the rest — but dropping them does not make them go away: the binding
+  // still holds the un-handled error and later fails the test with "A test
+  // overrode FlutterError.onError but either failed to return it to its
+  // original state", which says nothing about what actually broke. Anything
+  // else that throws during layout is a fault worth reporting on its own
+  // terms.
   FlutterError.onError = (details) {
     final text = details.exceptionAsString();
-    if (text.contains('overflowed')) {
-      faults.add('OVERFLOW: ${text.split('\n').first}');
-    }
+    faults.add(text.contains('overflowed')
+        ? 'OVERFLOW: ${text.split('\n').first}'
+        : 'EXCEPTION: ${text.split('\n').first}');
   };
 
   tester.view.physicalSize = size;

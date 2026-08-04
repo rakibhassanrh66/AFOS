@@ -16,6 +16,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
+import '../../../core/layout/immersive_scope.dart';
 import '../../../core/layout/nav_insets.dart';
 class DeptChatScreen extends StatefulWidget {
   const DeptChatScreen({super.key});
@@ -307,7 +308,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final name = widget.channel['channel_name'] as String? ?? 'chat';
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: _chatBg == Colors.transparent ? Theme.of(context).scaffoldBackgroundColor : _chatBg,
       appBar: AppBar(
         backgroundColor: AppColors.surfaceOf(context),
@@ -330,7 +331,10 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                    // No bottom inset: _InputBar sits below this list and owns
+                    // the bottom edge, so clearance here only opened a gap
+                    // between the last message and the field.
+                    padding: const EdgeInsets.all(16),
                     itemCount: _messages.length,
                     itemBuilder: (ctx, i) => _MsgBubble(
                         msg: _messages[i], isMe: _messages[i]['sender_id'] == SupabaseConfig.uid,
@@ -339,6 +343,11 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         _InputBar(ctrl: _msgCtrl, onSend: _send),
       ]),
     );
+
+    // Only the CHANNEL is immersive, not the channel list above it — that one
+    // is a top-level destination and must keep the nav. See
+    // immersive_scope.dart.
+    return ImmersiveScope(child: scaffold);
   }
 }
 

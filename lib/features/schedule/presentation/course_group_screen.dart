@@ -11,6 +11,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../data/repositories/course_offering_repository.dart';
+import '../../../core/layout/immersive_scope.dart';
 import '../../../core/layout/nav_insets.dart';
 
 /// The group for ONE section of a course — keyed on the offering, so a
@@ -163,7 +164,7 @@ class _CourseGroupScreenState extends State<CourseGroupScreen> {
     final course = widget.offering['courses'] as Map<String, dynamic>? ?? const {};
     final title = '${course['code'] ?? 'Course'} · Sec ${widget.offering['section'] ?? '—'}';
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.surfaceOf(context),
@@ -206,7 +207,11 @@ class _CourseGroupScreenState extends State<CourseGroupScreen> {
                               .copyWith(color: AppColors.textSecondaryOf(context))))
                   : ListView.builder(
                       controller: _scrollCtrl,
-                      padding: NavInsets.content(context),
+                      // Plain padding, not NavInsets: the composer sits BELOW
+                      // this list and owns the bottom edge, so bottom clearance
+                      // here only ever opened a gap between the last message
+                      // and the field.
+                      padding: const EdgeInsets.all(16),
                       itemCount: _messages.length,
                       itemBuilder: (ctx, i) {
                         final m = _messages[i];
@@ -226,6 +231,13 @@ class _CourseGroupScreenState extends State<CourseGroupScreen> {
         _InputBar(ctrl: _msgCtrl, onSend: _send),
       ]),
     );
+
+    // Immersive: no floating nav over a conversation. The composer is pinned to
+    // the bottom, which is exactly where the bar floats, and padding the
+    // composer above it only spends the transcript's space on a bar nobody
+    // presses mid-chat. The app bar's back arrow and the system back gesture
+    // are the way out, and both were always here.
+    return ImmersiveScope(child: scaffold);
   }
 }
 

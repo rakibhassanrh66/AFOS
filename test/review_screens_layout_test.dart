@@ -166,27 +166,23 @@ void main() {
           },
         ),
 
-    // --- The whole Review Request page. Height is pinned because the probe
-    // scrolls; width is what these bugs live in.
+    // --- The Review Request page's decision buttons.
+    //
+    // The buttons, not the whole screen: that screen is a full Scaffold with an
+    // AppBar, and nesting one inside the probe's scroll view trips a framework
+    // focus assertion that has nothing to do with layout. These carry the risk,
+    // because they are full-width and the theme's infinite minimum width means
+    // a long label has to fit inside a button that will not grow for it.
     for (final status in ['pending', 'approved', 'rejected'])
-      'JoinRequestDetailScreen ($status)': () => SizedBox(
-            height: 1400,
-            child: JoinRequestDetailScreen(
-              request: requestRow(status: status),
-              onAccept: status == 'pending' ? () async {} : null,
-              onDecline: status == 'pending' ? () async {} : null,
-              onRemove: status == 'approved' ? () async {} : null,
-              onReconsider: status == 'rejected' ? () async {} : null,
-            ),
+      'JoinRequestActions ($status)': () => JoinRequestActions(
+            status: status, archived: false, busy: false,
+            onAccept: () {}, onDecline: () {},
+            onRemove: () {}, onReconsider: () {},
           ),
-    'JoinRequestDetailScreen (ended course)': () => SizedBox(
-          height: 1400,
-          child: JoinRequestDetailScreen(
-            request: requestRow(archived: true),
-            onAccept: () async {},
-            onDecline: () async {},
-          ),
-        ),
+    'JoinRequestActions (pending, ended course)': () => const JoinRequestActions(
+        status: 'pending', archived: true, busy: false),
+    'JoinRequestActions (busy)': () => const JoinRequestActions(
+        status: 'pending', archived: false, busy: true),
 
     // --- Admin review: the pair that could be seen and not acted on. ---------
     //

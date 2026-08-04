@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../core/layout/immersive_scope.dart';
 import '../../../core/navigation/back_press_tracker.dart';
 import '../../../core/navigation/router_location.dart';
 import '../../../core/utils/responsive.dart';
@@ -181,18 +182,53 @@ class _ShellBody extends StatelessWidget {
     // (ListView/GridView) with a null `padding` adopts MediaQuery's vertical
     // padding automatically, and SafeArea consumes it too.
     final keyboard = mq.viewInsets.bottom;
-    // While the keyboard is up the nav is BEHIND it (see
-    // resizeToAvoidBottomInset: false below — the bar stays pinned to the
-    // physical screen bottom instead of re-anchoring onto the IME and
-    // covering the bottom 129px of every search result list). A hidden bar
-    // needs no clearance, so the inset collapses and search gets the space
-    // back.
-    final bottomInset =
-        keyboard > 0 ? 0.0 : mq.padding.bottom + GlassBottomNav.contentClearance;
     // Drawer width: the old hard-coded 300 left only ~20px of scrim on a small
     // phone, so the menu read as a full-screen takeover with no visible way
     // back to the content behind it.
     final menuWidth = mq.size.width * 0.86 < 300 ? mq.size.width * 0.86 : 300.0;
+
+    // Immersive routes (the chats) drop the bar AND its clearance together.
+    // Both have to move as one: hiding the bar while still reserving its
+    // height would leave a dead band across the bottom of the conversation,
+    // and dropping the clearance while the bar still painted would put it back
+    // on top of the composer. See core/layout/immersive_scope.dart.
+    return ValueListenableBuilder<int>(
+      valueListenable: immersiveRouteCount,
+      builder: (context, immersiveCount, _) {
+        final immersive = immersiveCount > 0;
+        // While the keyboard is up the nav is BEHIND it (see
+        // resizeToAvoidBottomInset: false below — the bar stays pinned to the
+        // physical screen bottom instead of re-anchoring onto the IME and
+        // covering the bottom 129px of every search result list). A hidden bar
+        // needs no clearance, so the inset collapses and search gets the space
+        // back. The device's own gesture inset is kept either way — that one is
+        // physical and does not go away because the bar did.
+        final bottomInset = keyboard > 0
+            ? 0.0
+            : mq.padding.bottom +
+                (immersive ? 0.0 : GlassBottomNav.contentClearance);
+        return _buildMobile(
+          context,
+          mq: mq,
+          keyboard: keyboard,
+          bottomInset: bottomInset,
+          menuWidth: menuWidth,
+          immersive: immersive,
+          content: content,
+        );
+      },
+    );
+  }
+
+  Widget _buildMobile(
+    BuildContext context, {
+    required MediaQueryData mq,
+    required double keyboard,
+    required double bottomInset,
+    required double menuWidth,
+    required bool immersive,
+    required Widget content,
+  }) {
     final mobileContent = Padding(
       // The shell lifts content off the keyboard itself, because Scaffold's
       // own resize would also drag the nav up with it.
@@ -241,7 +277,10 @@ class _ShellBody extends StatelessWidget {
           // same window, so nothing is left reserving space for a hidden bar.
           ValueListenableBuilder<int>(
             valueListenable: openGlassSheetCount,
-            builder: (_, sheetCount, __) => sheetCount > 0
+            // `immersive` joins the same test rather than getting a branch of
+            // its own: both mean "there is no bar right now", and the clearance
+            // above was already dropped to match.
+            builder: (_, sheetCount, __) => (sheetCount > 0 || immersive)
                 ? const SizedBox.shrink()
                 : Positioned(
                     left: 0, right: 0, bottom: 0,
