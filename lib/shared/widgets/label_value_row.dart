@@ -26,6 +26,52 @@ class LabelValueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(1.0);
+
+    // From 1.3x the label and value stop sharing a line.
+    //
+    // The fixed 100px label column below is deliberate and explained there, but
+    // it cannot scale, so at a 2.0x accessibility scale "Department" needed
+    // four lines to fit in a two-line box — half the word invisible, on the
+    // profile screens where these rows carry someone's name, ID and
+    // department. Widening the column instead just moves the loss to the value.
+    //
+    // Stacking is the only arrangement where both survive: each gets the full
+    // width. It costs vertical space on a screen that is already scrolling, and
+    // only for users who asked for large text.
+    // 1.3, not 1.6: measured, not chosen. "Designation" — the longest label
+    // any call site passes — already needs three lines in the 100px column at
+    // 1.3x, so the fixed column has failed well before the scale I first
+    // guessed at.
+    if (scale >= 1.3) {
+      return Padding(
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18, color: AppColors.textSecondaryOf(context)),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Text(label,
+                    style: AppTextStyles.bodyMedium
+                        .copyWith(color: AppColors.textSecondaryOf(context))),
+              ),
+            ]),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: AppTextStyles.titleMedium.copyWith(
+                  color: valueColor ?? AppColors.textPrimaryOf(context)),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: padding,
       child: Row(

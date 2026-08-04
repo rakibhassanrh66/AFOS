@@ -67,8 +67,25 @@ class PillBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Two ceilings, and the badge gets the lower.
+    //
+    // A flat pixel cap cannot tell a legitimate word rendered large from an
+    // abusive label: at a 1.6x scale "SUBMITTED" needs more than 160px and was
+    // clipping itself, while 'ACCEPTED — CREATE OFFERING NOW' must be clipped
+    // at any scale. Scaling the cap alone fixes the first and breaks the
+    // second — tried, and it re-broke the guard case immediately.
+    //
+    // So it tracks the font (a real word stays readable however large the user
+    // sets their text) but can never exceed 45% of the screen (a sentence in a
+    // badge still cannot take the row from a title). Both bounds are load
+    // bearing; see the over-long-label case in course_offering_layout_test.
+    final scale = MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 2.0);
+    final cap = maxWidth.isFinite
+        ? (maxWidth * scale).clamp(0.0, MediaQuery.sizeOf(context).width * 0.45)
+        : double.infinity;
+
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxWidth),
+      constraints: BoxConstraints(maxWidth: cap),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
