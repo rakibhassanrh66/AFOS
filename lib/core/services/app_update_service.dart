@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/app_config.dart';
 import '../../config/supabase_config.dart';
 
@@ -37,8 +39,72 @@ class AppUpdateService {
   static const _owner = 'rakibhassanrh66';
   static const _repo = 'AFOS';
 
-  static String _apkUrlFor(String version) =>
-      'https://github.com/$_owner/$_repo/releases/download/v$version/AFOS-v$version.apk';
+  /// The update currently on offer, or null when this build is the newest.
+  ///
+  /// Published rather than returned so a release that goes live WHILE the app
+  /// is open still reaches the user: [start] keeps this in sync off a realtime
+  /// subscription. Before, the only thing that ever ran a check was opening the
+  /// Settings screen, so "an update is available" was something the user had to
+  /// go looking for.
+  static final ValueNotifier<AppUpdateInfo?> available =
+      ValueNotifier<AppUpdateInfo?>(null);
+
+  static RealtimeChannel? _sub;
+
+  /// Checks once now, then re-checks whenever a row lands in `app_releases`.
+  ///
+  /// Called from bootstrap alongside [BadgeService.start] and torn down on
+  /// sign-out the same way. `app_releases` is world-readable (it is the What's
+  /// New source), so this needs no role handling.
+  static Future<void> start() async {
+    available.value = await checkForUpdate();
+    await _sub?.unsubscribe();
+    _sub = SupabaseConfig.client
+        .channel('app_release_watch')
+        .onPostgresChanges(
+          // INSERT only: the trigger that announces a release fires on insert
+          // too, and re-checking on every title correction would be noise.
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'app_releases',
+          callback: (_) async => available.value = await checkForUpdate(),
+        )
+        .subscribe();
+  }
+
+  static Future<void> stop() async {
+    await _sub?.unsubscribe();
+    _sub = null;
+    available.value = null;
+  }
+
+  /// The release part of a version, with any `+build` suffix removed.
+  ///
+  /// `app_releases.version` has repeatedly been written WITH the build number
+  /// (`2.3.2+21`, `2.1.0+17`, and four more rows like it are in the table right
+  /// now), and every one of those is a broken update:
+  ///
+  ///   * the download URL became `.../v2.3.2+21/AFOS-v2.3.2+21.apk`, which is a
+  ///     404 — the git tag and the asset are named `v2.3.2` / `AFOS-v2.3.2.apk`.
+  ///   * [_isNewer] split it on '.', so the last segment was the string
+  ///     `'2+21'`, `int.tryParse` returned null, and it counted as 0 — i.e.
+  ///     `2.3.2+21` compared as **2.3.0**, older than the release it describes.
+  ///
+  /// There is a CHECK constraint on the column now, but normalising here as
+  /// well is what makes the six rows already in the table work.
+  static String releasePart(String version) => version.split('+').first.trim();
+
+  /// The build number after `+`, or null when the version does not carry one.
+  static int? buildPart(String version) {
+    final i = version.indexOf('+');
+    if (i < 0) return null;
+    return int.tryParse(version.substring(i + 1).trim());
+  }
+
+  static String _apkUrlFor(String version) {
+    final v = releasePart(version);
+    return 'https://github.com/$_owner/$_repo/releases/download/v$v/AFOS-v$v.apk';
+  }
 
   /// Returns the newest available update, or null if the installed version is
   /// already current (or the check failed — best-effort, never blocks
@@ -53,7 +119,7 @@ class AppUpdateService {
           .limit(1)
           .maybeSingle();
       final latest = row?['version'] as String?;
-      if (latest == null || !_isNewer(latest, AppConfig.appVersion)) return null;
+      if (latest == null || !isNewer(latest, AppConfig.appVersion)) return null;
       return AppUpdateInfo(
         version: latest,
         title: row?['title'] as String? ?? 'AFOS $latest',
@@ -68,14 +134,22 @@ class AppUpdateService {
   /// Numeric, per-segment comparison ("2.3.9" < "2.3.10") — a plain string
   /// compare would get this backwards on the last segment once either
   /// version reaches double digits there.
-  static bool _isNewer(String remote, String local) {
-    final r = remote.split('.').map((p) => int.tryParse(p) ?? 0).toList();
-    final l = local.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+  ///
+  /// Both sides are normalised through [releasePart] first, so a stored
+  /// `2.3.2+21` is compared as `2.3.2` rather than silently degrading to
+  /// `2.3.0`. When the release parts are equal the build numbers decide, which
+  /// is what lets a rebuild of the same version (2.7.5+61 → 2.7.5+62) be
+  /// offered at all; without it the two are indistinguishable.
+  static bool isNewer(String remote, String local) {
+    final r = releasePart(remote).split('.').map((p) => int.tryParse(p) ?? 0).toList();
+    final l = releasePart(local).split('.').map((p) => int.tryParse(p) ?? 0).toList();
     for (var i = 0; i < 3; i++) {
       final rv = i < r.length ? r[i] : 0;
       final lv = i < l.length ? l[i] : 0;
       if (rv != lv) return rv > lv;
     }
+    final rb = buildPart(remote), lb = buildPart(local);
+    if (rb != null && lb != null) return rb > lb;
     return false;
   }
 
@@ -109,24 +183,135 @@ class AppUpdateService {
     } catch (_) {}
   }
 
+  /// Smallest thing that could plausibly be this app.
+  ///
+  /// A 404 page, a captive-portal login, or a proxy error page is a few KB and
+  /// arrives with HTTP 200 from the client's point of view. Handing one to the
+  /// package installer named `.apk` is exactly what produces "There was a
+  /// problem parsing the package" — the installer is telling the truth, it just
+  /// is not an APK. The real artifact is ~95-200 MB.
+  static const _minPlausibleApkBytes = 2 * 1024 * 1024;
+
+  /// Every APK is a ZIP, and every ZIP starts with these four bytes.
+  static const _zipMagic = [0x50, 0x4B, 0x03, 0x04]; // "PK\x03\x04"
+
+  /// Reads the first four bytes and confirms they are a ZIP local-file header.
+  static Future<bool> _looksLikeApk(File f) async {
+    final raf = await f.open();
+    try {
+      final head = await raf.read(4);
+      if (head.length < 4) return false;
+      for (var i = 0; i < 4; i++) {
+        if (head[i] != _zipMagic[i]) return false;
+      }
+      return true;
+    } finally {
+      await raf.close();
+    }
+  }
+
   /// Downloads the APK for [update] with progress (0.0–1.0 via [onProgress])
-  /// and opens Android's package installer on it. Throws on a genuine
-  /// download failure — the caller is expected to show that to the user,
-  /// since a silent failure here would look like "tap Update, nothing
-  /// happens".
+  /// and opens Android's package installer on it. Throws with a message meant
+  /// for the user on any failure — a silent one here reads as "tap Update,
+  /// nothing happens", which is how this looked for a long time.
+  ///
+  /// WHAT WAS WRONG. The file was streamed straight to its final name and
+  /// opened without a single check, so anything that was not the APK still
+  /// reached the installer:
+  ///
+  ///   * a short read (connection dropped, device slept) left a TRUNCATED file
+  ///     that stayed on disk under the name the next attempt reuses;
+  ///   * a 200 response that is not the artifact (proxy/captive portal) was
+  ///     written verbatim;
+  ///   * `OpenFile.open`'s result was discarded, so when Android refused —
+  ///     "Install unknown apps" not granted for AFOS is the usual reason —
+  ///     absolutely nothing was reported.
+  ///
+  /// Now it downloads to `.part`, proves the bytes are an APK, and only then
+  /// renames into place, so the installer never sees a half-written file and a
+  /// failed attempt cannot poison the next one.
   static Future<void> downloadAndInstall(
     AppUpdateInfo update, {
     void Function(double progress)? onProgress,
   }) async {
     await _cleanupOldDownloads(keep: update.version);
     final path = await _apkPath(update.version);
-    await Dio().download(
-      update.downloadUrl,
-      path,
-      onReceiveProgress: (received, total) {
-        if (total > 0 && onProgress != null) onProgress(received / total);
-      },
-    );
-    await OpenFile.open(path);
+    final part = File('$path.part');
+
+    try {
+      // Only the scratch file is cleared up front. The final path is never
+      // touched until there is a verified replacement to rename over it: the
+      // user may have tapped Update, been handed to the installer, come back
+      // and tapped again, and deleting the file the installer is still reading
+      // would break the install that was already working.
+      if (await part.exists()) await part.delete();
+
+      final res = await Dio().download(
+        update.downloadUrl,
+        part.path,
+        onReceiveProgress: (received, total) {
+          if (total > 0 && onProgress != null) onProgress(received / total);
+        },
+      );
+
+      // Length first: this is the check that catches a truncated transfer,
+      // which is otherwise indistinguishable from success.
+      // Literal name rather than dio's `Headers.contentLengthHeader`: dio and
+      // supabase_flutter both export a `Headers` type, so referring to it here
+      // is an ambiguous import. Dio lower-cases response header names.
+      final expected = int.tryParse(res.headers.value('content-length') ?? '');
+      final actual = await part.length();
+      if (expected != null && expected > 0 && actual != expected) {
+        throw Exception(
+            'The download stopped early (${actual ~/ 1024} KB of '
+            '${expected ~/ 1024} KB). Check your connection and try again.');
+      }
+      if (actual < _minPlausibleApkBytes || !await _looksLikeApk(part)) {
+        throw Exception(
+            'That download was not a valid app file. The release for '
+            'v${releasePart(update.version)} may not have finished publishing '
+            'yet — try again in a few minutes.');
+      }
+
+      await part.rename(path);
+
+      final result = await OpenFile.open(
+        path,
+        // Named explicitly rather than inferred from the extension, so the
+        // package installer is the resolved target and not a file manager.
+        type: 'application/vnd.android.package-archive',
+      );
+      if (result.type != ResultType.done) {
+        throw Exception(_installerMessage(result));
+      }
+    } catch (_) {
+      // Never leave the partial behind: it is the input to the next attempt,
+      // and a bad one there fails identically for a reason the user cannot
+      // see. `target` is deliberately NOT deleted — nothing reaches that path
+      // except through the verified rename above, so whatever is there is a
+      // good APK, possibly one an installer is reading right now.
+      try { if (await part.exists()) await part.delete(); } catch (_) {}
+      rethrow;
+    }
   }
+
+  /// Turns an installer refusal into something the user can act on.
+  ///
+  /// [ResultType.permissionDenied] is by far the most common and the least
+  /// self-explanatory: Android requires "Install unknown apps" to be granted to
+  /// AFOS specifically before it will let the app hand it a package, and the
+  /// refusal is silent from the app's side.
+  static String _installerMessage(OpenResult result) => switch (result.type) {
+        ResultType.permissionDenied =>
+          'Android blocked the install. Allow AFOS to install apps: Settings → '
+              'Apps → AFOS → Install unknown apps → turn it on, then tap Update '
+              'again.',
+        ResultType.noAppToOpen =>
+          'No package installer is available on this device to complete the '
+              'update.',
+        ResultType.fileNotFound =>
+          'The downloaded update went missing before it could be installed — '
+              'please try again.',
+        _ => 'The update could not be installed: ${result.message}',
+      };
 }

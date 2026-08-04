@@ -45,6 +45,12 @@ const _constraintHelp = <String, String>{
   // live request from this student that they can simply accept.
   'enrollments_active_request_uniq':
       'This student has already sent a fresh request for that course — accept that one instead, it is in the Waiting tab.',
+  // Maintainer-facing, but the generic 23514 text ("isn't in a valid format")
+  // gives no hint at all — and getting this wrong ships an update nobody can
+  // install, because the download URL is built from this exact string.
+  'app_releases_version_no_build':
+      'Release version must not include the build number — write "2.7.5", not "2.7.5+61". '
+          'The download URL is built from it and must match the GitHub tag.',
 };
 
 String? _constraintMessage(String message) {

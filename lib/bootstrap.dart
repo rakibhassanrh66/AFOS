@@ -15,6 +15,7 @@ import 'core/auth/biometric_lock.dart';
 import 'core/auth/secure_session_storage.dart';
 import 'core/utils/pending_credentials_store.dart';
 import 'core/services/app_config_service.dart';
+import 'core/services/app_update_service.dart';
 import 'core/services/badge_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/local_cache_service.dart';
@@ -220,6 +221,10 @@ Future<void> bootstrap() async {
   syncOneSignalIdentity(Supabase.instance.client.auth.currentUser?.id);
   if (Supabase.instance.client.auth.currentUser != null) {
     BadgeService.start();
+    // Checks at launch and then watches app_releases live, so a release that
+    // goes out while the app is open still reaches the user. Opening Settings
+    // used to be the only thing that ever ran a check.
+    AppUpdateService.start();
     syncLocationSharing(Supabase.instance.client.auth.currentUser?.id);
   }
   // Tracked separately from the event stream because a `signedOut` event's
@@ -232,8 +237,10 @@ Future<void> bootstrap() async {
     syncLocationSharing(data.session?.user.id);
     if (data.session?.user.id != null) {
       BadgeService.start();
+      AppUpdateService.start();
     } else {
       BadgeService.stop();
+      AppUpdateService.stop();
     }
     // Chokepoint for forgetting a biometric quick-login token on a real
     // sign-out (settings/menu logout, reset-password, or a silent session
