@@ -488,8 +488,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           const SizedBox(width: 8),
                           Expanded(child: Text('Location confirmed',
                               style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
-                          TextButton(onPressed: _capturingLocation ? null : _confirmLocation,
-                              child: const Text('Refresh')),
+                          Flexible(
+                            child: TextButton(
+                                onPressed: _capturingLocation ? null : _confirmLocation,
+                                child: const Text('Refresh', maxLines: 1)),
+                          ),
                         ]),
                       )
                     else

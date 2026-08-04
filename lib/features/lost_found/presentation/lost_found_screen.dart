@@ -470,13 +470,16 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                   Text(p['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                   Text(p['status'] ?? '', style: TextStyle(color: color, fontSize: 12)),
                 ])),
-                if (p['status'] == 'active') TextButton(
-                    onPressed: () async {
-                      await SupabaseConfig.client.from('lost_found_posts')
-                          .update({'status': 'returned'}).eq('id', p['id']);
-                      _load();
-                    },
-                    child: Text(type == 'lost' ? 'Mark Found' : 'Mark Claimed', style: const TextStyle(fontSize: 11))),
+                if (p['status'] == 'active') Flexible(
+                  child: TextButton(
+                      onPressed: () async {
+                        await SupabaseConfig.client.from('lost_found_posts')
+                            .update({'status': 'returned'}).eq('id', p['id']);
+                        _load();
+                      },
+                      child: Text(type == 'lost' ? 'Mark Found' : 'Mark Claimed',
+                          maxLines: 1, style: const TextStyle(fontSize: 11))),
+                ),
                 IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20),
                     tooltip: 'Delete post',

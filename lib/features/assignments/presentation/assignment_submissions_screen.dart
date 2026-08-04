@@ -116,11 +116,13 @@ class _AssignmentSubmissionsScreenState extends State<AssignmentSubmissionsScree
                             style: AppTextStyles.bodyMedium.copyWith(
                                 color: AppColors.textSecondaryOf(context))),
                       ),
-                      PillBadge(
-                          label: '$graded / ${_submissions.length} marked',
-                          color: graded == _submissions.length && graded > 0
-                              ? AppColors.green
-                              : AppColors.amber),
+                      Flexible(
+                        child: PillBadge(
+                            label: '$graded / ${_submissions.length} marked',
+                            color: graded == _submissions.length && graded > 0
+                                ? AppColors.green
+                                : AppColors.amber),
+                      ),
                     ]),
                   ),
                   Expanded(
@@ -239,12 +241,14 @@ class _SubmissionCardState extends State<_SubmissionCard> {
                           .copyWith(color: AppColors.textSecondaryOf(context))),
                 ]),
               ),
-              PillBadge(
-                  label: isGraded
-                      ? '${marks.toStringAsFixed(marks % 1 == 0 ? 0 : 1)}'
-                          ' / ${widget.maxMarks.toStringAsFixed(0)}'
-                      : 'NOT MARKED',
-                  color: color),
+              Flexible(
+                child: PillBadge(
+                    label: isGraded
+                        ? '${marks.toStringAsFixed(marks % 1 == 0 ? 0 : 1)}'
+                            ' / ${widget.maxMarks.toStringAsFixed(0)}'
+                        : 'NOT MARKED',
+                    color: color),
+              ),
               Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
                   color: AppColors.textSecondaryOf(context)),
             ]),

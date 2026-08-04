@@ -419,7 +419,7 @@ class _StudentMarksCard extends StatelessWidget {
               Text(total.toStringAsFixed(total % 1 == 0 ? 0 : 1),
                   style: AppTextStyles.headlineMed.copyWith(color: color)),
               const SizedBox(width: 8),
-              PillBadge(label: letter ?? '—', color: color),
+              Flexible(child: PillBadge(label: letter ?? '—', color: color)),
               Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
                   color: AppColors.textSecondaryOf(context)),
             ]),

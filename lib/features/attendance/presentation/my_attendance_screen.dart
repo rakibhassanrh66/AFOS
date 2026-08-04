@@ -168,8 +168,11 @@ class _CourseAttendance extends StatelessWidget {
                       .copyWith(color: AppColors.textSecondaryOf(context))),
             ]),
           ),
-          PillBadge(
-              label: total == 0 ? '—' : '${(pct * 100).round()}%', color: color),
+          Flexible(
+            child: PillBadge(
+                label: total == 0 ? '—' : '${(pct * 100).round()}%',
+                color: color),
+          ),
         ]),
         const SizedBox(height: 8),
         ClipRRect(

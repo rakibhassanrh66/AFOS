@@ -193,10 +193,14 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                 ),
               ),
               if (unread > 0)
-                TextButton(
-                  onPressed: _markAllRead,
-                  child: Text('Mark all read',
-                      style: TextStyle(color: glass.accentSecondary, fontSize: 11)),
+                Flexible(
+                  child: TextButton(
+                    onPressed: _markAllRead,
+                    child: Text('Mark all read',
+                        maxLines: 1,
+                        style: TextStyle(
+                            color: glass.accentSecondary, fontSize: 11)),
+                  ),
                 ),
             ]),
           ),
