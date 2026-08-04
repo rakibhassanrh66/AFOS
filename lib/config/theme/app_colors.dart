@@ -111,6 +111,37 @@ class AppColors {
   static Color borderOf(BuildContext context) =>
       isDark(context) ? border : lightBorder;
 
+  /// The user's chosen accent colour — Settings → Appearance → Accent.
+  ///
+  /// WHY THIS EXISTS. The accent picker was fully wired and had no effect that
+  /// anyone could see. `SetAccentColor` saves to Hive AND to
+  /// `user_settings.accent_color`, `_loadSaved` reads it back, and main.dart
+  /// hands it to `buildLightTheme(accent:)` / `buildDarkTheme(accent:)`, which
+  /// puts it on `ColorScheme.primary`. All of that works.
+  ///
+  /// Nothing read it. There were **zero** references to `colorScheme` anywhere
+  /// under `lib/features`, against 2051 hardcoded `AppColors.*` constants — so
+  /// the only things that changed colour were the handful Material styles
+  /// implicitly, and the feature looked broken because in every place a user
+  /// actually looks, it was.
+  ///
+  /// USE THIS FOR BRAND, NOT FOR MEANING. A primary action, a selected tab, an
+  /// active indicator, a focus ring — those are the app expressing its accent
+  /// and should follow the user's choice. [red] for destructive, [green] for
+  /// success and [amber] for pending are carrying INFORMATION; if those track
+  /// the accent then a "Remove student" button turns teal and the colour stops
+  /// telling the truth. Leave them alone.
+  static Color accentOf(BuildContext context) =>
+      Theme.of(context).colorScheme.primary;
+
+  /// Readable foreground for [accentOf], chosen by luminance rather than
+  /// assuming white — several pickable accents (teal, amber) are light enough
+  /// that white text on them fails contrast. Mirrors the `onPrimary` logic in
+  /// dark_theme.dart/light_theme.dart so a call site cannot disagree with the
+  /// theme about it.
+  static Color onAccentOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onPrimary;
+
   /// Liquid glass fill — translucent white over the dark canvas; light mode
   /// needs a much stronger white so the frost reads against near-white.
   static Color glassFill(BuildContext context) => isDark(context)

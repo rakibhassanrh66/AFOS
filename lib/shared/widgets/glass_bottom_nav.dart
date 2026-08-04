@@ -206,13 +206,18 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
                       angle: spinTurns * 2 * math.pi,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: AppColors.green, // one solid brand-teal "planet"
+                          // The planet follows the user's accent. It is the
+                          // single most prominent piece of brand colour in the
+                          // app, so an accent picker that left it fixed teal
+                          // was never going to feel like it had done anything.
+                          color: AppColors.accentOf(context),
                           shape: BoxShape.circle,
                           boxShadow: [
                             // Deep downward cast — the planet has weight, and
                             // the shadow lands on the bar it is hovering over.
                             BoxShadow(
-                              color: AppColors.holoTeal.withValues(alpha: 0.45),
+                              color: AppColors.accentOf(context)
+                                  .withValues(alpha: 0.45),
                               blurRadius: 16,
                               offset: const Offset(0, 12),
                             ),
@@ -286,7 +291,10 @@ class _NavItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
             style: TextStyle(
-              color: active ? AppColors.green : AppColors.textSecondaryOf(context),
+              // Active label follows the accent, matching the planet above it.
+              color: active
+                  ? AppColors.accentOf(context)
+                  : AppColors.textSecondaryOf(context),
               fontSize: 11,
               height: 1.0,
               fontWeight: active ? FontWeight.bold : FontWeight.w500,
