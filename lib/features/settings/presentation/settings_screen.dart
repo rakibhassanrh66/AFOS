@@ -81,9 +81,20 @@ class _SettingsState extends State<SettingsScreen> {
   /// on a screen the user didn't even ask to check anything on. The visible
   /// "Check for Updates" tile below re-runs this on demand and DOES report a
   /// failure, since that's an explicit user action.
+  ///
+  /// Seeds from [AppUpdateService.available] first so the answer the app-wide
+  /// watcher already has is shown on the first frame instead of after another
+  /// round trip, then follows it — a release published while this screen is
+  /// open updates the banner without the user doing anything.
   Future<void> _checkForUpdate() async {
+    if (mounted) setState(() => _availableUpdate = AppUpdateService.available.value);
+    AppUpdateService.available.addListener(_onAvailableUpdateChanged);
     final update = await AppUpdateService.checkForUpdate();
     if (mounted) setState(() => _availableUpdate = update);
+  }
+
+  void _onAvailableUpdateChanged() {
+    if (mounted) setState(() => _availableUpdate = AppUpdateService.available.value);
   }
 
   Future<void> _checkForUpdateManually() async {
@@ -111,8 +122,16 @@ class _SettingsState extends State<SettingsScreen> {
       // correct, not stale.
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Download failed: ${friendlyError(e)}'), backgroundColor: AppColors.red));
+        // Not "Download failed:" any more — downloadAndInstall now also reports
+        // a refusal by Android's installer (most often "Install unknown apps"
+        // not granted to AFOS), and prefixing that with "Download failed" sent
+        // the user to check their connection over a permission problem. The
+        // messages it raises are already written for the user.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(friendlyError(e)),
+          backgroundColor: AppColors.red,
+          duration: const Duration(seconds: 8),
+        ));
       }
     }
     if (mounted) setState(() => _downloadingUpdate = false);
@@ -154,7 +173,13 @@ class _SettingsState extends State<SettingsScreen> {
   }
 
   @override
-  void dispose() { _batchCtrl.dispose(); _sectionCtrl.dispose(); _teacherInitialCtrl.dispose(); _soundPreviewPlayer.dispose(); super.dispose(); }
+  void dispose() {
+    // AppUpdateService.available outlives this screen (it is app-wide), so a
+    // listener left attached here would keep calling setState on a disposed
+    // State every time a release lands.
+    AppUpdateService.available.removeListener(_onAvailableUpdateChanged);
+    _batchCtrl.dispose(); _sectionCtrl.dispose(); _teacherInitialCtrl.dispose(); _soundPreviewPlayer.dispose(); super.dispose();
+  }
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
