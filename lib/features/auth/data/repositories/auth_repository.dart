@@ -36,6 +36,10 @@ class AuthRepository {
     String? section,
     String? designation,
     String? staffCategory,
+    /// Free-text office/section for a staff member with no ACADEMIC
+    /// department — "Registrar Office", "Accounts", "IT Support".
+    /// handle_new_user() writes it to staff.office.
+    String? office,
   }) async {
     final res = await _client.auth.signUp(
       email: email,
@@ -52,6 +56,7 @@ class AuthRepository {
         if(section != null) 'section': section,
         if(designation != null) 'designation': designation,
         if(staffCategory != null) 'staff_category': staffCategory,
+        if(office != null) 'office': office,
       },
     );
     if(res.user==null) throw Exception('Sign up failed');

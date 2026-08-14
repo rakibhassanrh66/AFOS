@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/auth/permission_session.dart';
 import '../../../core/navigation/router_location.dart';
 import '../../../core/services/app_config_service.dart';
 import 'dart:ui' show ImageFilter;
@@ -16,6 +17,45 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
+
+/// The routes a staff member or officer may see, given the permissions
+/// delegated to them, in menu order.
+///
+/// Top-level and public for the same reason `joinRequestMatchesSection` is:
+/// this decides what a whole class of employees can reach, which makes it the
+/// one piece of this screen that has to be pinned by a test rather than
+/// eyeballed. The widget below builds its items from exactly this list, so
+/// there is no second copy of the rule to drift.
+///
+/// The first six and the last are unconditional — what anyone gets for being
+/// an employee. Everything between them is delegated per person by a
+/// super_admin (Manage Users -> "Distribute admin work"). The resource:action
+/// pairs match app_router.dart's guards for the same routes exactly; if the
+/// two ever disagree, the menu offers a door the router slams.
+@visibleForTesting
+List<String> staffMenuRoutes(Set<String> grants) {
+  bool can(String resource, String action) => grants.contains('$resource:$action');
+  return [
+    '/home',
+    '/transport',
+    '/lost-found',
+    '/sos/nearby',
+    '/notifications',
+    '/settings',
+    // One screen, three grants that each unlock it — mirrors the router, which
+    // admits any one of them.
+    if (can('routine', 'upload') || can('transport', 'upload') || can('exam_seat', 'upload'))
+      '/admin/upload',
+    if (can('course_offerings', 'manage')) '/admin/course-offerings',
+    if (can('hall', 'manage')) '/admin/hall',
+    if (can('library', 'manage')) '/admin/library',
+    if (can('conference', 'manage')) '/conference-room',
+    if (can('sos', 'manage')) '/admin/sos',
+    if (can('notice', 'publish')) '/manage-notices',
+    if (can('exam_seat', 'upload')) '/manage-exam-seats',
+    '/feedback',
+  ];
+}
 
 class SlideMenu extends StatefulWidget {
   // True when rendered as the permanent desktop nav rail (app_shell.dart,
@@ -30,6 +70,17 @@ class SlideMenu extends StatefulWidget {
 class _SlideMenuState extends State<SlideMenu> {
   UserModel? _user;
   bool _isCr = false;
+  /// "resource:action" grants for this user, from `list_my_permissions` (which
+  /// unions their ROLE's permissions with anything a super_admin delegated to
+  /// them individually).
+  ///
+  /// The menu used to be a pure switch on `role`, which made delegation
+  /// half-work: app_router.dart already lets a delegated user through to
+  /// /admin/upload and friends, but nothing ever put those entries in their
+  /// menu — so a granted permission was reachable only by typing the URL.
+  /// Loading the set here closes that, and lets the staff branch below start
+  /// from nothing and add only what has actually been granted.
+  Set<String> _grants = const {};
 
   @override
   void initState() {
@@ -54,9 +105,18 @@ class _SlideMenuState extends State<SlideMenu> {
     if(uid==null) return;
     try {
       final p = await SupabaseConfig.client.from('profiles')
-          .select('*, teachers(designation), staff(designation), students(is_cr)').eq('id',uid).single();
+          .select('*, teachers(designation), staff(designation, office), students(is_cr)').eq('id',uid).single();
       final isCr = (p['students'] as Map?)?['is_cr'] as bool? ?? false;
-      if(mounted) setState(() { _user=UserModel.fromJson(p); _isCr=isCr; });
+      // Loaded alongside the profile rather than in its own effect so the menu
+      // never renders once with the role's items and then visibly grows a
+      // second time as delegated entries arrive.
+      //
+      // reload(), not ensureLoaded(): this method re-runs every time the drawer
+      // opens (see the BlocConsumer listener below), and the whole point of
+      // that is to pick up changes made since app start. A cached read would
+      // make a freshly-granted permission invisible until the next sign-in.
+      final grants = await PermissionSession.reload();
+      if(mounted) setState(() { _user=UserModel.fromJson(p); _isCr=isCr; _grants=grants; });
     } catch(_) {}
   }
 
@@ -159,6 +219,49 @@ class _SlideMenuState extends State<SlideMenu> {
     _sosAdminItem,
   ];
 
+  // What a staff member or officer gets purely for being an employee, before
+  // anyone has delegated them anything. Transport and Lost & Found are
+  // campus-wide services, Nearby SOS is a personal-safety feature every role
+  // has (and is separately gated by the app-wide SOS toggle), and the rest is
+  // their own account. Nothing here is an administrative tool.
+  static const _staffBaseItems = [
+    _MenuItem('Dashboard',         AppIcons.dashboard,     '/home',          AppColors.blue),
+    _MenuItem('Transport',         AppIcons.transport,     '/transport',     AppColors.teal),
+    _MenuItem('Lost & Found',      AppIcons.lostFound,     '/lost-found',    AppColors.coral),
+    _MenuItem('Nearby SOS Alerts', Icons.sos_rounded,      '/sos/nearby',    AppColors.red),
+    _MenuItem('Notifications',     AppIcons.notifications, '/notifications', AppColors.red),
+    _MenuItem('Settings',          AppIcons.settings,      '/settings',      AppColors.textSecondary),
+  ];
+
+  // Every item a staff member could possibly see, in menu order. Which of them
+  // actually render is decided by staffMenuRoutes(); this is only the
+  // route -> presentation lookup.
+  static const _staffCandidateItems = [
+    ..._staffBaseItems,
+    _uploadRoutineItem,
+    _courseOfferingsAdminItem,
+    _hallAdminItem,
+    _libraryAdminItem,
+    _conferenceRoomItem,
+    _sosAdminItem,
+    _noticesItem,
+    _examSeatsItem,
+    _feedbackItem,
+  ];
+
+  // Individually-grantable admin entries. These already existed inside
+  // _adminItems as list literals; pulling the delegatable ones out as named
+  // constants lets the staff branch include exactly one of them without
+  // duplicating the route or the icon and letting the two copies drift.
+  static const _uploadRoutineItem =
+    _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue);
+
+  static const _courseOfferingsAdminItem =
+    _MenuItem('Course Offerings', AppIcons.schedule, '/admin/course-offerings', AppColors.blue);
+
+  static const _hallAdminItem =
+    _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber);
+
   static const _libraryAdminItem =
     _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple);
 
@@ -254,7 +357,30 @@ class _SlideMenuState extends State<SlideMenu> {
       return [..._commonItems, _myOfferingsItem, _joinRequestsItem, _attendanceItem, _teachingLoadItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
     }
     if (role == 'staff') {
-      return [..._commonItems, _conferenceRoomItem, _libraryAdminItem, _sosAdminItem, _feedbackItem];
+      // Staff/officers start from almost nothing and earn the rest.
+      //
+      // This branch used to be `[..._commonItems, _conferenceRoomItem,
+      // _libraryAdminItem, _sosAdminItem, _feedbackItem]`, which handed every
+      // staff member Class Schedule, Clubs, Results, Assignments, Mentorship
+      // and Dept Chat (all of _commonItems) plus Conference Room, Manage
+      // Library and Manage SOS Alerts — unconditionally. A Registrar has no
+      // classes, no club membership, no results and no assignments; and
+      // "Manage Library" being handed out with the job title rather than with
+      // a decision is the opposite of least privilege.
+      //
+      // What remains below is what any employee needs regardless of posting.
+      // Everything else is delegated per person by a super_admin through
+      // Manage Users -> "Distribute admin work", and appears here the moment
+      // it is granted. The resource:action pairs are exactly the ones
+      // app_router.dart guards the matching routes with, so the menu and the
+      // router can never disagree about who may open what.
+      // Built from staffMenuRoutes() rather than repeating the conditions, so
+      // the tested rule and the rendered menu cannot disagree.
+      final byRoute = {for (final m in _staffCandidateItems) m.route: m};
+      return [
+        for (final route in staffMenuRoutes(_grants))
+          if (byRoute[route] != null) byRoute[route]!,
+      ];
     }
     if (role == 'exam_controller') {
       // Was previously falling through to the student branch below,
@@ -436,8 +562,16 @@ class _SlideMenuState extends State<SlideMenu> {
           maxLines:1, overflow:TextOverflow.ellipsis),
         const SizedBox(height:10),
         Row(children:[
-          Flexible(child: _Chip(_user?.department??'', AppColors.holoBlue)),
-          const SizedBox(width:8),
+          // Only drawn when there is something to say. This was
+          // `_Chip(_user?.department ?? '')` — unconditional — and staff rows
+          // carried department = '' (an empty STRING, so `??` never fired).
+          // The result was a chip with padding, a background and no text: a
+          // small blank blob parked next to the user's name. A field with no
+          // value should occupy no space, not draw an empty container.
+          if (_user?.affiliation != null) ...[
+            Flexible(child: _Chip(_user!.affiliation!, AppColors.holoBlue)),
+            const SizedBox(width:8),
+          ],
           _Chip(_secondaryChipLabel, AppColors.green),
         ]),
         const SizedBox(height:14),

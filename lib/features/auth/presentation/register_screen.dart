@@ -45,6 +45,11 @@ class _RegisterBodyState extends State<_RegisterBody> {
   final _batchCtrl = TextEditingController();
   final _sectionCtrl = TextEditingController();
   final _designationCtrl = TextEditingController();
+  /// Staff/officer only: the office or section they actually work in, for the
+  /// many who belong to no academic department (Registrar, Accounts, IT).
+  /// Until this existed, staff submitted `department: ''` and the app had
+  /// nowhere to record where they work — see staff.office.
+  final _officeCtrl = TextEditingController();
 
   AccountType _accountType = AccountType.student;
   String? _gender;
@@ -113,6 +118,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
     _nameCtrl.dispose(); _idCtrl.dispose();
     _emailCtrl.dispose(); _passCtrl.dispose(); _confCtrl.dispose();
     _batchCtrl.dispose(); _sectionCtrl.dispose(); _designationCtrl.dispose();
+    _officeCtrl.dispose();
     super.dispose();
   }
 
@@ -199,6 +205,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
                                 batchCtrl:_batchCtrl,
                                 sectionCtrl:_sectionCtrl,
                                 designationCtrl:_designationCtrl,
+                                officeCtrl:_officeCtrl,
                                 sem:_sem,
                                 onSem:(v){ setState(()=>_sem=v); },
                                 loadingStaffDesignations:_loadingStaffDesignations,
@@ -247,7 +254,17 @@ class _RegisterBodyState extends State<_RegisterBody> {
                             password:_passCtrl.text,
                             studentId:_idCtrl.text.trim(),
                             fullName:_nameCtrl.text.trim(),
+                            // Still '' when nothing is picked (staff may leave
+                            // the department dropdown empty and give an office
+                            // instead). handle_new_user() now runs this through
+                            // `nullif(btrim(...), '')`, so the empty string
+                            // lands in the database as NULL rather than as a
+                            // blank value the UI has to guess about — which is
+                            // what produced the empty chip in the slide menu.
                             department:_selectedDept?.code ?? '',
+                            office: _isStaff && _officeCtrl.text.trim().isNotEmpty
+                                ? _officeCtrl.text.trim()
+                                : null,
                             semester:_isStudent ? _sem.toInt() : 1,
                             accountType: _isStudent ? 'student' : (_isStaff ? 'staff' : 'teacher'),
                             gender: _gender!,
@@ -443,7 +460,7 @@ class _Step2 extends StatelessWidget {
   final List<ProgramOption> programs;
   final ProgramOption? selectedProgram;
   final ValueChanged<ProgramOption?> onProgram;
-  final TextEditingController batchCtrl, sectionCtrl, designationCtrl;
+  final TextEditingController batchCtrl, sectionCtrl, designationCtrl, officeCtrl;
   final double sem;
   final ValueChanged<double> onSem;
   final bool loadingStaffDesignations;
@@ -456,6 +473,7 @@ class _Step2 extends StatelessWidget {
     required this.loadingPrograms, required this.programs,
     required this.selectedProgram, required this.onProgram,
     required this.batchCtrl, required this.sectionCtrl, required this.designationCtrl,
+    required this.officeCtrl,
     required this.sem, required this.onSem,
     required this.loadingStaffDesignations, required this.staffDesignations,
     required this.selectedStaffDesignation, required this.onStaffDesignation,
@@ -558,6 +576,48 @@ class _Step2 extends StatelessWidget {
             items: _groupedStaffItems(staffDesignations, textSecondary),
             onChanged: onStaffDesignation,
           ),
+        const SizedBox(height:20),
+        // WHERE they work, which the form previously never asked. Hiding the
+        // academic department dropdown from staff was right — a Registrar has
+        // no honest answer in a list of CSE/EEE/BBA — but the screen still
+        // submitted `department: ''`, so every staff account was created with
+        // an empty department and the slide menu drew them a blank chip.
+        //
+        // Both routes are offered because both are real: some staff DO belong
+        // to an academic department (a departmental officer for CSE), and the
+        // rest sit in a central office with no code at all. Whichever they
+        // fill, one of them must be filled.
+        Text('Where do you work?',
+            style:AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+        const SizedBox(height:4),
+        Text('Pick your academic department if you belong to one, or type your office below.',
+            style:AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+        const SizedBox(height:12),
+        if(loadingDepts)
+          const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
+        else
+          DropdownButtonFormField<DepartmentOption>(
+            initialValue: selectedDept,
+            isExpanded: true,
+            decoration: _decoration(context, 'Academic department (optional)', Icons.school_outlined),
+            dropdownColor: AppColors.surfaceOf(context),
+            style: TextStyle(color:textPrimary),
+            items: departments.map((d)=>DropdownMenuItem(value:d,
+              child:Text(d.name, overflow:TextOverflow.ellipsis))).toList(),
+            onChanged: onDept,
+          ),
+        const SizedBox(height:16),
+        AfosTextField(
+          hint:'Office / Section (e.g. Registrar Office)',
+          controller:officeCtrl,
+          prefixIcon:Icons.apartment_outlined,
+          // Only required when no department was picked: between the two, the
+          // form must end up knowing one of them, and demanding both would
+          // force a departmental officer to invent an office name.
+          validator:(v)=> selectedDept == null && (v==null || v.trim().isEmpty)
+              ? 'Enter your office, or pick a department above'
+              : null,
+        ),
       ] else
         AfosTextField(hint:'Designation (e.g. Lecturer)', controller:designationCtrl,
           prefixIcon:Icons.work_outline,

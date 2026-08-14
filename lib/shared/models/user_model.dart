@@ -102,4 +102,20 @@ class UserModel {
   String? get section => studentData?['section'] as String?;
   String? get designation => teacherData?['designation'] as String? ?? staffData?['designation'] as String?;
   String? get staffCategory => staffData?['category'] as String?;
+
+  /// Free-text office/section for staff with no ACADEMIC department
+  /// (Registrar, Accounts, IT). See staff.office.
+  String? get office => staffData?['office'] as String?;
+
+  /// Where this person belongs, for display: the academic department code when
+  /// there is one, otherwise the office. Null when neither is recorded, so a
+  /// caller can omit the field entirely rather than draw an empty one.
+  ///
+  /// Both halves are normalised through [_orNull] because a blank STRING is
+  /// exactly what caused the bug this exists to fix — staff rows carried
+  /// department = '' and the menu drew a chip with no text in it.
+  String? get affiliation => _orNull(department) ?? _orNull(office);
+
+  static String? _orNull(String? s) =>
+      (s == null || s.trim().isEmpty) ? null : s.trim();
 }
