@@ -57,10 +57,29 @@ android/key.properties
 *.keystore
 *.p12
 *.pem
-ios/Runner/GoogleService-Info.plist
-android/app/google-services.json
+# UNANCHORED for the same reason as *.jks above. These were anchored to
+# `android/app/` and `ios/Runner/`, which is only where they live for THIS
+# app. A Firebase config for an unrelated project — copied into the repo
+# under its own folder — slipped straight past that: `hostel_house_andoird
+# version/android/app/google-services.json` sat in this PUBLIC repo's history
+# carrying a live API key and OAuth client ids. Match the filename anywhere.
+google-services.json
+GoogleService-Info.plist
 .env
 .env.*
+
+# Ad-hoc SQL scripts dropped in the repo ROOT. Real migrations live in
+# supabase/migrations/ and real tooling in tool/, both of which stay tracked —
+# this pattern is root-only (`/`) and does not touch either.
+#
+# The file this exists to prevent was `manual_admin_assignment.sql`: a
+# throwaway script that spelled out, in a public repo, the exact statement for
+# granting yourself super_admin. It carried no password, but it was a working
+# recipe published next to the database it targeted — and it turned out the
+# escalation it described was genuinely possible (fixed in migration
+# 20260814222540). Scratch SQL written against production does not belong in
+# version control.
+/*.sql
 
 # Supabase CLI local state (per-machine, not project config)
 supabase/.temp/
