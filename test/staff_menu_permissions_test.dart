@@ -1,0 +1,136 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:afos_v7/features/shell/presentation/slide_menu.dart';
+
+/// What a staff member or officer can reach.
+///
+/// The old staff branch was `[..._commonItems, _conferenceRoomItem,
+/// _libraryAdminItem, _sosAdminItem, _feedbackItem]` — which handed every
+/// employee Class Schedule, Clubs, Results, Assignments, Mentorship, Dept Chat,
+/// Manage Library and Manage SOS Alerts simply for having the job title. These
+/// tests exist so that cannot quietly come back: the interesting property is
+/// what is ABSENT with no grants, and absence is exactly what nobody notices
+/// regressing.
+void main() {
+  group('staff menu with no delegated permissions', () {
+    final routes = staffMenuRoutes(const {});
+
+    test('is just the employee baseline', () {
+      expect(routes, [
+        '/home',
+        '/transport',
+        '/lost-found',
+        '/sos/nearby',
+        '/notifications',
+        '/settings',
+        '/feedback',
+      ]);
+    });
+
+    test('contains no administrative screen at all', () {
+      for (final admin in const [
+        '/admin/upload',
+        '/admin/course-offerings',
+        '/admin/hall',
+        '/admin/library',
+        '/admin/sos',
+        '/manage-notices',
+        '/manage-exam-seats',
+        '/conference-room',
+      ]) {
+        expect(routes, isNot(contains(admin)),
+            reason: '$admin must be delegated, never granted by job title');
+      }
+    });
+
+    test('drops the student/teacher screens a staff member has no use for', () {
+      // A Registrar has no class routine, no club membership, no results, no
+      // assignments and no mentor. These came in via _commonItems.
+      for (final academic in const [
+        '/schedule',
+        '/clubs',
+        '/grades',
+        '/assignments',
+        '/mentorship',
+        '/dept-chat',
+      ]) {
+        expect(routes, isNot(contains(academic)));
+      }
+    });
+  });
+
+  group('a delegated permission adds exactly its own screen', () {
+    test('library:manage', () {
+      final r = staffMenuRoutes(const {'library:manage'});
+      expect(r, contains('/admin/library'));
+      expect(r, isNot(contains('/admin/hall')));
+      expect(r, isNot(contains('/admin/sos')));
+    });
+
+    test('sos:manage', () {
+      expect(staffMenuRoutes(const {'sos:manage'}), contains('/admin/sos'));
+    });
+
+    test('notice:publish', () {
+      expect(staffMenuRoutes(const {'notice:publish'}), contains('/manage-notices'));
+    });
+
+    test('hall:manage', () {
+      expect(staffMenuRoutes(const {'hall:manage'}), contains('/admin/hall'));
+    });
+
+    test('conference:manage', () {
+      expect(staffMenuRoutes(const {'conference:manage'}), contains('/conference-room'));
+    });
+
+    test('course_offerings:manage', () {
+      expect(staffMenuRoutes(const {'course_offerings:manage'}),
+          contains('/admin/course-offerings'));
+    });
+  });
+
+  group('/admin/upload — one screen behind three grants', () {
+    // app_router.dart admits this route on ANY of routine:upload,
+    // transport:upload or exam_seat:upload. The menu has to agree with all
+    // three, or a user is granted access to a screen with no way to reach it.
+    for (final grant in const ['routine:upload', 'transport:upload', 'exam_seat:upload']) {
+      test('$grant alone reveals it', () {
+        expect(staffMenuRoutes({grant}), contains('/admin/upload'));
+      });
+    }
+
+    test('appears once when several of them are granted together', () {
+      final r = staffMenuRoutes(const {'routine:upload', 'transport:upload', 'exam_seat:upload'});
+      expect(r.where((x) => x == '/admin/upload').length, 1);
+    });
+
+    test('exam_seat:upload also reveals the exam seat screen, routine:upload does not', () {
+      expect(staffMenuRoutes(const {'exam_seat:upload'}), contains('/manage-exam-seats'));
+      expect(staffMenuRoutes(const {'routine:upload'}), isNot(contains('/manage-exam-seats')));
+    });
+  });
+
+  group('ordering and shape', () {
+    test('Feedback stays last however many permissions are granted', () {
+      final all = staffMenuRoutes(const {
+        'routine:upload', 'transport:upload', 'exam_seat:upload',
+        'course_offerings:manage', 'hall:manage', 'library:manage',
+        'conference:manage', 'sos:manage', 'notice:publish',
+      });
+      expect(all.last, '/feedback');
+    });
+
+    test('a fully delegated staff member has no duplicate entries', () {
+      final all = staffMenuRoutes(const {
+        'routine:upload', 'transport:upload', 'exam_seat:upload',
+        'course_offerings:manage', 'hall:manage', 'library:manage',
+        'conference:manage', 'sos:manage', 'notice:publish',
+      });
+      expect(all.toSet().length, all.length);
+    });
+
+    test('an unrelated grant changes nothing', () {
+      expect(staffMenuRoutes(const {'marks:insert', 'students:select'}),
+          staffMenuRoutes(const {}));
+    });
+  });
+}

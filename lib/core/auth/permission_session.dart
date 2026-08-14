@@ -31,6 +31,34 @@ class PermissionSession {
     return has(resource, action);
   }
 
+  /// The whole grant set, loading it first if needed.
+  ///
+  /// The router asks one question at a time ("may this user open /admin/hall?"),
+  /// but the slide menu has to decide about a dozen entries in a single
+  /// synchronous `build`. Awaiting [ensureHas] per item there would mean a
+  /// dozen awaits inside a getter — so the menu loads once through this and
+  /// then reads the set with [has].
+  ///
+  /// Returns an UNMODIFIABLE view: a caller that mutated this would be editing
+  /// the cache the router trusts for access decisions.
+  static Future<Set<String>> ensureLoaded() async {
+    if (_grants == null) await _fetch();
+    return Set.unmodifiable(_grants ?? const <String>{});
+  }
+
+  /// Discards the cache and loads it again.
+  ///
+  /// [clear] alone previously only ran at LOGOUT, which meant a permission a
+  /// super_admin granted did not reach the person it was granted to until they
+  /// signed out and back in — they would even get the "Your permissions were
+  /// updated" notification and then find the menu unchanged. The slide menu
+  /// calls this each time it opens, so a delegation takes effect the next time
+  /// the user looks at their own menu.
+  static Future<Set<String>> reload() async {
+    clear();
+    return ensureLoaded();
+  }
+
   static Future<void> _fetch() async {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) { _grants = {}; return; }
