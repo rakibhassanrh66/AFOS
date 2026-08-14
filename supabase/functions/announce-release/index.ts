@@ -178,13 +178,34 @@ Deno.serve(async () => {
       )
     }
 
+    // Record the outcome where a human can still read it next week.
+    //
+    // Everything below this line goes into the HTTP response body, and this
+    // function is called by net.http_post from a trigger -- so that body lands
+    // in pg_net's net._http_response, which is purged on a timer. The v2.7.8
+    // result was already unrecoverable ten days later. `push_sent_at` alone
+    // cannot answer "did anyone actually get it?", because it is set whether
+    // the push reached 300 devices or none.
+    //
+    // Best-effort on purpose: the announcement itself HAS happened by now, and
+    // failing to write a diagnostic column must never turn a delivered push
+    // into a 5xx that the cron job then retries and double-sends.
+    try {
+      await supabase.rpc("release_announcement_result", {
+        p_id: release.id,
+        p_recipients: targeted,
+      })
+    } catch (_) { /* diagnostics only -- never fail a delivered push over this */ }
+
     return new Response(
       JSON.stringify({
         announced: true,
         version: release.version,
         pushTargeted: targeted,
         // Surfaced rather than buried: zero push recipients on a release is
-        // worth noticing, even though it is not an error here.
+        // worth noticing, even though it is not an error here. Also persisted
+        // to app_releases.push_recipients just above, since this body is not
+        // durable.
         noSubscribers: noSubscribers || undefined,
         errors: failures.length ? failures : undefined,
       }),
