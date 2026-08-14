@@ -40,9 +40,13 @@ class BadgeService {
     // lower one. Only apply the result of the most recently issued query.
     final gen = ++_refreshGen;
     try {
-      final res = await SupabaseConfig.client.from('user_notifications')
-          .select('id').eq('user_id', uid).eq('is_read', false) as List;
-      if (gen == _refreshGen) await AppBadgePlus.updateBadge(res.length);
+      // HEAD count rather than fetching every unread id to call .length on:
+      // this is the app-icon badge, so it re-runs on every notification
+      // change, and the payload used to grow with the size of the backlog it
+      // was reporting. See the same fix in top_app_bar.dart's bell.
+      final unread = await SupabaseConfig.client.from('user_notifications')
+          .count().eq('user_id', uid).eq('is_read', false);
+      if (gen == _refreshGen) await AppBadgePlus.updateBadge(unread);
     } catch (_) {}
   }
 }

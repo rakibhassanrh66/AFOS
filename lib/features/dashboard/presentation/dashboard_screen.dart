@@ -185,38 +185,56 @@ class _DashboardState extends State<DashboardScreen> {
       // so a dept_admin's count has to be narrowed here or they would see
       // every department's backlog as their own.
       final dept = p['department'] as String?;
-      final offeringsQuery = SupabaseConfig.client.from('course_offerings')
-          .select('id').eq('status', 'pending').eq('is_archived', false);
+      // COUNT on the server, not `select('id')` counted on the device.
+      //
+      // Every one of these nine tiles renders a single number, and every one
+      // of them used to fetch `select('id')` and then take `.length` of the
+      // result. That downloads one UUID per matching row to display a count:
+      // a backlog of 2,000 unverified profiles was a 2,000-element JSON array
+      // over the wire so the tile could say "2000". Nine of those fire at once
+      // on every admin dashboard open, which is the bulk of what makes the
+      // network panel look busy on web — and it is also the one place where
+      // cost grows with how far behind the admins are, i.e. worst exactly when
+      // the dashboard matters most.
+      //
+      // `.count()` (postgrest 2.7.2) issues a HEAD request and returns the int
+      // straight from the Content-Range header, so the body is empty no matter
+      // how large the backlog. Same nine requests, but each is now a fixed
+      // handful of bytes instead of growing without bound.
+      //
+      // Filters still chain after .count() — it returns PostgrestFilterBuilder<int>.
+      final offeringsCount = SupabaseConfig.client.from('course_offerings')
+          .count().eq('status', 'pending').eq('is_archived', false);
       try {
-        final results = await Future.wait([
-          SupabaseConfig.client.from('profiles').select('id').eq('is_verified', false) as Future,
-          SupabaseConfig.client.from('hall_applications').select('id')
-              .inFilter('status', ['pending', 'reviewing', 'cancel_requested']) as Future,
-          SupabaseConfig.client.from('club_membership_requests').select('id').eq('status', 'pending') as Future,
-          SupabaseConfig.client.from('club_post_requests').select('id').eq('status', 'pending') as Future,
-          SupabaseConfig.client.from('conference_room_requests').select('id').eq('status', 'pending') as Future,
-          SupabaseConfig.client.from('cr_requests').select('id').eq('status', 'pending') as Future,
-          SupabaseConfig.client.from('feedback').select('id').eq('status', 'new') as Future,
-          (role == 'dept_admin' && dept != null && dept.isNotEmpty
-              ? offeringsQuery.eq('department', dept)
-              : offeringsQuery) as Future,
+        final results = await Future.wait<int>([
+          SupabaseConfig.client.from('profiles').count().eq('is_verified', false),
+          SupabaseConfig.client.from('hall_applications').count()
+              .inFilter('status', ['pending', 'reviewing', 'cancel_requested']),
+          SupabaseConfig.client.from('club_membership_requests').count().eq('status', 'pending'),
+          SupabaseConfig.client.from('club_post_requests').count().eq('status', 'pending'),
+          SupabaseConfig.client.from('conference_room_requests').count().eq('status', 'pending'),
+          SupabaseConfig.client.from('cr_requests').count().eq('status', 'pending'),
+          SupabaseConfig.client.from('feedback').count().eq('status', 'new'),
+          role == 'dept_admin' && dept != null && dept.isNotEmpty
+              ? offeringsCount.eq('department', dept)
+              : offeringsCount,
           // 'pending', not 'submitted' — the CHECK on this table allows only
           // pending/approved/rejected, so filtering on 'submitted' matched
           // nothing and the tile sat at 0 no matter how many results were
           // waiting. Matches submitResults() and fetchPendingSubmissions().
-          SupabaseConfig.client.from('offering_result_submissions').select('id')
-              .eq('status', 'pending') as Future,
+          SupabaseConfig.client.from('offering_result_submissions').count()
+              .eq('status', 'pending'),
         ]);
         if (mounted) {
           setState(() => _adminPending = {
-          'users': (results[0] as List).length,
-          'hall': (results[1] as List).length,
-          'clubs': (results[2] as List).length + (results[3] as List).length,
-          'conference': (results[4] as List).length,
-          'cr': (results[5] as List).length,
-          'feedback': (results[6] as List).length,
-          'offerings': (results[7] as List).length,
-          'results': (results[8] as List).length,
+          'users': results[0],
+          'hall': results[1],
+          'clubs': results[2] + results[3],
+          'conference': results[4],
+          'cr': results[5],
+          'feedback': results[6],
+          'offerings': results[7],
+          'results': results[8],
         });
         }
       } catch (_) {}

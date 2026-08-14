@@ -94,8 +94,24 @@
   </script>
   <style>
     /* Pre-boot canvas: match the Liquid Glass background so the page never
-       flashes white while the Flutter engine loads. */
-    html, body { background: #0B1120; margin: 0; }
+       flashes white while the Flutter engine loads.
+
+       This was a bare `background: #0B1120`, i.e. the DARK canvas
+       unconditionally. That removes the white flash for a dark-theme user and
+       hands a light-theme user the opposite problem — a full-page slab of
+       near-black before the engine boots, then a jump to #F4F6FB. Same defect,
+       just pointed at the other half of the users.
+
+       prefers-color-scheme is the only signal available this early: the app's
+       real theme lives in Hive and cannot be read before Dart is running. It
+       is a much better guess than "always dark", and when it guesses wrong the
+       result is no worse than what shipped. Values track AppColors.background
+       (LiquidGlass.canvasDark) and AppColors.lightBg (canvasLight) — keep them
+       in step if the palette moves. */
+    html, body { background: #F4F6FB; margin: 0; }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #0B1120; }
+    }
   </style>
 </head>
 <body>

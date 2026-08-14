@@ -152,9 +152,14 @@ class _NotificationBellState extends State<_NotificationBell> {
     // *issued* query.
     final gen = ++_loadGen;
     try {
-      final res = await SupabaseConfig.client.from('user_notifications')
-          .select('id').eq('user_id', uid).eq('is_read', false) as List;
-      if (mounted && gen == _loadGen) setState(() => _unread = res.length);
+      // HEAD count, not `select('id')` counted client-side. The bell sits in
+      // the app bar of essentially every screen and reloads on every realtime
+      // notification event, so this was the single most frequently issued
+      // query in the app — and it transferred one uuid per unread row purely
+      // to render a number. `.count()` sends no body at all.
+      final unread = await SupabaseConfig.client.from('user_notifications')
+          .count().eq('user_id', uid).eq('is_read', false);
+      if (mounted && gen == _loadGen) setState(() => _unread = unread);
     } catch (_) {}
   }
 

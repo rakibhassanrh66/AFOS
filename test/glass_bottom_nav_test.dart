@@ -163,5 +163,39 @@ void main() {
         expect(path.contains(Offset(centre, GlassBottomNav.barHeight - 8)), isTrue);
       }
     });
+
+    // buildNavBarPath memoizes its last result, because the clipper and both
+    // painters ask for the identical path on every animation frame. A memo is
+    // only ever as good as its invalidation, and getting this wrong would be
+    // near-invisible by eye: the bar would still render a perfectly plausible
+    // valley, just one cradling the tab the planet came FROM. These pin both
+    // halves — that a repeat call is genuinely served from the cache, and that
+    // changing either key still recomputes.
+    group('path memoization', () {
+      test('same size + centre is served from cache (identical instance)', () {
+        const size = Size(328, GlassBottomNav.barHeight);
+        expect(identical(buildNavBarPath(size, 123.0), buildNavBarPath(size, 123.0)), isTrue);
+      });
+
+      test('a moved planet recomputes rather than returning the stale dip', () {
+        const size = Size(328, GlassBottomNav.barHeight);
+        buildNavBarPath(size, 41.0);
+        final moved = buildNavBarPath(size, 287.0);
+        // The dip must be under the NEW centre, and the old centre solid again.
+        expect(moved.contains(const Offset(287, 34)), isFalse,
+            reason: 'stale path reused: no dip under the new planet position');
+        expect(moved.contains(const Offset(41, 34)), isTrue,
+            reason: 'stale path reused: dip still carved at the old position');
+      });
+
+      test('a resized window recomputes rather than reusing the old width', () {
+        const narrow = Size(328, GlassBottomNav.barHeight);
+        const wide = Size(720, GlassBottomNav.barHeight);
+        buildNavBarPath(narrow, 123.0);
+        final onWide = buildNavBarPath(wide, 123.0);
+        expect(onWide.getBounds().width, closeTo(720, 1),
+            reason: 'stale path reused: still the narrow bar after a resize');
+      });
+    });
   });
 }
