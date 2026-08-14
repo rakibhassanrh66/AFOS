@@ -1076,12 +1076,18 @@ class _MyRouteTabState extends State<_MyRouteTab> {
   bool _autoSuggested = false;
   Timer? _tickTimer;
 
-  // No stop in transport_stops has ever had a real GPS coordinate (the
-  // source routine sheet only ever lists stop *names* -- confirmed live,
-  // 0 of 174 rows have latitude/longitude). True "nearest stop by distance"
-  // isn't possible on this data, so this matches the user's *registered*
-  // address text against route/stop names instead -- an honest, disclosed
-  // approximation, not a silent guess dressed up as GPS proximity.
+  // Matches the user's *registered* address text against route/stop names --
+  // an honest, disclosed approximation, not a silent guess dressed up as GPS
+  // proximity.
+  //
+  // This used to be justified by "no stop has a coordinate", which is no
+  // longer true (every stop on every active route is geocoded). The reason it
+  // stays text-based is now a different and better one: this runs from
+  // initState to pre-select a route the moment the tab opens, and a real
+  // nearest-stop calculation would have to raise a location-permission prompt
+  // to do it. Ambushing someone with a permission dialog they did not ask for,
+  // to fill in a dropdown they can set themselves in two taps, is not a good
+  // trade. The Map tab asks for location because there the user opted in.
   Future<void> _suggestFromAddress() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return;
@@ -1859,13 +1865,31 @@ class _MapTab extends StatefulWidget {
 }
 
 class _MapTabState extends State<_MapTab> {
-  static const _diuLat = 23.7953, _diuLng = 90.4044;
+  // The campus pin, and the map's opening view. These used to read
+  // 23.7953/90.4044, which is a residential road in GULSHAN 2 -- about 12 km
+  // southeast of the campus and not on any route we run. So the Map tab opened
+  // on the wrong side of Dhaka with a school icon planted in a neighbourhood
+  // the buses never enter, and every drawn route trailed off toward it.
+  //
+  // Nothing caught it because the map renders perfectly happily around a wrong
+  // constant: OSM tiles load for any coordinate on earth, so a wrong centre is
+  // indistinguishable from a right one unless you recognise the streets.
+  //
+  // This is Daffodil International University in Ashulia Model Town, Savar
+  // (OSM). It sits ~400 m from the "Daffodil Smart City" stop already in
+  // `transport_stops` (23.8756013/90.3203018), which is the terminus of every
+  // active route -- so the pin and the route ends now agree.
+  static const _diuLat = 23.8790923, _diuLng = 90.3214822;
   final _mapController = MapController();
   LatLng? _myLocation;
   String? _locationError;
   bool _requestingLocation = false;
   List<Map<String,dynamic>>? _stops;
   bool _loadingStops = false;
+  /// Index into [_plotted] of the stop the user tapped, or null. Drives the
+  /// name callout — before this, a stop marker was not tappable at all and the
+  /// map could not tell you the name of the place you were looking at.
+  int? _selectedStop;
 
   String? get _routeId => widget.route?['id'] as String?;
 
@@ -1896,16 +1920,70 @@ class _MapTabState extends State<_MapTab> {
     setState(() => _loadingStops = true);
     try {
       final stops = await widget.repo.fetchStops(routeId);
-      if (mounted) setState(() { _stops = stops; _loadingStops = false; });
+      if (mounted) {
+        setState(() { _stops = stops; _loadingStops = false; _selectedStop = null; });
+        _fitToRoute();
+      }
     } catch (_) {
-      if (mounted) setState(() { _stops = []; _loadingStops = false; });
+      if (mounted) setState(() { _stops = []; _loadingStops = false; _selectedStop = null; });
     }
   }
 
-  List<LatLng> get _routePoints => (_stops ?? const [])
+  /// Stops that can actually be drawn, in running order, keeping the NAME
+  /// alongside the point. The old `_routePoints` threw the name away, which is
+  /// why every stop rendered as an identical anonymous dot — you could see that
+  /// the bus passed somewhere, but not where.
+  List<({String name, LatLng point})> get _plotted => (_stops ?? const [])
       .where((s) => s['latitude'] != null && s['longitude'] != null)
-      .map((s) => LatLng((s['latitude'] as num).toDouble(), (s['longitude'] as num).toDouble()))
+      .map((s) => (
+            name: _cleanStop(s['stop_name'] as String? ?? ''),
+            point: LatLng((s['latitude'] as num).toDouble(), (s['longitude'] as num).toDouble()),
+          ))
       .toList();
+
+  List<LatLng> get _routePoints => _plotted.map((s) => s.point).toList();
+
+  /// Frames the whole route.
+  ///
+  /// The map used to open at a FIXED centre and zoom (campus, z14) no matter
+  /// which route was selected, so a route that runs out to Dhamrai or Baipail —
+  /// 15+ km away — was drawn entirely outside the visible area. The user saw an
+  /// empty map of campus and no line, which is indistinguishable from "this
+  /// route has no path", the very state the panel below exists to report.
+  ///
+  /// Deferred to after the frame because fitCamera needs the map's real size,
+  /// and on the first build (or straight after a tab switch) it hasn't been
+  /// laid out yet.
+  void _fitToRoute() {
+    final pts = _routePoints;
+    if (pts.length < 2) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        _mapController.fitCamera(CameraFit.coordinates(
+          coordinates: pts,
+          // Asymmetric on purpose: the info panel and the locate button sit
+          // over the bottom of the map, so a route fitted symmetrically puts
+          // its last stops underneath them.
+          padding: const EdgeInsets.fromLTRB(48, 64, 48, 160),
+          maxZoom: 15,
+        ));
+      } catch (_) {
+        // The map may not be mounted yet on a fast tab switch. A missed fit is
+        // cosmetic — never let it take the screen down.
+      }
+    });
+  }
+
+  /// The one tile source, declared once so the dark and light branches of
+  /// build() cannot drift apart (different URLs, different user agents).
+  Widget _osmTiles() => TileLayer(
+        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        // Real app ID, not the Flutter scaffold default: OSM's tile usage
+        // policy requires a User-Agent identifying the app, and
+        // com.example.* is the generic value they rate-limit.
+        userAgentPackageName: 'bd.edu.diu.afos',
+      );
 
   /// Asks for the device's live position so the user can see where they
   /// are relative to campus/routes on the map, instead of a static view.
@@ -1922,42 +2000,141 @@ class _MapTabState extends State<_MapTab> {
   Widget build(BuildContext context) {
     final routePoints = _routePoints;
     final hasRoute = widget.route != null;
-    // Every one of the 183 `transport_stops` rows belongs to the retired
-    // legacy import, so `fetchStops` returns nothing for any ACTIVE route and
-    // this is currently true for all of them. The panel below says so plainly
-    // instead of leaving a blank map, and still offers the thing that does
-    // work — Google Maps directions built from the stop names.
+    // This used to be the normal case, and the comment here used to say so:
+    // `transport_stops` held only the retired legacy import, so `fetchStops`
+    // returned nothing for any active route and NO route could be drawn. That
+    // has not been true since the importer started mirroring stops
+    // (`_syncStops`) — all 21 active routes now have rows, and as of the
+    // 20260814213849 migration every one of those rows is geocoded.
+    //
+    // So this is now the genuine exception rather than the rule: a route with
+    // fewer than two plottable stops. The panel below still says so plainly
+    // and still offers Google Maps directions built from the stop names, which
+    // is the honest fallback when there is no path to draw.
     final showNoPathNote = hasRoute && !_loadingStops && routePoints.length < 2;
+    final plotted = _plotted;
+    final isDark = AppColors.isDark(context);
     return Stack(children: [
       FlutterMap(
         mapController: _mapController,
-        options: const MapOptions(
-          initialCenter:LatLng(_diuLat,_diuLng), initialZoom:14),
+        options: MapOptions(
+          initialCenter: const LatLng(_diuLat, _diuLng),
+          initialZoom: 12,
+          // Tapping empty map dismisses the stop callout, the same way tapping
+          // outside any other transient surface in the app closes it.
+          onTap: (_, __) { if (_selectedStop != null) setState(() => _selectedStop = null); },
+        ),
         children:[
-          TileLayer(urlTemplate:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            // Real app ID, not the Flutter scaffold default: OSM's tile usage
-            // policy requires a User-Agent identifying the app, and
-            // com.example.* is the generic value they rate-limit.
-            userAgentPackageName:'bd.edu.diu.afos'),
+          // OSM ships one raster style, and it is a LIGHT one. Against the
+          // Liquid Glass dark UI that read as a glowing white slab filling the
+          // screen — the only surface in the app that ignored the theme.
+          //
+          // Inverting luminance (and only luminance: the matrix rows are equal,
+          // so hue relationships survive) turns the same tiles into a dark
+          // basemap. This is done client-side rather than by pointing at a
+          // third-party dark tile host, which would mean a new provider, a new
+          // usage policy and a new attribution to honour.
+          if (isDark)
+            ColorFiltered(
+              colorFilter: const ColorFilter.matrix(<double>[
+                -0.2126, -0.7152, -0.0722, 0, 255,
+                -0.2126, -0.7152, -0.0722, 0, 255,
+                -0.2126, -0.7152, -0.0722, 0, 255,
+                 0,       0,       0,       1, 0,
+              ]),
+              child: _osmTiles(),
+            )
+          else
+            _osmTiles(),
+
           if (routePoints.length >= 2) PolylineLayer(polylines: [
-            Polyline(points: routePoints, strokeWidth: 4, color: AppColors.holoTeal),
+            // Casing under the line. A single 4px teal stroke disappeared over
+            // pale roads and green parkland at some zooms; a darker, wider
+            // stroke beneath it keeps the route readable on any tile.
+            Polyline(
+              points: routePoints,
+              strokeWidth: 8,
+              color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.55),
+            ),
+            Polyline(points: routePoints, strokeWidth: 4.5, color: AppColors.holoTeal),
           ]),
-          MarkerLayer(markers:[
-            const Marker(point:LatLng(_diuLat,_diuLng), width:40, height:40,
-              child:Icon(Icons.school_rounded,color:AppColors.holoBlue,size:36)),
-            ...routePoints.map((p) => Marker(point: p, width: 14, height: 14,
-                child: Container(decoration: BoxDecoration(
-                    color: AppColors.holoTeal, shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2))))),
+
+          MarkerLayer(markers: [
+            // Campus. Given a real pin rather than a bare icon so it does not
+            // read as one more anonymous glyph floating on the map.
+            const Marker(
+              point: LatLng(_diuLat, _diuLng),
+              width: 44, height: 44,
+              child: _MapPin(
+                icon: Icons.school_rounded,
+                color: AppColors.holoBlue,
+                tooltip: 'Daffodil Smart City',
+              ),
+            ),
+
+            // Every plotted stop, in running order. Intermediate stops carry
+            // their 1-based position so the map agrees with the stop list in
+            // the other tabs; the first and last carry direction instead,
+            // because "where does this route start and end" is the question the
+            // map is actually being asked.
+            for (var i = 0; i < plotted.length; i++)
+              Marker(
+                point: plotted[i].point,
+                width: 34, height: 34,
+                child: _StopMarker(
+                  label: i == 0
+                      ? null
+                      : i == plotted.length - 1
+                          ? null
+                          : '${i + 1}',
+                  icon: i == 0
+                      ? Icons.trip_origin_rounded
+                      : i == plotted.length - 1
+                          ? Icons.place_rounded
+                          : null,
+                  selected: _selectedStop == i,
+                  onTap: () => setState(() => _selectedStop = _selectedStop == i ? null : i),
+                ),
+              ),
+
             if (_myLocation != null) Marker(point: _myLocation!, width: 26, height: 26,
                 child: Container(decoration: BoxDecoration(
                     color: AppColors.holoTeal, shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 3),
                     boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha:0.5), blurRadius: 10, spreadRadius: 2)]))),
           ]),
+
+          // Required, and previously missing. OpenStreetMap's tile usage policy
+          // makes attribution a condition of use, so this is a licensing
+          // obligation rather than a nicety. Sits top-left: bottom-right is
+          // occupied by the locate button and the info panel.
+          SimpleAttributionWidget(
+            source: const Text('OpenStreetMap contributors'),
+            backgroundColor: AppColors.surfaceOf(context).withValues(alpha: 0.82),
+            alignment: Alignment.topLeft,
+          ),
         ],
       ),
-      if (_locationError != null) Positioned(left: 16, right: 90, top: 16, child: Container(
+
+      // The tapped stop's name. A callout rather than a modal sheet: naming a
+      // dot should not take over the screen or hide the route it belongs to.
+      if (_selectedStop != null && _selectedStop! < plotted.length)
+        Positioned(
+          left: 16, right: 16, top: 16,
+          child: _StopCallout(
+            name: plotted[_selectedStop!].name,
+            position: _selectedStop! + 1,
+            total: plotted.length,
+            onClose: () => setState(() => _selectedStop = null),
+          ),
+        ),
+      // Slides below the stop callout when one is open — both used to be
+      // pinned at top:16, so the error banner painted straight over the stop
+      // name the user had just tapped to read.
+      if (_locationError != null) Positioned(
+          left: 16, right: 90,
+          top: _selectedStop == null ? 16 : 92,
+          child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.borderOf(context))),
@@ -1999,6 +2176,129 @@ class _MapTabState extends State<_MapTab> {
         ]),
       ),
     ]);
+  }
+}
+
+/// A teardrop pin for a named place (currently only campus).
+class _MapPin extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  const _MapPin({required this.icon, required this.color, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: Container(
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
+      );
+}
+
+/// One bus stop on the drawn route.
+///
+/// Three forms, because the three kinds of stop answer different questions:
+/// the origin and the final stop get direction icons ("where does this route
+/// begin and end"), and everything between gets its 1-based position, which is
+/// the same number the stop list shows in the other tabs. They were all
+/// identical 14px dots before, so the map could show that a route passed
+/// somewhere without ever saying where, or which way round it ran.
+class _StopMarker extends StatelessWidget {
+  final String? label;
+  final IconData? icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _StopMarker({this.label, this.icon, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const base = AppColors.holoTeal;
+    return GestureDetector(
+      onTap: onTap,
+      // The visual dot is small, but the whole 34px marker box is the tap
+      // target: a 14px circle is well under the 44px minimum and was
+      // effectively unhittable on a phone.
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: AnimatedContainer(
+          duration: LiquidGlass.motionStandard,
+          curve: LiquidGlass.motionCurve,
+          width: selected ? 30 : 22,
+          height: selected ? 30 : 22,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.holoBlue : base,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))],
+          ),
+          alignment: Alignment.center,
+          child: icon != null
+              ? Icon(icon, size: selected ? 16 : 13, color: Colors.white)
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Text(label ?? '',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 11, height: 1.0, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Names the stop the user just tapped, and places it in the route's order.
+class _StopCallout extends StatelessWidget {
+  final String name;
+  final int position, total;
+  final VoidCallback onClose;
+  const _StopCallout({required this.name, required this.position, required this.total, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: LiquidGlass.signatureRadius(14),
+        border: Border.all(color: AppColors.borderOf(context)),
+        boxShadow: [BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Row(children: [
+        const Icon(Icons.place_rounded, size: 18, color: AppColors.holoBlue),
+        const SizedBox(width: 10),
+        // Expanded + a wrapping column: a long Bengali stop name on a 320dp
+        // phone must not starve itself down to one letter per line.
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(name,
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleMedium.copyWith(
+                    color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
+            const SizedBox(height: 2),
+            Text('Stop $position of $total',
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+          ]),
+        ),
+        IconButton(
+          onPressed: onClose,
+          visualDensity: VisualDensity.compact,
+          icon: Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondaryOf(context)),
+          tooltip: 'Dismiss',
+        ),
+      ]),
+    );
   }
 }
 

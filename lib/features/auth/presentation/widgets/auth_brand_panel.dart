@@ -13,9 +13,23 @@ import '../../../../config/theme/app_text_styles.dart';
 class AuthBrandPanel extends StatelessWidget {
   const AuthBrandPanel({super.key});
 
+  // These four lines are the first thing anyone reads about AFOS, so each one
+  // has to describe something the app actually does TODAY. The transport line
+  // used to promise "Real-time bus routes and stop-to-stop timing" and neither
+  // half was backed by data: `transport_live_status` has 0 rows (so the live
+  // badge never renders at all) and `transport_stop_offsets` has 0 rows (so
+  // the per-stop time is correctly reported as unknown on every stop).
+  //
+  // The machinery for both is built and honest -- StopTimeCalculator returns
+  // null rather than pass a route-level time off as a stop time, and the admin
+  // screen to record offsets exists. What is missing is data only the
+  // transport office can give us. Until it arrives, the promise is the thing
+  // that has to change, not the code: advertising a feature on the LOGIN
+  // screen that reports "not known" the moment you reach it is worse than not
+  // advertising it. Restore the original wording when the offsets are loaded.
   static const _features = [
     (Icons.schedule_rounded, 'Class routines & rooms', 'Live schedule, retakes, labs, and free-room finder'),
-    (Icons.directions_bus_filled_rounded, 'Campus transport', 'Real-time bus routes and stop-to-stop timing'),
+    (Icons.directions_bus_filled_rounded, 'Campus transport', 'Every route, stop and departure time, mapped'),
     (Icons.apartment_rounded, 'Hall & campus life', 'Hall applications, clubs, mentorship, and more'),
     (Icons.sos_rounded, 'One-tap SOS', 'Emergency alerts to nearby students and staff instantly'),
   ];

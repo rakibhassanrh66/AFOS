@@ -319,10 +319,42 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                       }
                       final slots = snap.data??[];
                       if(slots.isEmpty) {
+                        // "Enjoy your free day!" was the only thing this ever
+                        // said, and for a final-year student it is frequently
+                        // WRONG rather than merely unhelpful.
+                        //
+                        // A student's day view is `.eq('batch', myBatch)` plus
+                        // whatever they've pinned. Retake sessions are not
+                        // filed under any intake's batch — the routine prints
+                        // them as RE_A / RE_B / RE_C, so they land in
+                        // schedule_slots with batch = 'RE' (175 rows across 69
+                        // distinct courses, live). Nothing in a student's own
+                        // batch query can ever match one.
+                        //
+                        // That is invisible for batch 70, who take a full load
+                        // of regular classes. It is most of the timetable for
+                        // batches 63 and 64, who have finished the core
+                        // curriculum -- the whole routine holds only 26 and 92
+                        // regular slots for them (verified against the source
+                        // PDF: it prints 28 and 93 tokens for those batches, so
+                        // nothing is being lost on import). So the app was
+                        // telling the students most likely to have a retake
+                        // that day to enjoy their free day.
+                        //
+                        // The retake path is fully built -- searchByCourseCode
+                        // finds them, pinSlot adds them, findConflictsWith
+                        // warns on a clash. It was just never signposted from
+                        // the one screen where its absence is felt.
                         return EmptyState(
-                        icon:AppIcons.schedule,
-                        title:'No classes ${_days[_day]}',
-                        subtitle:'Enjoy your free day!');
+                          icon: AppIcons.schedule,
+                          title: 'No classes ${_days[_day]}',
+                          subtitle: _isFacultyRole
+                              ? 'Enjoy your free day!'
+                              : 'Retake classes are not listed automatically — '
+                                'search the course code to add one to your routine.',
+                          actionLabel: _isFacultyRole ? null : 'Find a retake class',
+                          onAction: _isFacultyRole ? null : () => setState(() => _searchOpen = true),
+                        );
                       }
                       // Display-only: a 3-hour lab stores as two consecutive
                       // 1.5-hour rows (needed for accurate conflict

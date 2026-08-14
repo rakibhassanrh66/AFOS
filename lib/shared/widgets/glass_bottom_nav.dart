@@ -134,12 +134,27 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
           GlassBottomNav.sideMargin, GlassBottomNav.planetLift, GlassBottomNav.sideMargin, GlassBottomNav.bottomMargin),
       child: SizedBox(
         height: GlassBottomNav.barHeight,
-        child: AnimatedBuilder(
-          animation: _move,
-          builder: (context, _) {
-            return LayoutBuilder(builder: (context, c) {
-              final w = c.maxWidth;
-              final seg = w / n;
+        // LayoutBuilder OUTSIDE AnimatedBuilder, not inside it.
+        //
+        // These were nested the other way round, so every frame of the 500 ms
+        // planet transition rebuilt a LayoutBuilder — and a LayoutBuilder
+        // rebuild is a LAYOUT pass, not just a paint. Nothing here actually
+        // depends on the animation for its layout: the only thing LayoutBuilder
+        // contributes is `c.maxWidth`, which changes when the window resizes,
+        // never while the planet is travelling.
+        //
+        // So the bar was asking the framework to re-measure itself ~30 times
+        // per tap to learn a width it already knew. Hoisting it means a resize
+        // does layout and the animation does paint, which is the split the
+        // widgets were designed around. This is the "AnimationController
+        // driving layout rather than just paint" case, confirmed by reading the
+        // nesting rather than guessed at.
+        child: LayoutBuilder(builder: (context, c) {
+          final w = c.maxWidth;
+          final seg = w / n;
+          return AnimatedBuilder(
+            animation: _move,
+            builder: (context, _) {
               double centerOf(int i) => seg * i + seg / 2;
               final planetCenterX = _lerp(centerOf(_prev), centerOf(_display), _move.value);
               final planetLeft = planetCenterX - GlassBottomNav.planetSize / 2;
@@ -239,9 +254,9 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
                   ),
                 ),
               ]);
-            });
-          },
-        ),
+            },
+          );
+        }),
       ),
     );
   }
@@ -331,8 +346,41 @@ const double _kValleyInnerCtrl = 32; // inner cubic control, reference-exact
 /// Exposed (rather than private to the painter) so the clipper, the fill
 /// painter, the glow painter and the geometry test all trace the identical
 /// path.
+// One-slot memo for [buildNavBarPath].
+//
+// WHY. Three separate consumers ask for the SAME path on every animation
+// frame: _NavShapeClipper.getClip, _NavSurfacePainter.paint and
+// _NavGlowPainter.paint. Each call runs Path.combine(intersect), a real
+// CPU path-boolean op — so a 500 ms tab transition was paying for roughly
+// 3 boolean ops per frame, ~90 for one tap, all computing identical results.
+//
+// That is felt on WEB specifically: under CanvasKit each path boolean crosses
+// into WASM, where the same work costs far more than it does against Skia on
+// Android. It is a large part of why the nav animation reads as smooth on a
+// phone and laggy in a browser.
+//
+// A single slot is the right size: within a frame all three callers pass
+// identical arguments, and across frames the value always changes, so a larger
+// cache would only ever hold garbage. None of the three consumers mutates what
+// it gets back (they clip or draw with it), so handing out the same instance
+// is safe.
+Size? _navPathSize;
+double? _navPathCenterX;
+Path? _navPathCache;
+
 @visibleForTesting
 Path buildNavBarPath(Size size, double planetCenterX) {
+  if (_navPathCache != null && _navPathSize == size && _navPathCenterX == planetCenterX) {
+    return _navPathCache!;
+  }
+  final built = _buildNavBarPath(size, planetCenterX);
+  _navPathSize = size;
+  _navPathCenterX = planetCenterX;
+  _navPathCache = built;
+  return built;
+}
+
+Path _buildNavBarPath(Size size, double planetCenterX) {
   // The rounded slab, and a half-plane whose top edge carries the valley. The
   // valley is drawn UNCLAMPED (always a symmetric +/-_kValleyHalf around the
   // planet, exactly like the reference), running off past both ends; the
