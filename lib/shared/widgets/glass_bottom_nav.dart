@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import '../../config/theme/motion.dart';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -235,7 +236,7 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
                               color: AppColors.accentOf(context)
                                   .withValues(alpha: 0.45),
                               blurRadius: 16,
-                              offset: const Offset(0, 12),
+                              offset: AppDepth.litOffset(12),
                             ),
                           ],
                         ),

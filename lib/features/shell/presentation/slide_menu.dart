@@ -735,7 +735,7 @@ class _MenuTileState extends State<_MenuTile> {
                         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                             colors: [item.color, item.color.withValues(alpha: 0.7)]),
                         borderRadius: AppDepth.radius(1),
-                        boxShadow: [BoxShadow(color: item.color.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))])
+                        boxShadow: [BoxShadow(color: item.color.withValues(alpha: 0.35), blurRadius: 8, offset: AppDepth.litOffset(3))])
                     : BoxDecoration(
                         color:item.color.withValues(alpha: _hover ? 0.22 : 0.15),
                         borderRadius: AppDepth.radius(1)),

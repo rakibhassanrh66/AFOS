@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
@@ -77,7 +78,7 @@ class _GlassChipState extends State<GlassChip> {
                 BoxShadow(
                   color: accent.withValues(alpha: 0.35),
                   blurRadius: 12,
-                  offset: const Offset(0, 4),
+                  offset: AppDepth.litOffset(4),
                 ),
               ]
             : null,

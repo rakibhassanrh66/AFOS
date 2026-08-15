@@ -43,6 +43,26 @@ class AppDepth {
   static const double _dx = 0.4;
   static const double _dy = 1.0;
 
+  /// The offset a shadow must use to obey the light, given how far below its
+  /// surface it falls.
+  ///
+  /// WHY THIS EXISTS SEPARATELY FROM [shadow]. [shadow] is the right answer for
+  /// a surface on the elevation ladder. But this app also has ~20 hand-tuned
+  /// shadows whose blur, colour and distance were chosen deliberately for one
+  /// widget — a module tile's brand bloom, the nav bar's lift — and replacing
+  /// those wholesale would throw away real design decisions to satisfy a rule
+  /// about *direction*.
+  ///
+  /// Every one of them was `Offset(0, n)`. Purely vertical. A scene lit from
+  /// directly overhead has no direction, so nothing reads as sitting above
+  /// anything else — and that, not the blur values, is why the app looked flat.
+  ///
+  /// So this changes the one thing that was wrong and nothing else: it keeps
+  /// the chosen vertical distance and adds the horizontal component the light
+  /// implies, at the same ratio [shadow] uses. `AppDepth.litOffset(6)` is the
+  /// old `Offset(0, 6)`, lit.
+  static Offset litOffset(double dy) => Offset(dy * _dx, dy);
+
   /// Shadow for elevation [level] (0–4).
   ///
   /// Level 0 is flush with its parent and casts nothing — returning an empty
@@ -86,6 +106,61 @@ class AppDepth {
           offset: Offset(h * _dx * 0.5, h * _dy * 0.5),
         ),
     ];
+  }
+
+  /// A machined-metal surface, lit by the same top-left source as everything
+  /// else.
+  ///
+  /// **Law 2 — material before colour.** "Metallic" is not a gradient between
+  /// two greys; that is plastic. Metal is a specular response: a dark body, a
+  /// **narrow** bright band where the surface normal points at the light, a
+  /// bounce on the far edge, and a hard terminator. The constitution states the
+  /// stops explicitly — **0 / 42 / 46 / 100** — and the 4% gap between the
+  /// middle two is the entire effect. Widen it and the surface turns to satin;
+  /// centre it and you get the banned symmetric two-stop "fake metal".
+  ///
+  /// The sweep runs top-left → bottom-right, so the highlight sits on the face
+  /// turned toward [lightAzimuthDegrees]. Rotating this gradient without
+  /// rotating the shadow is how a surface ends up lit from one side and
+  /// shadowed from the same side, which reads as broken rather than as a style.
+  ///
+  /// [intensity] scales the specular band only, never the body — so a quieter
+  /// metal is a duller finish, not a different colour.
+  static BoxDecoration metal({
+    required int level,
+    required bool isDark,
+    double intensity = 1.0,
+    BorderRadius? radius,
+  }) {
+    final i = intensity.clamp(0.0, 1.0);
+    return BoxDecoration(
+      borderRadius: radius ?? AppDepth.radius(level),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          AppColors.metalBase,
+          Color.lerp(AppColors.metalBase, AppColors.metalHighlight, i)!,
+          Color.lerp(AppColors.metalBase, AppColors.metalEdge, i)!,
+          AppColors.metalShadow,
+        ],
+        stops: const [0.0, 0.42, 0.46, 1.0],
+      ),
+      // The hard edge on the lit side. A Border cannot be asymmetric in colour
+      // per side here without a custom painter, so the top-left pair carries
+      // the terminator and the rest recedes.
+      border: Border(
+        top: BorderSide(
+            color: AppColors.metalEdge.withValues(alpha: 0.55 * i), width: 1),
+        left: BorderSide(
+            color: AppColors.metalEdge.withValues(alpha: 0.35 * i), width: 1),
+        right: BorderSide(
+            color: AppColors.metalShadow.withValues(alpha: 0.6), width: 1),
+        bottom: BorderSide(
+            color: AppColors.metalShadow.withValues(alpha: 0.7), width: 1),
+      ),
+      boxShadow: shadow(level, isDark: isDark),
+    );
   }
 
   /// The lit rim: a hairline highlight on the edge FACING the light

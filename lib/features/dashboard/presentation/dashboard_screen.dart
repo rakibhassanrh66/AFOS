@@ -573,7 +573,7 @@ class _Greeting extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: AppColors.holoGradient,
-          boxShadow: [BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 5))],
+          boxShadow: [BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.35), blurRadius: 14, offset: AppDepth.litOffset(5))],
         ),
         padding: const EdgeInsets.all(2),
         child: CircleAvatar(
@@ -917,7 +917,7 @@ class _ModuleCardState extends State<_ModuleCard> {
             decoration: BoxDecoration(
               borderRadius: AppDepth.radius(2),
               boxShadow: _hover ? [
-                BoxShadow(color: m.color.withValues(alpha: 0.28), blurRadius: 22, spreadRadius: -4, offset: const Offset(0, 8)),
+                BoxShadow(color: m.color.withValues(alpha: 0.28), blurRadius: 22, spreadRadius: -4, offset: AppDepth.litOffset(8)),
               ] : null,
             ),
             child: _LiteCard(
@@ -949,7 +949,7 @@ class _ModuleCardState extends State<_ModuleCard> {
                     gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [m.color.withValues(alpha: 0.85), m.color.withValues(alpha: 0.55)]),
                     borderRadius: AppDepth.radius(1),
-                    boxShadow: [BoxShadow(color: m.color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))]),
+                    boxShadow: [BoxShadow(color: m.color.withValues(alpha: 0.35), blurRadius: 10, offset: AppDepth.litOffset(4))]),
                 child: Icon(m.icon, color: Colors.white, size: 22)),
               ),
               const SizedBox(height: 10),

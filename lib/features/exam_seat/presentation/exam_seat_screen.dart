@@ -169,7 +169,7 @@ class _SessionCard extends StatelessWidget {
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.orange, AppColors.amber]),
                     borderRadius: AppDepth.radius(1),
-                    boxShadow: [BoxShadow(color: AppColors.orange.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    boxShadow: [BoxShadow(color: AppColors.orange.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: const Icon(Icons.event_note_rounded, color: Colors.white, size: 20)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
