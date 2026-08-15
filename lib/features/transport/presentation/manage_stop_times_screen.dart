@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -158,6 +160,12 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
       }
       final saved = await StopOffsetsRepository.saveRoute(rows);
       if (!mounted) return;
+      // "Nothing to save" is the app declining to act, not a success.
+      if (saved == 0) {
+        AppHaptics.warning();
+      } else {
+        AppHaptics.success();
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(saved == 0
             ? 'Nothing to save — no timings entered yet'
@@ -223,7 +231,7 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
                           width: 26, height: 26,
                           decoration: BoxDecoration(
                               color: AppColors.holoTeal.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: AppDepth.radius(0)),
                           child: Center(child: Text('${i + 1}',
                               style: const TextStyle(
                                   color: AppColors.holoTeal, fontSize: 12, fontWeight: FontWeight.bold))),
@@ -292,14 +300,14 @@ class _MinuteField extends StatelessWidget {
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppDepth.radius(1),
           borderSide: BorderSide(color: accent.withValues(alpha: 0.35)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppDepth.radius(1),
           borderSide: BorderSide(color: accent),
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        border: OutlineInputBorder(borderRadius: AppDepth.radius(1)),
       ),
     );
   }

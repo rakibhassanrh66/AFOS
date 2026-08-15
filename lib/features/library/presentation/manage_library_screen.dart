@@ -3,6 +3,8 @@ import '../../../config/supabase_config.dart';
 import '../../../core/utils/postgrest_filters.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -58,8 +60,9 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
       }).eq('id', borrow['id']);
       _load();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Book returned ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Book returned'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -118,7 +121,7 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
     final dueDate = b['due_date'] != null ? DateTime.tryParse(b['due_date']) : null;
     final overdue = dueDate != null && DateTime.now().isAfter(dueDate);
     return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(1),
             border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(book['title'] ?? 'Unknown book', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx))),
@@ -191,8 +194,9 @@ class _IssueBookTabState extends State<_IssueBookTab> {
         'status': 'borrowed',
       });
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${book['title']} issued to ${student['full_name']} ✓'), backgroundColor: AppColors.green));
+            SnackBar(content: Text('${book['title']} issued to ${student['full_name']}'), backgroundColor: AppColors.green));
         setState(() {
           _selectedStudent = null; _selectedBook = null;
           _studentCtrl.clear(); _bookCtrl.clear();
@@ -226,7 +230,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
               style: TextStyle(color: textPrimary),
               decoration: InputDecoration(hintText: 'Search name or university ID', filled: true,
                   fillColor: AppColors.glassFill(context),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+                  border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
           ..._studentResults.map((s) => ListTile(
               title: Text(s['full_name'] ?? '', style: TextStyle(color: textPrimary)),
               subtitle: Text(s['university_id'] ?? '', style: TextStyle(color: textSecondary)),
@@ -243,7 +247,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
               style: TextStyle(color: textPrimary),
               decoration: InputDecoration(hintText: 'Search title, author or ISBN', filled: true,
                   fillColor: AppColors.glassFill(context),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+                  border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
           ..._bookResults.map((b) => ListTile(
               title: Text(b['title'] ?? '', style: TextStyle(color: textPrimary)),
               subtitle: Text('${b['author'] ?? ''} · ${b['available_copies']} available', style: TextStyle(color: textSecondary)),
@@ -263,7 +267,7 @@ class _SelectedChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12),
+      decoration: BoxDecoration(color: AppColors.purple.withValues(alpha: 0.1), borderRadius: AppDepth.radius(1),
           border: Border.all(color: AppColors.purple.withValues(alpha: 0.3))),
       child: Row(children: [
         Expanded(child: Text(label, style: const TextStyle(color: AppColors.purple, fontWeight: FontWeight.w600))),

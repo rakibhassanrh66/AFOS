@@ -5,6 +5,9 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -163,7 +166,8 @@ class _NotifState extends State<NotificationCenterScreen> {
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.indigo, AppColors.blue]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
           : _error != null
@@ -205,10 +209,13 @@ class _NotifState extends State<NotificationCenterScreen> {
                           padding: const EdgeInsets.only(right: 20),
                           decoration: BoxDecoration(
                               color: AppColors.red.withValues(alpha:0.8),
-                              borderRadius: BorderRadius.circular(14)),
+                              borderRadius: AppDepth.radius(1)),
                           child: const Icon(Icons.delete_outline_rounded,
                               color: Colors.white)),
-                        onDismissed: (_) => setState(() => _notifs.removeAt(i)),
+                        // A swipe-to-dismiss that has passed the threshold and
+                        // committed — the one gesture on this screen that
+                        // destroys something.
+                        onDismissed: (_) { AppHaptics.warning(); setState(() => _notifs.removeAt(i)); },
                         child: GestureDetector(
                           onTap: () => _onTapNotification(n),
                           child: Container(
@@ -216,7 +223,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceOf(context),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: AppDepth.radius(1),
                               border: Border.all(color: AppColors.borderOf(context), width: 0.5),
                             ),
                             // Was IntrinsicHeight + CrossAxisAlignment.stretch just to
@@ -234,7 +241,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                                 width: 40, height: 40,
                                 decoration: BoxDecoration(
                                     color: color.withValues(alpha:0.15),
-                                    borderRadius: BorderRadius.circular(10)),
+                                    borderRadius: AppDepth.radius(1)),
                                 child: Icon(_catIcon(cat), color: color, size: 20),
                               ),
                               const SizedBox(width: 12),
@@ -264,7 +271,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                                   child: Container(width: 3, color: color)),
                             ]),
                           ),
-                        ).animate(delay: Duration(milliseconds: i * 40)).fadeIn().slideX(begin: 0.03),
+                        ).animate(delay: AppMotion.staggerFor(context, i)).fadeIn().slideX(begin: 0.03),
                       );
                     },
                   ),
