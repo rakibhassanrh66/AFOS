@@ -6,6 +6,9 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/models/user_model.dart';
@@ -175,7 +178,8 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(queued
           ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
-          : const SnackBar(content: Text('Membership requested ✓'), backgroundColor: AppColors.green));
+          : const SnackBar(content: Text('Membership requested'), backgroundColor: AppColors.green));
+      AppHaptics.success();
       }
     } catch (e) {
       if (mounted) {
@@ -201,7 +205,8 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post application submitted ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Post application submitted'), backgroundColor: AppColors.green));
+      AppHaptics.success();
       }
     } catch (e) {
       if (mounted) {
@@ -257,7 +262,8 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member approved ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Member approved'), backgroundColor: AppColors.green));
+      AppHaptics.success();
       }
     } catch (e) {
       if (mounted) {
@@ -324,7 +330,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
                           backgroundColor: AppColors.amber));
                 } else {
                   messenger.showSnackBar(
-                      SnackBar(content: Text('Notice sent to $reached member${reached == 1 ? '' : 's'} ✓'), backgroundColor: AppColors.green));
+                      SnackBar(content: Text('Notice sent to $reached member${reached == 1 ? '' : 's'}'), backgroundColor: AppColors.green));
                 }
               }),
             ])));
@@ -409,7 +415,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
                       _load();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Event created ✓'), backgroundColor: AppColors.green));
+                          const SnackBar(content: Text('Event created'), backgroundColor: AppColors.green));
                       }
                     } catch (e) {
                       if (sheetCtx.mounted) {
@@ -480,7 +486,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
                 style: TextStyle(color: AppColors.textPrimaryOf(context)),
                 decoration: InputDecoration(hintText: 'Search clubs', prefixIcon: const Icon(Icons.search_rounded),
                     filled: true, fillColor: AppColors.glassFill(context),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))),
+                    border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none)))),
             _FilterBar(selected: _filter, filters: _filters,
                 onSelect: (f) { setState(() => _filter = f); _load(); }),
             Expanded(child: _loading
@@ -543,7 +549,7 @@ class _FilterBar extends StatelessWidget {
                       decoration: BoxDecoration(
                           color: sel ? null : AppColors.surfaceOf(context),
                           gradient: sel ? AppColors.pinkGradient : null,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: AppDepth.radius(2),
                           border: Border.all(color: sel ? Colors.transparent : AppColors.borderOf(context), width: 0.5)),
                       child: Text(f, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
@@ -584,7 +590,7 @@ class _ClubList extends StatelessWidget {
     final pending = pendingClubIds.contains(clubId);
     return Container(margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
-            color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(16),
+            color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(2),
             border: Border.all(color: AppColors.pink.withValues(alpha: 0.25), width: 0.8)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(height: 80, decoration: BoxDecoration(
@@ -604,7 +610,7 @@ class _ClubList extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                           color: AppColors.pink.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: AppDepth.radius(0)),
                       child: Text(c['short_name'] as String,
                           textHeightBehavior: const TextHeightBehavior(
                               applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
@@ -621,7 +627,7 @@ class _ClubList extends StatelessWidget {
               Text(c['tagline'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx)), maxLines: 2, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 6),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: AppColors.pink.withValues(alpha: 0.1), borderRadius: AppDepth.radius(0)),
                   child: Text(c['category'] ?? '', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                       style: const TextStyle(color: AppColors.pink, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600))),
             ])),
@@ -641,13 +647,13 @@ class _ClubList extends StatelessWidget {
                           color: joined ? AppColors.green.withValues(alpha: 0.1)
                               : pending ? AppColors.amber.withValues(alpha: 0.1) : null,
                           gradient: (joined || pending) ? null : AppColors.pinkGradient,
-                          borderRadius: BorderRadius.circular(20)),
-                      child: Text(joined ? 'Joined ✓' : pending ? 'Pending' : 'Join',
+                          borderRadius: AppDepth.radius(2)),
+                      child: Text(joined ? 'Joined' : pending ? 'Pending' : 'Join',
                           textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: joined ? AppColors.green : pending ? AppColors.amber : Colors.white,
                               fontSize: 13, height: 1.0, fontWeight: FontWeight.w600)))),
           ])),
-        ])).animate(delay: Duration(milliseconds: i * 60)).fadeIn().slideY(begin: 0.05);
+        ])).animate(delay: AppMotion.staggerFor(ctx, i)).fadeIn().slideY(begin: 0.05);
   }
 }
 
@@ -666,7 +672,7 @@ class _SuperviseButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppDepth.radius(0),
           border: Border.all(color: color.withValues(alpha: 0.4), width: 0.8),
         ),
         child: Text(pending ? 'Requested' : 'Supervise',
@@ -713,12 +719,12 @@ class _MyClubsTab extends StatelessWidget {
           final myPendingRequests = presidingRequests.where((r) => r['club_id'] == clubId).toList();
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Container(width: 44, height: 44, decoration: BoxDecoration(
-                      color: AppColors.pink.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                      color: AppColors.pink.withValues(alpha: 0.15), borderRadius: AppDepth.radius(0)),
                       child: Icon(categoryIcon(club['category'] as String?), color: AppColors.pink, size: 24)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -726,7 +732,7 @@ class _MyClubsTab extends StatelessWidget {
                     Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ])),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: AppDepth.radius(0)),
                       child: Text(role.replaceAll('_', ' ').toUpperCase(),
                           textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
@@ -762,7 +768,7 @@ class _MyClubsTab extends StatelessWidget {
                     final student = r['profiles'] as Map<String, dynamic>? ?? {};
                     final busy = processingRequestIds.contains(requestId);
                     return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: AppDepth.radius(0)),
                         child: Row(children: [
                           CircleAvatar(radius: 16, backgroundColor: AppColors.pink.withValues(alpha: 0.15),
                               backgroundImage: (student['avatar_url'] as String?)?.isNotEmpty == true
@@ -812,12 +818,12 @@ class _EventsTab extends StatelessWidget {
           final registered = eventId != null && registeredIds.contains(eventId);
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Container(width: 48, height: 56, decoration: BoxDecoration(
-                      color: AppColors.indigo.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                      color: AppColors.indigo.withValues(alpha: 0.15), borderRadius: AppDepth.radius(0)),
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Text(date != null ? '${date.day}' : '?',
                             style: const TextStyle(color: AppColors.indigo, fontSize: 18, fontWeight: FontWeight.w800)),
@@ -840,7 +846,7 @@ class _EventsTab extends StatelessWidget {
                           foregroundColor: registered ? AppColors.green : AppColors.indigo,
                           side: BorderSide(color: registered ? AppColors.green : AppColors.indigo),
                           minimumSize: const Size(0, 40)),
-                      child: Text(registered ? 'Joined ✓' : 'Join / Visit'))),
+                      child: Text(registered ? 'Joined' : 'Join / Visit'))),
                 ],
               ]));
         });
