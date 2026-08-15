@@ -3,6 +3,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -101,10 +106,13 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
 
   Future<void> _request(String building, String room, ({String start, String end}) period) async {
     final purposeCtrl = TextEditingController();
-    final purpose = await showModalBottomSheet<String>(
+    String? purpose;
+    try {
+      purpose = await showModalBottomSheet<String>(
       context: context, isScrollControlled: true,
       backgroundColor: AppColors.surfaceOf(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(LiquidGlass.radiusSheet))),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -117,7 +125,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
           ]),
           const SizedBox(height: 10),
           Container(padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.glassFill(sheetCtx), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppColors.glassFill(sheetCtx), borderRadius: AppDepth.radius(1)),
             child: Row(children: [
               Icon(Icons.schedule_rounded, size: 15, color: AppColors.textSecondaryOf(sheetCtx)),
               const SizedBox(width: 8),
@@ -131,12 +139,19 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
           TextField(controller: purposeCtrl, style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx)),
               decoration: InputDecoration(hintText: 'Purpose (e.g. Makeup class for CSE221)',
                   filled: true, fillColor: AppColors.glassFill(sheetCtx),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+                  border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
           const SizedBox(height: 20),
           AfosButton(label: 'Claim this room', onTap: () => Navigator.pop(sheetCtx, purposeCtrl.text.trim())),
         ]),
       ),
-    );
+      );
+    } finally {
+      // BUG_REGISTER P1-02. This controller was created on every claim attempt
+      // and never released. The sheet has already closed by the time the await
+      // resolves, so disposing here cannot pull the field out from under a
+      // live TextField.
+      purposeCtrl.dispose();
+    }
     if (purpose == null || purpose.isEmpty || !mounted) return;
     try {
       await _repo.requestEmptyRoom(
@@ -145,8 +160,9 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
       );
       await _load();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Room claimed ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Room claimed'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -171,11 +187,11 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           trailing: _loading ? null : TweenAnimationBuilder<int>(
             tween: IntTween(begin: 0, end: _freeCount),
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeOutCubic,
+            duration: AppMotion.durationOf(context, AppMotion.slow),
+            curve: AppMotion.standard,
             builder: (ctx, value, _) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: AppDepth.radius(1)),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Text('$value', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                     style: const TextStyle(color: Colors.white, fontSize: 20, height: 1.0, fontWeight: FontWeight.w800)),
@@ -184,21 +200,25 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
               ]),
             ),
           ),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
-        SizedBox(height: 44, child: ListView.builder(
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
+        // 44 before, i.e. under the 48dp touch floor the constitution sets.
+        SizedBox(height: AppSpace.minTouchTarget, child: ListView.builder(
           scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: _days.length,
           itemBuilder: (ctx, i) {
             final sel = _day == i;
             return GestureDetector(
-              onTap: () { setState(() => _day = i); _load(); },
+              onTap: () { AppHaptics.selection(); setState(() => _day = i); _load(); },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: AppMotion.durationOf(context, AppMotion.tight),
+                curve: AppMotion.standard,
                 margin: const EdgeInsets.only(right: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                     gradient: sel ? AppColors.holoGradient : null,
-                    color: sel ? null : AppColors.glassFill(context), borderRadius: BorderRadius.circular(20)),
+                    color: sel ? null : AppColors.glassFill(context),
+                    borderRadius: BorderRadius.circular(LiquidGlass.radiusPill)),
                 child: Center(child: Text(_days[i], textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                     style: TextStyle(color: sel ? Colors.white : textSecondary,
                     fontSize: 13, height: 1.0, fontWeight: sel ? FontWeight.w700 : FontWeight.w500))),
@@ -251,22 +271,24 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(16),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(2),
           border: Border.all(color: AppColors.borderOf(ctx), width: 0.6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(width: 38, height: 38,
-              decoration: BoxDecoration(color: AppColors.holoBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppColors.holoBlue.withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
               child: const Icon(Icons.door_front_door_rounded, color: AppColors.holoBlue, size: 19)),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('$building · $roomNumber', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            ClipRRect(borderRadius: BorderRadius.circular(3),
+            // A 5px bar: the pill rung is the only radius that reads as
+            // intentional at this height — the 8px flush rung would square it off.
+            ClipRRect(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                 child: TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: freeRatio),
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeOutCubic,
+                  duration: AppMotion.durationOf(ctx, AppMotion.slow),
+                  curve: AppMotion.standard,
                   builder: (tCtx, v, _) => LinearProgressIndicator(
                       value: v, minHeight: 5,
                       backgroundColor: AppColors.borderOf(ctx),
@@ -292,16 +314,14 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
             return _PeriodChip(label: label, sub: 'Claimed by $claimant',
                 icon: Icons.lock_clock_rounded, color: AppColors.amber);
           }
-          return GestureDetector(
-            onTap: () => _request(building, roomNumber, period),
-            child: _PeriodChip(label: label, sub: 'Free — tap to claim',
-                icon: Icons.add_circle_outline_rounded, color: AppColors.green, tappable: true),
-          );
+          return _PeriodChip(label: label, sub: 'Free — tap to claim',
+              icon: Icons.add_circle_outline_rounded, color: AppColors.green,
+              onTap: () => _request(building, roomNumber, period));
         }).toList()),
       ]),
-    ).animate(delay: Duration(milliseconds: (ri * 40).clamp(0, 400)))
-        .fadeIn(duration: 260.ms, curve: Curves.easeOutCubic)
-        .slideY(begin: 0.06, curve: Curves.easeOutCubic);
+    ).animate(delay: AppMotion.staggerFor(ctx, ri))
+        .fadeIn(duration: AppMotion.durationOf(ctx, AppMotion.base), curve: AppMotion.standard)
+        .slideY(begin: 0.06, curve: AppMotion.standard);
   }
 }
 
@@ -316,29 +336,65 @@ class _LegendDot extends StatelessWidget {
   ]);
 }
 
-class _PeriodChip extends StatelessWidget {
-  final String label, sub; final Color color; final IconData icon; final bool tappable;
-  const _PeriodChip({required this.label, required this.sub, required this.color, required this.icon, this.tappable = false});
+/// A period slot. The free variant is the primary tappable thing on this
+/// screen, so it is the one element here that carries the full press treatment
+/// (Law 4): the scale answers inside one frame, and the haptic waits for the
+/// claim to actually land — it fires in [_RoomAvailabilityScreenState._request]
+/// on the write's success path, not here on touch.
+class _PeriodChip extends StatefulWidget {
+  final String label, sub; final Color color; final IconData icon;
+  final VoidCallback? onTap;
+  const _PeriodChip({required this.label, required this.sub, required this.color, required this.icon, this.onTap});
   @override
-  Widget build(BuildContext context) => Container(
-    // Was 156px, sized for 24H labels ("08:30–10:00"). 12H labels
-    // ("8:30 AM–10:00 AM") run noticeably longer -- widened to fit without
-    // clipping/ellipsis, and the label now wraps in a Flexible so a really
-    // long label degrades gracefully instead of overflowing the chip.
-    width: 178,
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-    decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: color.withValues(alpha: tappable ? 0.5 : 0.3), width: tappable ? 1.1 : 0.8)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 4),
-        Flexible(child: Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-            style: TextStyle(color: color, fontSize: 10.5, height: 1.0, fontWeight: FontWeight.w700),
-            maxLines: 1, overflow: TextOverflow.ellipsis)),
+  State<_PeriodChip> createState() => _PeriodChipState();
+}
+
+class _PeriodChipState extends State<_PeriodChip> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tappable = widget.onTap != null;
+    final color = widget.color;
+    final chip = Container(
+      // Was 156px, sized for 24H labels ("08:30–10:00"). 12H labels
+      // ("8:30 AM–10:00 AM") run noticeably longer -- widened to fit without
+      // clipping/ellipsis, and the label now wraps in a Flexible so a really
+      // long label degrades gracefully instead of overflowing the chip.
+      width: 178,
+      // Vertical padding was 9, which left the tappable variant ~45dp tall,
+      // under the 48dp floor. AppSpace.md clears it and is on the scale.
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.md),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: AppDepth.radius(1),
+          border: Border.all(color: color.withValues(alpha: tappable ? 0.5 : 0.3), width: tappable ? 1.1 : 0.8)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(widget.icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(child: Text(widget.label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+              style: TextStyle(color: color, fontSize: 10.5, height: 1.0, fontWeight: FontWeight.w700),
+              maxLines: 1, overflow: TextOverflow.ellipsis)),
+        ]),
+        const SizedBox(height: 3),
+        Text(widget.sub, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
       ]),
-      const SizedBox(height: 3),
-      Text(sub, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
-    ]),
-  );
+    );
+    if (!tappable) return chip;
+    return GestureDetector(
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? AppMotion.pressScale : 1.0,
+        duration: AppMotion.durationOf(context, AppMotion.pressDuration),
+        curve: AppMotion.standard,
+        child: chip,
+      ),
+    );
+  }
 }

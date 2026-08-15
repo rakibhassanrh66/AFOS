@@ -5,6 +5,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/chat_naming.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
@@ -70,7 +75,8 @@ class _DeptChatState extends State<DeptChatScreen> {
           icon: Icons.forum_rounded,
           gradient: AppColors.holoGradient,
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
@@ -100,7 +106,10 @@ class _EmptyChannels extends StatelessWidget {
   ]));
 }
 
-class _ChannelTile extends StatelessWidget {
+/// The channel row is the only thing you can press on this screen, so it is
+/// the one element carrying the full press treatment (Law 6: one signature
+/// element, everything else quiet).
+class _ChannelTile extends StatefulWidget {
   final Map<String, dynamic> channel; final UserModel user; final int index;
   const _ChannelTile({required this.channel, required this.user, required this.index});
 
@@ -111,44 +120,69 @@ class _ChannelTile extends StatelessWidget {
   };
 
   @override
+  State<_ChannelTile> createState() => _ChannelTileState();
+}
+
+class _ChannelTileState extends State<_ChannelTile> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  void _open() {
+    // On commit, not on touch-down: sliding off to cancel must not buzz.
+    AppHaptics.selection();
+    Navigator.push(context,
+        appPageRoute(_ChatRoomScreen(channel: widget.channel, user: widget.user)));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final name = channel['channel_name'] as String? ?? 'general';
-    final audience = channel['audience'] as String? ?? 'all';
-    final color = _channelColors[name] ?? AppColors.indigo;
+    final name = widget.channel['channel_name'] as String? ?? 'general';
+    final audience = widget.channel['audience'] as String? ?? 'all';
+    final color = _ChannelTile._channelColors[name] ?? AppColors.indigo;
     final audienceLabel = switch (audience) {
       'students' => 'Students only',
       'teachers' => 'Faculty only',
       _ => 'Everyone',
     };
     return GestureDetector(
-      onTap: () => Navigator.push(context,
-          appPageRoute(_ChatRoomScreen(channel: channel, user: user))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
-        child: Row(children: [
-          Container(width: 44, height: 44,
-              decoration: BoxDecoration(
-                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      colors: [color, color.withValues(alpha: 0.7)]),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
-              child: const Center(child: Text('#', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)))),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('#$name', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-            Text(channel['description'] ?? 'Department channel', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-            const SizedBox(height: 4),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
-                child: Text(audienceLabel, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
-          ])),
-          Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
-        ]),
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: _open,
+      child: AnimatedScale(
+        scale: _pressed ? AppMotion.pressScale : 1.0,
+        duration: AppMotion.durationOf(context, AppMotion.pressDuration),
+        curve: AppMotion.standard,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
+              border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+                decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [color, color.withValues(alpha: 0.7)]),
+                    borderRadius: AppDepth.radius(1),
+                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                child: const Center(child: Text('#', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)))),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('#$name', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
+              Text(widget.channel['description'] ?? 'Department channel', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
+              const SizedBox(height: 4),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: AppDepth.radius(0)),
+                  child: Text(audienceLabel, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
+            ])),
+            Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
+          ]),
+        ),
       ),
-    ).animate(delay: Duration(milliseconds: index * 60)).fadeIn().slideX(begin: -0.05);
+    ).animate(delay: AppMotion.staggerFor(context, widget.index)).fadeIn().slideX(begin: -0.05);
   }
 }
 
@@ -258,6 +292,9 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
       },
     };
     setState(() => _messages = [..._messages, optimistic]);
+    // The optimistic append IS the commit from the sender's point of view —
+    // this is the moment the message appears, so this is where the hand is told.
+    AppHaptics.selection();
     _scrollToBottom();
 
     try {
@@ -291,17 +328,21 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
               ],
             ));
     if (confirmed != true) return;
+    AppHaptics.warning();
     await SupabaseConfig.client.from('dept_messages').delete().eq('id', id);
     _loadMessages();
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
+      // The callback can land after the route is popped; without this the
+      // disposed ScrollController is touched and `context` is read off a
+      // defunct State.
+      if (!mounted || !_scrollCtrl.hasClients) return;
+      _scrollCtrl.animateTo(
+        _scrollCtrl.position.maxScrollExtent,
+        duration: AppMotion.durationOf(context, AppMotion.base),
+        curve: AppMotion.standard);
     });
   }
 
@@ -327,7 +368,8 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
             : _messages.isEmpty
-                ? Center(child: Text('No messages yet. Say hello! 👋',
+                ? Center(child: Text('No messages in #$name yet. Start the conversation.',
+                    textAlign: TextAlign.center,
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
@@ -380,9 +422,15 @@ class _MsgBubble extends StatelessWidget {
         decoration: BoxDecoration(
             gradient: isMe ? AppColors.blueGradient : null,
             color: isMe ? null : AppColors.surfaceOf(context),
+            // A bubble's tail corner is real information — it says who spoke —
+            // so the asymmetry stays. Both values are now rungs of the scale
+            // (control 14 for the round corners, cut 8 for the tail) rather
+            // than the free-hand 16/4.
             borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMe ? 16 : 4), bottomRight: Radius.circular(isMe ? 4 : 16))),
+                topLeft: const Radius.circular(LiquidGlass.radiusControl),
+                topRight: const Radius.circular(LiquidGlass.radiusControl),
+                bottomLeft: Radius.circular(isMe ? LiquidGlass.radiusControl : LiquidGlass.radiusCut),
+                bottomRight: Radius.circular(isMe ? LiquidGlass.radiusCut : LiquidGlass.radiusControl))),
         child: IntrinsicHeight(child: Row(children: [
           if (isFaculty && !isMe) Container(width: 2, color: AppColors.gold),
           Expanded(child: Padding(
@@ -401,7 +449,7 @@ class _MsgBubble extends StatelessWidget {
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
               if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.15), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.15), borderRadius: AppDepth.radius(0)),
                   child: const Text('Faculty', style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w700))),
             ]),
           )),
@@ -451,23 +499,52 @@ class _InputBar extends StatelessWidget {
             style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 14),
             decoration: InputDecoration(
                 hintText: 'Message...', contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     borderSide: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     borderSide: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     borderSide: const BorderSide(color: AppColors.blue, width: 1.5)),
                 filled: true, fillColor: AppColors.surfaceOf(context)),
             onSubmitted: (_) => onSend(),
         )),
         const SizedBox(width: 8),
-        GestureDetector(
-          onTap: onSend,
-          child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(gradient: AppColors.blueGradient, shape: BoxShape.circle),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20)),
-        ),
+        _SendButton(onSend: onSend),
       ]),
     );
   }
+}
+
+class _SendButton extends StatefulWidget {
+  final VoidCallback onSend;
+  const _SendButton({required this.onSend});
+  @override
+  State<_SendButton> createState() => _SendButtonState();
+}
+
+class _SendButtonState extends State<_SendButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        // The haptic is in _send, on the optimistic append, not here.
+        onTap: widget.onSend,
+        child: AnimatedScale(
+          scale: _pressed ? AppMotion.pressScale : 1.0,
+          duration: AppMotion.durationOf(context, AppMotion.pressDuration),
+          curve: AppMotion.standard,
+          // Was 44x44, under the 48dp touch floor.
+          child: Container(
+              width: AppSpace.minTouchTarget, height: AppSpace.minTouchTarget,
+              decoration: const BoxDecoration(gradient: AppColors.blueGradient, shape: BoxShape.circle),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20)),
+        ),
+      );
 }
