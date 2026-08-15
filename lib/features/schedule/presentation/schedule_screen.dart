@@ -7,7 +7,10 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
@@ -166,6 +169,12 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
       return;
     }
     setState(() => _searching = true);
+    // NOT a motion token, and must not become one. This is an input debounce:
+    // how long to wait for the user to stop typing before spending a network
+    // request. AppMotion's ladder describes how long things take to MOVE, and
+    // borrowing a rung here would couple search latency to animation feel — a
+    // later tweak to `base` would silently change how often the app queries
+    // Supabase. Different concern, different number.
     _searchDebounce = Timer(const Duration(milliseconds: 300), () => _searchCourses(q));
   }
 
@@ -205,8 +214,10 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
     try {
       await _repo.pinSlot(slot.id);
       if (mounted) {
+        // The pin is written; confirm what happened, not what was pressed.
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Added to your schedule ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Added to your schedule'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -452,11 +463,11 @@ class _ExamCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
           border: Border.all(color: color.withValues(alpha:0.3), width: 0.7)),
       child: Row(children: [
         Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: AppDepth.radius(0)),
             child: Text(examType.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800))),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -480,7 +491,7 @@ class _ExamCard extends StatelessWidget {
           ]),
         ])),
       ]),
-    ).animate(delay: Duration(milliseconds: index * 60)).fadeIn().slideY(begin: 0.05);
+    ).animate(delay: AppMotion.staggerFor(context, index)).fadeIn().slideY(begin: 0.05);
   }
 }
 
@@ -511,7 +522,7 @@ class _RoutineHeaderBanner extends StatelessWidget {
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(gradient: AppColors.holoGradient, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(gradient: AppColors.holoGradient, borderRadius: AppDepth.radius(2)),
       child: Stack(children: [
         Positioned.fill(child: IgnorePointer(child: DecoratedBox(
             decoration: BoxDecoration(gradient: LiquidGlass.sheen(isDark: true))))),
@@ -556,7 +567,7 @@ class _DaySelector extends StatelessWidget {
               decoration:BoxDecoration(
                 gradient: sel ? AppColors.holoGradient : null,
                 color:sel?null:AppColors.glassFill(context),
-                borderRadius:BorderRadius.circular(20),
+                borderRadius:AppDepth.radius(2),
                 border:Border.all(color:sel?Colors.transparent:AppColors.glassBorder(context),width:0.5)),
               child:Text(_days[i],style:TextStyle(color:sel?Colors.white:AppColors.textSecondaryOf(context),
                 fontSize:13,fontWeight:sel?FontWeight.w600:FontWeight.w400)),
@@ -631,7 +642,7 @@ class _ClassCard extends StatelessWidget {
       child: Container(
         margin:const EdgeInsets.only(bottom:12),
         decoration:BoxDecoration(
-          borderRadius:BorderRadius.circular(16),
+          borderRadius:AppDepth.radius(2),
           gradient: LinearGradient(
             begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [AppColors.holoBlue.withValues(alpha:AppColors.isDark(context)?0.3:0.2),
@@ -641,7 +652,7 @@ class _ClassCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: AppColors.surfaceOf(context),
-            borderRadius: BorderRadius.circular(15)),
+            borderRadius: AppDepth.radius(2)),
           child: Stack(children:[
             Padding(
               padding:const EdgeInsets.all(16),
@@ -690,7 +701,7 @@ class _ClassCard extends StatelessWidget {
                 ])),
                 Container(
                   padding:const EdgeInsets.symmetric(horizontal:8,vertical:4),
-                  decoration:BoxDecoration(color:AppColors.holoBlue.withValues(alpha:0.12),borderRadius:BorderRadius.circular(6)),
+                  decoration:BoxDecoration(color:AppColors.holoBlue.withValues(alpha:0.12),borderRadius:AppDepth.radius(0)),
                   child:Text('${slot.creditHours}cr',style:const TextStyle(color:AppColors.holoBlue,fontSize:11,fontWeight:FontWeight.w600))),
                 if (isPinnable && onPin != null)
                   IconButton(icon: const Icon(Icons.add_circle_outline_rounded, size: 20, color: AppColors.green),
@@ -705,7 +716,7 @@ class _ClassCard extends StatelessWidget {
             ),
             if(slot.isCancelled) Positioned.fill(
               child:Container(
-                decoration:BoxDecoration(color:AppColors.red.withValues(alpha:0.88),borderRadius:BorderRadius.circular(15)),
+                decoration:BoxDecoration(color:AppColors.red.withValues(alpha:0.88),borderRadius:AppDepth.radius(2)),
                 alignment:Alignment.center,
                 child:Column(mainAxisSize:MainAxisSize.min,children:[
                   const Icon(Icons.cancel_rounded,color:Colors.white,size:32),
@@ -719,7 +730,7 @@ class _ClassCard extends StatelessWidget {
           ]),
         ),
       ),
-    ).animate(delay:Duration(milliseconds:index*80))
+    ).animate(delay: AppMotion.staggerFor(context, index))
         .fadeIn(curve: Curves.easeOutCubic).slideY(begin:0.05, curve: Curves.easeOutCubic);
   }
 }
@@ -730,7 +741,7 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: AppDepth.radius(0)),
     child: Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
         style: TextStyle(color: color, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
   );
@@ -758,7 +769,7 @@ class _SearchBar extends StatelessWidget {
         prefixIcon: const Icon(Icons.search_rounded, size: 20),
         filled: true, fillColor: AppColors.glassFill(context),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
       ),
     ),
   );
