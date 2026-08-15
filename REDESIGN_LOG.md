@@ -500,3 +500,65 @@ screens as for every batch.
 (6), `marks_entry_screen.dart` (6).
 
 ---
+
+## Phase 2 batch 6 — exam seat / assignments / marks entry · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch6`. ~1,290 LOC.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `exam_seat_screen.dart` | 2 → **0** | 4 → **0** | 0 | 0 → **0\*** |
+| `assignments_screen.dart` | 0 | 5 → **0** | 1 → **0** | 0 → **4** |
+| `marks_entry_screen.dart` | 1 → **0** | 2 → **0** | 1 → **0** | 0 → **2** |
+
+\* **exam seat gets no haptics, on purpose.** It is entirely read-only — there
+is no user commit anywhere on the screen, so there is nothing for a haptic to
+confirm. Adding one to the pull-to-refresh would be exactly the "motion added
+for polish with no interaction meaning" the constitution bans.
+
+App-wide: emoji **29 → 27**, haptic sites **54 → 60**, tabular-numeric call
+sites in `lib/features/` **5 → 10**. Data layer: `git diff --stat main` on
+`lib/features/*/data`, `lib/core/services`, `lib/shared/models` = **0 lines**.
+
+### The marks grid is the strongest tabular case in the app
+
+`marks_entry_screen.dart` is a **column of number fields, one per student**,
+with a running total beside each and a shared `/ max` denominator. DM Sans ships
+proportional figures, so a `1` is narrower than a `0` — which means the digits
+shifted under the caret as a teacher typed, and no two rows in the column lined
+up. Three sites changed:
+
+- the mark `TextField`'s own text style — the one being typed into
+- the per-student running total (recomputes on every keystroke)
+- the right-aligned `/ 100` denominator
+
+Plus the assignment mark `12 / 20` and the exam-seat room chips (`604 · 45
+seats`, several side by side). Each is `numeric*.copyWith()` matched to the
+style it replaced — size, weight and face unchanged.
+
+### A signature radius has to be honoured by whatever sits on the card's edge
+
+`exam_seat_screen.dart` draws a 4px gradient bar across the top of each session
+card. Moving the card to `AppDepth.radius(2)` cuts its top-right corner to 8
+while the others go to 22, so the bar's old symmetric `Radius.circular(15)`
+would no longer trace the card. It now uses the same
+`topLeft: radiusCard, topRight: radiusCut` pair introduced for the lost & found
+photo header in batch 3 — this is the second instance of that shape, and it is
+worth treating as a pattern for anything that sits on a card's top edge.
+
+The same trap caught the assignments card's `InkWell`: its `borderRadius` has to
+match the `Container`'s or the ink splash spills past the corners. Both moved to
+`AppDepth.radius(1)` together.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all three files.
+
+**Still open**, unchanged: the 56-site symmetric-vs-signature radius split from
+batch 4; empty states, full copy rewrite and responsive verification on every
+migrated screen.
+
+**Progress: 15 of 62 screens migrated.**
+
+**Next:** Phase 2 batch 7 — `attendance_screen.dart` (5),
+`attendance_register_screen.dart` (6), `assignment_submissions_screen.dart` (6).
+
+---
