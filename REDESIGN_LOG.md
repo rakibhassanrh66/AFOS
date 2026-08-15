@@ -562,3 +562,73 @@ migrated screen.
 `attendance_register_screen.dart` (6), `assignment_submissions_screen.dart` (6).
 
 ---
+
+## Phase 2 batch 7 — attendance / register / submissions · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch7`. ~1,450 LOC.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `attendance_screen.dart` | 3 → **0** | 1 → **0** | 0 | 0 → **3** |
+| `attendance_register_screen.dart` | 2 → **0\*** | 4 → **0** | 0 | 0 → **3** |
+| `assignment_submissions_screen.dart` | 0 | 2 → **0** | 1 → **0** | 0 → **1** |
+
+\* these two were not raw literals — they were `LiquidGlass.motionFast` /
+`motionCurve`, which Phase 1 re-based onto `AppMotion`. See below.
+
+App-wide: emoji **27 → 26**, haptic sites **60 → 67**, tabular-numeric call
+sites in `lib/features/` **10 → 14**. Data layer: `git diff --stat main` on
+`lib/features/*/data`, `lib/core/services`, `lib/shared/models` = **0 lines**.
+
+### A token is not the same thing as a reduced-motion-aware token
+
+Both attendance screens animated their chips with `LiquidGlass.motionFast` and
+`LiquidGlass.motionCurve`. Those are *already* tokens — Phase 1 re-based them so
+`motionFast` **is** `AppMotion.tight`, the same 160ms. Nothing about the value
+was wrong, and a slop grep does not flag them.
+
+They were still a defect: a bare constant cannot know about
+`MediaQuery.disableAnimationsOf`, so a user who asked the system to stop moving
+things still got these chips animating. Reading the same rung through
+`AppMotion.durationOf(context, …)` is what actually turns it off. This is the
+shape of the accessibility gap Phase 0 measured (9 `disableAnimations`
+references against ~66 durations) and it does **not** show up in the raw-literal
+count — worth remembering when the slop numbers eventually hit zero.
+
+### ⚠ The status control is a real density change — look at it on a device
+
+`_StatusButton` is the 4-way present/late/absent/excused segmented control in
+the register: **the most-tapped control in the app** (once per student, per
+session) and the one where a mis-tap marks the wrong person absent. It was
+`vertical: 8` padding around an 11px label — a **~27dp** target, barely half the
+floor.
+
+It now carries `minHeight: AppSpace.minTouchTarget`. That is the correct fix and
+I am confident in it, but be aware of the consequence: **each roster row grows
+by roughly 19px**, so a 40-student register scrolls about 760px longer than
+before. That is a deliberate density trade for hit accuracy on a
+consequence-carrying control, and it is the kind of change that should be seen
+on a real device before it ships.
+
+### Numbers that recompute while you type
+
+Four more tabular sites, all in the marking flow: the per-student attendance
+percentage (the column a teacher scans to find who is under 75%), the
+attended/counted ratio in the register header, the `+0.5` bonus chip, and the
+per-submission mark field in `assignment_submissions_screen` — the same case as
+the marks-entry grid in batch 6.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all three files.
+
+**Still open**, unchanged: the 56-site symmetric-vs-signature radius split from
+batch 4; empty states, full copy rewrite and responsive verification everywhere.
+
+**Progress: 18 of 62 screens migrated.**
+
+**Next:** Phase 2 batch 8 — `login_screen.dart` (6), `complete_profile_screen.dart`
+(5), `releases_screen.dart` (6). `login_screen.dart` holds 3 of the 15 remaining
+hardcoded hex colours, and `auth_brand_panel.dart` holds 3 more of the same
+palette — check whether they are the same paired-duplication shape as the chat
+backgrounds before splitting them across batches.
+
+---
