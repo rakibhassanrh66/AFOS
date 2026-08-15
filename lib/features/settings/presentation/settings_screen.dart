@@ -13,6 +13,10 @@ import '../../../core/auth/biometric_lock.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../core/services/sos_location_service.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -67,12 +71,10 @@ class _SettingsState extends State<SettingsScreen> {
     AppColors.amber, AppColors.red, AppColors.pink,
   ];
 
-  static const _chatBackgrounds = {
-    'default': Colors.transparent,
-    'midnight': Color(0xFF0B1220),
-    'forest': Color(0xFF0E1F16),
-    'plum': Color(0xFF1F0E1B),
-  };
+  // Was a private copy of the same four hex values that dept_chat_screen.dart
+  // also held. Both now read the one definition in AppColors, so a swatch here
+  // cannot disagree with the canvas the chat actually paints.
+  static const _chatBackgrounds = AppColors.chatBackgrounds;
 
   @override
   void initState() { super.initState(); _load(); _loadBiometric(); _checkForUpdate(); }
@@ -104,7 +106,7 @@ class _SettingsState extends State<SettingsScreen> {
     setState(() { _availableUpdate = update; _checkingUpdate = false; });
     if (update == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You're on the latest version ✓"), backgroundColor: AppColors.green));
+          const SnackBar(content: Text("You're on the latest version"), backgroundColor: AppColors.green));
     }
   }
 
@@ -161,8 +163,9 @@ class _SettingsState extends State<SettingsScreen> {
         avatarUrl: _user?.avatarUrl,
       );
       if (mounted) setState(() => _biometricEnabled = true);
+      AppHaptics.success();
       messenger.showSnackBar(const SnackBar(
-          content: Text('Biometric login enabled ✓'), backgroundColor: AppColors.green));
+          content: Text('Biometric login enabled'), backgroundColor: AppColors.green));
     } else {
       // Only this account — other remembered accounts on this device (if
       // any) keep their own quick-login untouched.
@@ -302,9 +305,10 @@ class _SettingsState extends State<SettingsScreen> {
       });
       await _loadCrStatus(SupabaseConfig.uid!);
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(queued
           ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
-          : const SnackBar(content: Text('CR request submitted ✓'), backgroundColor: AppColors.green));
+          : const SnackBar(content: Text('CR request submitted'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -361,8 +365,9 @@ class _SettingsState extends State<SettingsScreen> {
         await _loadCrStatus(SupabaseConfig.uid!);
       }
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Routine info saved ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Routine info saved'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       // The teacher-initial uniqueness case used to be special-cased here by
@@ -441,15 +446,18 @@ class _SettingsState extends State<SettingsScreen> {
                     BlocBuilder<ThemeBloc, ThemeState>(
                       builder: (ctx, state) => Row(children: [
                         Expanded(child: _ThemeChip(
-                            label: '☀️ Light', selected: state.mode == ThemeMode.light,
+                            label: 'Light', icon: Icons.light_mode_rounded,
+                            selected: state.mode == ThemeMode.light,
                             onTap: () => ctx.read<ThemeBloc>().add(ToggleLight()))),
                         const SizedBox(width: 8),
                         Expanded(child: _ThemeChip(
-                            label: '🌙 Dark', selected: state.mode == ThemeMode.dark,
+                            label: 'Dark', icon: Icons.dark_mode_rounded,
+                            selected: state.mode == ThemeMode.dark,
                             onTap: () => ctx.read<ThemeBloc>().add(ToggleDark()))),
                         const SizedBox(width: 8),
                         Expanded(child: _ThemeChip(
-                            label: '⚙️ Auto', selected: state.mode == ThemeMode.system,
+                            label: 'Auto', icon: Icons.brightness_auto_rounded,
+                            selected: state.mode == ThemeMode.system,
                             onTap: () => ctx.read<ThemeBloc>().add(ToggleSystem()))),
                       ]),
                     ),
@@ -460,8 +468,13 @@ class _SettingsState extends State<SettingsScreen> {
                       builder: (ctx, state) => Wrap(spacing: 10, runSpacing: 10, children: _accentSwatches.map((c) {
                         final selected = state.accentColor.toARGB32() == c.toARGB32();
                         return GestureDetector(
-                          onTap: () => ctx.read<ThemeBloc>().add(SetAccentColor(c)),
-                          child: Container(width: 36, height: 36,
+                          onTap: () { AppHaptics.selection(); ctx.read<ThemeBloc>().add(SetAccentColor(c)); },
+                          // The swatch reads as 36px but was also only 36px to
+                          // hit. The SizedBox gives it the 48dp floor without
+                          // changing how big the circle looks.
+                          child: SizedBox(
+                            width: AppSpace.minTouchTarget, height: AppSpace.minTouchTarget,
+                            child: Center(child: Container(width: 36, height: 36,
                               decoration: BoxDecoration(color: c, shape: BoxShape.circle,
                                   // A fixed white ring disappeared against the
                                   // light theme's white settings card --
@@ -470,7 +483,8 @@ class _SettingsState extends State<SettingsScreen> {
                                   // so the selected swatch stays visible in
                                   // both modes.
                                   border: Border.all(color: selected ? AppColors.textPrimaryOf(context) : Colors.transparent, width: 2),
-                                  boxShadow: selected ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null)),
+                                  boxShadow: selected ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null))),
+                          ),
                         );
                       }).toList()),
                     ),
@@ -502,9 +516,9 @@ class _SettingsState extends State<SettingsScreen> {
                     children: _chatBackgrounds.entries.map((entry) {
                   final selected = _chatBackground == entry.key;
                   return GestureDetector(
-                    onTap: () => _updateChatBackground(entry.key),
+                    onTap: () { AppHaptics.selection(); _updateChatBackground(entry.key); },
                     child: Container(width: 48, height: 48,
-                        decoration: BoxDecoration(color: entry.value, borderRadius: BorderRadius.circular(10),
+                        decoration: BoxDecoration(color: entry.value, borderRadius: AppDepth.radius(1),
                             border: Border.all(color: selected ? AppColors.blue : AppColors.borderOf(context), width: selected ? 2 : 0.5)),
                         child: entry.key == 'default' ? const Icon(Icons.chat_bubble_outline, size: 18) : null),
                   );
@@ -656,8 +670,9 @@ class _SettingsState extends State<SettingsScreen> {
                 Navigator.pop(context);
                 try {
                   await Supabase.instance.client.auth.updateUser(UserAttributes(password: newCtrl.text));
+                  AppHaptics.success();
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('Password updated ✓'), backgroundColor: AppColors.green));
+                    const SnackBar(content: Text('Password updated'), backgroundColor: AppColors.green));
                 } catch (e) {
                   messenger.showSnackBar(
                     SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
@@ -719,9 +734,10 @@ class _SettingsState extends State<SettingsScreen> {
                   final queued = await OutboxService.instance.submitOrQueue('feedback_submit', payload);
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                   if (mounted) {
+                    AppHaptics.success();
                     ScaffoldMessenger.of(context).showSnackBar(queued
                       ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
-                      : const SnackBar(content: Text('Thanks — sent ✓'), backgroundColor: AppColors.green));
+                      : const SnackBar(content: Text('Feedback sent'), backgroundColor: AppColors.green));
                   }
                 } catch (e) {
                   if (sheetCtx.mounted) {
@@ -743,7 +759,7 @@ class _Section extends StatelessWidget {
     Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Text(title.toUpperCase(),
             style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1.5, color: AppColors.textSecondaryOf(context)))),
-    Container(decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+    Container(decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
         border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
         child: Column(children: children)),
   ]);
@@ -781,7 +797,7 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     leading: Container(width: 36, height: 36, alignment: Alignment.center,
-        decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(9)),
+        decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: AppDepth.radius(1)),
         child: Icon(icon, color: color, size: 18)),
     title: Text(label, style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context), size: 18),
@@ -811,7 +827,7 @@ class _UpdateBanner extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.teal.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(color: AppColors.teal.withValues(alpha: 0.35)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -835,7 +851,9 @@ class _UpdateBanner extends StatelessWidget {
         const SizedBox(height: 12),
         if (downloading) ...[
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            // A 6px bar: the pill rung is the only radius that reads as
+            // deliberate at this height.
+            borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
             child: LinearProgressIndicator(
                 value: progress > 0 ? progress : null,
                 backgroundColor: AppColors.teal.withValues(alpha: 0.15),
@@ -853,17 +871,36 @@ class _UpdateBanner extends StatelessWidget {
   }
 }
 
+/// Theme mode picker.
+///
+/// The labels were `'☀️ Light'`, `'🌙 Dark'` and `'⚙️ Auto'` — a picture glued
+/// to the front of a string. Emoji renders differently on every platform, is
+/// read out literally by a screen reader ("sun behind cloud Light"), and cannot
+/// take the chip's own selected/unselected colour, so the glyph stayed full
+/// colour while the text went blue. These are real icons now.
 class _ThemeChip extends StatelessWidget {
-  final String label; final bool selected; final VoidCallback onTap;
-  const _ThemeChip({required this.label, required this.selected, required this.onTap});
+  final String label; final IconData icon; final bool selected; final VoidCallback onTap;
+  const _ThemeChip({required this.label, required this.icon, required this.selected, required this.onTap});
   @override
-  Widget build(BuildContext context) => GestureDetector(onTap: onTap,
-      child: Container(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+  Widget build(BuildContext context) {
+    final fg = selected ? AppColors.blue : AppColors.textSecondaryOf(context);
+    return GestureDetector(
+      onTap: () { AppHaptics.selection(); onTap(); },
+      child: Container(
+          // Vertical padding was 14, leaving the chip ~45dp tall.
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.lg, horizontal: AppSpace.sm),
           decoration: BoxDecoration(
               color: selected ? AppColors.blue.withValues(alpha:0.12) : AppColors.surfaceOf(context),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: AppDepth.radius(1),
               border: Border.all(color: selected ? AppColors.blue : AppColors.borderOf(context))),
-          child: Center(child: Text(label, textAlign: TextAlign.center,
-              style: TextStyle(color: selected ? AppColors.blue : AppColors.textSecondaryOf(context),
-                  fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.normal)))));
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 15, color: fg),
+            const SizedBox(width: 5),
+            Flexible(child: Text(label, textAlign: TextAlign.center,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: fg,
+                    fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.normal))),
+          ])),
+    );
+  }
 }

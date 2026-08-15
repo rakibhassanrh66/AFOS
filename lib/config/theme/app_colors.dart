@@ -96,6 +96,26 @@ class AppColors {
   static Color glowPurple(double opacity) => holoviolet.withValues(alpha: opacity);
   static Color glowTeal(double opacity)   => holoTeal.withValues(alpha: opacity);
 
+  /// The four chat-room canvases a user can pick in Settings → Chat Background.
+  ///
+  /// WHY THIS IS HERE. These four values previously existed as raw hex in TWO
+  /// places — `settings_screen.dart` (which offers the swatches) and
+  /// `dept_chat_screen.dart` (which paints the chosen one) — with no link
+  /// between them. Editing one and not the other would have made the swatch a
+  /// lie: you would pick a colour and get a different one. They are also the
+  /// only surface colours in the app the USER chooses, so they cannot be
+  /// theme-aware helpers; the key is persisted in `user_settings.chat_background`
+  /// and the value must resolve identically on both screens.
+  ///
+  /// `transparent` is deliberate for 'default': it means "no override", and
+  /// both call sites fall back to the scaffold background when they see it.
+  static const Map<String, Color> chatBackgrounds = {
+    'default': Colors.transparent,
+    'midnight': Color(0xFF0B1220),
+    'forest': Color(0xFF0E1F16),
+    'plum': Color(0xFF1F0E1B),
+  };
+
   // --- Theme-aware helpers: use these instead of raw hex so light/dark both read correctly ---
   static bool isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
