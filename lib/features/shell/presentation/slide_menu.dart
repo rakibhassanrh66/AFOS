@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show listEquals;
+
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,6 +11,7 @@ import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../core/auth/permission_session.dart';
+import '../../../core/navigation/nav_destinations.dart';
 import '../../../core/navigation/router_location.dart';
 import '../../../core/services/app_config_service.dart';
 import 'dart:ui' show ImageFilter;
@@ -341,7 +344,36 @@ class _SlideMenuState extends State<SlideMenu> {
       final pinned = _quickAccessItems.map((it) => it.route).toSet();
       items = items.where((it) => !pinned.contains(it.route)).toList();
     }
+    _publishDestinations(items);
     return items;
+  }
+
+  /// Hand the resolved list to anything else that needs to know where this user
+  /// may go — currently the web command palette.
+  ///
+  /// Published rather than recomputed. `_roleItems` above encodes the role
+  /// matrix, the delegated `resource:action` grants, the CR flag and the SOS
+  /// toggle, and its grants deliberately match the ones `app_router.dart`
+  /// guards each route with. A second implementation of that is how a palette
+  /// ends up offering a destination the router then refuses.
+  ///
+  /// Includes the pinned quick-access four even on the web rail, where the
+  /// menu itself hides them: the rail hides them because they are ALREADY on
+  /// screen above, which is not a reason for the palette to be unable to reach
+  /// Settings.
+  void _publishDestinations(List<_MenuItem> items) {
+    final all = <_MenuItem>[..._quickAccessItems, ...items];
+    final seen = <String>{};
+    final next = <NavDestination>[
+      for (final m in all)
+        if (seen.add(m.route)) NavDestination(m.label, m.icon, m.route, m.color),
+    ];
+    // Built during build(), so defer the notify — mutating a ValueNotifier
+    // whose listeners are also building would throw.
+    if (listEquals(navDestinations.value, next)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navDestinations.value = next;
+    });
   }
 
   List<_MenuItem> get _roleItems {
