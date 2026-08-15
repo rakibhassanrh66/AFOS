@@ -63,8 +63,53 @@ to know where the work stands.
 No runtime bugs are registered — no device run or profile trace was taken.
 That is Phase 7 (performance) and Phase 8 (parity).
 
-**Next:** Phase 1 — design system foundation. Fresh session, new branch
-`redesign/p1-tokens`, scope `lib/config/theme/**` and `lib/shared/widgets/**`
-only. Must stop for palette/type approval before writing code.
+**Next:** Phase 1 — design system foundation.
+
+---
+
+## Phase 1 — Design system foundation · 2026-08-15 · COMPLETE
+Branch `redesign/p1-tokens`.
+
+**Scope honoured:** `lib/config/theme/**`, `lib/core/haptics/**`, one test file.
+**Zero screens, repositories, models or blocs touched** — verified by
+`git status`.
+
+**Files**
+- NEW `lib/config/theme/motion.dart` — the 5-rung ladder, springs, stagger cap, reduced-motion helpers
+- NEW `lib/config/theme/depth.dart` — one light source (top-left, 20°), elevation 0–4, radius per level
+- NEW `lib/config/theme/spacing.dart` — 4/8/12/16/24/32/48 scale, gap widgets, 48dp touch floor
+- NEW `lib/core/haptics/app_haptics.dart` — 4-verb haptic vocabulary, fires on commit, no-ops on web
+- EDIT `lib/config/theme/app_text_styles.dart` — added the tabular-numeric role
+- EDIT `lib/config/theme/liquid_glass_tokens.dart` — legacy motion constants now ALIAS `AppMotion`
+- NEW `test/design_system_test.dart` — 20 tests turning the constitution into CI rules
+- NEW `audit/DESIGN_SYSTEM.md` — the gallery doc
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing**
+(was 282, +20) · `flutter build web` succeeds.
+
+**Decisions**
+- The palette was NOT touched. Liquid Glass stays; what was missing were the
+  four systems above, none of which existed.
+- Legacy motion constants re-based rather than duplicated, so there is one
+  ladder: `motionFast` 200→160, `motionStandard` 280→240, `pressDuration`
+  120→90. Curve, pressScale and entranceScaleFrom are unchanged values.
+- **Deferred to Phase 4:** page routes and sheets still run at `base` (240ms)
+  though the ladder says `slow` (380ms). Retiming navigation by 36% is a feel
+  decision that must be seen on a device, not asserted in a token file.
+- `AppHaptics.enabled` is per-session; persisting it needs a repository write,
+  which is out of Phase 1 scope.
+
+**Known limitation, stated honestly.** The typography tests assert the shared
+`tabularFeatures` list rather than a constructed `TextStyle`. DM Sans is fetched
+by google_fonts at runtime rather than bundled, so touching any
+`AppTextStyles.*` in a unit test triggers an HTTP request and fails offline.
+The feature list is what carries the rule and what all three numeric styles
+reference; bundling the font as an asset would let the styles themselves be
+tested, and is worth doing.
+
+**Next:** Phase 2 batch 1 — migrate 3 screens. Suggested first batch, chosen as
+the highest slop-per-screen from `UI_INVENTORY.md`:
+`dashboard_screen.dart` (slop 24), `library_screen.dart` (19),
+`clubs_screen.dart` (15). Fresh session, branch `redesign/p2-batch1`.
 
 ---

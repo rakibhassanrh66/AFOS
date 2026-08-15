@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'motion.dart';
 
 /// Liquid Glass design tokens — the single source of numeric truth for the
 /// translucent depth system (blur strengths, radii, tints, motion timings).
@@ -79,19 +80,39 @@ class LiquidGlass {
   static Color rimHighlight(bool isDark) =>
       isDark ? const Color(0x1FFFFFFF) : const Color(0x59FFFFFF);
 
-  // --- Motion (single source of truth) ---
-  // One curve + a tiny duration ladder drives EVERY transition in the app
-  // (page routes, tab-indicator slide, sheet open/close, drawer, splash exit)
-  // so motion reads as one consistent, "buttery" system, not a grab-bag of
-  // per-widget durations.
-  static const Curve motionCurve = Curves.easeOutCubic;
-  static const Duration motionFast = Duration(milliseconds: 200);
-  static const Duration motionStandard = Duration(milliseconds: 280);
-  static const Duration pressDuration = Duration(milliseconds: 120);
+  // --- Motion: ALIASES ONTO AppMotion, which is now the source of truth ---
+  //
+  // These names stay because ~60 call sites use them and churning those is not
+  // what Phase 1 is for. What changed is that they no longer DEFINE anything —
+  // each one now points at a rung of the ladder in `motion.dart`, so the app
+  // has one motion system instead of two that can drift apart.
+  //
+  // The re-basing, stated plainly because it is a real (small) change in feel:
+  //   motionFast      200ms -> AppMotion.tight   160ms
+  //   motionStandard  280ms -> AppMotion.base    240ms
+  //   pressDuration   120ms -> AppMotion.instant  90ms
+  //   motionCurve / pressScale / entranceScaleFrom: identical values, no change.
+  //
+  // DELIBERATELY NOT DONE HERE. `motionStandard` is currently used for two
+  // different things: small movement (tab indicator, card fades, app-shell
+  // chrome) AND large movement (every page route in page_transitions.dart, and
+  // glass_sheet). The ladder says those are different rungs — base 240 for the
+  // small ones, slow 380 for pages and sheets. Retiming every page transition
+  // from 280ms to 380ms makes navigation 36% slower, which is a decision that
+  // has to be SEEN on a device, not asserted in a token file. Phase 4
+  // (interaction physics) moves page routes and sheets to AppMotion.slow after
+  // it can be felt. Until then they follow base, exactly as they do today.
+  //
+  // New code should import AppMotion directly and, critically, read durations
+  // through `AppMotion.durationOf(context, …)` so reduced-motion works.
+  static const Curve motionCurve = AppMotion.standard;
+  static const Duration motionFast = AppMotion.tight;
+  static const Duration motionStandard = AppMotion.base;
+  static const Duration pressDuration = AppMotion.pressDuration;
   static const Duration entranceDuration = motionFast;
-  static const double pressScale = 0.97;
+  static const double pressScale = AppMotion.pressScale;
   // Standardized entrance scale-from for page/sheet/card entrances.
-  static const double entranceScaleFrom = 0.97;
+  static const double entranceScaleFrom = AppMotion.entranceScaleFrom;
 
   /// The signature AFOS silhouette: three corners large, top-right cut
   /// tight. Radii at or below the cut stay symmetric (chips, tiny tiles).
