@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
@@ -165,7 +166,7 @@ class _BroadcastMessageField extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.glassFill(context),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(color: AppColors.glassBorder(context), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -194,7 +195,7 @@ class _BroadcastMessageField extends StatelessWidget {
             fillColor: AppColors.surfaceOf(context),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
           ),
         ),
       ]),
@@ -218,7 +219,7 @@ class _SummaryBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: n > 0 ? color.withValues(alpha: 0.12) : AppColors.glassFill(context),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppDepth.radius(1),
           border: Border.all(color: n > 0 ? color.withValues(alpha: 0.4) : AppColors.glassBorder(context), width: n > 0 ? 1 : 0.5),
         ),
         child: Row(children: [
@@ -256,7 +257,7 @@ class _RoutePreviewCard extends StatelessWidget {
         Row(children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: accent.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: accent.withValues(alpha: 0.16), borderRadius: AppDepth.radius(0)),
             child: Text(route.routeNo, style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12)),
           ),
           const SizedBox(width: 10),
@@ -341,7 +342,7 @@ class _TripChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -483,7 +484,7 @@ class _RouteEditSheetState extends State<_RouteEditSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.holoTeal.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppDepth.radius(1),
                 ),
                 child: Row(children: [
                   const Icon(Icons.flag_rounded, size: 14, color: AppColors.holoTeal),
@@ -547,7 +548,7 @@ class _RouteEditSheetState extends State<_RouteEditSheet> {
           filled: true,
           fillColor: AppColors.surfaceOf(context),
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
         ),
       );
 }
@@ -586,7 +587,7 @@ class _StopRow extends StatelessWidget {
             filled: true,
             fillColor: AppColors.surfaceOf(context),
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
           ),
         )),
         IconButton(
@@ -626,7 +627,7 @@ class _TripEditRowState extends State<_TripEditRow> {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: AppColors.glassFill(context),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(color: AppColors.glassBorder(context), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -642,7 +643,7 @@ class _TripEditRowState extends State<_TripEditRow> {
               filled: true,
               fillColor: AppColors.surfaceOf(context),
               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
             ),
           )),
           const SizedBox(width: 6),
@@ -656,7 +657,7 @@ class _TripEditRowState extends State<_TripEditRow> {
               filled: true,
               fillColor: AppColors.surfaceOf(context),
               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
             ),
           )),
           IconButton(
