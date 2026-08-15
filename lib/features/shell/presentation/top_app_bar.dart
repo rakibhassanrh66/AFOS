@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../core/services/unread_counter.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
@@ -113,7 +114,6 @@ class _NotificationBell extends StatefulWidget {
 }
 
 class _NotificationBellState extends State<_NotificationBell> {
-  int _unread = 0;
   int _loadGen = 0;
   RealtimeChannel? _sub;
 
@@ -161,7 +161,10 @@ class _NotificationBellState extends State<_NotificationBell> {
       // to render a number. `.count()` sends no body at all.
       final unread = await SupabaseConfig.client.from('user_notifications')
           .count().eq('user_id', uid).eq('is_read', false);
-      if (mounted && gen == _loadGen) setState(() => _unread = unread);
+      // Publish the authoritative count. This is what reconciles any
+      // optimistic decrement the popover applied while this query was in
+      // flight; the generation guard above already discards stale answers.
+      if (mounted && gen == _loadGen) UnreadCounter.set(unread);
     } catch (_) {}
   }
 
@@ -170,7 +173,18 @@ class _NotificationBellState extends State<_NotificationBell> {
 
   @override
   Widget build(BuildContext context) {
-    final hasUnread = _unread > 0;
+    // Rebuilds the instant anything publishes a new count — including the
+    // popover's optimistic decrement, which lands long before a query could
+    // confirm it. Previously this read a field only `_load()` ever wrote, so
+    // the number waited on a network round trip to change.
+    return ValueListenableBuilder<int>(
+      valueListenable: UnreadCounter.value,
+      builder: (context, unread, __) => _buildBell(context, unread),
+    );
+  }
+
+  Widget _buildBell(BuildContext context, int unread) {
+    final hasUnread = unread > 0;
     return Stack(clipBehavior: Clip.none, children: [
       IconButton(
         icon: Container(width: 34, height: 34,
@@ -196,7 +210,7 @@ class _NotificationBellState extends State<_NotificationBell> {
             constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
             decoration: BoxDecoration(color: AppColors.red, shape: BoxShape.circle,
                 border: Border.all(color: AppColors.surfaceOf(context), width: 1.5)),
-            child: Text(_unread > 9 ? '9+' : '$_unread', textAlign: TextAlign.center,
+            child: Text(unread > 9 ? '9+' : '$unread', textAlign: TextAlign.center,
                 textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                 style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w700)))
             // The FIFTH perpetual animation found in this sweep, and the worst
