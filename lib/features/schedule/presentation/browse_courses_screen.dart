@@ -4,6 +4,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/motion.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -123,7 +124,7 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Requested — the teacher will review it ✓'),
+            content: Text('Requested — the teacher will review it'),
             backgroundColor: AppColors.green));
       }
     } catch (e) {
@@ -162,8 +163,8 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         )
             .animate()
-            .fadeIn(duration: 300.ms)
-            .slideY(begin: -0.06, curve: Curves.easeOutCubic),
+            .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         if (_canScopeToSection)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

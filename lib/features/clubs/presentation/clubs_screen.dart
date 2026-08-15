@@ -7,6 +7,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/auth/role_session.dart';
@@ -596,7 +597,12 @@ class _ClubList extends StatelessWidget {
           Container(height: 80, decoration: BoxDecoration(
               gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                   colors: [AppColors.pink.withValues(alpha: 0.18), AppColors.teal.withValues(alpha: 0.12)]),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+              // Sits on the card's top edge, so it takes the card's own
+              // corners — three large, top-right cut. Same shape as the lost &
+              // found photo header and the exam-seat accent bar.
+              borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(LiquidGlass.radiusCard),
+                  topRight: Radius.circular(LiquidGlass.radiusCut))),
               child: Center(child: Icon(categoryIcon(c['category'] as String?), color: AppColors.pink, size: 36))),
           Padding(padding: const EdgeInsets.all(14), child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

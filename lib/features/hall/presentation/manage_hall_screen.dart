@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -445,7 +446,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                       final profile = a['profiles'] as Map<String, dynamic>? ?? {};
                       final status = a['status'] as String? ?? 'pending';
                       return Container(key: ValueKey(a['id']), margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                               border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Row(children: [
@@ -542,7 +543,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                     final profile = c['profiles'] as Map<String, dynamic>? ?? {};
                     final status = c['status'] as String? ?? 'open';
                     return Container(key: ValueKey(c['id']), margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                        decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                             border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
@@ -593,6 +594,6 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: _color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: _color.withValues(alpha: 0.15), borderRadius: AppDepth.radius(1)),
       child: Text(status.toUpperCase(), style: TextStyle(color: _color, fontSize: 10, fontWeight: FontWeight.w700)));
 }

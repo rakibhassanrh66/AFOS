@@ -120,7 +120,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
       gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
           colors: [AppColors.blueLight, AppColors.blue]),
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic);
+    ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard);
   }
 
   @override

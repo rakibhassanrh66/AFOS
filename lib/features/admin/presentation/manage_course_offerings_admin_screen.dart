@@ -4,6 +4,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -218,7 +219,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Approved — $created ${created == 1 ? 'class' : 'classes'} added to the routine ✓'),
+            content: Text('Approved — $created ${created == 1 ? 'class' : 'classes'} added to the routine'),
             backgroundColor: AppColors.green));
       }
     } catch (e) {
@@ -306,7 +307,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               end: Alignment.bottomRight,
               colors: [AppColors.amber, AppColors.orange]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(

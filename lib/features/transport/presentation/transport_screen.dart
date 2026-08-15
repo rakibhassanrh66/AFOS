@@ -387,7 +387,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                             ]),
                           )
                         : null,
-                  ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+                  ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard),
                   )),
                   AnimatedBuilder(
                     animation: _tab,
