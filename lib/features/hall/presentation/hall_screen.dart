@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/connectivity_service.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -175,7 +178,7 @@ class _MyApplicationTab extends StatelessWidget {
                 if (i == stepIndex) Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Text(
-                      status == 'approved' ? 'Approved ✓'
+                      status == 'approved' ? 'Approved'
                       : status == 'rejected' ? 'Rejected' : 'In progress',
                       style: TextStyle(
                           color: status == 'rejected' ? AppColors.red : AppColors.green,
@@ -218,7 +221,7 @@ class _MyApplicationTab extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
                 color: AppColors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppDepth.radius(1),
                 border: Border.all(color: AppColors.amber.withValues(alpha: 0.3))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Cancellation requested — waiting for admin review',
@@ -236,7 +239,7 @@ class _MyApplicationTab extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
                 color: AppColors.red.withAlpha(20),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppDepth.radius(1),
                 border: Border.all(color: AppColors.red.withAlpha(76))),
             child: Text('Reason: ${app!['rejection_reason'] ?? 'Not specified'}',
                 style: const TextStyle(color: AppColors.red))),
@@ -270,6 +273,7 @@ class _MyApplicationTab extends StatelessWidget {
       ),
     );
     if (confirm != true) return;
+    AppHaptics.warning();
     try {
       await SupabaseConfig.client.from('hall_applications')
           .update({'status': 'cancelled'}).eq('id', app!['id']);
@@ -309,6 +313,7 @@ class _MyApplicationTab extends StatelessWidget {
                         'status': 'cancel_requested',
                         'cancellation_reason': reasonCtrl.text.trim(),
                       }).eq('id', app!['id']);
+                      AppHaptics.success();
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                       onRefresh();
                     } catch (e) {
@@ -322,6 +327,9 @@ class _MyApplicationTab extends StatelessWidget {
                 ),
               ]));
         }));
+    // Created per sheet open and never released before this. The modal has
+    // already closed by the time the await resolves.
+    reasonCtrl.dispose();
   }
 }
 
@@ -427,6 +435,7 @@ class _ApplyTabState extends State<_ApplyTab> {
       _formKey.currentState!.reset();
       _reasonCtrl.clear();
       if (mounted) setState(() { _hall = _halls.isNotEmpty ? _halls.first['name'] as String : null; _pref = 'Shared'; });
+      AppHaptics.success();
       if (mounted && queued) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber));
@@ -460,7 +469,7 @@ class _ApplyTabState extends State<_ApplyTab> {
               isExpanded: true,
               decoration: InputDecoration(
                   labelText: 'Preferred Hall', filled: true, fillColor: AppColors.surfaceOf(context),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                  border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                       borderSide: BorderSide(color: AppColors.borderOf(context)))),
               dropdownColor: AppColors.surfaceOf(context),
               style: TextStyle(color: AppColors.textPrimaryOf(context)),
@@ -478,7 +487,7 @@ class _ApplyTabState extends State<_ApplyTab> {
             const SizedBox(height: 10),
             Wrap(spacing: 6, runSpacing: 6, children: _selectedHallAmenities.map((a) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: AppDepth.radius(0)),
                 child: Text(a, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)))).toList()),
           ],
           const SizedBox(height: 16),
@@ -509,12 +518,13 @@ class _PrefChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final sel = selected == label;
     return GestureDetector(
-      onTap: () => onTap(label),
+      onTap: () { AppHaptics.selection(); onTap(label); },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        // Vertical padding was 12, leaving the chip ~41dp tall.
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
         decoration: BoxDecoration(
             color: sel ? AppColors.blue : AppColors.surfaceOf(context),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(color: sel ? AppColors.blue : AppColors.borderOf(context))),
         child: Center(child: Text(label, style: TextStyle(
             color: sel ? Colors.white : AppColors.textSecondaryOf(context),
@@ -565,6 +575,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
       _descCtrl.clear();
       _formKey.currentState!.reset();
       if (mounted) setState(() => _category = 'Food');
+      AppHaptics.success();
       if (mounted && queued) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber));
@@ -601,7 +612,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
             initialValue: _category,
             decoration: InputDecoration(
                 labelText: 'Category', filled: true, fillColor: AppColors.surfaceOf(context),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                     borderSide: BorderSide(color: AppColors.borderOf(context)))),
             dropdownColor: AppColors.surfaceOf(context),
             style: TextStyle(color: textPrimary),
@@ -631,13 +642,13 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                     border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(child: Text(c['category'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary))),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.15), borderRadius: AppDepth.radius(1)),
                         child: Text(status.replaceAll('_', ' ').toUpperCase(),
                             textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                             style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),

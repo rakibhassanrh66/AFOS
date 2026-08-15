@@ -191,12 +191,9 @@ class _ChatRoomScreen extends StatefulWidget {
   const _ChatRoomScreen({required this.channel, required this.user});
   @override State<_ChatRoomScreen> createState() => _ChatRoomState();
 
-  static const _chatBackgrounds = {
-    'default': Colors.transparent,
-    'midnight': Color(0xFF0B1220),
-    'forest': Color(0xFF0E1F16),
-    'plum': Color(0xFF1F0E1B),
-  };
+  // Was a private copy of the same four hex values settings_screen.dart also
+  // held. Both now read the one definition in AppColors.
+  static const _chatBackgrounds = AppColors.chatBackgrounds;
 }
 
 class _ChatRoomState extends State<_ChatRoomScreen> {
