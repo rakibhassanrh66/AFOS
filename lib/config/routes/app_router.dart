@@ -300,7 +300,15 @@ class AppRouter {
         const SizedBox(height:16),
         Text('Page not found', style: TextStyle(color: AppColors.textSecondaryOf(c))),
         const SizedBox(height:16),
-        ElevatedButton(onPressed:()=>GoRouter.of(c).go('/home'), child:const Text('Go Home')),
+        // Padding, because the app theme sets a button `minimumSize` of
+        // `Size(double.infinity, 52)` — so an unconstrained ElevatedButton here
+        // ran the full width of the screen and touched both bezels. Seen on
+        // device, not in a test: nothing overflows, it just looks broken.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: ElevatedButton(
+              onPressed:()=>GoRouter.of(c).go('/home'), child:const Text('Go Home')),
+        ),
       ])),
     ),
   );

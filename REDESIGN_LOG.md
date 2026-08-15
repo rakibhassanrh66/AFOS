@@ -1240,3 +1240,76 @@ has held across the entire redesign, not just this phase.
 and needs a device.
 
 ---
+
+## Phases 8 + 9 — the device, and the closing measurement · 2026-08-15 · COMPLETE
+Branch `redesign/whole-sweep`. Steps 1–11 of the close-out plan.
+
+### What was closed
+
+| item | was | now |
+|---|---|---|
+| **P1-03** skeletons | asserted "matches final geometry exactly", never measured | **measured.** A real `InfoCard` row is 97px (136 wrapped); the default `ShimmerList` row is 80. `global_search` fixed; `ShimmerCard.infoCardRow` pinned to the widget by test |
+| **P1-04** empty states | 34/62 screens | **42/62.** 9 hand-rolled blocks became `EmptyState`; the rest are forms, webviews and detail screens with no data state |
+| **P2-04** inline queries | open, XL | **accepted debt**, written up in `CONTRACT_MAP.md` with the conditions to revisit |
+| **P2-05** shrinkWrap | "confirm each is bounded" | **all 5 confirmed bounded.** The popover's bound is a `.limit(20)` 150 lines away, so it now says so in the code |
+| **P3-04** radius split | 21 card sites symmetric, 217 signature | **0 symmetric card sites.** Control/pill tiers deliberately stay symmetric; pinned by a source-scanning test |
+| `#0B1220` vs `#0B1120` | undecided for 4 phases | **snapped.** `authDeep` is now `LiquidGlass.canvasDark`; chat 'midnight' and the 404 followed |
+| copy voice | 5 exclamation marks, one passive approval message | rewritten |
+| responsive | harness swept 320/360/412 | **six sizes**, adding the 400/768/1280 the constitution names and web ships on |
+| **Phase 8** parity | never run | **run on a motorola edge 60 pro.** 4 runtime findings, in `BUG_REGISTER.md` |
+
+### The finding that mattered most
+
+**`flutter build apk --release` failed outright.** A stale
+`GeneratedPluginRegistrant.java` still registered `integration_test` — a
+dev_dependency that release builds exclude — so javac failed. Web had built
+green through twelve batches, analyze was 0, 310 tests passed, and no release
+could have been produced. This is exactly the gotcha CLAUDE.md records: *`build
+web` never compiles `android/`*. Nothing but a real `flutter build apk` finds it.
+
+### Budgets, measured, not asserted
+
+| budget | result |
+|---|---|
+| Cold start < 1800 ms | **664 ms** to first frame rasterized (499 ms first frame, 271 ms framework init). `am start -W` cold: 1065/1049/1027 ms. **PASS** |
+| APK per-ABI < 28 MB | 31.4 / **34.6** / 37.0 MB. **FAIL** — arm64 is 24% over |
+| Web FCP < 1800 ms | ~3.7–4.4 MB gzipped before first paint. **FAIL by arithmetic**; not browser-verified (no Chrome on this machine) |
+| Reduced motion | **PASS**, confirmed on device — the splash arc is skipped |
+
+The two failures are dependency-weight and renderer-choice problems, not
+presentation ones. They are recorded at their real values; the budget was not
+moved to meet them.
+
+### Final numbers vs the Phase 0 baseline
+
+| metric | Phase 0 | now |
+|---|---:|---:|
+| Emoji in UI copy | 52 | **0** (3 doc comments quote what was removed) |
+| Hardcoded `Color(0x..)` outside theme | 21 | **2**, both comments |
+| Raw `Duration(milliseconds:)` | 66 | **24** (7 are the token file itself) |
+| `EdgeInsetsDirectional` | **0** | **239** |
+| Reduced-motion references | 9 | **113** |
+| Haptic call sites | 3 | **92** |
+| Screens with an empty state | 34 | **42 / 62** |
+| Symmetric card-tier radii | 21 | **0** |
+| `flutter analyze` | 0 issues | **0 issues** |
+| Tests | 282 | **310** |
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **310 passing** ·
+`flutter build web` succeeds · `flutter build apk --split-per-abi --release`
+succeeds (after R1) · APK signed with the permanent cert
+`2f49802b…623f` · `git diff --stat main` on `lib/features/*/data`,
+`lib/core/services`, `lib/shared/models`, `supabase/`, `db/`, `android/`,
+`.env*` = **0 lines**.
+
+### Still open, honestly
+
+1. **APK size and web payload** — both over budget, both dependency/renderer
+   decisions, neither a redesign task.
+2. **Roles not walked** — teacher and admin-only screens were verified as a
+   student and a super_admin only.
+3. **P2-04** — deliberate, documented, not forgotten.
+4. **Skeleton geometry on 20 screens** whose rows are private classes and cannot
+   be measured from a unit test.
+
+---
