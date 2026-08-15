@@ -17,7 +17,33 @@ Nothing is reported as confirmed unless it was verified by reading the code.
 | ID | File:line | Symptom | Suspected cause | Effort |
 |---|---|---|---|---|
 | P1-01 | 20 sites, listed below | `setState() called after dispose` exception | `setState` runs after an `await` with no `mounted` guard. If the user leaves the screen while the await is in flight, Flutter throws. | S each |
-| P1-02 | `feedback_screen.dart`, `grades_screen.dart`, `join_requests_screen.dart`, `room_availability_screen.dart` | Controller/subscription leak | The State holds a `TextEditingController` / `ScrollController` / stream but has **no `dispose()` at all**. Verified — these four are the real subset of 24 files that lack dispose; the other 20 hold nothing that needs releasing. | S each |
+| P1-02 | ~~4 files~~ — **see correction below** | Controller leak | Originally recorded as "the State holds a controller but has no `dispose()`". That diagnosis was wrong in shape and partly wrong in fact. **Corrected 2026-08-15 (Phase 2 batch 9).** | S each |
+
+### CORRECTION to P1-02 — recorded 2026-08-15, Phase 2 batch 9
+
+The Phase 0 pass keyed on "file has a controller AND no `dispose()` override"
+and drew the wrong conclusion from it. Re-verified against the source:
+
+**None of the four names a State-level controller.** In every case the
+controller is a **local**, created inside a method that opens a dialog or
+sheet — so a `dispose()` override was never the fix, and its absence was not
+the defect. The real leak is one controller per dialog *open*, which a user can
+repeat many times in a session.
+
+| file | actual finding | status |
+|---|---|---|
+| `room_availability_screen.dart` | Real. Local `purposeCtrl`, never released. | **Fixed, batch 3** |
+| `feedback_screen.dart` | Real, and the worst of them: `_showSubmitSheet` was `void`, did not await the modal, and leaked **two** controllers per open. | **Fixed, batch 9** |
+| `join_requests_screen.dart` | **False positive.** Its local `reasonCtrl` is already disposed in a `finally`. | No action |
+| `grades_screen.dart` | **False positive.** `_askReason` already calls `ctrl.dispose()`. | No action |
+
+Two of the four were real, both are now fixed, and the group is closed. The
+lesson for the remaining register entries: *"no `dispose()` override" is not
+evidence of a leak* — it is only a prompt to go and read the file. Two further
+leaks of the identical local-controller shape were found this way in files the
+register never flagged (`lost_found_screen.dart` batch 3,
+`hall_screen.dart` batch 5), which is the same defect the heuristic was aimed at
+and missed.
 | P1-03 | 18 of 62 screens | Layout jumps when data arrives | No loading skeleton, so the screen renders at one geometry then re-renders at another. Violates the zero-layout-shift rule. | M |
 | P1-04 | 28 of 62 screens | Empty result reads as "app is broken" | No empty state. A user with no clubs / no results / no notifications sees blank space with no explanation and no call to action. | M |
 

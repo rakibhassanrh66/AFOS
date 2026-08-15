@@ -727,3 +727,74 @@ batch 4; empty states, copy rewrite and responsive verification everywhere.
 `module_leader_screen.dart` (5), `join_requests_screen.dart` (5).
 
 ---
+
+## Phase 2 batch 9 — admin & review screens · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch9`. ~3,085 LOC across four files.
+
+| | raw radii | emoji | haptics |
+|---|---|---|---|
+| `manage_users_screen.dart` | 3 → **0** | 0 | 0 → **4** |
+| `module_leader_screen.dart` | **0 already** | 0 | 0 → **2** |
+| `join_requests_screen.dart` | **0 already** | 1 → **0** | 0 → **2** |
+| `feedback_screen.dart` (added) | 2 → **0** | 1 → **0** | 0 → **1** |
+
+App-wide: emoji **26 → 24**, haptic sites **72 → 81**. Data layer:
+`git diff --stat main` on `lib/features/*/data`, `lib/core/services`,
+`lib/shared/models` = **0 lines**.
+
+### This batch was mostly not a token migration
+
+`module_leader_screen.dart` (1,167 LOC) and `join_requests_screen.dart` (986)
+arrived with **zero** raw radii, durations or curves — they were already fully
+tokenised by earlier work. The declared batch had roughly three literals in it.
+So the useful work here was the review layer's missing commit feedback, and a
+correction to the audit.
+
+**Haptics on decisions that change someone else's life in the app.** These are
+the screens where an admin approves an account, grants or removes a role,
+deletes a user, admits fifty students at once, or a teacher accepts a course
+allocation. Every one of those had **no tactile confirmation at all** — the only
+signal was a snackbar and a list re-sorting under your thumb, which is exactly
+the case where an admin working through a queue loses track of whether the last
+tap registered. `success` for grants and approvals, `warning` for deletion,
+decline, and partial bulk failure.
+
+### CORRECTION — the audit's P1-02 group was diagnosed wrong
+
+Phase 0 listed four files as "State holds a controller but has **no `dispose()`
+at all**". Re-verified against the source, that is wrong in shape and partly
+wrong in fact:
+
+- **None of the four holds a State-level controller.** In every case it is a
+  *local* controller created inside a method that opens a dialog or sheet. A
+  `dispose()` override was never the fix, and its absence was never the defect.
+  The real leak is one controller per dialog **open**, repeatable many times in
+  a session.
+- `join_requests_screen.dart` and `grades_screen.dart` are **false positives** —
+  both already dispose correctly (a `finally` and an explicit call).
+- `room_availability_screen.dart` was real, fixed in batch 3.
+- `feedback_screen.dart` was real and the worst of the four: `_showSubmitSheet`
+  was `void`, never awaited the modal, and leaked **two** controllers per open.
+  Fixed here — hence its addition to this batch as a fourth file, which also
+  closes the group.
+
+**The lesson, recorded in `BUG_REGISTER.md`:** *"no `dispose()` override" is not
+evidence of a leak* — only a prompt to read the file. The heuristic both
+over-reported (2 false positives of 4) and under-reported: two further leaks of
+the identical local-controller shape turned up in files it never flagged
+(`lost_found_screen.dart` batch 3, `hall_screen.dart` batch 5). Four real leaks
+of this shape have now been found and fixed; the register found two of them.
+
+Also fixed: **P1-01 in `module_leader_screen.dart`** — `_respond` calls
+`setState` straight after an awaited reason dialog with no `mounted` guard.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all four files.
+
+**Progress: 25 of 62 screens migrated.**
+
+**Next:** Phase 2 batch 10 — `club_chat_screen.dart` (4), `manage_hall_screen.dart`
+(4), `sos_alert_detail_screen.dart` (2) / `manage_sos_screen.dart` (4). From here
+the remaining screens are mostly slop ≤ 5, so batches can widen to 4–5 files.
+
+---
