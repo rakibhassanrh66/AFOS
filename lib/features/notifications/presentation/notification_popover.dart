@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/services/unread_counter.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -106,6 +107,10 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
     setState(() {
       _notifs = [for (final n in _notifs) {...n, 'is_read': true}];
     });
+    // Tell the bell now, not after the round trip. This list already updates
+    // itself instantly; the badge six pixels away used to wait for a realtime
+    // event plus a fresh count, which is what made the tap feel ignored.
+    UnreadCounter.clear();
     try {
       await SupabaseConfig.client
           .from('user_notifications')
@@ -115,10 +120,14 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
 
   Future<void> _onTap(Map<String, dynamic> n) async {
     final id = n['id'] as String;
+    final wasUnread = !(n['is_read'] as bool? ?? false);
     setState(() {
       final idx = _notifs.indexWhere((e) => e['id'] == id);
       if (idx >= 0) _notifs[idx] = {..._notifs[idx], 'is_read': true};
     });
+    // Only if it was actually unread — re-tapping an already-read row must
+    // not drive the badge below the truth.
+    if (wasUnread) UnreadCounter.decrement();
     try {
       await SupabaseConfig.client
           .from('user_notifications')
