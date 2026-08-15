@@ -4,6 +4,9 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -219,9 +222,10 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                     'topic': topicCtrl.text.trim(),
                   });
                   _load();
+                  AppHaptics.success();
                   messenger.showSnackBar(queued
                     ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
-                    : const SnackBar(content: Text('Session requested ✓'), backgroundColor: AppColors.green));
+                    : const SnackBar(content: Text('Session requested'), backgroundColor: AppColors.green));
                 } catch (e) {
                   messenger.showSnackBar(
                     SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
@@ -249,7 +253,7 @@ class _MentorList extends StatelessWidget {
           final specs = (m['specializations'] as List?)?.cast<String>() ?? [];
           return Container(margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(2),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(width: 56, height: 56, decoration: BoxDecoration(
@@ -266,7 +270,7 @@ class _MentorList extends StatelessWidget {
                   const SizedBox(height: 8),
                   if (specs.isNotEmpty) Wrap(spacing: 6, runSpacing: 4, children: specs.map((s) =>
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha:0.1), borderRadius: AppDepth.radius(1)),
                           child: Text(s, style: const TextStyle(color: AppColors.blue, fontSize: 10)))).toList()),
                   const SizedBox(height: 12),
                   Row(children: [
@@ -282,11 +286,11 @@ class _MentorList extends StatelessWidget {
                     if (m['is_accepting_bookings'] as bool? ?? true)
                       GestureDetector(onTap: () => onBook(m),
                           child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                              decoration: BoxDecoration(color: AppColors.blue, borderRadius: BorderRadius.circular(20)),
+                              decoration: BoxDecoration(color: AppColors.blue, borderRadius: AppDepth.radius(2)),
                               child: const Text('Book →', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))),
                   ]),
                 ])),
-              ])).animate(delay: Duration(milliseconds: i * 70)).fadeIn().slideY(begin: 0.05);
+              ])).animate(delay: AppMotion.staggerFor(context, i)).fadeIn().slideY(begin: 0.05);
         });
   }
 }
@@ -313,11 +317,11 @@ class _SessionsTab extends StatelessWidget {
           final status = s['status'] as String? ?? 'pending';
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Row(children: [
                 Container(width: 44, height: 44, decoration: BoxDecoration(
-                    color: AppColors.blue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10),
+                    color: AppColors.blue.withValues(alpha:0.1), borderRadius: AppDepth.radius(1),
                     shape: BoxShape.rectangle),
                     child: const Icon(AppIcons.mentorship, color: AppColors.blue, size: 22)),
                 const SizedBox(width: 12),
@@ -326,7 +330,7 @@ class _SessionsTab extends StatelessWidget {
                   Text(s['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ])),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: _statusColor(status).withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: _statusColor(status).withValues(alpha:0.12), borderRadius: AppDepth.radius(1)),
                     child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                         style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
               ]));
@@ -390,7 +394,7 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
           final status = r['status'] as String? ?? 'pending';
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
@@ -398,7 +402,7 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
                       style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
                       maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
@@ -455,8 +459,9 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
       });
       widget.onSaved();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mentor profile saved ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Mentor profile saved'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -547,14 +552,14 @@ class _OversightTab extends StatelessWidget {
           final mentorId = b['mentor_id'] as String?;
           final status = b['status'] as String? ?? 'pending';
           return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Expanded(child: Text('${student['full_name'] ?? 'Student'} → ${mentorProfile['full_name'] ?? 'Mentor'}',
                       style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),

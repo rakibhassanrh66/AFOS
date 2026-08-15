@@ -7,7 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
@@ -238,7 +240,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
             ),
             filled: true, fillColor: AppColors.glassFill(context),
             contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
           ),
         ),
         const SizedBox(height: 8),
@@ -376,7 +378,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                     trailing: (!loading && liveCount > 0)
                         ? Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: AppDepth.radius(1)),
                             child: Column(mainAxisSize: MainAxisSize.min, children: [
                               Text('$liveCount', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                                   style: const TextStyle(color: Colors.white, fontSize: 20, height: 1.0, fontWeight: FontWeight.w800)),
@@ -442,7 +444,7 @@ class _LiveStatusBadge extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha:0.15), borderRadius: BorderRadius.circular(10),
+      decoration: BoxDecoration(color: color.withValues(alpha:0.15), borderRadius: AppDepth.radius(1),
           border: Border.all(color: color.withValues(alpha:0.4))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
@@ -471,7 +473,7 @@ class _ScheduleTypeBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
           color: color.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppDepth.radius(0),
           border: Border.all(color: color.withValues(alpha: 0.4))),
       child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
     );
@@ -745,7 +747,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
           decoration: BoxDecoration(
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                   colors: [AppColors.holoTeal, AppColors.holoBlue]),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: AppDepth.radius(1),
               boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
           child: Center(child: Text(m.routeNumber,
               textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
@@ -950,7 +952,7 @@ class _StopAnswerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: (known || isOrigin ? AppColors.holoTeal : AppColors.textSecondaryOf(context))
             .withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(
             color: (known || isOrigin ? AppColors.holoTeal : AppColors.borderOf(context))
                 .withValues(alpha: 0.25)),
@@ -988,7 +990,7 @@ class _TripChip extends StatelessWidget {
     final color = soon ? AppColors.amber : AppColors.holoTeal;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: AppDepth.radius(0)),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(soon ? 'Being updated' : (trip.time ?? '—'),
             style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
@@ -1250,8 +1252,33 @@ class _PulseDot extends StatefulWidget {
 }
 
 class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
+  // 1200ms is deliberately ABOVE the AppMotion ceiling, and that is correct.
+  // The 620ms cap governs TRANSITIONS — something moving from one state to
+  // another, where a long duration reads as lag. This is an ambient loop: a
+  // live-status dot breathing to say the data is current. A 620ms pulse would
+  // read as an alarm, not a heartbeat.
+  //
+  // What the cap and this DO share is reduced motion. A perpetually repeating
+  // animation is the single worst offender for someone who has asked the system
+  // to stop moving things, and this one repeated forever regardless. It now
+  // starts only when motion is allowed, and stops if the setting is turned on
+  // while the screen is open.
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = AppMotion.isReduced(context);
+    if (reduced && _c.isAnimating) {
+      // value 0 = the dot at its resting size, not mid-pulse.
+      _c.stop();
+      _c.value = 0;
+    } else if (!reduced && !_c.isAnimating) {
+      _c.repeat(reverse: true);
+    }
+  }
+
   @override void dispose() { _c.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1407,7 +1434,7 @@ class _TimePill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
         color: c.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(color: c.withValues(alpha: 0.32)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1449,7 +1476,7 @@ class _ScheduleCard extends StatelessWidget {
               color: textSecondary, fontWeight: FontWeight.w800, letterSpacing: 0.4))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), borderRadius: AppDepth.radius(2)),
             child: Text('${times.length}', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w800)),
           ),
         ]),
@@ -1680,7 +1707,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.amber.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppDepth.radius(1),
           border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
         ),
         child: Row(children: [
@@ -1802,7 +1829,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
             decoration: BoxDecoration(
                 gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                     colors: [accent.withValues(alpha: 0.9), accent.withValues(alpha: 0.6)]),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppDepth.radius(1),
                 boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
             child: Center(child: Text(r['route_number']??'?',
                 textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
@@ -2136,7 +2163,7 @@ class _MapTabState extends State<_MapTab> {
           top: _selectedStop == null ? 16 : 92,
           child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(10),
+          decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
               border: Border.all(color: AppColors.borderOf(context))),
           child: Text(_locationError!, style: TextStyle(fontSize: 12, color: AppColors.textSecondaryOf(context))))),
       // Locate button and info panel share ONE bottom-anchored column so they
@@ -2320,7 +2347,7 @@ class _MapInfoPanel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.borderOf(context)),
         boxShadow: [BoxShadow(
             color: Colors.black.withValues(alpha: 0.18), blurRadius: 18, offset: const Offset(0, 6))],
