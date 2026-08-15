@@ -2,6 +2,7 @@ import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import 'pressable.dart';
 
 /// One unified selectable chip replacing the ~10 hand-rolled `_Chip`,
 /// `_ThemeChip`, `_GenderChip`, `_TypeChip`, `_PeriodChip`, `_SelectedChip`,
@@ -113,7 +114,11 @@ class _GlassChipState extends State<GlassChip> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: widget.onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
-      child: GestureDetector(onTap: widget.onTap, child: chip),
+      // The chip already animates its SELECTED state; what it had no answer
+      // for was the press itself. `haptic: false` because selection chips are
+      // often tapped in quick succession while filtering, and a buzz per chip
+      // in a filter row is noise rather than confirmation.
+      child: Pressable(onTap: widget.onTap, haptic: false, child: chip),
     );
   }
 }
