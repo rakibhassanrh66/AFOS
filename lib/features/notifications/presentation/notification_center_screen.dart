@@ -176,7 +176,7 @@ class _NotifState extends State<NotificationCenterScreen> {
               ? const EmptyState(
                   icon: Icons.notifications_none_rounded,
                   title: 'No notifications',
-                  subtitle: 'You\'re all caught up!')
+                  subtitle: 'You\'re all caught up.')
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.blue,

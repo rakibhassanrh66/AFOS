@@ -204,7 +204,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
       await NotificationService.sendToUsers(
         userIds: [user['id'] as String],
         title: 'Account approved',
-        message: 'Your AFOS account has been approved — welcome!',
+        message: 'Your AFOS account is approved. You can sign in now.',
         category: 'general',
       );
       // Approving an account lets someone into the app. Irreversible in
