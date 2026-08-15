@@ -307,7 +307,7 @@ class _FormPane extends StatelessWidget {
               // device and there is nothing to scroll — until the keyboard opens
               // or the screen is genuinely too short, when it scrolls properly.
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, _vPad, 28, _vPad),
+                padding: const EdgeInsetsDirectional.fromSTEB(28, _vPad, 28, _vPad),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                       minHeight: (constraints.maxHeight - _vPad * 2).clamp(0.0, double.infinity)),

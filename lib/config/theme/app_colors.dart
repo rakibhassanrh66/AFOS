@@ -135,6 +135,19 @@ class AppColors {
   static const Color authGridDark = Color(0xFF1A2840);
   static const Color authGridLight = Color(0xFF0A1628);
 
+  // --- Splash -------------------------------------------------------------
+  // The one screen that paints before any theme applies, so its colours are
+  // absolute rather than theme-aware. They were raw hex in splash_screen.dart.
+
+  /// The white flash at the peak of the hand-off punch. Warm-tinted, not pure
+  /// white, so it reads as light rather than as a missing frame.
+  static const Color splashSheen = Color(0xFFEAFFF6);
+
+  /// Ambient corner glows behind the lockup — brand teal and brand blue, each
+  /// fading to fully transparent.
+  static const List<Color> splashGlowTeal = [Color(0x1A3ECF8E), Color(0x003ECF8E)];
+  static const List<Color> splashGlowBlue = [Color(0x1A5AB8FF), Color(0x005AB8FF)];
+
   /// The four chat-room canvases a user can pick in Settings → Chat Background.
   ///
   /// WHY THIS IS HERE. These four values previously existed as raw hex in TWO
@@ -200,6 +213,24 @@ class AppColors {
   /// theme about it.
   static Color onAccentOf(BuildContext context) =>
       Theme.of(context).colorScheme.onPrimary;
+
+  /// The dark ink used on a light-coloured surface.
+  ///
+  /// WHY THIS IS A TOKEN. `afos_button` and `glass_chip` each ran the same
+  /// luminance test (`> 0.45 ? dark : white`) to pick a foreground — and each
+  /// used a DIFFERENT dark: `#072A1C` in the button, `#0B1220` in the chip.
+  /// Two answers to one question, neither of them named. They are now one
+  /// value behind one helper.
+  static const Color inkOnLight = Color(0xFF072A1C);
+
+  /// Readable foreground for an ARBITRARY background colour.
+  ///
+  /// Distinct from [onAccentOf], which answers for the THEME's accent by
+  /// reading `colorScheme.onPrimary`. This one answers for a colour handed in
+  /// at the call site — a button tinted to its module's hue, a chip carrying a
+  /// status colour — where the theme has no opinion.
+  static Color foregroundOn(Color background) =>
+      background.computeLuminance() > 0.45 ? inkOnLight : Colors.white;
 
   /// Liquid glass fill — translucent white over the dark canvas; light mode
   /// needs a much stronger white so the frost reads against near-white.

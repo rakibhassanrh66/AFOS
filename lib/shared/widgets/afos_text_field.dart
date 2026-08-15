@@ -1,3 +1,5 @@
+import '../../config/theme/depth.dart';
+import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 
@@ -122,10 +124,10 @@ class _AfosTextFieldState extends State<AfosTextField> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
+        duration: AppMotion.tight,
+        curve: AppMotion.standard,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppDepth.radius(1),
           boxShadow: _focused ? [
             BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.22), blurRadius: 16, spreadRadius: -2),
           ] : null,
@@ -150,8 +152,8 @@ class _AfosTextFieldState extends State<AfosTextField> {
             hintText: widget.hint,
             prefixIcon: widget.prefixIcon != null
               ? AnimatedScale(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
+                  duration: AppMotion.tight,
+                  curve: AppMotion.standard,
                   scale: active ? 1.1 : 1.0,
                   child: Icon(widget.prefixIcon,
                       color: active ? AppColors.holoBlue : AppColors.textSecondaryOf(context), size: 20))

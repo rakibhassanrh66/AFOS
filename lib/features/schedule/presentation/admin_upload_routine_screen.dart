@@ -351,7 +351,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
                 'filename, override if wrong) and is parsed independently.',
             icon: Icons.upload_file_rounded,
             accent: AppColors.holoBlue,
-            margin: EdgeInsets.fromLTRB(0, 16, 0, 12),
+            margin: EdgeInsetsDirectional.fromSTEB(0, 16, 0, 12),
           ).animate()
               .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
               .slideY(begin: -0.06, curve: AppMotion.standard),
@@ -386,7 +386,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             // this account's own profile department regardless of anything
             // the client could send).
             Container(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + NavInsets.of(context)),
+              padding: EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10 + NavInsets.of(context)),
               decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context))),
               child: Row(children: [

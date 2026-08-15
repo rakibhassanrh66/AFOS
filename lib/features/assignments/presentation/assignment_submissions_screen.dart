@@ -103,7 +103,7 @@ class _AssignmentSubmissionsScreenState extends State<AssignmentSubmissionsScree
                   ]))
               : Column(children: [
                   Container(
-                    margin: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                    margin: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 8),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceOf(context),
@@ -259,7 +259,7 @@ class _SubmissionCardState extends State<_SubmissionCard> {
         ),
         if (_open)
           Padding(
-            padding: const EdgeInsets.fromLTRB(13, 0, 13, 13),
+            padding: const EdgeInsetsDirectional.fromSTEB(13, 0, 13, 13),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (content.trim().isNotEmpty) ...[
                 Container(

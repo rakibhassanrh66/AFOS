@@ -578,7 +578,7 @@ class _Greeting extends StatelessWidget {
         padding: const EdgeInsets.all(2),
         child: CircleAvatar(
           backgroundColor: AppColors.surfaceOf(context),
-          backgroundImage: (user?.avatarUrl?.isNotEmpty ?? false) ? CachedNetworkImageProvider(user!.avatarUrl!) : null,
+          backgroundImage: (user?.avatarUrl?.isNotEmpty ?? false) ? CachedNetworkImageProvider(user!.avatarUrl!, maxWidth: 128, maxHeight: 128) : null,
           child: (user?.avatarUrl?.isNotEmpty ?? false) ? null : Text(user?.initials ?? '?',
               style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w800)),
         ),
@@ -754,7 +754,7 @@ class _QuickChips extends StatelessWidget {
       return SizedBox(height: 44, child: ListView(
         scrollDirection: Axis.horizontal,
         children: List.generate(3, (i) =>
-            const Padding(padding: EdgeInsets.only(right: 8),
+            const Padding(padding: EdgeInsetsDirectional.only(end: 8),
                 child: ShimmerCard(width: 120, height: 36, radius: 22)))));
     }
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -762,7 +762,7 @@ class _QuickChips extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       children: chips
           .map((c) => Padding(
-                padding: const EdgeInsets.only(right: AppSpace.sm),
+                padding: const EdgeInsetsDirectional.only(end: AppSpace.sm),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpace.md, vertical: AppSpace.sm),
@@ -801,7 +801,7 @@ class _AdminPendingGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) {
       return SizedBox(height: 72, child: Row(children: List.generate(4, (i) =>
-          const Padding(padding: EdgeInsets.only(right: 10), child: ShimmerCard(width: 100, height: 72, radius: 14)))));
+          const Padding(padding: EdgeInsetsDirectional.only(end: 10), child: ShimmerCard(width: 100, height: 72, radius: 14)))));
     }
     return SizedBox(height: 72, child: ListView(
       scrollDirection: Axis.horizontal,
@@ -809,7 +809,7 @@ class _AdminPendingGrid extends StatelessWidget {
         final count = pending[e.key] ?? 0;
         final (label, icon, color, route) = e.value;
         final active = count > 0;
-        return Padding(padding: const EdgeInsets.only(right: 10), child: GestureDetector(
+        return Padding(padding: const EdgeInsetsDirectional.only(end: 10), child: GestureDetector(
           onTap: () => context.push(route),
           child: Container(
             width: 104,

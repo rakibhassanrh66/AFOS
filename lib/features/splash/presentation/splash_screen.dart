@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/auth/biometric_lock.dart';
 import '../../../core/utils/last_route.dart';
 
@@ -32,9 +33,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _particleCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
-    _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
-    _handCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat();
+    // Three ambient loops. The durations are correct — these are atmosphere,
+    // not transitions, so the 620ms ceiling does not govern them. They are
+    // started in _run() only when motion is allowed, rather than unconditionally
+    // here: perpetual animation is the single worst thing to inflict on someone
+    // who asked the system to stop moving things.
+    _particleCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 10));
+    _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    _handCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
     _introCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
     _revealCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
     _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
@@ -48,7 +54,31 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         opacity: rng.nextDouble() * 0.5 + 0.1,
       ));
     }
+    // Resolve where we are going STRAIGHT AWAY, in parallel with the arc below
+    // — not after it. Previously the session check, the biometric lookup and
+    // the last-route read all ran only once the ~1.85s of `Future.delayed` had
+    // finished, so their latency was ADDED to the splash rather than hidden by
+    // it. The doctrine's rule for this screen is "total blocking time = 0": the
+    // animation should be covering real work, and if the work outlasts the
+    // animation we should be waiting on the work, not on padding.
+    _destination = _resolveDestination();
     _run();
+  }
+
+  /// Where to go once the arc finishes. Started in [initState] and awaited at
+  /// the end of [_run], so it costs nothing unless it is slower than the
+  /// animation.
+  late final Future<String> _destination;
+
+  Future<String> _resolveDestination() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (!kIsWeb && await BiometricTokenStore.isEnabled()) {
+      // Biometric quick-login is set up on this device — gate behind the
+      // Unlock screen (the session is usually already auto-restored; Unlock
+      // recovers it from secure storage otherwise).
+      return '/auth/unlock';
+    }
+    return session == null ? '/auth/login' : (await loadLastRoute() ?? '/home');
   }
 
   Future<void> _run() async {
@@ -64,6 +94,21 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     // pop-in and wipe-reveal to read cleanly) without touching the animation
     // controllers' own durations, so the motion itself is unchanged, only
     // how long it's held on screen before handing off.
+    // REDUCED MOTION SKIPS THE WHOLE ARC, not just the exit. Only the exit
+    // animation used to be guarded, so a user who had asked the system to stop
+    // moving things still sat through 1.85s of choreography they could not
+    // turn off — on the very first screen of the app.
+    if (!mounted) return;
+    if (AppMotion.isReduced(context)) {
+      final target = await _destination;
+      if (!mounted) return;
+      context.go(target);
+      return;
+    }
+
+    _particleCtrl.repeat();
+    _glowCtrl.repeat(reverse: true);
+    _handCtrl.repeat();
     _introCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 450));
     if (!mounted) return;
@@ -75,21 +120,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
-    // Resolve the destination first, then zoom the splash out and hand off.
-    final session = Supabase.instance.client.auth.currentSession;
-    String target;
-    if (!kIsWeb && await BiometricTokenStore.isEnabled()) {
-      // Biometric quick-login is set up on this device — gate behind the
-      // Unlock screen (the session is usually already auto-restored; Unlock
-      // recovers it from secure storage otherwise).
-      target = '/auth/unlock';
-    } else {
-      target = session == null ? '/auth/login' : (await loadLastRoute() ?? '/home');
-    }
+    // Already in flight since initState — this awaits only whatever is LEFT of
+    // it, which on a warm start is nothing.
+    final target = await _destination;
     if (!mounted) return;
-    if (!MediaQuery.of(context).disableAnimations) {
-      await _exitCtrl.forward();
-    }
+    await _exitCtrl.forward();
     if (!mounted) return;
     context.go(target);
   }
@@ -225,7 +260,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   final f = (up - down).clamp(0.0, 1.0);
                   return Opacity(
                     opacity: (f * 0.7).clamp(0.0, 1.0),
-                    child: const ColoredBox(color: Color(0xFFEAFFF6)),
+                    child: const ColoredBox(color: AppColors.splashSheen),
                   );
                 },
               ),
@@ -275,10 +310,10 @@ class _AmbientWash extends StatelessWidget {
     child: Stack(fit: StackFit.expand, children: [
       DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
         center: Alignment(-0.8, -0.8), radius: 1.1,
-        colors: [Color(0x1A3ECF8E), Color(0x003ECF8E)]))),
+        colors: AppColors.splashGlowTeal))),
       DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
         center: Alignment(0.9, 0.9), radius: 1.2,
-        colors: [Color(0x1A5AB8FF), Color(0x005AB8FF)]))),
+        colors: AppColors.splashGlowBlue))),
     ]),
   );
 }

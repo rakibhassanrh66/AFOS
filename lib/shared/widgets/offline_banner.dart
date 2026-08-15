@@ -1,3 +1,4 @@
+import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../config/theme/app_colors.dart';
@@ -53,7 +54,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
         ),
         secondChild: const SizedBox.shrink(),
         crossFadeState: _offline ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-        duration: const Duration(milliseconds: 300),
+        duration: AppMotion.base,
       ),
       if (pendingCount > 0 || failedCount > 0)
         GestureDetector(
@@ -131,7 +132,7 @@ class _PendingActionsSheetState extends State<_PendingActionsSheet> {
                   final status = row['status'] as String? ?? 'pending';
                   final createdAt = DateTime.tryParse(row['createdAt'] as String? ?? '');
                   return Padding(
-                    padding: EdgeInsets.fromLTRB(0, 8, 0, 8 + NavInsets.of(context)),
+                    padding: EdgeInsetsDirectional.fromSTEB(0, 8, 0, 8 + NavInsets.of(context)),
                     child: Row(children: [
                       Icon(status == 'failed' ? Icons.error_outline_rounded : Icons.schedule_rounded,
                           color: status == 'failed' ? AppColors.red : AppColors.amber, size: 20),

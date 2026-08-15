@@ -245,7 +245,7 @@ class _AttendanceRow extends StatelessWidget {
           ),
         if (bonus > 0)
           Padding(
-            padding: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsetsDirectional.only(end: 6),
             child: Text('+$bonus',
                 style: AppTextStyles.labelSmall.copyWith(color: AppColors.gold)),
           ),

@@ -88,7 +88,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
+            padding: const EdgeInsetsDirectional.fromSTEB(28, 28, 28, 28),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: GlassCard(

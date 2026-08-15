@@ -78,7 +78,7 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
           icon: Icons.apartment_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.amber, AppColors.gold]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         AnimatedBuilder(
           animation: _tab,
@@ -149,7 +149,7 @@ class _MyApplicationTab extends StatelessWidget {
     final stepIndex = {'pending': 0, 'reviewing': 1, 'approved': 2, 'rejected': 2}[status] ?? 0;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Application Status', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
         const SizedBox(height: 20),
@@ -293,7 +293,7 @@ class _MyApplicationTab extends StatelessWidget {
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Request Cancellation', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
                 const SizedBox(height: 8),
@@ -453,7 +453,7 @@ class _ApplyTabState extends State<_ApplyTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)),
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -602,7 +602,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)),
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

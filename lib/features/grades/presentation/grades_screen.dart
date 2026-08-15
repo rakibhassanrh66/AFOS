@@ -248,7 +248,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
         ),
         if (open)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            padding: const EdgeInsetsDirectional.fromSTEB(14, 0, 14, 14),
             child: breakdown == null
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -567,7 +567,7 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
           gradient: const LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.blue, AppColors.indigo]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(
           child: _error != null

@@ -1054,3 +1054,189 @@ non-ASCII preserved · `git diff --stat main` on `lib/features/*/data`,
 (splash) can start. Item 5 needs a device.
 
 ---
+
+## Phase 2.5 + 3 — the shell, the splash, and RTL · 2026-08-15 · COMPLETE
+Branch `redesign/whole-sweep`. **85 files.** Three workstreams that each had to
+touch every file in the app, so they were done as one pass rather than three.
+
+### 1. The shell and shared widgets (carried-forward item 1)
+
+Phase 2 was scoped to `*_screen.dart` and therefore never reached the code
+**every screen renders**. `slide_menu.dart` finished Phase 2 as the highest-slop
+file in the repo (22). It, `top_app_bar.dart`, `glass_bottom_nav.dart`,
+`glass_card.dart`, `glass_chip.dart`, `glass_sheet.dart`, `afos_button.dart`,
+`afos_text_field.dart`, `info_card.dart`, `empty_state.dart`,
+`feature_header.dart`, `offline_banner.dart`, `shimmer_card.dart`,
+`supernova_loader.dart`, `radial_logout_menu.dart`,
+`account_switcher_sheet.dart`, `avatar_picker.dart` and `user_details_sheet.dart`
+are now on the token layer.
+
+**The best find here: two answers to one question.** `afos_button` and
+`glass_chip` each ran the *same* luminance test to pick a readable foreground
+over a caller-supplied colour — `background.computeLuminance() > 0.45 ? dark :
+white` — and each used a **different** dark: `#072A1C` in the button, `#0B1220`
+in the chip. Neither was named, so neither could be found by the other. They are
+now one token (`AppColors.inkOnLight`) behind one helper
+(`AppColors.foregroundOn`), which is deliberately distinct from `onAccentOf`:
+`onAccentOf` answers for the *theme's* accent by reading `colorScheme.onPrimary`,
+`foregroundOn` answers for a colour handed in at the call site, where the theme
+has no opinion.
+
+**`shimmer_card` swept forever under reduced motion.** A skeleton communicates
+"loading" by its *geometry*, so stilling the sweep loses nothing — and a
+perpetual highlight is exactly what a reduced-motion setting is for. `Shimmer`
+exposes no disable flag, so the supported way to still it is a period long
+enough that the delta is zero; it now takes `Duration(days: 1)` when motion is
+reduced. Recorded because it looks like a hack and is not.
+
+### 2. The splash (Phase 3)
+
+`splash_screen.dart` was held out of every Phase 2 batch because migrating it
+then meant writing it twice. Two real defects, neither cosmetic:
+
+- **Reduced motion only guarded the exit.** The three ambient loops (particles
+  10s, glow 3s, hand 1.6s) were started unconditionally in `initState`, and only
+  `_exitCtrl` checked `disableAnimations`. So a user who had asked the system to
+  stop moving things still sat through ~1.85s of choreography they could not
+  turn off — **on the first screen of the app**, before any setting of ours is
+  reachable. The loops now start inside `_run()` only when motion is allowed,
+  and reduced motion skips the entire arc and hands off immediately.
+- **The destination was resolved AFTER the animation, not during it.** The
+  session check, the biometric lookup and the last-route read all ran once the
+  `Future.delayed` chain had finished, so their latency was *added* to the
+  splash instead of hidden by it. `_destination` is now kicked off in
+  `initState` and awaited at the end of the arc, so on a warm start it costs
+  nothing and on a cold one we wait on the work rather than on padding. This is
+  a cold-start win that the performance budget cares about, found by reading the
+  screen rather than by profiling it — **it has not been measured on a device,
+  and the < 1800ms budget is still unverified.**
+
+Its three raw hex values became `AppColors.splashSheen` / `splashGlowTeal` /
+`splashGlowBlue` — absolute rather than theme-aware, because this screen paints
+before any theme applies, and that is now written down where the colours live.
+
+**Carried-forward item 4 is resolved.** `AppMotion.emphasis` (`easeOutBack`) now
+exists — the one curve that overshoots, reserved for a confirmation or an
+arrival. It was added because two independent places reached for a local
+`easeOutBack`/`elasticOut` to express "this arrived with force" (vr_id's verified
+stamp, which batch 10 flattened to `standard` and recorded as a real loss, and
+the splash choreography). Naming it makes the overshoot countable instead of
+improvised. It is explicitly **not** for press feedback: a control that springs
+past its resting size reads as unstable under the finger.
+
+### 3. RTL — P2-01, the largest single item in the register
+
+`EdgeInsetsDirectional` went from **0 → 239**. Every horizontally asymmetric
+padding and margin in `lib/` is now direction-aware:
+
+| | before | after |
+|---|---:|---:|
+| `EdgeInsetsDirectional` uses | 0 | **239** |
+| `EdgeInsets.only(left:/right:)` remaining | — | **0** |
+| `EdgeInsets.fromLTRB` remaining | — | **2** |
+
+Both survivors are horizontally **symmetric** (`NavInsets.screen`, which passes
+the same `h` on each side and whose callers demand a concrete `EdgeInsets`; and
+one `(48, 64, 48, 160)` in transport). A symmetric inset has no reading
+direction to respect, so converting them would be noise, not correctness — the
+reason is now a comment in `nav_insets.dart` so the next sweep does not
+"fix" it.
+
+Bengali is LTR, so none of this is visible today. It was done now because the
+doctrine requires it and because it is a cheap mechanical pass at 239 sites and
+an expensive archaeological one at 900.
+
+### 4. P1-01 is CLOSED — the last 5 sites
+
+The register listed 18 real `setState`-after-`await` sites. Batches 3–12 closed
+most of them; a fresh scan (matching `await …;` followed within 5 lines by
+`setState(` with no `mounted` in scope or in the preceding 500 chars) found
+**5 still open**, all confirmed by reading the code:
+
+| site | why it was reachable |
+|---|---|
+| `conference_room_screen.dart` `_pickDate` | the date picker is a route of its own |
+| `conference_room_screen.dart` `_pickTime` | same |
+| `conference_room_screen.dart` `_submit` | after the awaited insert |
+| `sos_floating_button.dart` `_toggleRecording` (**start** path) | batch 12 guarded the STOP path and left the START path |
+| `sos_alert_detail_screen.dart` `_playVoice` | after an awaited signed-URL round trip |
+
+The SOS one was the worst and is worth the note: the start path not only
+`setState`s on a possibly-dead State, it then **arms a 1-second periodic timer
+that does it again every second**. Its guard also stops the recorder on the way
+out, so a `dispose()` that landed mid-`start()` cannot leave the microphone hot.
+
+`settings_screen.dart:237` matches the scan and is a **false positive** —
+`_previewSound` contains no `setState`; the match runs off the end of the method
+into the next one. Do not "fix" it.
+
+### 5. Two more closures found while verifying
+
+- **P2-06 (image memory) is CLOSED.** All **6** `CachedNetworkImage` call sites
+  now pass `memCacheWidth` (128 for the menu avatar, 200 for profile avatars,
+  300 for book covers, 440 for lost-and-found photos). The register listed 4
+  files; there were 6 sites.
+- **The router's 404 was the last screen painting its own hex.** It hardcoded
+  `#0B1220` + `Colors.white70`, so in **light mode** a mistyped link handed the
+  user a black rectangle that looked nothing like the app. It now takes the
+  Scaffold's themed background and `AppColors.textSecondaryOf`, and its icon
+  takes `AppColors.red` instead of a near-miss `#D9576D`. That also removes one
+  more site from the unresolved `#0B1220` question below.
+
+### Numbers
+
+| metric | Phase 0 | end of Phase 2 | now |
+|---|---:|---:|---:|
+| `EdgeInsetsDirectional` (RTL) | **0** | 0 | **239** |
+| Hardcoded `Color(0x..)` outside theme | 21 | 9 | **2** |
+| Raw `Curves.` outside theme | — | 20 | **7** |
+| Raw `Duration(milliseconds:)` | 66 | 35 | **24** |
+| Reduced-motion references | 9 | 14 | **18** |
+| `AppMotion.durationOf` call sites | 0 | — | **95** |
+| `AppDepth.radius` call sites | 0 | 196 | **217** |
+| Emoji in UI copy | 52 | 0 | **0** |
+| `flutter analyze` | 0 issues | 0 issues | **0 issues** |
+| Tests | 282 | 302 | **302** |
+
+The 2 remaining "hex outside theme" are both **comments** quoting a value that
+was removed (`slide_menu.dart:147`) or explaining one that stays
+(`transport_screen.dart:1531`). There is no live raw colour left in `lib/`
+outside `lib/config/theme/`.
+
+Of the 24 remaining raw durations, **7 are the token file itself** (where the
+ladder is defined), 8 are the splash's hand-authored choreography, and the rest
+are the documented exception list from batch 12 — ambient loops, search
+debounces, and one realtime reconnect backoff. Same for the 7 raw curves: 6 are
+splash `Interval`s, 1 is a `CurvedAnimation` in the notification popover.
+
+**Verification:** `flutter analyze` **0 issues** · `flutter test` **302 passing**
+· `flutter build web` **succeeds** · **no BOM on any of the 85 touched files**,
+non-ASCII preserved (76 files still carry it) · `git diff --stat main` on
+`lib/features/*/data`, `lib/core/services`, `lib/shared/models` = **0 lines**,
+and on `supabase/`, `db/`, `android/`, `.env*` = **0 lines**. The frozen contract
+has held across the entire redesign, not just this phase.
+
+### Still open — the honest list
+
+1. **`#0B1220` (`AppColors.authDeep`) vs `canvasDark` `#0B1120`** — one hex digit
+   apart, almost certainly meant to be one colour. Still awaiting a decision.
+   Snapping them changes every signed-out screen and the chat 'midnight'
+   background. One consumer (the 404) was removed this phase.
+2. **The 56-site symmetric-vs-signature radius split** (batch 4) — untouched.
+3. **Empty states.** 34 of 62 screens use `EmptyState`; of the 28 that do not,
+   the register's own note exempts 7 (forms and static hubs with no data state).
+   The rest are real gaps.
+4. **Loading skeletons** (P1-03) — 47 of 62 screens reference a shimmer or
+   skeleton. Zero-layout-shift has never been *verified*, only asserted.
+5. **Copy rewrite and responsive verification at 320/400/768/1280.**
+6. **P2-04** — 33 screens query Supabase inline. Deliberately out of scope: the
+   contract is frozen, and this is an architecture phase, not a redesign one.
+7. **Everything runtime.** No device run, no profile trace, no APK size check.
+   The performance budget (cold start < 1800ms, raster/UI < 8ms, APK < 28 MB) is
+   **entirely unverified**, and the splash change above is the strongest reason
+   to go and measure it.
+
+**Next:** items 3–5 are one phase and need the app running. Item 7 is Phase 7
+and needs a device.
+
+---

@@ -111,7 +111,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
           icon: AppIcons.examSeat,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.orange, AppColors.amber]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
         Expanded(child: _loading
@@ -124,7 +124,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
                 : RefreshIndicator(
                     onRefresh: _load, color: AppColors.blue,
                     child: ListView.builder(
-                        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+                        padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
                         itemCount: sessions.length,
                         itemBuilder: (ctx, i) => _SessionCard(session: sessions[i], index: i)))),
       ]),

@@ -218,7 +218,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
     // is correct in both cases without needing to know which one it is in.
     return LayoutBuilder(builder: (context, constraints) {
       return Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, bottom: mq.viewInsets.bottom),
+        padding: EdgeInsetsDirectional.only(start: 20, end: 20, bottom: mq.viewInsets.bottom),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.72),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -374,7 +374,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                     icon: Icons.directions_bus_filled_rounded,
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.holoTeal, AppColors.holoBlue]),
-                    margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
                     trailing: (!loading && liveCount > 0)
                         ? Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -626,7 +626,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     final matches = _matches;
     // The stop whose times the user is really asking about.
     final focusStop = _from ?? _to;
-    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+    return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
       Text('Where are you, and where are you going?',
           style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 4),
@@ -1031,7 +1031,7 @@ class _StopDropdown extends StatelessWidget {
   // overlay that anchored badly and couldn't be searched.
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
       child: Row(children: [
         Container(width: 36, height: 36, alignment: Alignment.center,
             decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
@@ -1139,7 +1139,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'to_dsc_trips');
     final fromDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'from_dsc_trips');
-    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),children:[
+    return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),children:[
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
       if (_autoSuggested && selected != null) ...[
@@ -1149,7 +1149,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
       ],
       const SizedBox(height:12),
       Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
         decoration: BoxDecoration(color: AppColors.surfaceOf(context),
             borderRadius: LiquidGlass.signatureRadius(16),
             border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
@@ -1330,7 +1330,7 @@ class _DepartureHeroCard extends StatelessWidget {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
             colors: [accent.withValues(alpha: 0.16), accent.withValues(alpha: 0.04)],
@@ -1726,7 +1726,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
       // schedule doesn't get a redundant header.
       if (grouped.length > 1) {
         children.add(Padding(
-          padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(4, 6, 4, 8),
           child: Text('${type.label.toUpperCase()}${isTodaySection ? '  ·  TODAY' : ''}',
               style: AppTextStyles.labelSmall.copyWith(
                   letterSpacing: 1.5,
@@ -1759,7 +1759,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
       // route meant scrolling the whole list. Searches stop names too, because
       // riders know where they board, not the route's official title.
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
         child: TextField(
           controller: _searchCtrl,
           focusNode: widget.searchFocus,
@@ -1789,7 +1789,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ),
       ),
       Expanded(child: ListView(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+        padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
         children: children)),
     ]);
   }
@@ -1992,6 +1992,9 @@ class _MapTabState extends State<_MapTab> {
           // Asymmetric on purpose: the info panel and the locate button sit
           // over the bottom of the map, so a route fitted symmetrically puts
           // its last stops underneath them.
+          // EdgeInsets, not directional: this is a MAP CAMERA inset in screen
+          // space, not text layout — flutter_map takes a concrete EdgeInsets,
+          // and the horizontal values are equal regardless.
           padding: const EdgeInsets.fromLTRB(48, 64, 48, 160),
           maxZoom: 15,
         ));
@@ -2294,7 +2297,7 @@ class _StopCallout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 6, 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         borderRadius: LiquidGlass.signatureRadius(14),
@@ -2344,7 +2347,7 @@ class _MapInfoPanel extends StatelessWidget {
     final textSecondary = AppColors.textSecondaryOf(context);
     final hasRoute = routeLabel != null;
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         borderRadius: AppDepth.radius(2),

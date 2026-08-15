@@ -294,7 +294,7 @@ class _CourseMsgBubble extends StatelessWidget {
       children: [
         if (showName && !isMe)
           Padding(
-            padding: const EdgeInsets.only(bottom: 4, left: 4),
+            padding: const EdgeInsetsDirectional.only(bottom: 4, start: 4),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Text(name,
                   style: AppTextStyles.labelSmall
@@ -311,7 +311,7 @@ class _CourseMsgBubble extends StatelessWidget {
         bubble,
         if (time != null)
           Padding(
-            padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
+            padding: const EdgeInsetsDirectional.only(top: 3, start: 4, end: 4),
             child: Text(AppFormatters.time(time),
                 style: AppTextStyles.labelSmall
                     .copyWith(fontSize: 10, color: AppColors.textMutedOf(context))),
@@ -320,18 +320,18 @@ class _CourseMsgBubble extends StatelessWidget {
     );
 
     if (isMe) {
-      return Padding(padding: const EdgeInsets.only(bottom: 6, left: 60), child: column);
+      return Padding(padding: const EdgeInsetsDirectional.only(bottom: 6, start: 60), child: column);
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6, right: 60),
+      padding: const EdgeInsetsDirectional.only(bottom: 6, end: 60),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (showName)
           Padding(
-            padding: const EdgeInsets.only(right: 8, bottom: 20),
+            padding: const EdgeInsetsDirectional.only(end: 8, bottom: 20),
             child: CircleAvatar(
               radius: 14,
               backgroundColor: AppColors.blue.withValues(alpha: 0.15),
-              backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
+              backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl, maxWidth: 128, maxHeight: 128) : null,
               child: avatarUrl == null
                   ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                       style: const TextStyle(
@@ -366,7 +366,7 @@ class _InputBar extends StatelessWidget {
       // non-scrolling widget pinned to the bottom. It also collapses to 0 while
       // the keyboard is open, because the bar is behind the IME then, so the
       // composer still sits directly on the keyboard while typing.
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(12, 8, 12, 16 + NavInsets.of(context)),
       child: Row(children: [
         Expanded(
           child: TextField(

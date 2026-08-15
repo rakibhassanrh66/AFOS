@@ -95,7 +95,7 @@ class _AvatarPickerState extends State<AvatarPicker> {
                 border: Border.all(color: AppColors.blue.withValues(alpha: 0.4), width: 2),
                 color: AppColors.surfaceOf(context)),
             child: ClipOval(child: widget.avatarUrl != null
-                ? CachedNetworkImage(imageUrl: widget.avatarUrl!, fit: BoxFit.cover,
+                ? CachedNetworkImage(imageUrl: widget.avatarUrl!, fit: BoxFit.cover, memCacheWidth: 200,
                     errorWidget: (_, __, ___) => _initials(context))
                 : _initials(context)),
           ),

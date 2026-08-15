@@ -1,3 +1,4 @@
+import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
@@ -43,12 +44,12 @@ class _GlassChipState extends State<GlassChip> {
     // Foreground by luminance rather than a hardcoded white: several pickable
     // accents (amber, teal) are light enough that white on them is unreadable.
     final fg = selected
-        ? (accent.computeLuminance() > 0.45 ? const Color(0xFF0B1220) : Colors.white)
+        ? AppColors.foregroundOn(accent)
         : AppColors.textSecondaryOf(context);
 
     final chip = AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOutCubic,
+      duration: AppMotion.tight,
+      curve: AppMotion.standard,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
         gradient: selected

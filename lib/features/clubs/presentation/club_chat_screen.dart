@@ -243,26 +243,26 @@ class _ClubMsgBubble extends StatelessWidget {
     );
 
     final bubbleColumn = Column(crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
-      if (showAvatar && !isMe) Padding(padding: const EdgeInsets.only(bottom: 4, left: 4),
+      if (showAvatar && !isMe) Padding(padding: const EdgeInsetsDirectional.only(bottom: 4, start: 4),
           child: GestureDetector(
             onTap: () => showUserDetailsSheet(context, profile, designation: designation),
             child: Text(name, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
           )),
       bubble,
-      if (time != null) Padding(padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
+      if (time != null) Padding(padding: const EdgeInsetsDirectional.only(top: 3, start: 4, end: 4),
           child: Text(AppFormatters.time(time), style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context)))),
     ]);
 
-    if (isMe) return Padding(padding: const EdgeInsets.only(bottom: 6, left: 60), child: bubbleColumn);
+    if (isMe) return Padding(padding: const EdgeInsetsDirectional.only(bottom: 6, start: 60), child: bubbleColumn);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6, right: 60),
+      padding: const EdgeInsetsDirectional.only(bottom: 6, end: 60),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        if (showAvatar) Padding(padding: const EdgeInsets.only(right: 8, bottom: 20),
+        if (showAvatar) Padding(padding: const EdgeInsetsDirectional.only(end: 8, bottom: 20),
             child: GestureDetector(
               onTap: () => showUserDetailsSheet(context, profile, designation: designation),
               child: CircleAvatar(radius: 14, backgroundColor: AppColors.pink.withValues(alpha: 0.15),
-                backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
+                backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl, maxWidth: 128, maxHeight: 128) : null,
                 child: avatarUrl == null ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                     style: const TextStyle(color: AppColors.pink, fontSize: 11, fontWeight: FontWeight.w700)) : null),
             ))
@@ -281,7 +281,7 @@ class _ClubInputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surfaceOf(context),
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(12, 8, 12, 16 + NavInsets.of(context)),
       child: Row(children: [
         Expanded(child: TextField(
             controller: ctrl,

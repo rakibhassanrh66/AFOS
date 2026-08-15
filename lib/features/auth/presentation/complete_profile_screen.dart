@@ -334,7 +334,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       body: SafeArea(child: _loading
           ? const Center(child: SupernovaBusy(label: 'Loading your details'))
           : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
               child: GlassCard(
                 glowColor: AppColors.holoBlue,
                 child: Padding(
@@ -533,7 +533,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         lastCategory = o.category;
       }
       items.add(DropdownMenuItem(value: o,
-          child: Padding(padding: const EdgeInsets.only(left: 8),
+          child: Padding(padding: const EdgeInsetsDirectional.only(start: 8),
               child: Text(o.title, overflow: TextOverflow.ellipsis))));
     }
     return items;

@@ -34,7 +34,7 @@ Future<void> showNotificationPopover(BuildContext context) {
         child: Align(
           alignment: Alignment.topRight,
           child: Padding(
-            padding: const EdgeInsets.only(top: 64, right: 12),
+            padding: const EdgeInsetsDirectional.only(top: 64, end: 12),
             child: SizedBox(
               width: width,
               child: ConstrainedBox(
@@ -179,7 +179,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 8),
             child: Row(children: [
               Icon(AppIcons.notifications, size: 18, color: glass.accentSecondary),
               const SizedBox(width: 8),
@@ -244,7 +244,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                       )
                     : ListView.separated(
                         shrinkWrap: true,
-                        padding: EdgeInsets.fromLTRB(0, 4, 0, 4 + NavInsets.of(context)),
+                        padding: EdgeInsetsDirectional.fromSTEB(0, 4, 0, 4 + NavInsets.of(context)),
                         itemCount: _notifs.length,
                         separatorBuilder: (_, __) =>
                             Divider(height: 1, indent: 56, color: glass.glassBorder),
@@ -309,7 +309,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                                       Container(
                                           width: 7,
                                           height: 7,
-                                          margin: const EdgeInsets.only(top: 5, left: 6),
+                                          margin: const EdgeInsetsDirectional.only(top: 5, start: 6),
                                           decoration: BoxDecoration(
                                               color: glass.accentSecondary,
                                               shape: BoxShape.circle)),

@@ -48,7 +48,7 @@ class GlassSheet extends StatelessWidget {
   const GlassSheet({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.fromLTRB(20, 0, 20, 24),
+    this.padding = const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 24),
     this.liftForKeyboard = true,
   });
 
@@ -112,7 +112,7 @@ class GlassSheet extends StatelessWidget {
                     margin: const EdgeInsets.only(top: 10, bottom: 8),
                     decoration: BoxDecoration(
                       color: glass.glassBorder,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     ),
                   ),
                 ),
@@ -184,7 +184,7 @@ Future<T?> showGlassSheet<T>(
   BuildContext context, {
   required Widget child,
   bool isScrollControlled = true,
-  EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(20, 0, 20, 24),
+  EdgeInsetsGeometry padding = const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 24),
 }) =>
     _countedSheet(() => showModalBottomSheet<T>(
           context: context,

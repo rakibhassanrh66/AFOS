@@ -74,7 +74,7 @@ class _DeptChatState extends State<DeptChatScreen> {
           subtitle: _loading ? 'Loading…' : '${_channels.length} channel${_channels.length == 1 ? '' : 's'} available',
           icon: Icons.forum_rounded,
           gradient: AppColors.holoGradient,
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
         Expanded(child: _loading
@@ -84,7 +84,7 @@ class _DeptChatState extends State<DeptChatScreen> {
                 : _channels.isEmpty
                 ? _EmptyChannels(dept: _user?.department ?? '')
                 : ListView.builder(
-                    padding: EdgeInsets.fromLTRB(12, 0, 12, 12 + NavInsets.of(context)),
+                    padding: EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12 + NavInsets.of(context)),
                     itemCount: _channels.length,
                     itemBuilder: (ctx, i) => _ChannelTile(
                         channel: _channels[i], user: _user!, index: i))),
@@ -438,35 +438,35 @@ class _MsgBubble extends StatelessWidget {
     );
 
     final bubbleColumn = Column(crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
-      if (showAvatar && !isMe) Padding(padding: const EdgeInsets.only(bottom: 4, left: 4),
+      if (showAvatar && !isMe) Padding(padding: const EdgeInsetsDirectional.only(bottom: 4, start: 4),
           child: GestureDetector(
             onTap: () => showUserDetailsSheet(context, profile),
             child: Row(children: [
               Flexible(child: Text(anonymizedChatName(profile), maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
-              if (isFaculty) Container(margin: const EdgeInsets.only(left: 6),
+              if (isFaculty) Container(margin: const EdgeInsetsDirectional.only(start: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.15), borderRadius: AppDepth.radius(0)),
                   child: const Text('Faculty', style: TextStyle(color: AppColors.gold, fontSize: 9, fontWeight: FontWeight.w700))),
             ]),
           )),
       bubble,
-      if (time != null) Padding(padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
+      if (time != null) Padding(padding: const EdgeInsetsDirectional.only(top: 3, start: 4, end: 4),
           child: Text(AppFormatters.time(time), style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context)))),
     ]);
 
     if (isMe) {
-      return Padding(padding: const EdgeInsets.only(bottom: 6, left: 60), child: bubbleColumn);
+      return Padding(padding: const EdgeInsetsDirectional.only(bottom: 6, start: 60), child: bubbleColumn);
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6, right: 60),
+      padding: const EdgeInsetsDirectional.only(bottom: 6, end: 60),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        if (showAvatar) Padding(padding: const EdgeInsets.only(right: 8, bottom: 20),
+        if (showAvatar) Padding(padding: const EdgeInsetsDirectional.only(end: 8, bottom: 20),
             child: GestureDetector(
               onTap: () => showUserDetailsSheet(context, profile),
               child: CircleAvatar(radius: 14, backgroundColor: AppColors.blue.withValues(alpha:0.15),
-                backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
+                backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl, maxWidth: 128, maxHeight: 128) : null,
                 child: avatarUrl == null
                     ? Text(((profile['full_name'] as String?)?.isNotEmpty == true
                             ? (profile['full_name'] as String)[0] : '?').toUpperCase(),
@@ -489,7 +489,7 @@ class _InputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surfaceOf(context),
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(12, 8, 12, 16 + NavInsets.of(context)),
       child: Row(children: [
         Expanded(child: TextField(
             controller: ctrl,

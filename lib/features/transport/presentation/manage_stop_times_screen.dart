@@ -204,7 +204,7 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
                       'the time at their own stop. Leave a stop blank if you don\'t know it.',
                   icon: Icons.more_time_rounded,
                   accent: AppColors.holoTeal,
-                  margin: EdgeInsets.fromLTRB(0, 16, 0, 12),
+                  margin: EdgeInsetsDirectional.fromSTEB(0, 16, 0, 12),
                 ),
                 Text(widget.routeName, style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
                 const SizedBox(height: 10),
