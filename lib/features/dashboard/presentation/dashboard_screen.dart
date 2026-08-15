@@ -7,6 +7,10 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
@@ -243,17 +247,30 @@ class _DashboardState extends State<DashboardScreen> {
     if (mounted) setState(() => _statsLoading = false);
   }
 
-  List<String> get _quickChips {
-    final chips = <String>[];
+  /// Icon + label, not an emoji glued to the front of a string.
+  ///
+  /// These read '🏠 Room 402' and '📚 No books due soon'. Emoji in UI copy is
+  /// banned for three reasons that all applied here: it renders as a different
+  /// picture on every platform, it is announced literally by screen readers
+  /// ("house building book"), and it cannot take the theme's colour. A real
+  /// [Icon] is one glyph from the app's own icon set, tinted like everything
+  /// else, and invisible to a screen reader that already reads the label.
+  List<({IconData icon, String label})> get _quickChips {
+    final chips = <({IconData icon, String label})>[];
     // Schedule status now lives in the dedicated _ClassStatusCard below
     // (live now/next class, not just a same-day count) instead of a chip.
     if (_hallStatus == 'approved' && _hallApp?['assigned_room'] != null) {
-      chips.add('🏠 Room ${_hallApp!['assigned_room']}');
+      chips.add((icon: AppIcons.hall, label: 'Room ${_hallApp!['assigned_room']}'));
     } else if (_hallStatus != null) {
-      chips.add('🏠 Hall: ${_hallStatusLabel(_hallStatus!)}');
+      chips.add((icon: AppIcons.hall, label: 'Hall: ${_hallStatusLabel(_hallStatus!)}'));
     }
     if (_booksDueSoon != null) {
-      chips.add(_booksDueSoon! > 0 ? '📚 $_booksDueSoon book${_booksDueSoon == 1 ? '' : 's'} due soon' : '📚 No books due soon');
+      chips.add((
+        icon: AppIcons.library,
+        label: _booksDueSoon! > 0
+            ? '$_booksDueSoon book${_booksDueSoon == 1 ? '' : 's'} due soon'
+            : 'No books due soon',
+      ));
     }
     return chips;
   }
@@ -363,7 +380,7 @@ class _DashboardState extends State<DashboardScreen> {
     _Module('Mentorship',  AppIcons.mentorship,  AppColors.blueLight,'/mentorship','Book a session'),
     _Module('Exam Seats',  AppIcons.examSeat,    AppColors.orange, '/exam-seat', 'View seat plan'),
     _Module('Dept Chat',   AppIcons.deptChat,    AppColors.indigo, '/dept-chat', 'Department channel'),
-    _Module('VR-ID',       AppIcons.vrId,        AppColors.green,  '/vr-id',     'Active ✓'),
+    _Module('VR-ID',       AppIcons.vrId,        AppColors.green,  '/vr-id',     'Active'),
     _Module('Notices',     AppIcons.notices,     AppColors.red,    '/notifications','Latest notices'),
   ];
 
@@ -450,7 +467,7 @@ class _DashboardState extends State<DashboardScreen> {
                   decoration: InputDecoration(hintText: 'Search facilities (Hall, Transport, Library...)',
                       prefixIcon: const Icon(Icons.search_rounded),
                       filled: true, fillColor: AppColors.glassFill(context),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+                      border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
               const SizedBox(height: 12),
             ]),
           )),
@@ -576,7 +593,7 @@ class _Greeting extends StatelessWidget {
         Text(AppFormatters.fullDate(DateTime.now()),
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
       ])),
-    ]).animate().fadeIn(duration: const Duration(milliseconds: 500), curve: Curves.easeOutCubic);
+    ]).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard);
   }
 }
 
@@ -593,7 +610,7 @@ class _FeaturedCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: AppDepth.radius(2),
             gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                 colors: [module.color.withValues(alpha: 0.9), module.color.withValues(alpha: 0.6)]),
           ),
@@ -614,7 +631,7 @@ class _FeaturedCard extends StatelessWidget {
           ]),
         ),
       ),
-    ).animate().fadeIn(duration: const Duration(milliseconds: 400)).slideY(begin: 0.08, curve: Curves.easeOutCubic);
+    ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: 0.08, curve: AppMotion.standard);
   }
 }
 
@@ -670,7 +687,7 @@ class _ClassStatusCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: AppDepth.radius(2),
             color: AppColors.surfaceOf(context),
             border: Border.all(color: AppColors.borderOf(context)),
           ),
@@ -713,7 +730,7 @@ class _ClassStatusCard extends StatelessWidget {
           ]),
         ),
       ),
-    ).animate().fadeIn(duration: const Duration(milliseconds: 400)).slideY(begin: 0.08, curve: Curves.easeOutCubic);
+    ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: 0.08, curve: AppMotion.standard);
   }
 }
 
@@ -722,7 +739,7 @@ class _ClassStatusCard extends StatelessWidget {
 /// of role or actual data. Rendered empty (nothing) once loaded if a role
 /// has no scoped chip to show, rather than fabricating one.
 class _QuickChips extends StatelessWidget {
-  final List<String> chips; final bool loading;
+  final List<({IconData icon, String label})> chips; final bool loading;
   const _QuickChips({required this.chips, required this.loading});
 
   @override
@@ -744,10 +761,11 @@ class _QuickChips extends StatelessWidget {
     return SizedBox(height: 44, child: ListView(
       scrollDirection: Axis.horizontal,
       children: chips
-          .map((t) => Padding(
-                padding: const EdgeInsets.only(right: 8),
+          .map((c) => Padding(
+                padding: const EdgeInsets.only(right: AppSpace.sm),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.md, vertical: AppSpace.sm),
                   // A direct child of a horizontal ListView gets stretched
                   // to the full 44px cross-axis height by the sliver layout
                   // (unlike Row/Column, which center by default) -- without
@@ -756,10 +774,16 @@ class _QuickChips extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                       color: AppColors.glassFill(context),
-                      borderRadius: BorderRadius.circular(22),
+                      // Elevation 1 (a control), from the depth scale, instead
+                      // of a hand-picked 22.
+                      borderRadius: AppDepth.radius(1),
                       border: Border.all(color: AppColors.glassBorder(context), width: 0.5)),
-                  child: Text(t, style: TextStyle(
-                      color: AppColors.textPrimaryOf(context), fontSize: 12)))))
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(c.icon, size: 14, color: AppColors.textSecondaryOf(context)),
+                    AppSpace.gapSm,
+                    Text(c.label, style: TextStyle(
+                        color: AppColors.textPrimaryOf(context), fontSize: 12)),
+                  ]))))
           .toList()));
   }
 }
@@ -797,7 +821,7 @@ class _AdminPendingGrid extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
                 color: active ? color.withValues(alpha: 0.14) : AppColors.glassFill(context),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppDepth.radius(1),
                 border: Border.all(
                     color: active ? color.withValues(alpha: 0.4) : AppColors.glassBorder(context),
                     width: active ? 1 : 0.5)),
@@ -814,7 +838,7 @@ class _AdminPendingGrid extends StatelessWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
           ),
-        ).animate().fadeIn(duration: const Duration(milliseconds: 350))
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutCubic));
       }).toList(),
     ));
@@ -869,19 +893,29 @@ class _ModuleCardState extends State<_ModuleCard> {
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => context.push(m.route),
+        // Haptic on COMMIT, not on press-down. onTapDown also fires when the
+        // finger slides off to cancel, which would have the phone confirm a
+        // navigation that never happened.
+        onTap: () {
+          AppHaptics.selection();
+          context.push(m.route);
+        },
         onTapDown: (_) => setState(() => _pressed = true),
         onTapUp: (_) => setState(() => _pressed = false),
         onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedScale(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          scale: _pressed ? 0.97 : (_hover ? 1.02 : 1.0),
+          // Press feedback is the one thing that must land inside a single
+          // frame, so it takes the fastest rung. Read through durationOf, so a
+          // user with reduce-motion on gets the state change without the tween
+          // rather than getting nothing.
+          duration: AppMotion.durationOf(context, AppMotion.pressDuration),
+          curve: AppMotion.standard,
+          scale: _pressed ? AppMotion.pressScale : (_hover ? 1.02 : 1.0),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
+            duration: AppMotion.durationOf(context, AppMotion.tight),
+            curve: AppMotion.standard,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppDepth.radius(2),
               boxShadow: _hover ? [
                 BoxShadow(color: m.color.withValues(alpha: 0.28), blurRadius: 22, spreadRadius: -4, offset: const Offset(0, 8)),
               ] : null,
@@ -899,14 +933,14 @@ class _ModuleCardState extends State<_ModuleCard> {
           // size, on every platform (not just web).
           child: Stack(children: [
             Positioned(top: 0, right: 0, child: AnimatedSlide(
-                duration: const Duration(milliseconds: 180),
+                duration: AppMotion.durationOf(context, AppMotion.tight),
                 curve: Curves.easeOutCubic,
                 offset: _hover ? const Offset(0.12, -0.12) : Offset.zero,
                 child: Icon(Icons.arrow_outward_rounded, size: 15,
                     color: m.color.withValues(alpha: _hover ? 0.9 : 0.5)))),
             Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               AnimatedScale(
-                duration: const Duration(milliseconds: 180),
+                duration: AppMotion.durationOf(context, AppMotion.tight),
                 curve: Curves.easeOutCubic,
                 scale: _hover ? 1.08 : 1.0,
                 child: Container(
@@ -914,7 +948,7 @@ class _ModuleCardState extends State<_ModuleCard> {
                 decoration: BoxDecoration(
                     gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [m.color.withValues(alpha: 0.85), m.color.withValues(alpha: 0.55)]),
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: AppDepth.radius(1),
                     boxShadow: [BoxShadow(color: m.color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Icon(m.icon, color: Colors.white, size: 22)),
               ),
@@ -933,7 +967,7 @@ class _ModuleCardState extends State<_ModuleCard> {
           ),
         ),
       ),
-    ).animate(delay: Duration(milliseconds: widget.index * 60))
+    ).animate(delay: AppMotion.staggerFor(context, widget.index))
         .fadeIn(curve: Curves.easeOutCubic)
         .scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutCubic);
   }
@@ -968,7 +1002,7 @@ class _NoticeCard extends StatelessWidget {
               border: Border(left: BorderSide(color: c, width: 3))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(width: 34, height: 34,
-                decoration: BoxDecoration(color: c.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: c.withValues(alpha: 0.14), borderRadius: AppDepth.radius(0)),
                 child: Icon(_catIcon(cat), color: c, size: 17)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -990,7 +1024,7 @@ class _NoticeCard extends StatelessWidget {
           ]),
         ),
       ),
-    ).animate(delay: Duration(milliseconds: index * 100))
+    ).animate(delay: AppMotion.staggerFor(context, index))
         .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }

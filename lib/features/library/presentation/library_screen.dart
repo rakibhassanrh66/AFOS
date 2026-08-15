@@ -7,7 +7,10 @@ import '../../../core/utils/postgrest_filters.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -124,8 +127,12 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
       }).eq('id', borrowId);
       _load();
       if (mounted) {
+        // Commit haptic: the renewal is already written. Firing here rather
+        // than on the button press means the phone confirms what happened,
+        // not what was attempted.
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Book renewed for 7 days ✓'),
+          const SnackBar(content: Text('Book renewed for 7 days'),
               backgroundColor: AppColors.green));
       }
     } catch (e) {
@@ -165,7 +172,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
           trailing: (!_loading && _totalFine > 0)
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: AppDepth.radius(1)),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Text('৳${_totalFine.toStringAsFixed(0)}', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                         style: const TextStyle(color: Colors.white, fontSize: 18, height: 1.0, fontWeight: FontWeight.w800)),
@@ -231,7 +238,7 @@ class _BorrowedTab extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-                color: AppColors.red.withValues(alpha:0.1), borderRadius: BorderRadius.circular(12),
+                color: AppColors.red.withValues(alpha:0.1), borderRadius: AppDepth.radius(1),
                 border: Border.all(color: AppColors.red.withValues(alpha:0.3))),
             child: Row(children: [
               const Icon(Icons.warning_amber_rounded, color: AppColors.red),
@@ -277,7 +284,7 @@ class _BookCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+            color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
             border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -285,7 +292,7 @@ class _BookCard extends StatelessWidget {
                 decoration: BoxDecoration(
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.blue, AppColors.indigo]),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: AppDepth.radius(0),
                     boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
                 child: const Icon(Icons.book_rounded, color: Colors.white, size: 28)),
             const SizedBox(width: 12),
@@ -334,7 +341,7 @@ class _BookCard extends StatelessWidget {
           ]),
         ]),
       ),
-    ).animate(delay: Duration(milliseconds: index * 80))
+    ).animate(delay: AppMotion.staggerFor(context, index))
         .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
   }
 }
@@ -367,11 +374,11 @@ class _SearchTab extends StatelessWidget {
                 ? IconButton(icon: Icon(Icons.clear, size: 18, color: textSecondary),
                     onPressed: () { ctrl.clear(); onSearch(''); }) : null,
             filled: true, fillColor: AppColors.glassFill(context),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                 borderSide: BorderSide(color: AppColors.glassBorder(context), width: 0.5)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            enabledBorder: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                 borderSide: BorderSide(color: AppColors.glassBorder(context), width: 0.5)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            focusedBorder: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                 borderSide: const BorderSide(color: AppColors.blue, width: 1))),
       )),
       if (searching) LinearProgressIndicator(
@@ -400,20 +407,20 @@ class _SearchTab extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppDepth.radius(1),
           onTap: () => _showBookDetail(ctx, b),
           child: Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: AppColors.surfaceOf(ctx),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppDepth.radius(1),
                 border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
             child: Row(children: [
               Container(width: 44, height: 60,
                   decoration: BoxDecoration(
                       gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                           colors: [AppColors.blue, AppColors.indigo]),
-                      borderRadius: BorderRadius.circular(9),
+                      borderRadius: AppDepth.radius(0),
                       boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
                   child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
               const SizedBox(width: 12),
@@ -425,7 +432,7 @@ class _SearchTab extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                       color: (avail ? AppColors.green : AppColors.red).withValues(alpha:0.12),
-                      borderRadius: BorderRadius.circular(10)),
+                      borderRadius: AppDepth.radius(0)),
                   child: Text(avail ? 'Available' : 'Checked Out',
                       style: TextStyle(color: avail ? AppColors.green : AppColors.red,
                           fontSize: 10, fontWeight: FontWeight.w600)),
@@ -460,9 +467,9 @@ class _SearchTab extends StatelessWidget {
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 64, height: 88,
                       decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10)),
+                          borderRadius: AppDepth.radius(0)),
                       child: (book['cover_url'] as String?)?.isNotEmpty == true
-                          ? ClipRRect(borderRadius: BorderRadius.circular(10),
+                          ? ClipRRect(borderRadius: AppDepth.radius(0),
                               child: CachedNetworkImage(imageUrl: book['cover_url'] as String, fit: BoxFit.cover,
                                   errorWidget: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)))
                           : const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)),
@@ -474,7 +481,7 @@ class _SearchTab extends StatelessWidget {
                     const SizedBox(height: 8),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: (avail ? AppColors.green : AppColors.red).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10)),
+                            borderRadius: AppDepth.radius(0)),
                         child: Text(avail ? 'Available' : 'Checked Out',
                             style: TextStyle(color: avail ? AppColors.green : AppColors.red, fontSize: 11, fontWeight: FontWeight.w700))),
                   ])),

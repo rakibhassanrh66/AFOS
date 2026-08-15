@@ -107,9 +107,70 @@ The feature list is what carries the rule and what all three numeric styles
 reference; bundling the font as an asset would let the styles themselves be
 tested, and is worth doing.
 
-**Next:** Phase 2 batch 1 — migrate 3 screens. Suggested first batch, chosen as
-the highest slop-per-screen from `UI_INVENTORY.md`:
-`dashboard_screen.dart` (slop 24), `library_screen.dart` (19),
-`clubs_screen.dart` (15). Fresh session, branch `redesign/p2-batch1`.
+**Next:** Phase 2 batch 1.
+
+---
+
+## Phase 2 batch 1 — dashboard / library / clubs · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch1`. ~2,350 LOC across the three highest-slop screens.
+
+**Per screen: before → after**
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `dashboard_screen.dart` | 10 → **0** | 11 → 3 | 4 → 1* | 0 → **1** |
+| `library_screen.dart` | 1 → **0** | 15 → 1 | 1 → **0** | 0 → **1** |
+| `clubs_screen.dart` | 1 → **0** | 13 → **0** | 7 → **0** | 0 → **3** |
+
+\* the remaining dashboard "emoji" is a code comment quoting the strings that
+were removed, not UI copy.
+
+**SLOP_REPORT entries closed:** every raw `Duration(milliseconds:)` in these
+three screens (12 of the app's 66), 35 of 39 raw radii, and 10 of the app's 52
+emoji (52 → 42 app-wide).
+
+**What actually changed, beyond find-and-replace**
+
+- **Emoji became real icons, not deleted glyphs.** The dashboard quick-chips
+  read `'🏠 Room 402'` and `'📚 No books due soon'` — a picture glued to the
+  front of a string. Emoji renders differently on every platform, is announced
+  literally by screen readers ("house building book"), and cannot take the
+  theme's colour. `_quickChips` now returns `({IconData icon, String label})`
+  and the chip renders a real `Icon` from the app's own set.
+- **Staggers are capped.** Three lists animated on `index * 60`, `index * 80`,
+  `index * 100` with no ceiling — a 40-row list meant the last row appeared
+  ~4s after the first, which reads as the app being slow. All now use
+  `AppMotion.staggerFor`, capped at 6 items and reduced-motion aware.
+- **Every duration reads through `AppMotion.durationOf(context, …)`**, so
+  reduce-motion now actually suppresses these screens' animation instead of
+  being ignored.
+- **The module tile got the full press treatment** — `AppMotion.pressDuration`
+  (90ms, inside one frame), `AppMotion.pressScale`, and a haptic on `onTap`
+  rather than `onTapDown`, because `onTapDown` also fires when the finger
+  slides off to cancel.
+- **Haptics fire on commit**, placed next to the write's success path (after
+  the renewal lands, after the membership request is accepted), not on the
+  button press.
+
+**Deliberately left alone**
+- 4 raw radii remain: two parameterised (`BorderRadius.circular(borderRadius)`,
+  already driven by the caller) and two 4px hairline bars, where the depth
+  scale's 8px would read as a lozenge.
+- No copy rewrite beyond emoji removal, and no state-coverage work: the
+  dashboard still lacks an empty state. Those were in the Phase 2 prompt and
+  are **not** done — see below.
+
+**Verification:** analyze 0 issues · 302 tests passing · web build succeeds ·
+`git diff --stat main` on `lib/features/*/data`, `lib/core/services` and
+`lib/shared/models` is **empty** — the data layer was not touched.
+
+**Honest gap.** The Phase 2 prompt asks for four states per screen, a full copy
+rewrite, and responsive verification at 320/400/768/1280. This batch did the
+token migration and the interaction rules; it did **not** add missing empty
+states or verify responsive behaviour, because that needs the app running on a
+device and I cannot see it. Those remain open for these three screens.
+
+**Next:** Phase 2 batch 2 — `transport_screen.dart` (slop 20, 2357 LOC),
+`schedule_screen.dart` (14), `mentorship_screen.dart` (13).
 
 ---
