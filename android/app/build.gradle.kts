@@ -144,6 +144,16 @@ android {
 // Pinning every output to the plain versionCode makes the split and the
 // universal interchangeable: either installs over the other, and the in-app
 // updater works regardless of which one a user started from.
+// THE BUILD NUMBER STARTS AT 5000 ON PURPOSE — see pubspec.yaml.
+//
+// Releases 2.8.3 and 2.8.4 shipped splits carrying the multiplied codes, the
+// largest being x86_64 at 4 * 1000 + 69 = 4069. Anyone who took one of those
+// smaller downloads is sitting on a versionCode in the thousands, so a
+// corrected build numbered 69 is a DOWNGRADE and Android refuses it — the fix
+// for the update button would itself be uninstallable by exactly the people who
+// need it. Numbering from 5000 clears every code that was ever published, so
+// those users update in place and nobody has to uninstall anything.
+//
 // Uses the SAME legacy API Flutter's plugin uses to apply the multiplier, and
 // runs after it. `androidComponents.onVariants` looks like the modern answer
 // and does nothing here: Flutter sets `versionCodeOverride` on the legacy
