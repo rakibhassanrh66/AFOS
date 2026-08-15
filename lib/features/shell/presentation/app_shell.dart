@@ -16,6 +16,7 @@ import '../../../shared/widgets/liquid_backdrop.dart';
 import '../../../shared/widgets/offline_banner.dart';
 import '../../sos/presentation/sos_floating_button.dart';
 import '../bloc/shell_bloc.dart';
+import 'command_palette.dart';
 import 'slide_menu.dart';
 
 /// The 4 quick-access destinations shown in the floating bottom nav (mobile/
@@ -133,7 +134,22 @@ class _ShellBody extends StatelessWidget {
     // is specifically about a mouse-and-keyboard browser window, not
     // "wide screen" in general.
     final isDesktop = kIsWeb && Responsive.isExpanded(context);
-    final content = OfflineBanner(child: AdaptiveContentWidth(child: child));
+    Widget content = OfflineBanner(child: AdaptiveContentWidth(child: child));
+
+    // Ctrl/Cmd+K anywhere in the authenticated shell.
+    //
+    // `kIsWeb` is a compile-time constant, so this whole branch — and with it
+    // CommandPalette and everything it references — is eliminated from the
+    // Android AOT build. Phase 6's rule is that web features must not grow the
+    // APK, and this is the mechanism that makes that true rather than hoped
+    // for. Verified by measuring the APK before and after, not by assertion.
+    //
+    // Wrapped around the CONTENT rather than the whole shell so the shortcut
+    // is live wherever focus is, including inside a routed screen's own
+    // Shortcuts scope, which would otherwise swallow the key first.
+    if (kIsWeb) {
+      content = _PaletteShortcut(child: content);
+    }
     // On a desktop-width browser window, the hide/show drawer pattern
     // (a slide-in panel over a dimmed scrim, meant for a hand reaching
     // across a phone screen) doesn't make sense with a mouse and a
@@ -359,4 +375,49 @@ class _ShellBody extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Binds Ctrl/Cmd+K to the command palette for everything beneath it.
+///
+/// WEB ONLY — mounted behind `kIsWeb` in [_ShellBody.build], so the Android AOT
+/// build drops it and the APK never carries a palette nobody on a phone can
+/// open.
+///
+/// Both Control and Meta are bound rather than detecting the platform: a web
+/// app is opened from Windows, macOS and Linux by the same build, and a user
+/// who reaches for the wrong modifier should still get the palette rather than
+/// learn that this app is the one that disagrees.
+class _PaletteShortcut extends StatelessWidget {
+  final Widget child;
+  const _PaletteShortcut({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Shortcuts(
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.keyK, control: true): _OpenPaletteIntent(),
+          SingleActivator(LogicalKeyboardKey.keyK, meta: true): _OpenPaletteIntent(),
+        },
+        child: Actions(
+          actions: {
+            _OpenPaletteIntent: CallbackAction<_OpenPaletteIntent>(
+              onInvoke: (_) {
+                // Guard against stacking: Ctrl+K with the palette already open
+                // must not push a second one behind the first.
+                if (ModalRoute.of(context)?.isCurrent ?? true) {
+                  CommandPalette.show(context);
+                }
+                return null;
+              },
+            ),
+          },
+          // Focus so the shortcut is live without the user first clicking
+          // something. `skipTraversal` keeps it out of the Tab order — it is a
+          // listener, not a stop on the way through the page.
+          child: Focus(autofocus: true, skipTraversal: true, child: child),
+        ),
+      );
+}
+
+class _OpenPaletteIntent extends Intent {
+  const _OpenPaletteIntent();
 }

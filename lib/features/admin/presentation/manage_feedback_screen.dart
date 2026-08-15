@@ -124,7 +124,7 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
           icon: Icons.feedback_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.holoviolet, AppColors.indigo]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         // Was a horizontal ListView — always left-anchored, so 4 short chips
         // sat bunched at the left edge with empty space to the right instead
@@ -149,7 +149,7 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                 : _visible.isEmpty
                     ? ListView(children: [EmptyState(icon: Icons.feedback_outlined, title: 'Nothing here', subtitle: 'Nothing in "$_filter" right now')])
                     : RefreshIndicator(onRefresh: _load, color: AppColors.holoviolet,
-                        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
+                        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final item = _visible[i];
                           final profile = item['profiles'] as Map<String, dynamic>? ?? {};

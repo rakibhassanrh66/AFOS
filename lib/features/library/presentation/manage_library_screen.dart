@@ -84,7 +84,7 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
           icon: Icons.local_library_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.purple, AppColors.indigo]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         AnimatedBuilder(
           animation: _tab,
@@ -106,7 +106,7 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
                   ? ErrorView(message: _error!, onRetry: _load)
                   : _activeBorrows.isEmpty
                       ? const EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
-                      : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _activeBorrows.length,
+                      : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _activeBorrows.length,
                           // Guarded by the _activeBorrows.isEmpty ternary above, so .first is safe.
                           prototypeItem: _buildBorrowRow(context, _activeBorrows.first),
                           itemBuilder: (ctx, i) => _buildBorrowRow(ctx, _activeBorrows[i])),
@@ -218,7 +218,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Student', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
         const SizedBox(height: 8),

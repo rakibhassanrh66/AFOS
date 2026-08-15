@@ -14,7 +14,6 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
-import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/spacing.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/outbox_service.dart';
@@ -29,6 +28,7 @@ import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import 'update_sheet.dart';
 
 import '../../../core/layout/nav_insets.dart';
 class SettingsScreen extends StatefulWidget {
@@ -59,8 +59,6 @@ class _SettingsState extends State<SettingsScreen> {
 
   AppUpdateInfo? _availableUpdate;
   bool _checkingUpdate = false;
-  bool _downloadingUpdate = false;
-  double _downloadProgress = 0;
 
   // Was its own independent, fully-saturated set (not even the same hex
   // values as AppColors' now-recalibrated palette) -- referencing the
@@ -107,37 +105,29 @@ class _SettingsState extends State<SettingsScreen> {
     if (update == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("You're on the latest version"), backgroundColor: AppColors.green));
+      return;
     }
+    // Found one — open the sheet straight away rather than making the user
+    // hunt for the banner that just appeared further up the page. They asked
+    // the question; this is the answer.
+    await _openUpdateSheet();
   }
 
-  Future<void> _downloadAndInstallUpdate() async {
+  /// Opens the update sheet.
+  ///
+  /// The download used to run from this screen with a percentage on the tile,
+  /// and then Android's installer appeared with no explanation. Sideloading
+  /// already asks a lot of trust — an unknown-sources prompt, a Play Protect
+  /// warning, a permission screen — and the app going quiet in the middle of
+  /// that is what makes people abandon the install. The sheet narrates it:
+  /// what version, what changed, verified, and that Android is about to ask.
+  Future<void> _openUpdateSheet() async {
     final update = _availableUpdate;
-    if (update == null || _downloadingUpdate) return;
-    setState(() { _downloadingUpdate = true; _downloadProgress = 0; });
-    try {
-      await AppUpdateService.downloadAndInstall(update,
-          onProgress: (p) { if (mounted) setState(() => _downloadProgress = p); });
-      // Leaves _availableUpdate set even after a successful download: the
-      // installer Intent just opened, the user hasn't actually installed yet
-      // (they still tap through Android's own confirmation), so the banner
-      // staying up until the app is actually relaunched on the new build is
-      // correct, not stale.
-    } catch (e) {
-      if (mounted) {
-        // Not "Download failed:" any more — downloadAndInstall now also reports
-        // a refusal by Android's installer (most often "Install unknown apps"
-        // not granted to AFOS), and prefixing that with "Download failed" sent
-        // the user to check their connection over a permission problem. The
-        // messages it raises are already written for the user.
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(friendlyError(e)),
-          backgroundColor: AppColors.red,
-          duration: const Duration(seconds: 8),
-        ));
-      }
-    }
-    if (mounted) setState(() => _downloadingUpdate = false);
+    if (update == null) return;
+    AppHaptics.selection();
+    await showUpdateSheet(context, update);
   }
+
 
   Future<void> _loadBiometric() async {
     final supported = await BiometricAuth.canUse();
@@ -399,7 +389,7 @@ class _SettingsState extends State<SettingsScreen> {
       appBar: const AfosAppBar(title: 'Settings'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
-          : ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+          : ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
 
               // Profile identity now lives on its own /profile screen (bottom
               // nav) so it isn't shown in two places — Settings keeps only
@@ -541,6 +531,41 @@ class _SettingsState extends State<SettingsScreen> {
                 ])),
               ]),
 
+              const SizedBox(height: 16),
+
+              // ── Feedback ─────────────────────────────────────────────────
+              // The doctrine requires every haptic to sit behind a user
+              // setting. `AppHaptics.enabled` has existed since Phase 1 and
+              // nothing could change it — 92 call sites answering to a switch
+              // that was not on any screen. This is that switch.
+              _Section(title: 'Feedback', children: [
+                Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                  const Icon(Icons.vibration_rounded, color: AppColors.holoTeal, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Haptic feedback', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                    const SizedBox(height: 4),
+                    Text('A short vibration when an action commits — a choice landing, something saved, something refused.',
+                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+                  ])),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: AppHaptics.enabled,
+                    builder: (_, on, __) => Switch(
+                      value: on,
+                      activeThumbColor: AppColors.holoTeal,
+                      onChanged: (v) {
+                        AppHaptics.setEnabled(v);
+                        // Fire one AFTER enabling, so turning it on
+                        // demonstrates what it does. Turning it off is
+                        // deliberately silent — a buzz confirming "no more
+                        // buzzing" is the joke nobody wants.
+                        if (v) AppHaptics.selection();
+                      },
+                    ),
+                  ),
+                ])),
+              ]),
+
               if (_biometricSupported) ...[
                 const SizedBox(height: 16),
                 // ── Security ────────────────────────────────────────────────
@@ -584,9 +609,7 @@ class _SettingsState extends State<SettingsScreen> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _UpdateBanner(
                     update: _availableUpdate!,
-                    downloading: _downloadingUpdate,
-                    progress: _downloadProgress,
-                    onInstall: _downloadAndInstallUpdate,
+                    onInstall: _openUpdateSheet,
                   ),
                 ),
               _Section(title: 'App Info', children: [
@@ -653,7 +676,7 @@ class _SettingsState extends State<SettingsScreen> {
     final oldCtrl = TextEditingController(), newCtrl = TextEditingController();
     showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Change Password', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 20),
@@ -688,7 +711,7 @@ class _SettingsState extends State<SettingsScreen> {
     bool saving = false;
     showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Feedback & Contribution Ideas', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 6),
@@ -756,7 +779,7 @@ class _Section extends StatelessWidget {
   const _Section({required this.title, required this.children});
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
+    Padding(padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
         child: Text(title.toUpperCase(),
             style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1.5, color: AppColors.textSecondaryOf(context)))),
     Container(decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
@@ -811,13 +834,8 @@ class _ActionTile extends StatelessWidget {
 /// for opportunistic cleanup rather than deleted immediately after).
 class _UpdateBanner extends StatelessWidget {
   final AppUpdateInfo update;
-  final bool downloading;
-  final double progress;
   final VoidCallback onInstall;
-  const _UpdateBanner({
-    required this.update, required this.downloading,
-    required this.progress, required this.onInstall,
-  });
+  const _UpdateBanner({required this.update, required this.onInstall});
 
   @override
   Widget build(BuildContext context) {
@@ -849,23 +867,12 @@ class _UpdateBanner extends StatelessWidget {
             ),
         ],
         const SizedBox(height: 12),
-        if (downloading) ...[
-          ClipRRect(
-            // A 6px bar: the pill rung is the only radius that reads as
-            // deliberate at this height.
-            borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
-            child: LinearProgressIndicator(
-                value: progress > 0 ? progress : null,
-                backgroundColor: AppColors.teal.withValues(alpha: 0.15),
-                color: AppColors.teal, minHeight: 6),
-          ),
-          const SizedBox(height: 6),
-          Text(progress > 0 ? '${(progress * 100).toInt()}%' : 'Starting download…',
-              style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-        ] else
-          SizedBox(width: double.infinity, child: AfosButton(
-              label: 'Download & Install', icon: Icons.download_rounded,
-              color: AppColors.teal, onTap: onInstall)),
+        // No progress bar here any more. The download reports its stages in
+        // the update sheet, which can explain them; a bar on a banner behind a
+        // sheet would be the same fact in two places, drifting.
+        SizedBox(width: double.infinity, child: AfosButton(
+            label: 'Download & Install', icon: Icons.download_rounded,
+            color: AppColors.teal, onTap: onInstall)),
       ]),
     );
   }

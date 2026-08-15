@@ -302,7 +302,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                           final merged = mergeAdjacentSlots(_searchResults);
                           final existingMerged = mergeAdjacentSlots(_allMySlots);
                           return ListView.builder(
-                            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                            padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
                             itemCount: merged.length,
                             itemBuilder: (ctx, i) {
                               final s = merged[i];
@@ -360,7 +360,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                           icon: AppIcons.schedule,
                           title: 'No classes ${_days[_day]}',
                           subtitle: _isFacultyRole
-                              ? 'Enjoy your free day!'
+                              ? 'Nothing is scheduled for you today.'
                               : 'Retake classes are not listed automatically — '
                                 'search the course code to add one to your routine.',
                           actionLabel: _isFacultyRole ? null : 'Find a retake class',
@@ -380,12 +380,12 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                       final displaySlots = mergeAdjacentSlots(slots);
                       return Column(children: [
                         if (_isFacultyRole) Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 0),
                           child: Text('${displaySlots.length} class${displaySlots.length == 1 ? '' : 'es'} on ${_days[_day]}',
                               style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w600))),
                         Expanded(child: ListView.builder(
-                          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                          padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
                           itemCount:displaySlots.length,
                           itemBuilder:(ctx,i)=>_ClassCard(slot:displaySlots[i],index:i,teacherDirectory:_teacherDirectory,
                             isTeacher:_isFacultyRole, repo:_repo,
@@ -434,7 +434,7 @@ class _ExamRoutineTabState extends State<_ExamRoutineTab> {
         title: 'No exam routine yet', subtitle: 'Mid/final term exams will appear here once published');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _exams.length + 2,
+        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _exams.length + 2,
             itemBuilder: (ctx, i) {
               if (i == 0) return _RoutineHeaderBanner(department: widget.department, header: _header);
               if (i == 1) {
@@ -520,7 +520,7 @@ class _RoutineHeaderBanner extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+      margin: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 6),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(gradient: AppColors.holoGradient, borderRadius: AppDepth.radius(2)),
       child: Stack(children: [
@@ -562,7 +562,7 @@ class _DaySelector extends StatelessWidget {
           return GestureDetector(
             onTap:()=>onTap(i),
             child: AnimatedContainer(
-              duration: AppMotion.durationOf(context, AppMotion.tight), curve: AppMotion.standard, margin:const EdgeInsets.only(right:8),
+              duration: AppMotion.durationOf(context, AppMotion.tight), curve: AppMotion.standard, margin:const EdgeInsetsDirectional.only(end:8),
               padding:const EdgeInsets.symmetric(horizontal:16,vertical:6),
               decoration:BoxDecoration(
                 gradient: sel ? AppColors.holoGradient : null,
@@ -606,7 +606,7 @@ class _ClassCard extends StatelessWidget {
     final msgCtrl = TextEditingController();
     await showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Message ${cr['full_name']}', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 6),
@@ -690,7 +690,7 @@ class _ClassCard extends StatelessWidget {
                   const SizedBox(height:5),
                   Row(children:[
                     CircleAvatar(radius:9, backgroundColor:AppColors.holoBlue.withValues(alpha:0.15),
-                      backgroundImage: teacherAvatar!=null ? CachedNetworkImageProvider(teacherAvatar) : null,
+                      backgroundImage: teacherAvatar!=null ? CachedNetworkImageProvider(teacherAvatar, maxWidth: 128, maxHeight: 128) : null,
                       child: teacherAvatar==null
                         ? const Icon(Icons.person_outline, size:11, color:AppColors.holoBlue)
                         : null),
@@ -755,7 +755,7 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     color: AppColors.surfaceOf(context),
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+    padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 12),
     child: TextField(
       controller: controller,
       style: TextStyle(color: AppColors.textPrimaryOf(context)),

@@ -206,7 +206,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
     final reasonCtrl = TextEditingController();
     await showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 16),
@@ -227,7 +227,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
       appBar: const AfosAppBar(title: 'Manage Clubs'),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 4),
           child: RepaintBoundary(
             child: GlassCard(
               borderRadius: 16,
@@ -258,7 +258,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             : TabBarView(controller: _tab, children: [
                 _membershipRequests.isEmpty
                     ? const EmptyState(icon: Icons.group_add_outlined, title: 'No pending requests', subtitle: 'Membership requests will show up here')
-                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _membershipRequests.length,
+                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _membershipRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _membershipRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -274,7 +274,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
                         }),
                 _postRequests.isEmpty
                     ? const EmptyState(icon: Icons.workspace_premium_outlined, title: 'No pending post applications', subtitle: 'Officer post applications will show up here')
-                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _postRequests.length,
+                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _postRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _postRequests[i];
                           final member = r['profiles'] as Map<String, dynamic>? ?? {};

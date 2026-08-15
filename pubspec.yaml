@@ -1,7 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 2.7.8+64
+version: 2.8.0+65
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
@@ -93,5 +93,13 @@ flutter:
   uses-material-design: true
   assets:
     - assets/lottie/
-    - assets/images/
+    # Listed FILE BY FILE, not as the whole `assets/images/` directory.
+    #
+    # `app_icon_source.png` lives in that directory but is only ever read by
+    # flutter_launcher_icons at BUILD time (see the image_path entries above).
+    # Declaring the directory shipped it inside the APK as a runtime asset as
+    # well — 481 KB of a 1024x1024 PNG that no code loads, in a build that is
+    # already over its size budget. Naming the files keeps it on disk for the
+    # icon generator and out of the bundle.
+    - assets/images/diu_logo.png
     - assets/sounds/

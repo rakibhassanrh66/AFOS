@@ -165,7 +165,7 @@ class _NotifState extends State<NotificationCenterScreen> {
           icon: Icons.notifications_active_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.indigo, AppColors.blue]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 4),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
         Expanded(child: _loading
@@ -176,12 +176,12 @@ class _NotifState extends State<NotificationCenterScreen> {
               ? const EmptyState(
                   icon: Icons.notifications_none_rounded,
                   title: 'No notifications',
-                  subtitle: 'You\'re all caught up!')
+                  subtitle: 'You\'re all caught up.')
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.blue,
                   child: ListView.builder(
-                    padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + NavInsets.of(context)),
+                    padding: EdgeInsetsDirectional.fromSTEB(12, 12, 12, 12 + NavInsets.of(context)),
                     itemCount: _notifs.length + (_hasMore ? 1 : 0),
                     itemBuilder: (ctx, i) {
                       if (i == _notifs.length) {
@@ -206,14 +206,24 @@ class _NotifState extends State<NotificationCenterScreen> {
                         direction: DismissDirection.endToStart,
                         background: Container(
                           alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
+                          padding: const EdgeInsetsDirectional.only(end: 20),
                           decoration: BoxDecoration(
                               color: AppColors.red.withValues(alpha:0.8),
                               borderRadius: AppDepth.radius(1)),
                           child: const Icon(Icons.delete_outline_rounded,
                               color: Colors.white)),
-                        // A swipe-to-dismiss that has passed the threshold and
-                        // committed — the one gesture on this screen that
+                        // Feedback at the moment the swipe CROSSES the point of
+                        // no return, not only when the row is already gone.
+                        //
+                        // This is what `AppHaptics.threshold` was defined for
+                        // in Phase 1, and it had zero callers until now — the
+                        // gesture gave the finger nothing to feel until the
+                        // row vanished, so you could not tell whether letting
+                        // go would delete or spring back. `reached` flips
+                        // exactly once per crossing, so this does not chatter
+                        // while the finger hovers on the boundary.
+                        onUpdate: (d) { if (d.reached && !d.previousReached) AppHaptics.threshold(); },
+                        // Committed — the one gesture on this screen that
                         // destroys something.
                         onDismissed: (_) { AppHaptics.warning(); setState(() => _notifs.removeAt(i)); },
                         child: GestureDetector(
@@ -235,7 +245,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                             // overflow risk.
                             child: Stack(children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(17, 14, 14, 14),
+                                padding: const EdgeInsetsDirectional.fromSTEB(17, 14, 14, 14),
                                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Container(
                                 width: 40, height: 40,

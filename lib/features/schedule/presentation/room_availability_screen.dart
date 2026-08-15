@@ -11,6 +11,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -114,7 +115,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(LiquidGlass.radiusSheet))),
       builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+        padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(padding: const EdgeInsets.all(10),
@@ -184,7 +185,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
           subtitle: 'First come, first served · visible to everyone',
           icon: Icons.meeting_room_rounded,
           gradient: AppColors.holoGradient,
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
           trailing: _loading ? null : TweenAnimationBuilder<int>(
             tween: IntTween(begin: 0, end: _freeCount),
             duration: AppMotion.durationOf(context, AppMotion.slow),
@@ -213,7 +214,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
               child: AnimatedContainer(
                 duration: AppMotion.durationOf(context, AppMotion.tight),
                 curve: AppMotion.standard,
-                margin: const EdgeInsets.only(right: 8),
+                margin: const EdgeInsetsDirectional.only(end: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                     gradient: sel ? AppColors.holoGradient : null,
@@ -241,13 +242,13 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _rooms.isEmpty || _periods.isEmpty
-                ? Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.meeting_room_outlined, size: 40, color: textSecondary),
-                    const SizedBox(height: 12),
-                    Text('No routine data yet for this department', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                  ])))
+                ? const EmptyState(
+                    icon: Icons.meeting_room_outlined,
+                    title: 'No routine data yet',
+                    subtitle: 'Once a routine is uploaded for this department, '
+                        'room availability appears here.')
                 : RefreshIndicator(onRefresh: _load, color: AppColors.holoBlue, child: ListView.builder(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+                    padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
                     itemCount: _rooms.length,
                     // Guarded by the `_rooms.isEmpty || _periods.isEmpty`
                     // ternary above, so .first is safe. Every room's chip

@@ -166,3 +166,54 @@ because nothing names them. Every table/RPC touched from presentation code:
 | `sos/presentation/sos_alert_detail_screen.dart` | profiles  |
 | `transport/presentation/transport_screen.dart` | profiles  |
 | `vr_id/presentation/vr_id_screen.dart` | issue_vr_id_token profiles verify_vr_id_scan vr_access_log  |
+
+---
+
+## DECISION — P2-04 is accepted debt, not a defect to fix here
+
+**Taken 2026-08-15 by the project owner. Do not re-open inside a redesign phase.**
+
+The register filed P2-04 as "data contract is undocumented and fragile: 33 of 62
+screens call `SupabaseConfig.client.from(...)` inline instead of going through a
+repository", effort XL. It was the last open item of the redesign. The decision
+is to **leave the 33 screens as they are** and record why.
+
+### Why not fix it
+
+1. **It is the exact refactor that breaks this kind of app.** Moving a query
+   changes who runs it, when, and under which auth context. RLS-dependent calls
+   are the ones that fail *quietly* — they do not throw, they return zero rows,
+   and a screen that renders an empty state on zero rows looks like it is
+   working. A test suite of 310 widget and unit tests catches none of that,
+   because none of them talk to Postgres.
+
+2. **The contract is frozen by HARD RULE 2.** "Never change an inline Supabase
+   query's shape." A faithful move preserves the shape exactly — at which point
+   the only thing gained is where the call lives. That is a real architectural
+   improvement and a poor trade during a phase whose brief is presentation.
+
+3. **It is not blocking anything.** Part B below already enumerates the tables
+   and RPCs each screen touches, which is what the phases actually needed: a
+   list of what must not change. Every phase since has verified `git diff` on
+   `lib/features/*/data`, `lib/core/services` and `lib/shared/models` is **0
+   lines**, and it has been 0 across all of them.
+
+### What was done instead
+
+Part B is the deliverable: the inline-query contract, per screen, so a
+"presentation-only" change can be checked against it. That is what made 12
+batches of screen work safe.
+
+### What would have to be true to revisit it
+
+- Integration tests that run against a real Postgres with RLS enabled and a
+  session per role — without those, a move is unverifiable, not merely risky.
+- A reason beyond tidiness: a second consumer of the same query, an offline
+  cache that needs a single choke point, or a query that has already drifted
+  between two screens.
+- Its own phase, one screen at a time, each verified on a device against a live
+  session in every role that can reach it.
+
+Until then the honest state is: **known, enumerated, deliberate.** An
+architecture item recorded and left alone is not the same as one that was
+missed, and this file is the difference.

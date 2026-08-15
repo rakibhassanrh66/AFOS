@@ -1,3 +1,4 @@
+import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_theme.dart';
@@ -134,7 +135,7 @@ class _GlassCardState extends State<GlassCard> {
             : AnimatedScale(
                 scale: _pressed ? LiquidGlass.pressScale : 1.0,
                 duration: LiquidGlass.pressDuration,
-                curve: Curves.easeOut,
+                curve: AppMotion.standard,
                 child: glassBody,
               ),
       );
@@ -147,7 +148,7 @@ class _GlassCardState extends State<GlassCard> {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: LiquidGlass.entranceDuration,
-      curve: Curves.easeOut,
+      curve: AppMotion.standard,
       // Isolate the per-frame Opacity/scale repaint (over an expensive
       // BackdropFilter) from the rest of the screen during the entrance.
       child: RepaintBoundary(child: glassBody),

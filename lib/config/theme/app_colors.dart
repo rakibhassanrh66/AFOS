@@ -104,14 +104,16 @@ class AppColors {
   // `auth_brand_panel.dart`, which share the first stop and drifted apart in
   // the rest.
   //
-  // NOTE — VALUES ARE PRESERVED EXACTLY, INCLUDING ONE THAT LOOKS LIKE A TYPO.
-  // [authDeep] is #0B1220. The app's declared dark canvas, [background] /
-  // `LiquidGlass.canvasDark`, is #0B1**1**20 — one hex digit apart, and the
-  // two are almost certainly meant to be the same colour. Snapping them
-  // together is a visible change to every signed-out screen plus the router's
-  // error page and the chat 'midnight' background, so it is NOT done here.
-  // Flagged in REDESIGN_LOG for a decision.
-  static const Color authDeep = Color(0xFF0B1220);
+  // RESOLVED 2026-08-15 — [authDeep] WAS #0B1220, one hex digit from the app's
+  // declared dark canvas #0B1120. It was carried forward unchanged for four
+  // phases because snapping it is a visible change to every signed-out screen
+  // and the chat 'midnight' background, and that needed a decision plus a
+  // device. Both now exist: the owner chose to snap them.
+  //
+  // So this is no longer an independent colour — it IS the canvas, and it says
+  // so by construction rather than by repeating the literal. Two names for one
+  // value is how they drifted apart in the first place.
+  static const Color authDeep = LiquidGlass.canvasDark;
 
   /// Login / register page background. Theme-aware.
   static const List<Color> authCanvasDark = [
@@ -135,6 +137,19 @@ class AppColors {
   static const Color authGridDark = Color(0xFF1A2840);
   static const Color authGridLight = Color(0xFF0A1628);
 
+  // --- Splash -------------------------------------------------------------
+  // The one screen that paints before any theme applies, so its colours are
+  // absolute rather than theme-aware. They were raw hex in splash_screen.dart.
+
+  /// The white flash at the peak of the hand-off punch. Warm-tinted, not pure
+  /// white, so it reads as light rather than as a missing frame.
+  static const Color splashSheen = Color(0xFFEAFFF6);
+
+  /// Ambient corner glows behind the lockup — brand teal and brand blue, each
+  /// fading to fully transparent.
+  static const List<Color> splashGlowTeal = [Color(0x1A3ECF8E), Color(0x003ECF8E)];
+  static const List<Color> splashGlowBlue = [Color(0x1A5AB8FF), Color(0x005AB8FF)];
+
   /// The four chat-room canvases a user can pick in Settings → Chat Background.
   ///
   /// WHY THIS IS HERE. These four values previously existed as raw hex in TWO
@@ -150,7 +165,10 @@ class AppColors {
   /// both call sites fall back to the scaffold background when they see it.
   static const Map<String, Color> chatBackgrounds = {
     'default': Colors.transparent,
-    'midnight': Color(0xFF0B1220),
+    // Snapped to the app canvas with [authDeep], 2026-08-15 — 'midnight' was
+    // the third copy of the #0B1220 near-miss, so picking it gave you a chat
+    // background one hex digit off the canvas behind every other screen.
+    'midnight': authDeep,
     'forest': Color(0xFF0E1F16),
     'plum': Color(0xFF1F0E1B),
   };
@@ -200,6 +218,24 @@ class AppColors {
   /// theme about it.
   static Color onAccentOf(BuildContext context) =>
       Theme.of(context).colorScheme.onPrimary;
+
+  /// The dark ink used on a light-coloured surface.
+  ///
+  /// WHY THIS IS A TOKEN. `afos_button` and `glass_chip` each ran the same
+  /// luminance test (`> 0.45 ? dark : white`) to pick a foreground — and each
+  /// used a DIFFERENT dark: `#072A1C` in the button, `#0B1220` in the chip.
+  /// Two answers to one question, neither of them named. They are now one
+  /// value behind one helper.
+  static const Color inkOnLight = Color(0xFF072A1C);
+
+  /// Readable foreground for an ARBITRARY background colour.
+  ///
+  /// Distinct from [onAccentOf], which answers for the THEME's accent by
+  /// reading `colorScheme.onPrimary`. This one answers for a colour handed in
+  /// at the call site — a button tinted to its module's hue, a chip carrying a
+  /// status colour — where the theme has no opinion.
+  static Color foregroundOn(Color background) =>
+      background.computeLuminance() > 0.45 ? inkOnLight : Colors.white;
 
   /// Liquid glass fill — translucent white over the dark canvas; light mode
   /// needs a much stronger white so the frost reads against near-white.

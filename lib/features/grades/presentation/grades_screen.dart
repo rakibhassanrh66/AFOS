@@ -194,13 +194,13 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(children: [
         InkWell(
           onTap: () => _toggle(eid),
-          borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+          borderRadius: AppDepth.radius(2),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(children: [
@@ -248,7 +248,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
         ),
         if (open)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            padding: const EdgeInsetsDirectional.fromSTEB(14, 0, 14, 14),
             child: breakdown == null
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -382,7 +382,7 @@ class _CgpaCard extends StatelessWidget {
         gradient: LinearGradient(
             begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [accent.withValues(alpha: 0.22), accent.withValues(alpha: 0.06)]),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: accent.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -567,7 +567,7 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
           gradient: const LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.blue, AppColors.indigo]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(
           child: _error != null
@@ -608,7 +608,7 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.amber.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

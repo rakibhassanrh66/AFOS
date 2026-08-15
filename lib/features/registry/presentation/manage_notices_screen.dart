@@ -88,7 +88,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(existing == null ? 'New Notice / Rule' : 'Edit',
                     style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
@@ -199,14 +199,14 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
           icon: Icons.campaign_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.red, AppColors.coral]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _notices.isEmpty
               ? const EmptyState(icon: Icons.campaign_outlined, title: 'Nothing published yet',
                   subtitle: 'Create a notice, rule, or announcement')
-              : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _notices.length,
+              : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _notices.length,
                   // Guarded by the _notices.isEmpty ternary above, so .first is safe.
                   prototypeItem: _buildNoticeRow(context, _notices.first),
                   itemBuilder: (ctx, i) => _buildNoticeRow(ctx, _notices[i]))),

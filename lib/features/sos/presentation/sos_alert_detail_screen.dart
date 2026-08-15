@@ -127,6 +127,9 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
   Future<void> _playVoice(String path) async {
     try {
       final url = await SupabaseConfig.client.storage.from('sos-voice').createSignedUrl(path, 300);
+      // BUG_REGISTER P1-01: signing is a network round-trip, and this screen is
+      // reachable from a push notification the responder can dismiss out of.
+      if (!mounted) return;
       setState(() => _playingVoice = true);
       await _player.play(UrlSource(url));
       _player.onPlayerComplete.first.then((_) { if (mounted) setState(() => _playingVoice = false); });
@@ -211,17 +214,17 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
     final voicePath = a['voice_path'] as String?;
     final point = LatLng(lat, lng);
 
-    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+    return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
       Row(children: [
         CircleAvatar(radius: 24, backgroundColor: AppColors.red.withValues(alpha: 0.15),
-            backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url']) : null,
+            backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
             child: sender['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.red) : null),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Flexible(child: Text(sender['full_name'] ?? 'Unknown', style: AppTextStyles.titleLarge.copyWith(color: textPrimary),
                 maxLines: 1, overflow: TextOverflow.ellipsis)),
-            if (sender['is_verified'] == true) const Padding(padding: EdgeInsets.only(left: 5),
+            if (sender['is_verified'] == true) const Padding(padding: EdgeInsetsDirectional.only(start: 5),
                 child: Icon(Icons.verified_rounded, color: AppColors.blue, size: 16)),
           ]),
           Text(_roleLabel(sender['role'] as String?),
@@ -302,7 +305,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
           final p = _responderProfiles[r['responder_id']];
           return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
             CircleAvatar(radius: 14, backgroundColor: AppColors.holoTeal.withValues(alpha: 0.15),
-                backgroundImage: p?['avatar_url'] != null ? CachedNetworkImageProvider(p!['avatar_url']) : null,
+                backgroundImage: p?['avatar_url'] != null ? CachedNetworkImageProvider(p!['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
                 child: p?['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.holoTeal, size: 14) : null),
             const SizedBox(width: 10),
             Text(p?['full_name'] as String? ?? 'Someone', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),

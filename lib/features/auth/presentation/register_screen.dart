@@ -155,7 +155,8 @@ class _RegisterBodyState extends State<_RegisterBody> {
             padding:const EdgeInsets.symmetric(horizontal:20, vertical:8),
             child: Column(children:[
               const SizedBox(height:8),
-              Center(child: Image.asset('assets/images/diu_logo.png', height:52,
+              // 156 = 52 at a 3x device pixel ratio. See login_screen for why.
+              Center(child: Image.asset('assets/images/diu_logo.png', height:52, cacheWidth: 156,
                   errorBuilder: (_, __, ___) => const SizedBox.shrink())),
               const SizedBox(height:12),
               _StepIndicator(step:_step)
@@ -659,7 +660,7 @@ class _Step2 extends StatelessWidget {
         lastCategory = o.category;
       }
       items.add(DropdownMenuItem(value: o,
-          child: Padding(padding: const EdgeInsets.only(left: 8),
+          child: Padding(padding: const EdgeInsetsDirectional.only(start: 8),
               child: Text(o.title, overflow: TextOverflow.ellipsis))));
     }
     return items;

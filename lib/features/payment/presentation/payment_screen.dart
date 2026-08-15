@@ -11,6 +11,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/animations/page_transitions.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -86,7 +87,7 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
           subtitle: '${_categories.length} fee categories',
           icon: Icons.payments_rounded,
           gradient: AppColors.goldGradient,
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
           trailing: (!_loading && _totalPaid > 0)
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -137,7 +138,7 @@ class _PayNowTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)),
       // Fixed 2-column count stretched into 2 giant tiles on a wide desktop
       // browser window; max-extent keeps each tile a consistent size and
       // adds columns as space allows instead (see dashboard_screen.dart).
@@ -243,17 +244,14 @@ class _HistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (history.isEmpty) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.receipt_long_outlined, color: AppColors.textMutedOf(context), size: 56),
-          const SizedBox(height: 16),
-          Text('No payment history',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-        ]),
+      return const EmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: 'No payment history',
+        subtitle: 'Payments you make through the portal are listed here.',
       );
     }
     return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
       itemCount: history.length,
       // Every row shares the same fixed template (icon + 2-line column +
       // amount/status column) — prototypeItem measures the real first row

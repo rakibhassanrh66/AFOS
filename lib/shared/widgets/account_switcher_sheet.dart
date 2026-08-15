@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, SignOutScope;
@@ -88,7 +89,7 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+      padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Switch Account', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
         const SizedBox(height: 4),
@@ -106,14 +107,14 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Material(
                 color: isCurrent ? AppColors.blue.withValues(alpha: 0.1) : AppColors.surfaceOf(context),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppDepth.radius(1),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: AppDepth.radius(1),
                   onTap: _busy ? null : () => _tap(a),
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: AppDepth.radius(1),
                         border: Border.all(color: isCurrent ? AppColors.blue.withValues(alpha: 0.4) : AppColors.borderOf(context), width: 0.5)),
                     child: Row(children: [
                       CircleAvatar(radius: 20, backgroundColor: AppColors.blue.withValues(alpha: 0.15),
@@ -128,7 +129,7 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
                         Text(a.email, style: AppTextStyles.labelSmall.copyWith(color: textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ])),
                       if (isCurrent)
-                        const Padding(padding: EdgeInsets.only(right: 4),
+                        const Padding(padding: EdgeInsetsDirectional.only(end: 4),
                             child: Text('Current', style: TextStyle(color: AppColors.green, fontSize: 11, fontWeight: FontWeight.w700)))
                       else
                         IconButton(

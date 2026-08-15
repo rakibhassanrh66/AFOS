@@ -151,7 +151,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       appBar: const AfosAppBar(title: 'Search'),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8),
           child: AfosTextField(
             hint: 'Search notices, classes, books, clubs, routes…',
             controller: _ctrl,
@@ -166,7 +166,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _body(BuildContext context) {
     if (_loading) {
-      return const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5));
+      // itemHeight, not the 80px default: this list renders InfoCards, and the
+      // default was 21px short of one, so all five rows slid down the moment
+      // results arrived.
+      return const Padding(
+          padding: EdgeInsets.all(16),
+          child: ShimmerList(count: 5, itemHeight: ShimmerCard.infoCardRow));
     }
     if (_query.length < 2) {
       return const EmptyState(
@@ -182,10 +187,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         subtitle: 'Try a different keyword.',
       );
     }
-    return ListView(padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + NavInsets.of(context)), children: [
+    return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24 + NavInsets.of(context)), children: [
       for (final g in _groups) ...[
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(4, 10, 4, 8),
           child: Text('${g.label.toUpperCase()}  ·  ${g.hits.length}',
               style: AppTextStyles.labelSmall.copyWith(
                   letterSpacing: 1.2, color: AppColors.textSecondaryOf(context))),

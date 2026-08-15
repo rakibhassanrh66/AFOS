@@ -46,7 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: const AfosAppBar(title: 'Profile'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
-          : ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+          : ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
               RepaintBoundary(
                 child: GlassCard(
                   glowColor: AppColors.blue,

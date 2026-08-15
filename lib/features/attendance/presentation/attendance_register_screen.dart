@@ -174,7 +174,7 @@ class _AttendanceRegisterScreenState extends State<AttendanceRegisterScreen> {
                 total: _records.length,
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
                 child: Row(children: [
                   Expanded(
                     child: OutlinedButton.icon(
@@ -266,11 +266,11 @@ class _RegisterSummaryBar extends StatelessWidget {
     final pct = counted <= 0 ? 0.0 : attended / counted;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      margin: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.glassBorder(context), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -376,7 +376,7 @@ class _RegisterRow extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(
             color: attendanceStatusColor(status).withValues(alpha: 0.3), width: 0.8),
       ),
@@ -385,7 +385,7 @@ class _RegisterRow extends StatelessWidget {
           CircleAvatar(
             radius: 18,
             backgroundColor: AppColors.blue.withValues(alpha: 0.15),
-            backgroundImage: hasAvatar ? CachedNetworkImageProvider(avatarUrl) : null,
+            backgroundImage: hasAvatar ? CachedNetworkImageProvider(avatarUrl, maxWidth: 128, maxHeight: 128) : null,
             child: hasAvatar
                 ? null
                 : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
@@ -418,7 +418,7 @@ class _RegisterRow extends StatelessWidget {
           for (final key in kAttendanceStatuses)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsetsDirectional.only(end: 6),
                 child: _StatusButton(
                   meta: _statusMeta[key]!,
                   selected: status == key,
@@ -446,7 +446,7 @@ class _BonusControl extends StatelessWidget {
           onTap: () { AppHaptics.selection(); onChanged((bonus - 0.5).clamp(0, 5)); },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            margin: const EdgeInsets.only(left: 6),
+            margin: const EdgeInsetsDirectional.only(start: 6),
             decoration: BoxDecoration(
               color: AppColors.purple.withValues(alpha: 0.14),
               borderRadius: AppDepth.radius(0),
