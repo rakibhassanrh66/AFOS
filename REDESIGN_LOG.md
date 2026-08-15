@@ -170,7 +170,59 @@ token migration and the interaction rules; it did **not** add missing empty
 states or verify responsive behaviour, because that needs the app running on a
 device and I cannot see it. Those remain open for these three screens.
 
-**Next:** Phase 2 batch 2 — `transport_screen.dart` (slop 20, 2357 LOC),
-`schedule_screen.dart` (14), `mentorship_screen.dart` (13).
+**Next:** Phase 2 batch 2.
+
+---
+
+## Phase 2 batch 2 — transport / schedule / mentorship · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch2`. ~3,700 LOC, including the 2,357-line transport screen.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `transport_screen.dart` | 1 → **1\*** | 14 → **0\*\*** | 0 | 0 |
+| `schedule_screen.dart` | 3 → **1\*** | 10 → **0** | 1 → **0** | 0 → **1** |
+| `mentorship_screen.dart` | 1 → **0** | 10 → **0** | 2 → **0** | 0 → **2** |
+
+\* both remaining durations are deliberate and documented — see below.
+\*\* the one `BorderRadius.circular` left already passes `LiquidGlass.radiusPill`,
+i.e. the `full` rung of the scale.
+
+App-wide emoji: **52 → 39**. Data layer: `git diff --stat main` on
+`lib/features/*/data`, `lib/core/services`, `lib/shared/models` = **0 lines**.
+
+**The two durations that were NOT converted, and why the distinction matters**
+
+This batch's real work was telling three kinds of "duration" apart. Converting
+all three would have been the wrong kind of thorough.
+
+1. **`_PulseDot`'s 1200ms — an ambient loop, not a transition.** The 620ms
+   ceiling governs things moving from one state to another, where length reads
+   as lag. This is a live-status dot breathing to say the data is current; at
+   620ms it would read as an alarm, not a heartbeat. The duration stays.
+   **What was genuinely broken is that it repeated forever regardless of
+   reduced motion** — a perpetual animation is the worst offender for someone
+   who asked the system to stop moving things. It now starts only when motion
+   is allowed and stops (resetting to its resting size, not mid-pulse) if the
+   setting is switched on while the screen is open.
+2. **The search field's 300ms `Timer` — an input debounce, not motion.** It is
+   how long to wait for typing to stop before spending a network request.
+   Borrowing a motion rung would couple search latency to animation feel, so a
+   later tweak to `base` would silently change how often the app queries
+   Supabase. Commented in place so a future pass does not "fix" it.
+3. Everything else — the staggers and entrance fades — converted normally.
+
+**Also:** two uncapped staggers (`index * 60`, `index * 80`) and one (`i * 70`)
+now use `AppMotion.staggerFor`; three commit haptics added on the write success
+paths (pin a retake, request a session, save a mentor profile).
+
+**Verification:** analyze 0 issues · 302 tests · web build succeeds · encoding
+checked on all three files (no BOM, non-ASCII preserved).
+
+**Still open for these screens**, same as batch 1: missing empty states, full
+copy rewrite, and responsive verification at 320/400/768/1280 — all need the app
+running on a device.
+
+**Next:** Phase 2 batch 3 — `dept_chat_screen.dart` (13), `lost_found_screen.dart`
+(13), `room_availability_screen.dart` (12).
 
 ---
