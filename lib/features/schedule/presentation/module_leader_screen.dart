@@ -5,6 +5,7 @@ import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -211,6 +212,10 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
       reason = await _askReason();
       if (reason == null) return;
     }
+    // BUG_REGISTER P1-01: this setState follows the awaited reason dialog with
+    // no mounted guard. The dialog holds the route while open, but nothing
+    // stops the screen being popped between its dismissal and this line.
+    if (!mounted) return;
     final id = r['id'] as String;
     setState(() => _busy.add(id));
     try {
@@ -218,6 +223,12 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
           assignmentId: id, accept: accept, reason: reason);
       await _load();
       if (mounted) {
+        // Taking a course allocation, or handing it back. Different weights.
+        if (accept) {
+          AppHaptics.success();
+        } else {
+          AppHaptics.warning();
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(accept
                 ? 'Accepted — create the offering when ready'

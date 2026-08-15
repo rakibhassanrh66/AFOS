@@ -5,6 +5,8 @@ import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
@@ -51,12 +53,15 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     }
   }
 
-  void _showSubmitSheet() {
+  /// BUG_REGISTER P1-02. Was `void` and did not await the modal, so BOTH
+  /// controllers leaked on every open — and this is the sheet a user may open,
+  /// abandon, and reopen several times while deciding what to write.
+  Future<void> _showSubmitSheet() async {
     final titleCtrl = TextEditingController();
     final ctrl = TextEditingController();
     PlatformFile? attachment;
     bool saving = false;
-    showGlassModal(context,
+    await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -100,9 +105,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   final queued = await OutboxService.instance.submitOrQueue('feedback_submit', payload);
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                   if (mounted) {
+                    AppHaptics.success();
                     ScaffoldMessenger.of(context).showSnackBar(queued
                         ? const SnackBar(content: Text("Saved — will send when you're back online"), backgroundColor: AppColors.amber)
-                        : const SnackBar(content: Text('Thanks — sent ✓'), backgroundColor: AppColors.green));
+                        : const SnackBar(content: Text('Feedback sent'), backgroundColor: AppColors.green));
                     _load();
                   }
                 } catch (e) {
@@ -114,6 +120,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 }
               }),
             ]))));
+    titleCtrl.dispose();
+    ctrl.dispose();
   }
 
   (Color, String) _statusStyle(String status) => switch (status) {
@@ -160,14 +168,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   final (color, label) = _statusStyle(status);
                   final createdAt = item['created_at'] != null ? DateTime.tryParse(item['created_at']) : null;
                   return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
                           Expanded(child: Text(item['title'] as String? ?? '(no title)',
                               style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                               child: Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                                   style: TextStyle(color: color, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                         ]),
