@@ -42,6 +42,33 @@
 --
 --  Nothing else is required. Do not also send a manual broadcast.
 
+-- ---------------------------------------------------------------------
+--  v2.8.0 — run this ONCE the v2.8.0 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.0
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.8.0',
+  current_date,
+  'The One Where the Bus Route Follows the Road',
+  ARRAY[
+    'The bus route on the map now follows actual roads. It used to draw straight lines between stops, which cut across blocks, fields and the river — so a route that looked wrong was wrong. If the road data cannot be reached, the line is drawn dashed and labelled approximate rather than pretending.',
+    'Updating is now one screen that tells you what is happening: what changed, how far the download has got, and that the file was checked before Android is handed it. Your account is not signed out by an update — only the cached copies of pages are cleared, and those come straight back.',
+    'The app answers your touch. Buttons, tabs, chips and cards now respond the moment you press them instead of waiting for the screen to load, and a short vibration confirms an action actually committed. You can turn that off in Settings, Feedback.',
+    'Screens that have nothing to show now say so, and say what to do about it, instead of leaving you looking at an empty page wondering whether it is loading or broken.',
+    'AFOS opens faster. The splash screen used to wait for its own animation to finish before checking who you are; it now does both at once.',
+    'If you have asked Android to reduce animations, AFOS now obeys it — including the splash, which previously played in full regardless.',
+    'On the web version, press Ctrl+K (or Cmd+K) anywhere to jump straight to any screen you have access to.',
+    'Every screen was rebuilt on one shared set of colours, spacing, corners and motion, so the app looks like one app rather than sixty-two.'
+  ],
+  ARRAY['android','web']
+);
+
+
+-- ---------------------------------------------------------------------
+--  PREVIOUS RELEASES BELOW — kept for reference, already published.
+-- ---------------------------------------------------------------------
+
 INSERT INTO app_releases (version, release_date, title, highlights, platforms)
 VALUES (
   '2.7.7',
