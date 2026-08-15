@@ -4,6 +4,9 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/offline_cache.dart';
@@ -109,7 +112,8 @@ class _ExamSeatState extends State<ExamSeatScreen> {
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.orange, AppColors.amber]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null
@@ -148,19 +152,23 @@ class _SessionCard extends StatelessWidget {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(2),
           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // The accent bar sits ON the card's top edge, so it takes the card's
+        // own corners — three large, top-right cut — not a symmetric radius.
         Container(height: 4, decoration: const BoxDecoration(
             gradient: LinearGradient(colors: [AppColors.orange, AppColors.amber]),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(15)))),
+            borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(LiquidGlass.radiusCard),
+                topRight: Radius.circular(LiquidGlass.radiusCut)))),
         Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 40, height: 40,
                 decoration: BoxDecoration(
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.orange, AppColors.amber]),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: AppDepth.radius(1),
                     boxShadow: [BoxShadow(color: AppColors.orange.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
                 child: const Icon(Icons.event_note_rounded, color: Colors.white, size: 20)),
             const SizedBox(width: 12),
@@ -187,14 +195,17 @@ class _SessionCard extends StatelessWidget {
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: session.rooms.map((r) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
+              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.1), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.gold.withValues(alpha: 0.3))),
+              // Room number and seat count, several chips side by side — a
+              // column of figures the eye scans across, so tabular.
               child: Text('${r.room} · ${r.seats} seats',
-                  style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 12)))).toList()),
+                  style: AppTextStyles.numericSmall.copyWith(
+                      color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 12)))).toList()),
           if ((session.teacherInitial ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10),
               child: Text('Course teacher: ${session.teacherInitial}', style: TextStyle(color: textSecondary, fontSize: 11))),
         ])),
       ]),
-    ).animate(delay: Duration(milliseconds: index * 80)).fadeIn().slideY(begin: 0.05);
+    ).animate(delay: AppMotion.staggerFor(context, index)).fadeIn().slideY(begin: 0.05);
   }
 }
