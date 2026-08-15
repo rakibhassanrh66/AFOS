@@ -409,3 +409,94 @@ other copy of the three chat-background hex colours flagged in batch 3, so that
 paired fix can land with it.
 
 ---
+
+## Phase 2 batch 5 — hall / settings / manage offerings · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch5`. ~2,650 LOC, the largest batch so far.
+
+| | durations | raw radii | emoji | hex | haptics |
+|---|---|---|---|---|---|
+| `hall_screen.dart` | 0 | 8 → **0** | 1 → **0** | 0 | 0 → **5** |
+| `settings_screen.dart` | 0 | 6 → **0** | 9 → **0\*** | 3 → **0** | 0 → **8** |
+| `manage_course_offerings_screen.dart` | 2 → **1\*\*** | 0 | 1 → **0** | 0 | 0 → **2** |
+
+\* the one remaining "emoji" in settings is a doc comment quoting the strings
+that were removed, not UI copy.
+\*\* the survivor is the search debounce — see below.
+
+App-wide: emoji **37 → 29**, haptic sites **39 → 54**, and hardcoded
+`Color(0x..)` outside the theme **21 → 15** — the first movement on that number
+since Phase 0. Data layer: `git diff --stat main` on `lib/features/*/data`,
+`lib/core/services`, `lib/shared/models` = **0 lines**.
+
+### The batch-3 debt is paid: chat backgrounds now have one definition
+
+Batch 3 found the four chat-canvas colours living as raw hex in **two** files —
+`settings_screen.dart`, which offers the swatches, and `dept_chat_screen.dart`,
+which paints the chosen one — with nothing linking them. Editing one and not the
+other would have made the swatch a lie: you pick a colour and get a different
+one. Batch 3 deliberately left it because fixing one copy alone creates drift.
+
+Both now read `AppColors.chatBackgrounds`. That is a **theme-file edit outside a
+screen scope**, which is why it waited for the batch that owns the second copy.
+`transparent` stays the value for `'default'` — it means "no override", and both
+call sites fall back to the scaffold background when they see it.
+
+### Emoji that were carrying meaning, not decoration
+
+The theme picker's labels were `'☀️ Light'`, `'🌙 Dark'`, `'⚙️ Auto'` — a
+picture glued to the front of a string. Three separate problems, all of them
+real: emoji renders differently on every platform, a screen reader announces it
+literally ("sun behind cloud Light"), and **it cannot take the chip's own
+colour**, so the glyph stayed full-colour while the selected label went blue.
+`_ThemeChip` now takes an `IconData` and renders a real `Icon` that inherits the
+selected/unselected foreground. Same fix shape as the dashboard quick-chips in
+batch 1.
+
+The other six were trailing `✓` in success toasts. One got a real rewrite rather
+than a trim: `'Thanks — sent ✓'` → `'Feedback sent'`, because "Thanks" is the
+app talking about itself rather than telling you what happened.
+
+### Four more touch targets under the floor
+
+| where | was | now |
+|---|---:|---:|
+| settings, theme chip (Light/Dark/Auto) | ~45 | 49 |
+| settings, accent colour swatch | 36 | 48 |
+| hall, room-preference chip | ~41 | 49 |
+
+The accent swatch is the interesting one: it is *drawn* as a 36px circle and
+that is correct — it is a colour sample, not a button. Making the circle bigger
+would have been the wrong fix. It is now wrapped in a 48dp `SizedBox` with the
+circle centred inside, so the target clears the floor and the swatch looks
+identical.
+
+### One duration deliberately not converted
+
+`manage_course_offerings_screen.dart:580` runs a 320ms `Timer` on the course
+search field. That is an **input debounce, not motion** — how long to wait for
+typing to stop before spending a network request. Borrowing a motion rung would
+couple search latency to animation feel, so a later tweak to `base` would
+silently change how often the app queries Supabase. Left in place with a comment
+pointing at the identical call made for the transport search in batch 2, so a
+future pass does not "fix" it.
+
+### Also
+
+One more leaked `TextEditingController` (`hall_screen._requestCancellation`,
+built per sheet open, never released) now disposed after the modal resolves —
+the third of that shape found so far.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all five touched
+files.
+
+**Not done, still.** The 56-site symmetric-vs-signature radius split reported in
+batch 4 is untouched, and `manage_course_offerings_screen.dart` holds 7 of those
+sites — this batch converted its raw literals only, of which it had none. Empty
+states, full copy rewrite and responsive verification remain open for these
+screens as for every batch.
+
+**Next:** Phase 2 batch 6 — `exam_seat_screen.dart` (7), `assignments_screen.dart`
+(6), `marks_entry_screen.dart` (6).
+
+---
