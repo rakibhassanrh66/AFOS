@@ -8,6 +8,11 @@ import '../../../config/supabase_config.dart';
 import '../../../core/network/storage_upload_service.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -86,7 +91,8 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.coral, AppColors.red]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(
@@ -128,12 +134,13 @@ class _FeedTab extends StatelessWidget {
               child: Row(children: ['all', 'lost', 'found', 'returned'].map((f) {
                 final sel = filter == f;
                 return Padding(padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(onTap: () => onFilter(f),
+                    child: GestureDetector(
+                        onTap: () { AppHaptics.selection(); onFilter(f); },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: AppSpace.md),
                           decoration: BoxDecoration(
                               color: sel ? AppColors.blue : AppColors.surfaceOf(context),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                               border: Border.all(color: sel ? AppColors.blue : AppColors.borderOf(context), width: 0.5)),
                           child: Text(f.substring(0, 1).toUpperCase() + f.substring(1),
                               style: TextStyle(color: sel ? Colors.white : AppColors.textSecondaryOf(context),
@@ -163,9 +170,12 @@ class _FeedTab extends StatelessWidget {
                       // same fixed height (still sized for the worst case: title +
                       // 2-line description + location row + Claim button) while
                       // adding columns as space allows.
+                      // 260 before. The Claim button was 30dp tall, under the
+                      // 48dp touch floor; raising it to 48 needs 18 more
+                      // vertical pixels or the fixed-extent tile overflows.
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                           maxCrossAxisExtent: 220, crossAxisSpacing: 12, mainAxisSpacing: 12,
-                          mainAxisExtent: 260),
+                          mainAxisExtent: 280),
                       itemCount: posts.length,
                       itemBuilder: (ctx, i) => _PostCard(post: posts[i], index: i, onDeleted: onRefresh)))),
     ]);
@@ -190,6 +200,7 @@ class _PostCard extends StatelessWidget {
               ],
             ));
     if (confirmed != true) return;
+    AppHaptics.warning();
     try {
       await SupabaseConfig.client.from('lost_found_posts').delete().eq('id', post['id']);
       onDeleted();
@@ -203,7 +214,10 @@ class _PostCard extends StatelessWidget {
 
   Future<void> _openClaimDialog(BuildContext context) async {
     final msgCtrl = TextEditingController();
-    final sent = await showDialog<bool>(
+    bool? sent;
+    String message = '';
+    try {
+      sent = await showDialog<bool>(
         context: context,
         builder: (dctx) => AlertDialog(
               title: const Text('Claim this item'),
@@ -219,11 +233,17 @@ class _PostCard extends StatelessWidget {
                 TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Send claim')),
               ],
             ));
-    if (sent != true || msgCtrl.text.trim().isEmpty) return;
+      // Read the field BEFORE the finally disposes the controller.
+      message = msgCtrl.text.trim();
+    } finally {
+      // BUG_REGISTER P1-02: one controller leaked per claim dialog opened.
+      msgCtrl.dispose();
+    }
+    if (sent != true || message.isEmpty) return;
     try {
       await SupabaseConfig.client.from('lost_found_claims').insert({
         'post_id': post['id'], 'claimant_id': SupabaseConfig.uid,
-        'message': msgCtrl.text.trim(),
+        'message': message,
       });
       final posterId = post['poster_id'] as String?;
       if (posterId != null) {
@@ -236,6 +256,7 @@ class _PostCard extends StatelessWidget {
         );
       }
       if (context.mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Claim sent to poster for review')));
       }
@@ -251,16 +272,23 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final type = post['type'] as String? ?? 'lost';
     final typeColor = type == 'lost' ? AppColors.red : AppColors.green;
+    // The header image has to clip to the card's OWN top corners, and the card
+    // radius is the AFOS signature — three corners large, top-right cut. A
+    // symmetric BorderRadius.vertical here would leave the photo proud of the
+    // cut corner.
+    const headerRadius = BorderRadius.only(
+        topLeft: Radius.circular(LiquidGlass.radiusCard),
+        topRight: Radius.circular(LiquidGlass.radiusCut));
     return Container(
-      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(16),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(2),
           border: Border.all(color: typeColor.withValues(alpha:0.3), width: 0.7)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Stack(children: [
           Container(height: 110, decoration: BoxDecoration(
               color: typeColor.withValues(alpha:0.1),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+              borderRadius: headerRadius),
               child: post['photo_url'] != null
-                  ? ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  ? ClipRRect(borderRadius: headerRadius,
                       child: CachedNetworkImage(imageUrl: post['photo_url'], fit: BoxFit.cover,
                           width: double.infinity,
                           errorWidget: (_, __, ___) => const Center(
@@ -269,7 +297,7 @@ class _PostCard extends StatelessWidget {
                   : Center(child: Icon(Icons.search, color: typeColor, size: 36))),
           Positioned(top: 8, right: 8, child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: typeColor, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: typeColor, borderRadius: AppDepth.radius(1)),
               child: Text(type.toUpperCase(),
                   textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                   style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800)))),
@@ -291,7 +319,8 @@ class _PostCard extends StatelessWidget {
           ]),
           if (!_isOwnPost && post['status'] == 'active') ...[
             const SizedBox(height: 8),
-            SizedBox(width: double.infinity, height: 30, child: OutlinedButton(
+            // Was 30dp tall — the primary action on the card, under the touch floor.
+            SizedBox(width: double.infinity, height: AppSpace.minTouchTarget, child: OutlinedButton(
                 onPressed: () => _openClaimDialog(context),
                 style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
                     side: BorderSide(color: typeColor.withValues(alpha:0.5))),
@@ -299,7 +328,7 @@ class _PostCard extends StatelessWidget {
           ],
         ])),
       ]),
-    ).animate(delay: Duration(milliseconds: index * 60)).fadeIn().scale(begin: const Offset(0.95, 0.95));
+    ).animate(delay: AppMotion.staggerFor(context, index)).fadeIn().scale(begin: const Offset(0.95, 0.95));
   }
 }
 
@@ -324,7 +353,9 @@ class _PostTabState extends State<_PostTab> {
 
   Future<void> _pickImage() async {
     final img = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (img != null) setState(() => _image = img);
+    // BUG_REGISTER P1-01: setState after an await with no mounted guard. The
+    // picker is a full platform round-trip, so leaving the tab mid-pick is easy.
+    if (img != null && mounted) setState(() => _image = img);
   }
 
   Future<void> _submit() async {
@@ -346,6 +377,7 @@ class _PostTabState extends State<_PostTab> {
       _descCtrl.clear();
       _locCtrl.clear();
       if (mounted) setState(() { _type = 'lost'; _category = 'Electronics'; _image = null; });
+      AppHaptics.success();
       widget.onPosted();
     } catch (e) {
       if (mounted) {
@@ -378,7 +410,7 @@ class _PostTabState extends State<_PostTab> {
         const SizedBox(height: 14),
         GestureDetector(onTap: _pickImage, child: Container(
             width: double.infinity, height: 100,
-            decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+            decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                 border: Border.all(color: _image != null ? AppColors.green : AppColors.borderOf(context))),
             child: _image != null
                 // dart:io's File doesn't work on Flutter Web at all -- the
@@ -387,7 +419,7 @@ class _PostTabState extends State<_PostTab> {
                 // path directly. On web, XFile.path is a blob: URL that
                 // Image.network can load directly; only native platforms
                 // get a real filesystem path Image.file can use.
-                ? ClipRRect(borderRadius: BorderRadius.circular(12),
+                ? ClipRRect(borderRadius: AppDepth.radius(1),
                     child: kIsWeb
                         ? Image.network(_image!.path, fit: BoxFit.cover)
                         : Image.file(File(_image!.path), fit: BoxFit.cover))
@@ -411,10 +443,12 @@ class _TypeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final sel = selected == value;
     final color = value == 'lost' ? AppColors.red : AppColors.green;
-    return GestureDetector(onTap: () => onTap(value), child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+    return GestureDetector(
+        onTap: () { AppHaptics.selection(); onTap(value); },
+        child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
         decoration: BoxDecoration(color: sel ? color.withValues(alpha:0.15) : AppColors.surfaceOf(context),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(color: sel ? color : AppColors.borderOf(context))),
         child: Center(child: Text(label,
             style: TextStyle(color: sel ? color : AppColors.textSecondaryOf(context), fontSize: 12,
@@ -459,12 +493,12 @@ class _MyPostsTabState extends State<_MyPostsTab> {
           final color = type == 'lost' ? AppColors.red : AppColors.green;
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(width: 10, height: 50, decoration: BoxDecoration(
-                    color: color, borderRadius: BorderRadius.circular(5))),
+                    color: color, borderRadius: BorderRadius.circular(LiquidGlass.radiusPill))),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(p['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -475,6 +509,7 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                       onPressed: () async {
                         await SupabaseConfig.client.from('lost_found_posts')
                             .update({'status': 'returned'}).eq('id', p['id']);
+                        AppHaptics.success();
                         _load();
                       },
                       child: Text(type == 'lost' ? 'Mark Found' : 'Mark Claimed',
@@ -495,6 +530,7 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                                 ],
                               ));
                       if (confirmed == true) {
+                        AppHaptics.warning();
                         await SupabaseConfig.client.from('lost_found_posts').delete().eq('id', p['id']);
                         _load();
                       }
@@ -536,6 +572,13 @@ class _ClaimsPanelState extends State<_ClaimsPanel> {
 
   Future<void> _respond(Map<String, dynamic> claim, String status) async {
     await SupabaseConfig.client.from('lost_found_claims').update({'status': status}).eq('id', claim['id']);
+    // Accepting hands someone their property back and is not undoable from
+    // here; rejecting is a refusal. Different weights, same commit point.
+    if (status == 'accepted') {
+      AppHaptics.success();
+    } else {
+      AppHaptics.warning();
+    }
     final claimantId = claim['claimant_id'] as String?;
     if (claimantId != null) {
       NotificationService.sendToUsers(
@@ -570,7 +613,7 @@ class _ClaimsPanelState extends State<_ClaimsPanel> {
         return Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.06), borderRadius: AppDepth.radius(0)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(c['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context)))),
@@ -666,7 +709,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
               : status == 'rejected' ? AppColors.red : AppColors.amber;
           return Container(margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
@@ -674,7 +717,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
                       style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
                       maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: statusColor, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
