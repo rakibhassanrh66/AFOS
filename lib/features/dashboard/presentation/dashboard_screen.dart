@@ -839,7 +839,7 @@ class _AdminPendingGrid extends StatelessWidget {
             ]),
           ),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
-            .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutCubic));
+            .scale(begin: const Offset(0.9, 0.9), curve: AppMotion.standard));
       }).toList(),
     ));
   }
@@ -934,14 +934,14 @@ class _ModuleCardState extends State<_ModuleCard> {
           child: Stack(children: [
             Positioned(top: 0, right: 0, child: AnimatedSlide(
                 duration: AppMotion.durationOf(context, AppMotion.tight),
-                curve: Curves.easeOutCubic,
+                curve: AppMotion.standard,
                 offset: _hover ? const Offset(0.12, -0.12) : Offset.zero,
                 child: Icon(Icons.arrow_outward_rounded, size: 15,
                     color: m.color.withValues(alpha: _hover ? 0.9 : 0.5)))),
             Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               AnimatedScale(
                 duration: AppMotion.durationOf(context, AppMotion.tight),
-                curve: Curves.easeOutCubic,
+                curve: AppMotion.standard,
                 scale: _hover ? 1.08 : 1.0,
                 child: Container(
                 width: 44, height: 44,
@@ -968,8 +968,8 @@ class _ModuleCardState extends State<_ModuleCard> {
         ),
       ),
     ).animate(delay: AppMotion.staggerFor(context, widget.index))
-        .fadeIn(curve: Curves.easeOutCubic)
-        .scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutCubic);
+        .fadeIn(curve: AppMotion.standard)
+        .scale(begin: const Offset(0.95, 0.95), curve: AppMotion.standard);
   }
 }
 
@@ -1009,7 +1009,7 @@ class _NoticeCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                    color: c.withAlpha(38), borderRadius: BorderRadius.circular(4)),
+                    color: c.withAlpha(38), borderRadius: AppDepth.radius(0)),
                 child: Text(cat, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                     style: TextStyle(color: c, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
               const SizedBox(height: 6),
@@ -1025,7 +1025,7 @@ class _NoticeCard extends StatelessWidget {
         ),
       ),
     ).animate(delay: AppMotion.staggerFor(context, index))
-        .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
+        .fadeIn(curve: AppMotion.standard).slideY(begin: 0.05, curve: AppMotion.standard);
   }
 }
 

@@ -113,7 +113,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
       _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Membership approved ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Membership approved'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -176,7 +176,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
       _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post approved ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Post approved'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {

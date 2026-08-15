@@ -104,7 +104,7 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('${_parsedRows.length} room allocations uploaded across ${dates.length} exam date(s) ✓'),
+            content: Text('${_parsedRows.length} room allocations uploaded across ${dates.length} exam date(s)'),
             backgroundColor: AppColors.green));
         setState(() { _files = []; _parsedRows = []; });
       }

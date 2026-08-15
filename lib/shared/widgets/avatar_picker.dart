@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../config/supabase_config.dart';
 import '../../config/theme/app_colors.dart';
+import '../../core/haptics/app_haptics.dart';
 import '../../core/network/storage_upload_service.dart';
 import '../../core/utils/error_formatter.dart';
 import 'glass_sheet.dart';
@@ -26,6 +27,10 @@ class _AvatarPickerState extends State<AvatarPicker> {
   Future<void> _pickAndUpload() async {
     final img = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (img == null) return;
+    // BUG_REGISTER P1-01: setState after an awaited platform round-trip with no
+    // mounted guard. The gallery picker is exactly the kind of await a user can
+    // navigate away from.
+    if (!mounted) return;
     setState(() => _saving = true);
     try {
       final url = await StorageUploadService.uploadImage(bucket: 'avatars', image: img);
@@ -33,8 +38,9 @@ class _AvatarPickerState extends State<AvatarPicker> {
           .update({'avatar_url': url}).eq('id', SupabaseConfig.uid!);
       widget.onChanged(url);
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo updated ✓'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Photo updated'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {

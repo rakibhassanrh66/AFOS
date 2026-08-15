@@ -202,7 +202,8 @@ class _CourseGroupScreenState extends State<CourseGroupScreen> {
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
               : _messages.isEmpty
                   ? Center(
-                      child: Text('No messages yet. Say hello! 👋',
+                      child: Text('No messages in this course group yet. Start the conversation.',
+                          textAlign: TextAlign.center,
                           style: AppTextStyles.bodyMedium
                               .copyWith(color: AppColors.textSecondaryOf(context))))
                   : ListView.builder(
@@ -268,11 +269,15 @@ class _CourseMsgBubble extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: isMe ? AppColors.blue : AppColors.surfaceOf(context),
+          // The THIRD copy of this bubble in the app, after dept_chat (batch 3)
+          // and club_chat (batch 11). Same rule: the tail corner is information
+          // — it says who spoke — so the asymmetry stays, but both values are
+          // rungs, control 14 round and cut 8 for the tail.
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMe ? 16 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 16),
+            topLeft: const Radius.circular(LiquidGlass.radiusControl),
+            topRight: const Radius.circular(LiquidGlass.radiusControl),
+            bottomLeft: Radius.circular(isMe ? LiquidGlass.radiusControl : LiquidGlass.radiusCut),
+            bottomRight: Radius.circular(isMe ? LiquidGlass.radiusCut : LiquidGlass.radiusControl),
           ),
         ),
         child: Padding(
@@ -350,7 +355,7 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     OutlineInputBorder border(Color c, double w) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: c, width: w));
+        borderRadius: BorderRadius.circular(LiquidGlass.radiusPill), borderSide: BorderSide(color: c, width: w));
 
     return Container(
       color: AppColors.surfaceOf(context),
