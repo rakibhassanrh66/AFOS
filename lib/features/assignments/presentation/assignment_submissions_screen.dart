@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -60,8 +62,9 @@ class _AssignmentSubmissionsScreenState extends State<AssignmentSubmissionsScree
           submissionId: s['id'] as String, marks: marks, feedback: feedback);
       await _load();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Marked ✓'), backgroundColor: AppColors.green));
+            content: Text('Marked'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -290,7 +293,9 @@ class _SubmissionCardState extends State<_SubmissionCard> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
                     ],
-                    style: TextStyle(
+                    // One mark field per submission, stacked down the list —
+                    // same case as the marks-entry grid.
+                    style: AppTextStyles.numericMedium.copyWith(
                         color: AppColors.textPrimaryOf(context),
                         fontWeight: FontWeight.w700),
                     decoration: InputDecoration(
@@ -302,7 +307,7 @@ class _SubmissionCardState extends State<_SubmissionCard> {
                       filled: true,
                       fillColor: AppColors.blue.withValues(alpha: 0.06),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: AppDepth.radius(0),
                           borderSide: BorderSide.none),
                     ),
                   ),
@@ -320,7 +325,7 @@ class _SubmissionCardState extends State<_SubmissionCard> {
                       filled: true,
                       fillColor: AppColors.glassFill(context),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: AppDepth.radius(0),
                           borderSide: BorderSide.none),
                     ),
                   ),
