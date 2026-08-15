@@ -750,7 +750,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
               gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                   colors: [AppColors.holoTeal, AppColors.holoBlue]),
               borderRadius: AppDepth.radius(1),
-              boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
+              boxShadow: [BoxShadow(color: AppColors.holoTeal.withValues(alpha: 0.3), blurRadius: 6, offset: AppDepth.litOffset(2))]),
           child: Center(child: Text(m.routeNumber,
               textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
               style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.bold)))),
@@ -1835,7 +1835,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
                 gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                     colors: [accent.withValues(alpha: 0.9), accent.withValues(alpha: 0.6)]),
                 borderRadius: AppDepth.radius(1),
-                boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
             child: Center(child: Text(r['route_number']??'?',
                 textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                 style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 15)))),
@@ -2338,7 +2338,7 @@ class _MapPin extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: [BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))],
+                color: Colors.black.withValues(alpha: 0.35), blurRadius: 8, offset: AppDepth.litOffset(3))],
           ),
           child: Icon(icon, color: Colors.white, size: 22),
         ),
@@ -2380,7 +2380,7 @@ class _StopMarker extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))],
+                color: Colors.black.withValues(alpha: 0.3), blurRadius: 6, offset: AppDepth.litOffset(2))],
           ),
           alignment: Alignment.center,
           child: icon != null
@@ -2416,7 +2416,7 @@ class _StopCallout extends StatelessWidget {
         borderRadius: LiquidGlass.signatureRadius(14),
         border: Border.all(color: AppColors.borderOf(context)),
         boxShadow: [BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22), blurRadius: 16, offset: const Offset(0, 6))],
+            color: Colors.black.withValues(alpha: 0.22), blurRadius: 16, offset: AppDepth.litOffset(6))],
       ),
       child: Row(children: [
         const Icon(Icons.place_rounded, size: 18, color: AppColors.holoBlue),
@@ -2466,7 +2466,7 @@ class _MapInfoPanel extends StatelessWidget {
         borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.borderOf(context)),
         boxShadow: [BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18), blurRadius: 18, offset: const Offset(0, 6))],
+            color: Colors.black.withValues(alpha: 0.18), blurRadius: 18, offset: AppDepth.litOffset(6))],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [

@@ -168,7 +168,7 @@ class _ChannelTileState extends State<_ChannelTile> {
                     gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [color, color.withValues(alpha: 0.7)]),
                     borderRadius: AppDepth.radius(1),
-                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: const Center(child: Text('#', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)))),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

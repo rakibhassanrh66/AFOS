@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
@@ -83,7 +84,7 @@ class _GlassCardState extends State<GlassCard> {
                 BoxShadow(
                   color: glow,
                   blurRadius: widget.tier == GlassTier.floating ? 48 : 40,
-                  offset: const Offset(0, 12),
+                  offset: AppDepth.litOffset(12),
                 ),
               ],
       ),

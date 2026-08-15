@@ -1,3 +1,4 @@
+import 'depth.dart';
 import 'package:flutter/material.dart';
 import 'liquid_glass_tokens.dart';
 
@@ -79,7 +80,7 @@ class LiquidGlassTheme extends ThemeExtension<LiquidGlassTheme> {
         BoxShadow(
           color: ambientShadow.withValues(alpha: (ambientShadow.a * strength).clamp(0, 1)),
           blurRadius: 40,
-          offset: const Offset(0, 12),
+          offset: AppDepth.litOffset(12),
         ),
       ];
 

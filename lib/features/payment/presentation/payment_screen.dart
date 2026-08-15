@@ -216,7 +216,7 @@ class _PayCardState extends State<_PayCard> {
                   gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                       colors: [cat.color, cat.color.withValues(alpha: 0.7)]),
                   borderRadius: AppDepth.radius(1),
-                  boxShadow: [BoxShadow(color: cat.color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                  boxShadow: [BoxShadow(color: cat.color.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: Icon(cat.icon, color: Colors.white, size: 26),
               ),
               const SizedBox(height: 12),

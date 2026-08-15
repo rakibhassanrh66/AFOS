@@ -293,7 +293,7 @@ class _BookCard extends StatelessWidget {
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.blue, AppColors.indigo]),
                     borderRadius: AppDepth.radius(0),
-                    boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: const Icon(Icons.book_rounded, color: Colors.white, size: 28)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -421,7 +421,7 @@ class _SearchTab extends StatelessWidget {
                       gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                           colors: [AppColors.blue, AppColors.indigo]),
                       borderRadius: AppDepth.radius(0),
-                      boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]),
+                      boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: AppDepth.litOffset(2))]),
                   child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

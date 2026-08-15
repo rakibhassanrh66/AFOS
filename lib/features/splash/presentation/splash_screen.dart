@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/auth/biometric_lock.dart';
@@ -182,6 +183,25 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               SizedBox(
                 width: 200, height: 200,
                 child: Stack(alignment: Alignment.center, children: [
+                  // The machined bezel the dial sits in — Law 2 and Law 6 in
+                  // one object: the app's single signature surface, and the
+                  // only place the metal ramp is spent.
+                  //
+                  // It is a real specular, not a gradient pretending to be one:
+                  // AppDepth.metal places the highlight in a 4% band at stops
+                  // 42/46 running top-left to bottom-right, and casts its
+                  // shadow along the SAME light. Before this, the splash had no
+                  // lit surface at all — which is why the lockup read as flat
+                  // artwork on a dark rectangle rather than as an object.
+                  Container(
+                    width: 188,
+                    height: 188,
+                    decoration: AppDepth.metal(
+                      level: 3,
+                      isDark: true,
+                      radius: BorderRadius.circular(94),
+                    ),
+                  ),
                   AnimatedBuilder(
                     animation: Listenable.merge([_handCtrl, _glowCtrl]),
                     builder: (_, __) => CustomPaint(

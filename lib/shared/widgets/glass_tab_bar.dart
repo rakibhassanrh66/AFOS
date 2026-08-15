@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
@@ -64,7 +65,7 @@ class GlassTabBar extends StatelessWidget {
                         BoxShadow(
                           color: AppColors.holoTeal.withValues(alpha: 0.3),
                           blurRadius: 12,
-                          offset: const Offset(0, 3),
+                          offset: AppDepth.litOffset(3),
                         ),
                       ],
                     ),

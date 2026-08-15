@@ -1,3 +1,4 @@
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -58,7 +59,7 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
                 color: (_isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue).withValues(alpha: 0.12),
                 blurRadius: 18,
                 spreadRadius: -4,
-                offset: const Offset(0, 6),
+                offset: AppDepth.litOffset(6),
               ),
             ],
           ),

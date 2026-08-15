@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:afos_v7/config/theme/app_colors.dart';
 import 'package:afos_v7/config/theme/app_text_styles.dart';
 import 'package:afos_v7/config/theme/depth.dart';
 import 'package:afos_v7/config/theme/liquid_glass_tokens.dart';
@@ -265,6 +266,99 @@ void main() {
           reason: 'A card or sheet drawn with a symmetric radius loses the '
               'top-right cut, so it no longer matches the cards beside '
               'it:\n${offenders.join('\n')}');
+    });
+
+    test('no shadow anywhere in lib/ falls straight down', () {
+      // LAW 1, enforced where it was actually being broken.
+      //
+      // `depth.dart` has always had a test asserting its shadows fall down AND
+      // to the right. It passed for months while the app looked flat, because
+      // it tested the TOKEN and the app did not use the token: `AppDepth.shadow`
+      // had ONE caller and `AppDepth.surface` had none, while 23 hand-rolled
+      // `BoxShadow`s across 15 files every one used `Offset(0, n)`.
+      //
+      // A purely vertical offset means a light directly overhead, which has no
+      // direction, so nothing reads as sitting above anything else. That — not
+      // the blur values — is what made the UI look like stickers with smudges
+      // under them. This scan is the part that would have caught it.
+      final offenders = <String>[];
+      for (final file in libDart) {
+        // depth.dart defines the rule and QUOTES the broken pattern in its own
+        // doc comment to explain what it is preventing. Scanning the rule's own
+        // statement of the rule is not a finding.
+        if (file.path.replaceAll(r'\', '/').endsWith('config/theme/depth.dart')) {
+          continue;
+        }
+        final src = file.readAsStringSync();
+        for (final m in RegExp(r'offset:\s*(?:const\s+)?Offset\(\s*0\s*,\s*[0-9]')
+            .allMatches(src)) {
+          final line = '\n'.allMatches(src.substring(0, m.start)).length + 1;
+          offenders.add('${file.path}:$line');
+        }
+      }
+      expect(offenders, isEmpty,
+          reason: 'These shadows ignore the light source. Use '
+              'AppDepth.litOffset(dy) to keep the chosen distance and add the '
+              'horizontal component the light implies:\n'
+              '${offenders.join('\n')}');
+    });
+
+    test('litOffset actually biases toward the light', () {
+      for (final dy in [2.0, 3.0, 6.0, 12.0]) {
+        final o = AppDepth.litOffset(dy);
+        expect(o.dy, dy, reason: 'the chosen distance must be preserved');
+        expect(o.dx, greaterThan(0),
+            reason: 'a shadow with no horizontal component is a flat shadow');
+        expect(o.dx, lessThan(o.dy),
+            reason: 'a 20-degree light throws mostly downward — a dx that '
+                'rivals dy reads as the surface sliding sideways');
+      }
+    });
+
+    test('metal uses the asymmetric stops, not a symmetric two-stop fake', () {
+      // The constitution names 0/42/46/100 explicitly, and bans the symmetric
+      // two-stop gradient. The 4% gap between the middle pair IS the specular
+      // band; widen or centre it and the surface stops reading as metal.
+      final d = AppDepth.metal(level: 2, isDark: true);
+      final g = d.gradient as LinearGradient;
+      expect(g.stops, [0.0, 0.42, 0.46, 1.0]);
+      expect(g.colors.length, 4, reason: 'two stops cannot describe a specular');
+      expect(g.begin, Alignment.topLeft,
+          reason: 'the highlight must sit on the face turned toward the light, '
+              'or the surface is lit from one side and shadowed from the same');
+      final band = (g.stops![2] - g.stops![1]);
+      expect(band, lessThan(0.1),
+          reason: 'a wide band is satin, not metal');
+    });
+
+    test('the metal ramp is an actual specular progression', () {
+      // Four colours in a gradient do not make metal; the ORDER of their
+      // luminance does. Shadow darkest, body above it, then a bright band, then
+      // the terminator brightest of all. Get this ordering wrong and the
+      // surface reads as a muddy blue-grey blob with a stripe.
+      double lum(Color c) => c.computeLuminance();
+      expect(lum(AppColors.metalShadow), lessThan(lum(AppColors.metalBase)),
+          reason: 'the unlit side must be darker than the body');
+      expect(lum(AppColors.metalBase), lessThan(lum(AppColors.metalHighlight)),
+          reason: 'the specular band must be brighter than the body');
+      expect(lum(AppColors.metalHighlight), lessThan(lum(AppColors.metalEdge)),
+          reason: 'the terminator is the brightest thing on the surface — it '
+              'is the edge catching the light head-on');
+    });
+
+    test('intensity dulls the finish without changing the material', () {
+      // A quieter metal is a duller finish, not a different colour: the body
+      // and the unlit side are fixed, only the specular response scales.
+      final full = (AppDepth.metal(level: 2, isDark: true).gradient
+          as LinearGradient);
+      final dull = (AppDepth.metal(level: 2, isDark: true, intensity: 0.2)
+          .gradient as LinearGradient);
+
+      expect(dull.colors.first, full.colors.first, reason: 'body unchanged');
+      expect(dull.colors.last, full.colors.last, reason: 'unlit side unchanged');
+      expect(dull.colors[2].computeLuminance(),
+          lessThan(full.colors[2].computeLuminance()),
+          reason: 'a lower intensity must produce a dimmer specular');
     });
 
     test('AppDepth.radius cuts the top-right corner for card and sheet tiers',

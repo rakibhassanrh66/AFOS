@@ -260,7 +260,7 @@ class _MentorList extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.blueLight, AppColors.blue]),
-                    boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                     child: const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 28))),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

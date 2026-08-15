@@ -23,6 +23,34 @@ class AppColors {
   static const Color border        = Color(0xFF25384F);
   static const Color borderLight   = Color(0xFF32506E);
 
+  // --- The metal ramp (Design Constitution, Law 2) -------------------------
+  //
+  // WHY A RAMP AND NOT A GRADIENT PAIR. "Metallic" is not two colours blended
+  // evenly — that is plastic. Metal is a **specular response**: a dark body, a
+  // narrow bright band where the surface normal points at the light, a warmer
+  // bounce on the opposite edge, and a hard edge line. The band being NARROW
+  // and OFF-CENTRE is the whole effect; a symmetric two-stop gradient is the
+  // banned "fake metal" the constitution names by name.
+  //
+  // These four are consumed by [AppDepth.metal], which places them at stops
+  // 0 / 42 / 46 / 100 — a 4% highlight band, biased toward the light at
+  // top-left. Derived from the app's own canvas rather than from neutral greys,
+  // so the metal reads as the same material as the rest of AFOS rather than as
+  // a chrome sticker dropped onto it.
+
+  /// The unlit body of the metal.
+  static const Color metalBase      = Color(0xFF16233A);
+
+  /// The specular band. Deliberately only a few percent of the sweep wide.
+  static const Color metalHighlight = Color(0xFF5E7CA8);
+
+  /// The side turned away from the light.
+  static const Color metalShadow    = Color(0xFF0A1120);
+
+  /// The hard 1px terminator at the lit edge. Metal has an *edge*, not a fade —
+  /// this is what stops the surface looking like painted card.
+  static const Color metalEdge      = Color(0xFF8FB4DC);
+
   // Capped accent duo (+ tonal family).
   static const Color blue          = Color(0xFF4AA3E8);
   static const Color blueLight     = LiquidGlass.accentBlueLight; // #5AB8FF

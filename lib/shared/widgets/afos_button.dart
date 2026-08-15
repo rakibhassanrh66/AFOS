@@ -69,7 +69,7 @@ class _AfosButtonState extends State<AfosButton> {
               color: widget.outlined ? (_hover ? bg.withValues(alpha: 0.08) : Colors.transparent) : null,
               boxShadow: widget.outlined ? null : [
                 BoxShadow(color: bg.withValues(alpha: _hover ? 0.5 : 0.35),
-                    blurRadius: _hover ? 26 : 18, spreadRadius: -2, offset: const Offset(0,6)),
+                    blurRadius: _hover ? 26 : 18, spreadRadius: -2, offset: AppDepth.litOffset(6)),
               ],
             ),
             child: widget.loading
