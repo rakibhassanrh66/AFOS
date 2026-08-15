@@ -99,21 +99,82 @@ nothing overflowed, it just looked broken.
 
 ---
 
-## NOT verified — read this before treating the app as signed off
+## Second device pass — the three items that were owed
 
-1. **Android vs web, side by side.** No browser available on this machine. The
-   web build compiles; nobody has looked at it.
-2. **Roles beyond student and super_admin.** The teacher, staff, dept_admin and
-   exam_controller screens — marks entry, attendance register, module leader,
-   join requests, the `manage_*` tools — were never opened by a role that can
-   reach them. Their permission logic is covered by
-   `staff_menu_permissions_test.dart`; their *rendering* is not.
-3. **The map's new road geometry, on screen.** Phase 5 is verified by unit tests
-   and a live OSRM request returning a correct 21 km Dhaka route, but the phone
-   locked before the line could be looked at.
-4. **The command palette, in a browser.** Its ranking is unit-tested and the APK
-   was measured to prove it does not ship to Android; the keyboard behaviour has
-   not been exercised by a human.
+An earlier revision of this file listed four things as unverified. Three of them
+now are.
 
-Each of these needs about ten minutes with the app in front of you. None of them
-is blocked by anything except access.
+### 1. The map's road geometry — VERIFIED
+
+Route **R4, ECB Chattor → Daffodil Smart City, 13 stops**, on the device. The
+line bends and turns with the streets between every pair of stops instead of
+cutting straight across blocks, and it renders **solid** — which is the code's
+own signal that the OSRM fetch succeeded, since an unsnapped fallback draws
+dashed. No "Approximate route" note appeared, which is the same fact stated a
+second way.
+
+This is the Phase 5 root cause seen fixed, not inferred from a passing test.
+
+### 2. Admin and teacher screens — VERIFIED
+
+The session for this pass was a **super_admin**, so the screens that no role had
+opened now have been:
+
+| screen | state seen |
+|---|---|
+| My Course Offerings | empty state, correct copy |
+| Join Requests | a real pending request, Decline/Accept side by side, batch-match notice |
+| Teaching Load | a real allocation (CSE321 — Masuk, LIVE) |
+| Manage Users | stat row + empty state |
+
+The **AFOS top-right corner cut** from the Phase 3 radius pass is plainly visible
+on the join-request and allocation cards — the change verified on real data
+rather than on a fixture.
+
+### 3. The command palette — VERIFIED BY TEST, not by hand
+
+There is no browser on this machine to press Ctrl+K in. That is not a reason to
+ship it unverified, so it is driven by **8 widget tests** that send real key
+events: arrow-key movement, wrap-around at both ends of the list, Enter
+navigating *and* closing, Escape closing **without** navigating, an unmatched
+query handing itself to `/search` rather than dead-ending, and the fail-closed
+case where permissions have not resolved.
+
+That is stronger evidence than one manual click, because it runs again on every
+change.
+
+---
+
+### 4. Android vs web, side by side — PARTLY VERIFIED
+
+The blocker was that no browser on this machine can be driven. The way round it
+was to stop trying to drive a browser here: `flutter build web` output was served
+locally, `adb reverse tcp:8899 tcp:8899` mapped the port onto the phone, and the
+web app was opened **in the phone's own browser** — same panel, same viewport,
+same pixel density as the native app it is being compared against. That is a
+better comparison than a desktop window would have given.
+
+**Login screen, web vs native, at 1220x2712:** the card, the DIU logo, the
+gradient canvas (including the snapped `authDeep` → `canvasDark`), field
+styling, type scale, radius, the green CTA gradient and every string are
+**identical**. The only difference is that the browser's own chrome takes
+vertical space, which is the browser, not the app.
+
+The build also **boots clean in Edge** — `flutter run -d edge --profile`
+compiled and launched with no runtime errors or exceptions in the output.
+
+---
+
+## STILL not verified
+
+1. **Authenticated screens on web.** The login screen matches; everything behind
+   it was not compared, because signing in on the web build means entering a
+   password, which I do not do. The shell, the nav rail at ≥1024px, and the
+   command palette in a real browser are all still unseen. The palette's
+   behaviour is covered by widget tests, but its *appearance* on web is not.
+2. **Roles between student and super_admin** — `teacher`, `staff`, `dept_admin`,
+   `exam_controller`. Both extremes of the role matrix have now been walked, so
+   the shared shell and the admin tools are covered; the middle roles differ only
+   in *which* of those already-seen screens they are granted, and that grant
+   logic is pinned by `staff_menu_permissions_test.dart`. Lower risk than it was,
+   not zero.
