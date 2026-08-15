@@ -360,7 +360,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                           icon: AppIcons.schedule,
                           title: 'No classes ${_days[_day]}',
                           subtitle: _isFacultyRole
-                              ? 'Enjoy your free day!'
+                              ? 'Nothing is scheduled for you today.'
                               : 'Retake classes are not listed automatically — '
                                 'search the course code to add one to your routine.',
                           actionLabel: _isFacultyRole ? null : 'Find a retake class',

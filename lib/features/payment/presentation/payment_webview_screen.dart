@@ -91,7 +91,7 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
             if (_disposed || !mounted) return;
             if (msg.message == 'PAYMENT_SUCCESS') {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Payment successful!'),
+                const SnackBar(content: Text('Payment received'),
                     backgroundColor: AppColors.green));
               Navigator.pop(context);
             }

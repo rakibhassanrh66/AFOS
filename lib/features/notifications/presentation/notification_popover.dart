@@ -237,7 +237,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                           Icon(Icons.notifications_none_rounded,
                               size: 34, color: AppColors.textMutedOf(context)),
                           const SizedBox(height: 8),
-                          Text("You're all caught up!",
+                          Text("You're all caught up.",
                               style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.textSecondaryOf(context))),
                         ]),
