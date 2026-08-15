@@ -529,6 +529,12 @@ class _SlideMenuState extends State<SlideMenu> {
                       isActive: isRouteActive(GoRouter.of(ctx), _effectiveItems[i].route),
                       index: i,
                       delay: (i*15).clamp(0,90))),
+                  // A staff account with no areas assigned is not a small menu
+                  // — it is an unfinished setup, and it looked identical to a
+                  // finished one. A staff member sat waiting to upload routines
+                  // while `user_permissions` was empty app-wide, seeing a short
+                  // menu that gave no hint anything was missing.
+                  if (_user?.role == 'staff' && _grants.isEmpty) const _NoAreasNotice(),
                   // Logout is the LAST ITEM of this same scrolling list, not a
                   // separately pinned row below it (tried in a previous round —
                   // pinning it outside the Expanded ListView fixed "Logout
@@ -856,6 +862,55 @@ class _QuickRailTile extends StatelessWidget {
                   fontSize: 14, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
             ]),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown in a `staff` menu that has no delegated areas at all.
+///
+/// WHY IT MATTERS. `staff` is the one role whose tools come entirely from
+/// per-person grants. Before this, an account with nothing assigned rendered a
+/// short menu that looked exactly like a finished setup — so a staff member
+/// waiting to upload routines had no way to tell whether the app was broken,
+/// their permission had not been granted, or that was simply all they got.
+/// Saying it plainly turns a mystery into a message they can act on.
+class _NoAreasNotice extends StatelessWidget {
+  const _NoAreasNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final textSecondary = AppColors.textSecondaryOf(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.amber.withValues(alpha: 0.10),
+          borderRadius: AppDepth.radius(1),
+          border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.info_outline_rounded,
+                  size: 16, color: AppColors.amber),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('No work areas assigned yet',
+                    style: AppTextStyles.titleMedium.copyWith(
+                        color: AppColors.textPrimaryOf(context), fontSize: 13)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Your account is set up as staff, but no admin area has been '
+              'assigned to it. Ask a super-admin to assign yours — the tools '
+              'appear here as soon as they do, without signing out.',
+              style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+            ),
+          ]),
         ),
       ),
     );

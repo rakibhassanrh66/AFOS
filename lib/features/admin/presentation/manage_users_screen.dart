@@ -341,12 +341,65 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
             content: Text('${user['full_name'] ?? 'User'} is now "$picked"'), backgroundColor: AppColors.green));
       }
       _load();
+
+      // STAFF STARTS WITH NOTHING, AND NOBODY WAS TOLD.
+      //
+      // `staff` is the one role whose menu is built ENTIRELY from delegated
+      // grants (slide_menu.dart's `staffMenuRoutes`), so setting someone to
+      // staff and stopping there gives them home/transport/lost & found and no
+      // job. That is exactly what happened: `user_permissions` held ZERO rows
+      // app-wide while a staff member was waiting to upload routines, because
+      // "set the role" and "grant the areas" are two unrelated buttons and only
+      // the first looks like the whole task.
+      //
+      // So the moment a role becomes staff, say so and offer the second step
+      // rather than leaving it to be discovered.
+      if (mounted && picked == 'staff') {
+        await _promptToAssignAreas(user);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
       }
     }
+  }
+
+  /// Offered immediately after a user is made `staff`.
+  ///
+  /// Not a snackbar: this is a step the admin has to take, and a message that
+  /// disappears after four seconds is how the step got skipped in the first
+  /// place. Declining is allowed — some staff genuinely need no admin area —
+  /// but it has to be a decision rather than an omission.
+  Future<void> _promptToAssignAreas(Map<String, dynamic> user) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceOf(ctx),
+        title: Text('Assign their work areas',
+            style: TextStyle(color: AppColors.textPrimaryOf(ctx))),
+        content: Text(
+          'Staff accounts start with no admin tools at all. '
+          '${user['full_name'] ?? 'This user'} cannot upload routines, manage '
+          'a hall or publish notices until you grant those areas — the role on '
+          'its own does nothing.',
+          style: TextStyle(color: AppColors.textSecondaryOf(ctx)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('They need none',
+                style: TextStyle(color: AppColors.textSecondaryOf(ctx))),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.holoviolet),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Assign areas'),
+          ),
+        ],
+      ),
+    );
+    if (go == true && mounted) await _managePermissions(user);
   }
 
   /// Grants ONE specific admin area to a user without changing their role —
