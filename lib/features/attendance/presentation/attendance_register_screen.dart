@@ -2,7 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -283,13 +287,16 @@ class _RegisterSummaryBar extends StatelessWidget {
                         .copyWith(color: AppColors.textSecondaryOf(context))),
             ]),
           ),
+          // Attended-over-counted, recomputed on every status tap.
           Text('$attended/${counted <= 0 ? 0 : counted}',
-              style: AppTextStyles.headlineMed.copyWith(
+              style: AppTextStyles.numericLarge.copyWith(
+                  fontSize: 18, fontWeight: FontWeight.w700,
                   color: pct >= 0.75 ? AppColors.green : AppColors.amber)),
         ]),
         const SizedBox(height: 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          // A 6px bar — the pill rung.
+          borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
           child: LinearProgressIndicator(
             value: pct,
             minHeight: 6,
@@ -326,7 +333,7 @@ class _CountChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppDepth.radius(0),
           border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
         ),
         child: Text('$label $count',
@@ -436,19 +443,19 @@ class _BonusControl extends StatelessWidget {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (has)
         GestureDetector(
-          onTap: () => onChanged((bonus - 0.5).clamp(0, 5)),
+          onTap: () { AppHaptics.selection(); onChanged((bonus - 0.5).clamp(0, 5)); },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             margin: const EdgeInsets.only(left: 6),
             decoration: BoxDecoration(
               color: AppColors.purple.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: AppDepth.radius(0),
               border: Border.all(color: AppColors.purple.withValues(alpha: 0.35), width: 0.6),
             ),
             child: Text('+${bonus.toStringAsFixed(bonus % 1 == 0 ? 0 : 1)}',
                 textHeightBehavior: const TextHeightBehavior(
                     applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                style: const TextStyle(
+                style: AppTextStyles.numericSmall.copyWith(
                     color: AppColors.purple, fontSize: 11, height: 1.0,
                     fontWeight: FontWeight.w800)),
           ),
@@ -456,7 +463,9 @@ class _BonusControl extends StatelessWidget {
       IconButton(
         visualDensity: VisualDensity.compact,
         tooltip: has ? 'Add bonus (tap the chip to reduce)' : 'Give bonus',
-        onPressed: bonus >= 5 ? null : () => onChanged((bonus + 0.5).clamp(0, 5)),
+        onPressed: bonus >= 5
+            ? null
+            : () { AppHaptics.selection(); onChanged((bonus + 0.5).clamp(0, 5)); },
         icon: Icon(Icons.star_rounded,
             size: 19,
             color: has
@@ -475,14 +484,22 @@ class _StatusButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
+        onTap: () { AppHaptics.selection(); onTap(); },
         child: AnimatedContainer(
-          duration: LiquidGlass.motionFast,
-          curve: LiquidGlass.motionCurve,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          // Was LiquidGlass.motionFast — same 160ms, but a bare constant that
+          // reduce-motion never reached.
+          duration: AppMotion.durationOf(context, AppMotion.tight),
+          curve: AppMotion.standard,
+          // This was 8px of padding around an 11px label: a ~27dp target, on
+          // the control a teacher taps once per student and where a mis-tap
+          // marks the wrong person absent. A minimum height clears the 48dp
+          // floor without inventing an off-scale padding value.
+          constraints: const BoxConstraints(minHeight: AppSpace.minTouchTarget),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
           decoration: BoxDecoration(
             color: meta.color.withValues(alpha: selected ? 0.9 : 0.09),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(
                 color: meta.color.withValues(alpha: selected ? 1 : 0.3), width: 0.8),
           ),

@@ -3,7 +3,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -123,6 +126,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       final n = await _repo.assignLabGroups(offering['id'] as String);
       await _loadDetail();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(n == 0
                 ? 'Everyone is already in a group'
@@ -221,7 +225,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             end: Alignment.bottomRight,
             colors: [AppColors.blueLight, AppColors.blue]),
         margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+      ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+          .slideY(begin: -0.06, curve: AppMotion.standard),
 
       if (_offerings.length > 1)
         SizedBox(
@@ -361,7 +366,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   color: AppColors.textSecondaryOf(ctx), size: 20),
             ]),
           ),
-        ).animate(delay: Duration(milliseconds: i * 45)).fadeIn().slideY(begin: 0.05);
+        ).animate(delay: AppMotion.staggerFor(context, i)).fadeIn().slideY(begin: 0.05);
       },
     );
   }
@@ -438,8 +443,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                               _selected?['section'] as String?, sub),
                       color: sub == null ? AppColors.amber : AppColors.purple),
                 ),
+              // A percentage per student, right down a roster — this is the
+              // column the eye scans to find who is below 75%.
               Text(sessions == 0 ? '—' : '${pct.toStringAsFixed(0)}%',
-                  style: AppTextStyles.titleMedium.copyWith(color: color)),
+                  style: AppTextStyles.numericMedium.copyWith(fontSize: 14, color: color)),
             ]),
           ),
         );
@@ -456,14 +463,17 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
+        onTap: () { AppHaptics.selection(); onTap(); },
         child: AnimatedContainer(
-          duration: LiquidGlass.motionFast,
-          curve: LiquidGlass.motionCurve,
+          // Was LiquidGlass.motionFast, which aliases the same 160ms but is a
+          // bare constant — reading it through durationOf is what makes this
+          // chip actually stop moving under "reduce motion".
+          duration: AppMotion.durationOf(context, AppMotion.tight),
+          curve: AppMotion.standard,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             color: AppColors.blue.withValues(alpha: selected ? 0.9 : 0.1),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(
                 color: AppColors.blue.withValues(alpha: selected ? 1 : 0.3), width: 0.8),
           ),
@@ -531,6 +541,7 @@ class _NewSessionFormState extends State<_NewSessionForm> {
             if (r['student_id'] != null) r['student_id'] as String,
         ],
       );
+      AppHaptics.success();
       if (mounted) {
         Navigator.pop(context, {
           'id': sessionId,
