@@ -173,6 +173,20 @@ jobs:
 
       # Universal FIRST — it is what the in-app updater downloads, and the
       # signature gate below verifies it specifically.
+      # THIS REPO IS PUBLIC. Fail the build if an agent/editor scratch
+      # directory or a credential-shaped file has been committed, rather than
+      # relying on someone noticing it in a diff. `.codex/` was tracked until
+      # 2026-08-16 before anyone spotted it.
+      - name: Refuse to publish agent scratch dirs or secrets
+        run: |
+          BAD=$(git ls-files | grep -E '^\.(codex|claude|cursor|aider|continue|gemini|opencode|roo)/|(^|/)(key\.properties|.*\.jks|.*\.keystore|\.env|.*\.pem|.*\.p12)$' || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::These must never be committed to a public repo:"
+            echo "$BAD"
+            exit 1
+          fi
+          echo "No scratch directories or credential files are tracked."
+
       - run: flutter build apk --release
 
       # And the per-ABI splits, for people downloading by hand.

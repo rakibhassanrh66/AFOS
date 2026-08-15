@@ -23,6 +23,7 @@
     <application
         android:label="AFOS"
         android:name="${applicationName}"
+        android:hasFragileUserData="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

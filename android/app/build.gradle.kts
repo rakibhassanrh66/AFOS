@@ -88,6 +88,40 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+
+        // PROFILE BUILDS GET THE RELEASE KEY TOO — and this is not cosmetic.
+        //
+        // Flutter signs `--profile` with the DEBUG key by default. A profile
+        // APK is the one you actually install on a real phone to test
+        // performance, so it lands on the same device as a downloaded release
+        // build — with a different signature. Android then refuses every later
+        // install of either one with "App not installed as package conflicts
+        // with an existing package", and the only cure is uninstalling, which
+        // signs the user out.
+        //
+        // That is not a hypothetical: it happened on the maintainer's own
+        // phone, took three published versions to diagnose, and none of those
+        // versions could have fixed it — Android rejects the package before any
+        // app code runs.
+        //
+        // Signing profile with the release key makes a locally built profile
+        // APK install cleanly over a published release and vice versa, because
+        // they are then the same signer. Falls back to debug signing when no
+        // keystore is present, so a fresh clone still builds.
+        //
+        // The alternative — `applicationIdSuffix ".debug"` — is the textbook
+        // answer and is WRONG for this project: google-services.json registers
+        // only `com.example.afos` and `com.example.afos_v7`, so a suffixed ID
+        // fails the build with "No matching client found for package name".
+        // Fixing that needs a Firebase console change, which is a bigger and
+        // more fragile move than signing consistently.
+        maybeCreate("profile").apply {
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
     }
 }
 

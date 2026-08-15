@@ -88,3 +88,21 @@ supabase/.temp/
 .playwright-mcp/
 .aidesigner/*
 !.aidesigner/.gitkeep
+
+# --- Agent / editor scratch directories -------------------------------------
+# THIS REPO IS PUBLIC. Anything committed here is world-readable forever, so
+# tool configs and assistant working directories do not belong in it: they are
+# machine-local, they leak paths and workflow details, and none of them is
+# needed to build or run AFOS.
+#
+# .codex/ was tracked until 2026-08-16 and has been removed.
+.codex/
+.claude/
+.cursor/
+.aider*
+.continue/
+.windsurfrules
+.gemini/
+.opencode/
+.roo/
+CLAUDE.local.md
