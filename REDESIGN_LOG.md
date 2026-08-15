@@ -1313,3 +1313,93 @@ succeeds (after R1) · APK signed with the permanent cert
    be measured from a unit test.
 
 ---
+
+## Phases 4–9 — the half the close-out plan had not covered · 2026-08-15 · COMPLETE
+Branches `redesign/p4-interaction` … `redesign/p9-release`.
+
+The earlier close-out plan finished Phases 0–3 plus 2.5, 8 and the measurement
+half of 7 and 9. Phases **4, 5 and 6 had never appeared in this log at all**.
+They do now.
+
+### Phase 4 — interaction physics
+60 raw `GestureDetector`s and 181 `onTap:` sites against **two** shared widgets
+with any press state. New `Pressable`: same-frame press to 0.97, overshoot-free
+release, haptic on commit, reduced motion keeps the state and drops the easing.
+
+`AppHaptics` now **coalesces** — a primitive reporting `selection` plus a handler
+reporting `success` was two buzzes 10ms apart, which the hand reads as a stutter
+rather than as two facts. Strongest wins inside 60ms. That is what lets the
+primitives always speak without auditing 92 call sites.
+
+The preference also persists now and has an actual switch in Settings; it had
+none since Phase 1, so 92 call sites answered to a setting no screen could
+change. `AppHaptics.threshold()` had **zero** callers and is now on the
+notification swipe's `onUpdate`.
+
+**Correction recorded:** I had reported sheet dismissal as distance-only. Wrong —
+Flutter's `BottomSheet` already does velocity-aware dismissal
+(`_kMinFlingVelocity`, `bottom_sheet.dart:301`), and both sheet helpers use it.
+
+### Phase 5 — the route line follows roads
+Root cause confirmed in code: `_routePoints => _plotted.map((s) => s.point)`,
+drawn as straight `Polyline` segments. A Dhaka route rendered as chords across
+blocks and rivers. Styling cannot fix a wrong geometry.
+
+**OSRM's public demo, chosen because this repo is PUBLIC** — ORS/GraphHopper/
+Mapbox all need a key that cannot be committed. Its terms are honoured rather
+than skirted: a serialized 1.1s gate for the ≤1 req/sec rule, non-commercial
+use, and a fallback chain that is load-bearing because access can be withdrawn
+without notice. Live-tested: Dhanmondi → DIU Ashulia, HTTP 200, 21.0 km, full
+geometry. Cached on a hash of the stop coordinates.
+
+Failure is **visible**: the chords render dashed under an amber "Approximate
+route" note. Silently restoring a straight line after a failed fetch would be
+worse than the original bug, because it would be intermittent.
+
+### Phase 6 — the command palette
+Ctrl/Cmd+K, web only. It does **not** recompute permissions — `slide_menu`
+publishes what it decided into `navDestinations` and the palette reads it,
+because a second implementation of the role matrix is how a palette starts
+offering routes the router refuses. Fails closed: empty until permissions
+resolve.
+
+**APK measured before and after: 34.6 MB → 34.6 MB.** `kIsWeb` is a compile-time
+constant, so the branch and everything it references leave the Android build.
+
+### Phase 7 — performance, by measurement
+Fixed, with evidence: `app_icon_source.png` (1024², 481 KB) was shipping in the
+APK although only `flutter_launcher_icons` reads it, because pubspec declared the
+whole `assets/images/` directory — **−0.5 MB on every ABI**. And `diu_logo.png`
+decoded ~5.0 MB of ARGB to paint an 88px logo on three screens; `cacheWidth` at
+all three.
+
+Audited and already correct, recorded as negatives: **no realtime leaks** (all 13
+subscribing screens unsubscribe), **no unbounded `shrinkWrap`** (all 6 bounded).
+
+**No speculative `const`, no `RepaintBoundary` shuffling** — cold start passes
+with 1.1s of headroom and there is no measured frame problem to optimise against.
+
+### Phase 8 — parity
+`audit/PARITY_REPORT.md`. 62 screens: loading 54, empty 50, error 55, **RTL-safe
+62/62**. Every gap was then read rather than filed — and **four of my own flags
+were false positives**, all screens that delegate their states to a bloc. Same
+lesson as Phase 0's `dispose()` heuristic: the absence of a keyword is a prompt
+to read the file, not evidence of a defect.
+
+### Phase 9 — release gate
+`audit/RELEASE_NOTES.md`. analyze 0, **335 tests**, both builds succeed, APK
+signed with the permanent cert, and `git diff main` on repositories, services,
+models, `supabase/`, `android/` and `.env*` = **zero lines**.
+
+**Budgets: cold start PASSES at 664ms. APK FAILS at 34.1 MB against 28.
+Web FCP FAILS.** Both failures are located to the byte in `PERF_BASELINE.md`;
+`mobile_scanner`'s bundled ML Kit is 5.5 MB of the APK for one tab.
+
+### What is genuinely still open
+1. Android-vs-web side by side — no browser on this machine.
+2. Teacher/staff/admin-role screens never opened by a role that can reach them.
+3. The new map line and the command palette, on screen.
+4. APK size and web payload, over budget.
+5. `db/proposed/001_route_geometry_cache.sql`, unapplied, awaiting a decision.
+
+---
