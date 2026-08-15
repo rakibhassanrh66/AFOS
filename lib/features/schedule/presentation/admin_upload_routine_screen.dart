@@ -9,6 +9,9 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -68,6 +71,16 @@ class _PendingUpload {
   final PlatformFile file;
   String mode;
   String? result, error;
+  /// True when [result] describes a partial success — the routine saved, but
+  /// something after it did not.
+  ///
+  /// This exists because the severity used to live in the STRING, as a `⚠`
+  /// glyph, while the result line was painted unconditionally green. So "Saved,
+  /// but no users were notified" rendered in the same success colour as a clean
+  /// import, and the only thing distinguishing them was an emoji that screen
+  /// readers announce as "warning sign" and that cannot take a theme colour.
+  /// The severity is a property of the outcome, not a character in the text.
+  bool resultWarning = false;
   bool uploading = false;
   _PendingUpload(this.file) : mode = _guessMode(file.name);
 }
@@ -194,7 +207,11 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       };
       final removed = res.data["slotsRemoved"] ?? 0;
       final removedNote = removed > 0 ? ' $removed obsolete $noun cleared.' : '';
-      setState(() => p.result = '✅ ${res.data["slotsInserted"]} $noun loaded.$removedNote');
+      setState(() {
+        p.result = '${res.data["slotsInserted"]} $noun loaded.$removedNote';
+        p.resultWarning = false;
+      });
+      AppHaptics.success();
     } catch (e) {
       final data = e is DioException ? e.response?.data : null;
       setState(() => p.error = data is Map && data['error'] != null ? data['error'].toString() : friendlyError(e));
@@ -259,10 +276,17 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       // Surface exactly what the notify step did, so a silent failure is
       // visible instead of the old "routes imported" with no delivery signal.
       // inAppInserted is the count of user_notifications rows actually created.
-      final notifyNote = _notifyOutcome(notifyResult);
-      setState(() => p.result =
-          '✅ ${edited.routes.length} routes imported for ${parsed.semester}'
-          '${result.warningCount > 0 ? ' (${result.warningCount} warnings)' : ''}.$notifyNote');
+      final notify = _notifyOutcome(notifyResult);
+      setState(() {
+        p.result = '${edited.routes.length} routes imported for ${parsed.semester}'
+            '${result.warningCount > 0 ? ' (${result.warningCount} warnings)' : ''}.${notify.note}';
+        p.resultWarning = notify.warned || result.warningCount > 0;
+      });
+      if (notify.warned) {
+        AppHaptics.warning();
+      } else {
+        AppHaptics.success();
+      }
     } catch (e) {
       setState(() => p.error = friendlyError(e));
     } finally {
@@ -274,13 +298,19 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
   /// result, so the notify step's real outcome is visible instead of silent.
   /// `inAppInserted` is the number of user_notifications rows actually created —
   /// the definitive "did a notification get created in the DB" signal.
-  String _notifyOutcome(Map<String, dynamic>? r) {
-    if (r == null) return ' ⚠ Saved, but the update notification could not be sent (check connection/permissions).';
-    if (r['insertError'] != null) return ' ⚠ Saved, but notifying users failed: ${r['insertError']}.';
+  ({String note, bool warned}) _notifyOutcome(Map<String, dynamic>? r) {
+    if (r == null) {
+      return (note: ' Saved, but the update notification could not be sent (check connection/permissions).', warned: true);
+    }
+    if (r['insertError'] != null) {
+      return (note: ' Saved, but notifying users failed: ${r['insertError']}.', warned: true);
+    }
     final inApp = (r['inAppInserted'] as num?)?.toInt() ?? 0;
-    if (inApp == 0) return ' ⚠ Saved, but no users were notified (no recipients matched).';
+    if (inApp == 0) {
+      return (note: ' Saved, but no users were notified (no recipients matched).', warned: true);
+    }
     final pushNote = r['pushError'] != null ? ' (in-app only — push unavailable)' : '';
-    return ' 🔔 $inApp user${inApp == 1 ? '' : 's'} notified$pushNote.';
+    return (note: ' $inApp user${inApp == 1 ? '' : 's'} notified$pushNote.', warned: r['pushError'] != null);
   }
 
   Future<void> _uploadAll() async {
@@ -322,7 +352,9 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             icon: Icons.upload_file_rounded,
             accent: AppColors.holoBlue,
             margin: EdgeInsets.fromLTRB(0, 16, 0, 12),
-          ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06),
+          ).animate()
+              .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+              .slideY(begin: -0.06, curve: AppMotion.standard),
           if (showDept) ...[
             const SizedBox(height: 20),
             if (_loadingDepts)
@@ -340,7 +372,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
               decoration: InputDecoration(
                   hintText: 'Select department', filled: true, fillColor: AppColors.glassFill(context),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                  border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                       borderSide: BorderSide(color: AppColors.borderOf(context)))),
               dropdownColor: AppColors.surfaceOf(context),
               style: TextStyle(color: textPrimary),
@@ -355,7 +387,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             // the client could send).
             Container(
               padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + NavInsets.of(context)),
-              decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(10),
+              decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context))),
               child: Row(children: [
                 Icon(Icons.lock_outline_rounded, size: 16, color: textSecondary),
@@ -372,7 +404,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             child: Container(
               width: double.infinity, height: 100,
               decoration: BoxDecoration(
-                  color: AppColors.glassFill(context), borderRadius: BorderRadius.circular(16),
+                  color: AppColors.glassFill(context), borderRadius: AppDepth.radius(2),
                   border: Border.all(color: AppColors.glassBorder(context))),
               child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.add_circle_outline, color: textSecondary, size: 32),
@@ -413,7 +445,7 @@ class _PendingCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -434,7 +466,7 @@ class _PendingCard extends StatelessWidget {
           decoration: InputDecoration(
               isDense: true, filled: true, fillColor: AppColors.glassFill(context),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.borderOf(context)))),
+              border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide(color: AppColors.borderOf(context)))),
           dropdownColor: AppColors.surfaceOf(context),
           style: TextStyle(color: textPrimary, fontSize: 13),
           items: _modes.map((m) => DropdownMenuItem(value: m, child: Text(_modeLabel(m)))).toList(),
@@ -442,8 +474,19 @@ class _PendingCard extends StatelessWidget {
         )),
         if (pending.uploading) Padding(padding: const EdgeInsets.only(top: 10),
             child: SupernovaBusy(label: isPdf ? 'Reading the PDF…' : 'Reading the sheet…')),
+        // Amber when the import landed but something after it did not. This
+        // line was unconditionally green, so "Saved, but no users were
+        // notified" looked exactly like a clean run.
         if (pending.result != null) Padding(padding: const EdgeInsets.only(top: 8),
-            child: Text(pending.result!, style: const TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.w600))),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(pending.resultWarning ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+                  size: 14, color: pending.resultWarning ? AppColors.amber : AppColors.green),
+              const SizedBox(width: 6),
+              Expanded(child: Text(pending.result!,
+                  style: TextStyle(
+                      color: pending.resultWarning ? AppColors.amber : AppColors.green,
+                      fontSize: 12, fontWeight: FontWeight.w600))),
+            ])),
         if (pending.error != null) Padding(padding: const EdgeInsets.only(top: 8),
             child: Text(pending.error!, style: const TextStyle(color: AppColors.red, fontSize: 12))),
       ]),

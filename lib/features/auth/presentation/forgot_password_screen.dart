@@ -8,6 +8,7 @@ import '../bloc/auth_state.dart';
 import '../data/repositories/auth_repository.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/motion.dart';
 import '../../../shared/extensions/context_ext.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -81,19 +82,26 @@ class _ForgotBodyState extends State<_ForgotBody> {
                                 ),
                                 alignment: Alignment.center,
                                 child: const Icon(Icons.lock_reset, color:AppColors.holoBlue, size:28),
-                              ).animate().scale(duration:450.ms,curve:Curves.easeOutCubic).fadeIn(duration:300.ms),
+                              ).animate()
+          .scale(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
+          .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
                               const SizedBox(height:24),
                               Text('Reset Password', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))
-                                .animate(delay:120.ms).fadeIn(duration:300.ms).slideX(begin:-0.06,curve:Curves.easeOutCubic),
+                                .animate(delay: AppMotion.sequenceDelay(context, 3))
+                                .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                                .slideX(begin:-0.06, curve: AppMotion.standard),
                               const SizedBox(height:8),
                               Text("Enter your email. We'll send a reset link.",
                                 style:AppTextStyles.bodyMedium.copyWith(color: textSecondary))
-                                .animate(delay:180.ms).fadeIn(duration:300.ms),
+                                .animate(delay: AppMotion.sequenceDelay(context, 5))
+        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
                               const SizedBox(height:32),
                               AfosTextField(hint:'Email address', controller:_ctrl,
                                 prefixIcon:Icons.email_outlined, keyboardType:TextInputType.emailAddress,
                                 validator:AppValidators.loginEmail)
-                                .animate(delay:260.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                                .animate(delay: AppMotion.sequenceDelay(context, 7))
+                                .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                                .slideY(begin:0.08, curve: AppMotion.standard),
                               const SizedBox(height:24),
                               BlocBuilder<AuthBloc,AuthState>(
                                 builder:(ctx,state) => AfosButton(
@@ -105,7 +113,9 @@ class _ForgotBodyState extends State<_ForgotBody> {
                                     }
                                   },
                                 ),
-                              ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                              ).animate(delay: AppMotion.sequenceDelay(context, 8))
+                                .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                                .slideY(begin:0.08, curve: AppMotion.standard),
                             ]),
                           ),
                     ),
@@ -142,17 +152,22 @@ class _SuccessView extends StatelessWidget {
         ),
         alignment: Alignment.center,
         child: const Icon(Icons.mark_email_read_outlined, color:AppColors.green, size:36),
-      ).animate().scale(duration:450.ms,curve:Curves.easeOutCubic).fadeIn(duration:300.ms),
+      ).animate()
+          .scale(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
+          .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
       const SizedBox(height:24),
-      Text('Check your inbox!', style:AppTextStyles.displayMedium.copyWith(color: textPrimary), textAlign:TextAlign.center)
-        .animate(delay:120.ms).fadeIn(duration:300.ms),
+      Text('Check your inbox', style:AppTextStyles.displayMedium.copyWith(color: textPrimary), textAlign:TextAlign.center)
+        .animate(delay: AppMotion.sequenceDelay(context, 3))
+        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
       const SizedBox(height:12),
-      Text('A password reset link has been sent to your email.',
+      Text('We sent a password reset link to your email.',
         style:AppTextStyles.bodyMedium.copyWith(color: textSecondary), textAlign:TextAlign.center)
-        .animate(delay:180.ms).fadeIn(duration:300.ms),
+        .animate(delay: AppMotion.sequenceDelay(context, 5))
+        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
       const SizedBox(height:32),
       AfosButton(label:'Back to Login', onTap:()=>GoRouter.of(context).go('/auth/login'))
-        .animate(delay:260.ms).fadeIn(duration:300.ms),
+        .animate(delay: AppMotion.sequenceDelay(context, 7))
+        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
     ]);
   }
 }
