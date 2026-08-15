@@ -1,0 +1,93 @@
+-- PROPOSED — NOT APPLIED. Requires your explicit decision before it runs.
+--
+-- Source: Supabase performance advisors, 2026-08-15. 425 lints total. This
+-- file contains the THREE that are worth acting on; the reasoning for leaving
+-- the other 422 alone is at the bottom, because "why not" is the more useful
+-- half of an audit.
+
+-- ---------------------------------------------------------------------
+-- 1. auth.uid() re-evaluated PER ROW on assignment_submissions  (3 policies)
+-- ---------------------------------------------------------------------
+-- The classic Postgres/RLS footgun. `auth.uid()` inside a policy predicate is
+-- treated as volatile and called once FOR EVERY ROW SCANNED. Wrapping it in a
+-- scalar subquery makes the planner hoist it into an InitPlan and evaluate it
+-- exactly once per statement.
+--
+-- The rewrite is semantically identical -- same value, same comparison, same
+-- rows -- which is what makes this the one RLS change here I would call safe.
+-- It matters most on the biggest table, and assignment_submissions grows with
+-- (students x assignments), so it is the right one to fix first.
+--
+-- READ THE CURRENT POLICY BODIES FIRST and re-apply them verbatim with only
+-- auth.uid() wrapped. Do NOT retype them from memory:
+--
+--   select policyname, cmd, qual, with_check
+--     from pg_policies
+--    where schemaname='public' and tablename='assignment_submissions';
+--
+-- Then, for each of the three, ALTER POLICY replacing `auth.uid()` with
+-- `(select auth.uid())` and nothing else:
+--
+--   student_read_own_submission
+--   student_update_own_submission_before_deadline
+--   teacher_grade_submissions
+--
+-- Verify afterwards inside a transaction that a student still sees exactly
+-- their own submissions and no others -- the BEGIN/ROLLBACK recipe with
+-- set_config('request.jwt.claims', ...) that this project already uses.
+
+-- ---------------------------------------------------------------------
+-- 2. course_offerings.course_id has no covering index
+-- ---------------------------------------------------------------------
+-- A foreign key without an index makes every join across it a sequential scan,
+-- and course_offerings is joined on course_id by the schedule, browse-courses,
+-- join-requests, marks and attendance paths -- i.e. most of the academic
+-- module. This is the single highest-value line in this file.
+--
+-- CONCURRENTLY so it does not take a write lock on a live table. It cannot run
+-- inside a transaction block, so run it on its own.
+
+create index concurrently if not exists course_offerings_course_id_idx
+  on public.course_offerings (course_id);
+
+-- ---------------------------------------------------------------------
+-- 3. grading_scale has no primary key
+-- ---------------------------------------------------------------------
+-- A table with no primary key cannot be safely updated by row identity, cannot
+-- be replicated by some tooling, and cannot be de-duplicated. grading_scale is
+-- a small reference table read server-side only (the app never queries it --
+-- checked, it appears in Dart comments only), so this is correctness hygiene
+-- rather than a live bug.
+--
+-- Inspect the columns before choosing the key -- if (min_marks, max_marks) or
+-- a letter grade is unique, that is the natural key:
+--
+--   select * from public.grading_scale order by 1;
+--
+-- Then EITHER add a surrogate key:
+--     alter table public.grading_scale add column id bigint generated always as identity primary key;
+-- OR promote the real one:
+--     alter table public.grading_scale add primary key (<the unique column(s)>);
+--
+-- Left as a choice on purpose: picking the wrong key here is harder to undo
+-- than leaving it alone.
+
+-- =====================================================================
+-- WHAT WAS DELIBERATELY NOT ACTED ON, and why
+-- =====================================================================
+--
+-- 363 x multiple_permissive_policies (WARN)
+--   Several permissive policies on the same table/role/action, each evaluated
+--   on every query. Consolidating them is a genuine speed-up AND the single
+--   most dangerous change available here: merging two permissive policies with
+--   OR is only equivalent if you have read both correctly, and getting it
+--   wrong widens who can see what. This project already had one privilege
+--   escalation via a NULL role_id. Not worth it for a per-query constant on a
+--   database this size, and certainly not as a side effect of a UI phase.
+--
+-- 57 x unused_index (INFO)
+--   "Unused" here means "not used YET". These statistics come from a database
+--   with a handful of accounts and one semester of data; an index serving a
+--   report that runs at end of term will look unused all year. Dropping them
+--   trades a little disk for a cliff the first time that query runs. Revisit
+--   when there is a term of real traffic to judge by.

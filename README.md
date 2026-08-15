@@ -68,13 +68,29 @@ One login. One app. Every facility on campus — routines, transport, halls, lib
 
 ### [**⬇ Download the latest APK**](../../releases/latest)
 
-*One file. No Play Store account. No developer options.*
+*No Play Store account. No developer options.*
 
 </div>
 
-The Releases page publishes a **single universal APK** — `AFOS-vX.Y.Z.apk` — that
-runs on every Android phone (ARM and x86, 32- and 64-bit). There is no "which
-one do I pick".
+**Just grab `AFOS-vX.Y.Z.apk`.** It runs on every Android phone — ARM and x86,
+32- and 64-bit — so if you are not sure, that is the one.
+
+If your connection makes a 92 MB download painful, take
+**`AFOS-vX.Y.Z-arm64-v8a.apk`** instead: **~34 MB for the identical app**, and it
+fits essentially every phone sold in the last seven years. The `armeabi-v7a`
+(older 32-bit phones) and `x86_64` (emulators) builds are there for the rest.
+
+| file | size | who it is for |
+|---|---:|---|
+| `AFOS-vX.Y.Z.apk` | ~92 MB | **anyone** — works everywhere |
+| `AFOS-vX.Y.Z-arm64-v8a.apk` | ~34 MB | almost every modern phone |
+| `AFOS-vX.Y.Z-armeabi-v7a.apk` | ~31 MB | older 32-bit phones |
+| `AFOS-vX.Y.Z-x86_64.apk` | ~37 MB | emulators |
+
+A split installs only on a matching device; picking the wrong one fails
+harmlessly and you can install the universal instead. In-app updates always
+fetch the universal build, so you never have to think about this again after
+the first install.
 
 Every published APK is **signed with the same certificate** and CI refuses to
 publish a build whose signature does not match it:

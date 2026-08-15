@@ -171,7 +171,20 @@ jobs:
           EOF
           echo "Release keystore restored ($(wc -c < android/app/afos-release.jks) bytes)."
 
+      # Universal FIRST — it is what the in-app updater downloads, and the
+      # signature gate below verifies it specifically.
       - run: flutter build apk --release
+
+      # And the per-ABI splits, for people downloading by hand.
+      #
+      # WHY BOTH. The universal APK carries native code for all three ABIs and
+      # weighs ~92 MB; the arm64-v8a split is ~34 MB for the identical app —
+      # a 63% smaller download, which matters a great deal to a student on
+      # mobile data. But a split only installs on a matching device, so it
+      # cannot be the file the in-app updater blindly fetches, and it must not
+      # be the one an unsure first-timer picks. Universal stays the default and
+      # keeps its name; the splits are the informed choice.
+      - run: flutter build apk --split-per-abi --release
 
       # Proves the APK is NOT debug-signed before it is published. Without
       # this, a mistyped secret would silently produce a debug-signed release
@@ -268,7 +281,18 @@ jobs:
       - name: Name the APK after the tag
         run: |
           mkdir -p dist
+          # The universal build keeps this exact name: AppUpdateService builds
+          # `.../download/<tag>/AFOS-<tag>.apk` from the version string, so
+          # renaming it breaks every installed phone's Update button.
           cp build/app/outputs/flutter-apk/app-release.apk "dist/AFOS-${GITHUB_REF_NAME}.apk"
+          # The splits carry their ABI in the name so a downloader can tell
+          # them apart at a glance, and so a wrong pick is obvious rather than
+          # mysterious.
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            src="build/app/outputs/flutter-apk/app-$abi-release.apk"
+            [ -f "$src" ] && cp "$src" "dist/AFOS-${GITHUB_REF_NAME}-$abi.apk"
+          done
+          ls -la dist/
 
       - uses: softprops/action-gh-release@v2
         with:
