@@ -43,6 +43,29 @@
 --  Nothing else is required. Do not also send a manual broadcast.
 
 -- ---------------------------------------------------------------------
+--  v2.8.1 — run this ONCE the v2.8.1 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.1
+--
+--  WHY 2.8.1 EXISTS. v2.8.0 was tagged, built and announced BEFORE the depth
+--  fix landed on main — so its APK does not contain the one change you would
+--  most notice. Rather than retag 2.8.0 (which would hand a different binary
+--  to anyone who already installed it under that version), this ships forward.
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.8.1',
+  current_date,
+  'Light, and Something to Catch It',
+  ARRAY[
+    'The app has depth now. Every shadow in AFOS fell straight down, which is what a light directly overhead looks like - no direction, so nothing appeared to sit above anything else and the whole app read as flat. All of them now fall down and to the right, from one light at the top-left, the same light for every screen.',
+    'The splash screen has a machined metal bezel behind the clock. It catches the light along a narrow bright band and casts its shadow the same way everything else does, so it reads as an object rather than as artwork printed on a dark rectangle.',
+    'Cards, tiles, chips, the navigation bar and the top bar all keep the spacing and softness they had - only the direction of their light changed.'
+  ],
+  ARRAY['android','web']
+);
+
+
+-- ---------------------------------------------------------------------
 --  v2.8.0 — run this ONCE the v2.8.0 release job has published the APK.
 --  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.0
 -- ---------------------------------------------------------------------
