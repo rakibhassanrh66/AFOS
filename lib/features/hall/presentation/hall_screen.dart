@@ -10,6 +10,7 @@ import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -117,17 +118,11 @@ class _MyApplicationTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (app == null) {
-      return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(children: [
-        const SizedBox(height: 40),
-        Icon(Icons.apartment_outlined, color: AppColors.textMutedOf(context), size: 64),
-        const SizedBox(height: 16),
-        Text('No Application Yet', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-        const SizedBox(height: 8),
-        Text('Apply for a hall seat from the Apply tab',
-            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
-      ]));
+      return const EmptyState(
+        icon: Icons.apartment_outlined,
+        title: 'No application yet',
+        subtitle: 'Apply for a hall seat from the Apply tab.',
+      );
     }
 
     final status    = app!['status'] as String? ?? 'pending';

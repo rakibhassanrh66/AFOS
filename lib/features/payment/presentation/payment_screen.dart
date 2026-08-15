@@ -11,6 +11,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/animations/page_transitions.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -243,13 +244,10 @@ class _HistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (history.isEmpty) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.receipt_long_outlined, color: AppColors.textMutedOf(context), size: 56),
-          const SizedBox(height: 16),
-          Text('No payment history',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-        ]),
+      return const EmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: 'No payment history',
+        subtitle: 'Payments you make through the portal are listed here.',
       );
     }
     return ListView.builder(

@@ -166,7 +166,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _body(BuildContext context) {
     if (_loading) {
-      return const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5));
+      // itemHeight, not the 80px default: this list renders InfoCards, and the
+      // default was 21px short of one, so all five rows slid down the moment
+      // results arrived.
+      return const Padding(
+          padding: EdgeInsets.all(16),
+          child: ShimmerList(count: 5, itemHeight: ShimmerCard.infoCardRow));
     }
     if (_query.length < 2) {
       return const EmptyState(

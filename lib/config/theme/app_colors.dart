@@ -104,14 +104,16 @@ class AppColors {
   // `auth_brand_panel.dart`, which share the first stop and drifted apart in
   // the rest.
   //
-  // NOTE — VALUES ARE PRESERVED EXACTLY, INCLUDING ONE THAT LOOKS LIKE A TYPO.
-  // [authDeep] is #0B1220. The app's declared dark canvas, [background] /
-  // `LiquidGlass.canvasDark`, is #0B1**1**20 — one hex digit apart, and the
-  // two are almost certainly meant to be the same colour. Snapping them
-  // together is a visible change to every signed-out screen plus the router's
-  // error page and the chat 'midnight' background, so it is NOT done here.
-  // Flagged in REDESIGN_LOG for a decision.
-  static const Color authDeep = Color(0xFF0B1220);
+  // RESOLVED 2026-08-15 — [authDeep] WAS #0B1220, one hex digit from the app's
+  // declared dark canvas #0B1120. It was carried forward unchanged for four
+  // phases because snapping it is a visible change to every signed-out screen
+  // and the chat 'midnight' background, and that needed a decision plus a
+  // device. Both now exist: the owner chose to snap them.
+  //
+  // So this is no longer an independent colour — it IS the canvas, and it says
+  // so by construction rather than by repeating the literal. Two names for one
+  // value is how they drifted apart in the first place.
+  static const Color authDeep = LiquidGlass.canvasDark;
 
   /// Login / register page background. Theme-aware.
   static const List<Color> authCanvasDark = [
@@ -163,7 +165,10 @@ class AppColors {
   /// both call sites fall back to the scaffold background when they see it.
   static const Map<String, Color> chatBackgrounds = {
     'default': Colors.transparent,
-    'midnight': Color(0xFF0B1220),
+    // Snapped to the app canvas with [authDeep], 2026-08-15 — 'midnight' was
+    // the third copy of the #0B1220 near-miss, so picking it gave you a chat
+    // background one hex digit off the canvas behind every other screen.
+    'midnight': authDeep,
     'forest': Color(0xFF0E1F16),
     'plum': Color(0xFF1F0E1B),
   };

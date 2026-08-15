@@ -11,6 +11,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -241,11 +242,11 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _rooms.isEmpty || _periods.isEmpty
-                ? Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.meeting_room_outlined, size: 40, color: textSecondary),
-                    const SizedBox(height: 12),
-                    Text('No routine data yet for this department', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                  ])))
+                ? const EmptyState(
+                    icon: Icons.meeting_room_outlined,
+                    title: 'No routine data yet',
+                    subtitle: 'Once a routine is uploaded for this department, '
+                        'room availability appears here.')
                 : RefreshIndicator(onRefresh: _load, color: AppColors.holoBlue, child: ListView.builder(
                     padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
                     itemCount: _rooms.length,
