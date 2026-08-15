@@ -49,6 +49,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   void _onChanged(String v) {
     _debounce?.cancel();
+    // NOT a motion token — an input debounce. How long to wait for typing to
+    // stop before spending a network request; borrowing a motion rung would
+    // couple search latency to animation feel. Third instance of this call,
+    // after transport (batch 2) and manage_course_offerings (batch 5).
     _debounce = Timer(const Duration(milliseconds: 320), () => _search(v.trim()));
   }
 

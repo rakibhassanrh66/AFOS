@@ -181,7 +181,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
                   ]),
                 )
               : null,
-            ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+            ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard),
           ),
         ),
         AnimatedBuilder(
@@ -307,7 +307,7 @@ class _BookCard extends StatelessWidget {
             ])),
           ]),
           const SizedBox(height: 12),
-          ClipRRect(borderRadius: BorderRadius.circular(4),
+          ClipRRect(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
               child: LinearProgressIndicator(
                   value: progress, minHeight: 6,
                   backgroundColor: AppColors.borderOf(context),
@@ -342,7 +342,7 @@ class _BookCard extends StatelessWidget {
         ]),
       ),
     ).animate(delay: AppMotion.staggerFor(context, index))
-        .fadeIn(curve: Curves.easeOutCubic).slideY(begin: 0.05, curve: Curves.easeOutCubic);
+        .fadeIn(curve: AppMotion.standard).slideY(begin: 0.05, curve: AppMotion.standard);
   }
 }
 

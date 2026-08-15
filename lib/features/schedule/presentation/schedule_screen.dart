@@ -542,7 +542,7 @@ class _RoutineHeaderBanner extends StatelessWidget {
           ]),
         ),
       ]),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic);
+    ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow)).slideY(begin: -0.06, curve: AppMotion.standard);
   }
 }
 
@@ -562,7 +562,7 @@ class _DaySelector extends StatelessWidget {
           return GestureDetector(
             onTap:()=>onTap(i),
             child: AnimatedContainer(
-              duration:200.ms, curve: Curves.easeOutCubic, margin:const EdgeInsets.only(right:8),
+              duration: AppMotion.durationOf(context, AppMotion.tight), curve: AppMotion.standard, margin:const EdgeInsets.only(right:8),
               padding:const EdgeInsets.symmetric(horizontal:16,vertical:6),
               decoration:BoxDecoration(
                 gradient: sel ? AppColors.holoGradient : null,
@@ -731,7 +731,7 @@ class _ClassCard extends StatelessWidget {
         ),
       ),
     ).animate(delay: AppMotion.staggerFor(context, index))
-        .fadeIn(curve: Curves.easeOutCubic).slideY(begin:0.05, curve: Curves.easeOutCubic);
+        .fadeIn(curve: AppMotion.standard).slideY(begin:0.05, curve: AppMotion.standard);
   }
 }
 

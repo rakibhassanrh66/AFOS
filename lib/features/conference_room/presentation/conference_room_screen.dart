@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -113,13 +114,13 @@ class _RequestsList extends StatelessWidget {
           final r = requests[i];
           final status = r['status'] as String? ?? 'pending';
           return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Expanded(child: Text(r['purpose'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),

@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -155,14 +156,14 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                           final status = item['status'] as String? ?? 'new';
                           final createdAt = item['created_at'] != null ? DateTime.tryParse(item['created_at']) : null;
                           return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
                                   Expanded(child: Text(item['title'] as String? ?? '(no title)',
                                       style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(color: AppColors.holoviolet.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                                      decoration: BoxDecoration(color: AppColors.holoviolet.withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                                           style: const TextStyle(color: AppColors.holoviolet, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                                   IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red), onPressed: () => _delete(item)),

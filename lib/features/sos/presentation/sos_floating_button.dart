@@ -228,6 +228,9 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
     if (_recording) {
       final path = await _recorder.stop();
       _recordTimer?.cancel();
+      // BUG_REGISTER P1-01: setState after an awaited recorder stop with no
+      // mounted guard.
+      if (!mounted) return;
       setState(() { _recording = false; _recordedPath = path; });
       return;
     }
@@ -294,7 +297,7 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
                     color: _recording ? AppColors.red : AppColors.blue, size: 20),
                 const SizedBox(width: 8),
                 Text(_recording ? 'Recording… ${_recordSeconds}s (tap to stop)'
-                        : _recordedPath != null ? 'Voice note added ✓' : 'Add a voice note (optional)',
+                        : _recordedPath != null ? 'Voice note added' : 'Add a voice note (optional)',
                     style: TextStyle(color: _recording ? AppColors.red : AppColors.blue, fontWeight: FontWeight.w600)),
               ]),
             ),
