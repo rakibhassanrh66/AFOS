@@ -1403,3 +1403,68 @@ Web FCP FAILS.** Both failures are located to the byte in `PERF_BASELINE.md`;
 5. `db/proposed/001_route_geometry_cache.sql`, unapplied, awaiting a decision.
 
 ---
+
+## Release — v2.8.0 shipped to main · 2026-08-15
+
+All redesign branches merged to `main` and pushed. 46 commits.
+
+**Before pushing to a PUBLIC repo**, the payload was scanned: no `.jks`,
+`key.properties`, `.env`, or `google-services.json` is tracked (all gitignored,
+verified with `git check-ignore`), and the only matches for `service_role` /
+`storePassword` in tracked files are **CI secret references**
+(`${{ secrets.X }}`, `Deno.env.get`), not values. 144 changed files, zero
+secret-shaped ones.
+
+### The update path, rebuilt
+
+Updating used to be a banner, a tap, a percentage on a tile, and then Android's
+installer appearing with no explanation. Every part worked; none of it told the
+user what was happening to them — and sideloading already asks a lot of trust
+(unknown-sources prompt, Play Protect warning, permission screen). An app that
+goes quiet in the middle of that is one people abandon.
+
+`update_sheet.dart` narrates it: version, what changed, download progress, a
+**verifying** stage (the service really does check content-length and the APK
+magic bytes, so the pause at 100% has a name instead of looking like a freeze),
+then an honest hand-off — *"Android is asking now"*, not *"Updated"*, because
+tapping through the installer is the last thing this app controls.
+
+**The account surviving an update was verified, not added.**
+`LocalCacheService.clearIfVersionChanged` wipes only the `offline_cache` Hive box
+and explicitly never touches the outbox (unsynced offline writes) or
+`flutter_secure_storage` (session, biometric login). That was already correct;
+what was missing was anywhere the user could read it. The sheet says it now.
+
+### The README
+
+The install section was four lines that mentioned none of what Android actually
+does. It now walks the real sequence — browser warning, unknown-sources
+permission, Play Protect "unsafe app blocked", done — states plainly that all of
+it is normal for a non-Play-Store app, publishes the pinned signing fingerprint
+(`2f49802b…623f`) that makes updates install cleanly over each other, and adds a
+troubleshooting table for the four real failures: "App not installed" (a
+signature mismatch, i.e. the protection working), parse errors from a truncated
+download, Android 13+ "Restricted setting", and Play Protect removing the app.
+
+**The web URL is deliberately not asserted.** There is no `.vercel/project.json`
+in the repo and a guessed domain in a public README is a broken link; it points
+at the repository's Deployments page instead. Swap in the real domain.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **352 passing** · release APK builds
+· merged to `main`, pushed, tagged `v2.8.0`.
+
+Nine new tests pin the version comparison behind "an update is available" —
+including the exact historical bug where a stored `2.3.2+21` compared as `2.3.0`,
+and the `+build` suffix in a download URL that produced twelve 404s.
+
+### Still owed at the time of writing
+
+`tool/publish_release.sql` holds the drafted v2.8.0 `app_releases` row. It is
+**not inserted yet, on purpose**: inserting it is what tells every installed
+phone an update exists, and the download URL it implies does not resolve until
+the release job has uploaded the APK. Announcing first means everyone who taps
+Update gets an error until CI catches up.
+
+---
