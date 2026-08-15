@@ -14,7 +14,6 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
-import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/spacing.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/outbox_service.dart';
@@ -29,6 +28,7 @@ import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import 'update_sheet.dart';
 
 import '../../../core/layout/nav_insets.dart';
 class SettingsScreen extends StatefulWidget {
@@ -59,8 +59,6 @@ class _SettingsState extends State<SettingsScreen> {
 
   AppUpdateInfo? _availableUpdate;
   bool _checkingUpdate = false;
-  bool _downloadingUpdate = false;
-  double _downloadProgress = 0;
 
   // Was its own independent, fully-saturated set (not even the same hex
   // values as AppColors' now-recalibrated palette) -- referencing the
@@ -107,37 +105,29 @@ class _SettingsState extends State<SettingsScreen> {
     if (update == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("You're on the latest version"), backgroundColor: AppColors.green));
+      return;
     }
+    // Found one — open the sheet straight away rather than making the user
+    // hunt for the banner that just appeared further up the page. They asked
+    // the question; this is the answer.
+    await _openUpdateSheet();
   }
 
-  Future<void> _downloadAndInstallUpdate() async {
+  /// Opens the update sheet.
+  ///
+  /// The download used to run from this screen with a percentage on the tile,
+  /// and then Android's installer appeared with no explanation. Sideloading
+  /// already asks a lot of trust — an unknown-sources prompt, a Play Protect
+  /// warning, a permission screen — and the app going quiet in the middle of
+  /// that is what makes people abandon the install. The sheet narrates it:
+  /// what version, what changed, verified, and that Android is about to ask.
+  Future<void> _openUpdateSheet() async {
     final update = _availableUpdate;
-    if (update == null || _downloadingUpdate) return;
-    setState(() { _downloadingUpdate = true; _downloadProgress = 0; });
-    try {
-      await AppUpdateService.downloadAndInstall(update,
-          onProgress: (p) { if (mounted) setState(() => _downloadProgress = p); });
-      // Leaves _availableUpdate set even after a successful download: the
-      // installer Intent just opened, the user hasn't actually installed yet
-      // (they still tap through Android's own confirmation), so the banner
-      // staying up until the app is actually relaunched on the new build is
-      // correct, not stale.
-    } catch (e) {
-      if (mounted) {
-        // Not "Download failed:" any more — downloadAndInstall now also reports
-        // a refusal by Android's installer (most often "Install unknown apps"
-        // not granted to AFOS), and prefixing that with "Download failed" sent
-        // the user to check their connection over a permission problem. The
-        // messages it raises are already written for the user.
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(friendlyError(e)),
-          backgroundColor: AppColors.red,
-          duration: const Duration(seconds: 8),
-        ));
-      }
-    }
-    if (mounted) setState(() => _downloadingUpdate = false);
+    if (update == null) return;
+    AppHaptics.selection();
+    await showUpdateSheet(context, update);
   }
+
 
   Future<void> _loadBiometric() async {
     final supported = await BiometricAuth.canUse();
@@ -619,9 +609,7 @@ class _SettingsState extends State<SettingsScreen> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _UpdateBanner(
                     update: _availableUpdate!,
-                    downloading: _downloadingUpdate,
-                    progress: _downloadProgress,
-                    onInstall: _downloadAndInstallUpdate,
+                    onInstall: _openUpdateSheet,
                   ),
                 ),
               _Section(title: 'App Info', children: [
@@ -846,13 +834,8 @@ class _ActionTile extends StatelessWidget {
 /// for opportunistic cleanup rather than deleted immediately after).
 class _UpdateBanner extends StatelessWidget {
   final AppUpdateInfo update;
-  final bool downloading;
-  final double progress;
   final VoidCallback onInstall;
-  const _UpdateBanner({
-    required this.update, required this.downloading,
-    required this.progress, required this.onInstall,
-  });
+  const _UpdateBanner({required this.update, required this.onInstall});
 
   @override
   Widget build(BuildContext context) {
@@ -884,23 +867,12 @@ class _UpdateBanner extends StatelessWidget {
             ),
         ],
         const SizedBox(height: 12),
-        if (downloading) ...[
-          ClipRRect(
-            // A 6px bar: the pill rung is the only radius that reads as
-            // deliberate at this height.
-            borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
-            child: LinearProgressIndicator(
-                value: progress > 0 ? progress : null,
-                backgroundColor: AppColors.teal.withValues(alpha: 0.15),
-                color: AppColors.teal, minHeight: 6),
-          ),
-          const SizedBox(height: 6),
-          Text(progress > 0 ? '${(progress * 100).toInt()}%' : 'Starting download…',
-              style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-        ] else
-          SizedBox(width: double.infinity, child: AfosButton(
-              label: 'Download & Install', icon: Icons.download_rounded,
-              color: AppColors.teal, onTap: onInstall)),
+        // No progress bar here any more. The download reports its stages in
+        // the update sheet, which can explain them; a bar on a banner behind a
+        // sheet would be the same fact in two places, drifting.
+        SizedBox(width: double.infinity, child: AfosButton(
+            label: 'Download & Install', icon: Icons.download_rounded,
+            color: AppColors.teal, onTap: onInstall)),
       ]),
     );
   }
