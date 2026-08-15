@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -227,14 +228,14 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
           color: AppColors.surfaceOf(ctx),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppDepth.radius(1),
           border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
       child: ListTile(
         leading: Container(width: 40, height: 40,
             decoration: BoxDecoration(
                 gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                     colors: [AppColors.indigo, AppColors.blue]),
-                borderRadius: BorderRadius.circular(10)),
+                borderRadius: AppDepth.radius(1)),
             child: Icon(_isDepartments ? Icons.school_rounded : Icons.account_balance_rounded, color: Colors.white, size: 20)),
         title: Text(item['name'] as String? ?? 'No Name',
             style: AppTextStyles.titleMedium.copyWith(color: textPrimary),

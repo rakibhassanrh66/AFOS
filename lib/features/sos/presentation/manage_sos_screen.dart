@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/services/app_config_service.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -107,7 +108,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                 padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceOf(context),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: AppDepth.radius(1),
                   border: Border.all(
                       color: enabled ? AppColors.red : AppColors.borderOf(context),
                       width: enabled ? 1.2 : 0.5),
@@ -164,7 +165,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                           return Container(
                             key: ValueKey(a['id']),
                             margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                            decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                                 border: Border.all(color: status == 'active' ? AppColors.red : AppColors.borderOf(context),
                                     width: status == 'active' ? 1.2 : 0.5)),
                             child: InkWell(
@@ -185,7 +186,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                         color: (status == 'active' ? AppColors.red : AppColors.green).withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(10)),
+                                        borderRadius: AppDepth.radius(1)),
                                     child: Text(status.toUpperCase(),
                                         style: TextStyle(color: status == 'active' ? AppColors.red : AppColors.green, fontSize: 10, fontWeight: FontWeight.w700))),
                               ]),

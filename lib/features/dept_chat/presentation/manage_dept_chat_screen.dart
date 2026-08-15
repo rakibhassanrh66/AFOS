@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -72,7 +73,7 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+                      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                       child: InkWell(
                         onTap: () => Navigator.push(context,
@@ -82,7 +83,7 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                               decoration: BoxDecoration(
                                   gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                                       colors: [AppColors.indigo, AppColors.blue]),
-                                  borderRadius: BorderRadius.circular(10)),
+                                  borderRadius: AppDepth.radius(1)),
                               child: const Icon(Icons.tag_rounded, color: Colors.white, size: 20)),
                           const SizedBox(width: 12),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -161,7 +162,7 @@ class _ModerateChatRoomState extends State<_ModerateChatRoomScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                           border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

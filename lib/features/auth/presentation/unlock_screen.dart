@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, SignOutScope;
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/auth/biometric_lock.dart';
 import '../../../core/utils/last_route.dart';
 import '../../../shared/widgets/account_switcher_sheet.dart';
@@ -108,9 +109,18 @@ class _UnlockScreenState extends State<UnlockScreen> {
                       alignment: Alignment.center,
                       child: _busy
                           ? const SupernovaLoader(size: 44)
-                          : const Icon(Icons.fingerprint_rounded, size: 52, color: AppColors.holoBlue)
-                              .animate(onPlay: (c) => c.repeat(reverse: true))
-                              .scaleXY(begin: 1.0, end: 1.08, duration: 1200.ms, curve: Curves.easeInOut),
+                          // The fourth perpetual animation found in this phase,
+                          // after transport's _PulseDot and the auth brand
+                          // panel's two blobs and logo frame. 1200ms is correct
+                          // — it is a fingerprint icon breathing to say "touch
+                          // me", not a transition — but it repeated forever
+                          // regardless of reduced motion, on the one screen a
+                          // user cannot get past without looking at it.
+                          : AppMotion.isReduced(context)
+                              ? const Icon(Icons.fingerprint_rounded, size: 52, color: AppColors.holoBlue)
+                              : const Icon(Icons.fingerprint_rounded, size: 52, color: AppColors.holoBlue)
+                                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                                  .scaleXY(begin: 1.0, end: 1.08, duration: 1200.ms, curve: AppMotion.inOut),
                     ),
                     const SizedBox(height: 24),
                     Text('Unlock AFOS', style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),

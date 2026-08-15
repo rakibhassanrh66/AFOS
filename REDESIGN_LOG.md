@@ -946,3 +946,111 @@ code every screen renders. And `splash_screen.dart` (17), held for Phase 3.
 `sos_alert_detail_screen.dart` (3), `course_group_screen.dart` (4).
 
 ---
+
+## Phase 2 batch 12 — closing the screen layer · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch12`. **23 files.** The batch was deliberately widened
+because the remaining work was 1–4 literals per file, not per-screen redesign —
+and because a scan showed ten of those files were ones I had **already
+migrated**.
+
+### First: my own earlier batches left residue
+
+Before picking new screens I re-scanned the files batches 1–11 had already
+touched. Ten still carried slop, and the pattern was systematic:
+
+> **Batches 1 and 2 converted `Duration(milliseconds:)` and
+> `BorderRadius.circular(N)`, but not `Curves.` or the flutter_animate `N.ms`
+> form.** Later batches caught all four. So the earliest screens — dashboard,
+> schedule, library, transport, mentorship, clubs — were left half-migrated, and
+> the log's "0 raw durations" claims for them were true only of the form I was
+> grepping for.
+
+Closed: 14 `Curves.easeOutCubic`, 5 `.ms` durations, 4 residual radii across
+those six files, plus `my_attendance_screen.dart` which had never been reached.
+The remaining entries in those files are the documented exceptions (search
+debounces, the `_PulseDot` ambient loop, the transport connector hex, and three
+doc comments that quote emoji they removed).
+
+### Then: the 13 remaining un-migrated screens
+
+`course_group_screen.dart`, `manage_sos_screen.dart`, `manage_hall_screen.dart`,
+`manage_dept_chat_screen.dart`, `sos_alert_detail_screen.dart`,
+`browse_courses_screen.dart`, `manage_course_offerings_admin_screen.dart`,
+`registry_list_screen.dart`, `conference_room_screen.dart`,
+`manage_feedback_screen.dart`, `unlock_screen.dart`, `manage_clubs_screen.dart`,
+`manage_exam_seats_screen.dart` — 20 radii, 3 durations, 6 emoji.
+
+**The batch-11 lesson paid off immediately.** `course_group_screen.dart` holds
+the **third** copy of the chat bubble (after dept chat in batch 3 and club chat
+in batch 11) — same 16/16/4 radii, same `'No messages yet. Say hello! 👋'`.
+And `unlock_screen.dart` holds the **fourth** perpetual animation that ignored
+reduced motion (after transport's `_PulseDot` and the brand panel's two blobs
+and logo frame) — a fingerprint icon breathing forever, on the one screen a user
+cannot get past without looking at it.
+
+### Emoji in UI copy is now ZERO
+
+**52 at Phase 0 → 0.** The last two were not in any screen and so were invisible
+to every batch's file list: `sos_floating_button.dart` (`'Voice note added ✓'`)
+and `avatar_picker.dart` (`'Photo updated ✓'`). Both are shared widgets.
+
+The most consequential one this batch was `sos_alert_detail_screen.dart:105` —
+`title: '🏃 Help is on the way'`, the push notification **sent to a person who
+has triggered an SOS**. Emoji in the highest-stakes copy in the app.
+
+The only three matches left in `lib/` are doc comments quoting the strings that
+were removed.
+
+Two more **P1-01** sites closed while in those files: `avatar_picker._pickAndUpload`
+(setState after the gallery picker) and `sos_floating_button._toggleRecording`
+(setState after the recorder stops).
+
+### PHASE 2's SCREEN SCOPE IS COMPLETE
+
+Every `*_screen.dart` in the app is on the token layer. What still greps as slop
+is exactly the documented exception list:
+
+| file | what | why it stays |
+|---|---|---|
+| `splash_screen.dart` | 8 durations, 6 curves, 3 hex | **Phase 3's scope.** Migrating now means writing it twice. |
+| `transport_screen.dart` | 1200ms, 1 hex | `_PulseDot` ambient loop + commented connector colour (batch 2) |
+| `unlock_screen.dart` | 1200ms | fingerprint ambient loop, now reduced-motion aware |
+| 3 × search screens | 320/300ms `Timer` | input debounces, not motion |
+| 3 × doc comments | emoji | quoting what was removed |
+
+**Final Phase 2 numbers vs the Phase 0 baseline**
+
+| metric | Phase 0 | now |
+|---|---:|---:|
+| Emoji in UI copy | 52 | **0** |
+| Hardcoded `Color(0x..)` outside theme | 21 | **9** |
+| `HapticFeedback` / `AppHaptics` call sites | 3 | **93** |
+| Raw `Duration(milliseconds:)` | 66 | **35** |
+| Tabular-numeric call sites in `lib/features/` | 0 | **14** |
+| `flutter analyze` | 0 issues | **0 issues** |
+| Tests | 282 | **302** |
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · **no BOM on any of the 23 touched files**,
+non-ASCII preserved · `git diff --stat main` on `lib/features/*/data`,
+`lib/core/services`, `lib/shared/models` = **0 lines**.
+
+### What Phase 2 did NOT do — carried forward, explicitly
+
+1. **The shell and shared widgets were never in scope** and are now the
+   highest-slop code in the repo: `slide_menu.dart` (22), `afos_button.dart`,
+   `afos_text_field.dart`, `glass_bottom_nav.dart`, `top_app_bar.dart`,
+   `glass_chip.dart`, `radial_logout_menu.dart`, `account_switcher_sheet.dart`
+   — ~48 literals in code **every screen renders**.
+2. **The 56-site symmetric-vs-signature radius split** (batch 4) is untouched.
+3. **`#0B1220` vs `canvasDark` `#0B1120`** (batch 8) awaits a decision.
+4. **An emphasis curve** for confirmation stamps (batch 10) — vr_id lost its
+   overshoot to the token rule.
+5. **Empty states, full copy rewrite, and responsive verification at
+   320/400/768/1280** — open on every migrated screen since batch 1. These need
+   the app running on a device and are the largest remaining Phase 2 debt.
+
+**Next:** items 1–4 above are a natural "Phase 2.5 — the shell", or Phase 3
+(splash) can start. Item 5 needs a device.
+
+---

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/utils/role_labels.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -101,7 +102,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         // Best-effort -- a notify failure shouldn't undo the response itself.
         unawaited(NotificationService.sendToUsers(
           userIds: [ownerId],
-          title: '🏃 Help is on the way',
+          title: 'Help is on the way',
           message: '$myName is responding to your SOS alert.',
           deepLink: '/sos/${widget.alertId}',
           category: 'sos',
@@ -235,7 +236,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
                 color: (status == 'active' ? AppColors.red : AppColors.green).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12)),
+                borderRadius: AppDepth.radius(1)),
             child: Text(status.toUpperCase(),
                 style: TextStyle(color: status == 'active' ? AppColors.red : AppColors.green, fontWeight: FontWeight.w700, fontSize: 11))),
       ]),
@@ -244,7 +245,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         Text(a['message'], style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
       ],
       const SizedBox(height: 16),
-      ClipRRect(borderRadius: BorderRadius.circular(16), child: SizedBox(height: 220,
+      ClipRRect(borderRadius: AppDepth.radius(2), child: SizedBox(height: 220,
           child: FlutterMap(
             options: MapOptions(initialCenter: point, initialZoom: 16),
             children: [

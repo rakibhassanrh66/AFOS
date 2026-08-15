@@ -176,7 +176,7 @@ class _CourseAttendance extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
           child: LinearProgressIndicator(
             value: pct,
             minHeight: 6,
