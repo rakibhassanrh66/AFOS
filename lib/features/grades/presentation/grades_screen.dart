@@ -3,8 +3,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/button_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -109,6 +112,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
   }
 
   Future<void> _toggle(String enrollmentId) async {
+    AppHaptics.selection();
     if (_expanded == enrollmentId) {
       setState(() => _expanded = null);
       return;
@@ -145,8 +149,9 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                     padding: NavInsets.content(context),
                     children: [
                       _CgpaCard(cgpa: _cgpa)
-                          .animate().fadeIn(duration: 300.ms)
-                          .slideY(begin: -0.06, curve: Curves.easeOutCubic),
+                          .animate()
+                          .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                          .slideY(begin: -0.06, curve: AppMotion.standard),
                       const SizedBox(height: 14),
                       if (_results.isEmpty)
                         const Padding(
@@ -214,9 +219,12 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                           .copyWith(color: AppColors.textSecondaryOf(context))),
                 ]),
               ),
+              // A column of total marks down the result list. Proportional
+              // digits leave it ragged; same face, size and weight as
+              // titleMedium, only the figures are tabular.
               Text(total.toStringAsFixed(total % 1 == 0 ? 0 : 1),
-                  style: AppTextStyles.titleMedium
-                      .copyWith(color: AppColors.textSecondaryOf(context))),
+                  style: AppTextStyles.numericMedium.copyWith(
+                      fontSize: 14, color: AppColors.textSecondaryOf(context))),
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
@@ -224,7 +232,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                   gradient: LinearGradient(
                       begin: Alignment.topLeft, end: Alignment.bottomRight,
                       colors: [color, color.withValues(alpha: 0.65)]),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppDepth.radius(1),
                 ),
                 child: Text(letter ?? '—',
                     textHeightBehavior: const TextHeightBehavior(
@@ -316,7 +324,9 @@ class _BreakdownRow extends StatelessWidget {
         Expanded(
           flex: 3,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            // A 5px bar: the pill rung is the only radius that reads as
+            // deliberate at this height.
+            borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
             child: LinearProgressIndicator(
               value: ratio,
               minHeight: 5,
@@ -331,8 +341,11 @@ class _BreakdownRow extends StatelessWidget {
           child: Text(
               '${marks.toStringAsFixed(marks % 1 == 0 ? 0 : 1)} / ${max.toStringAsFixed(0)}',
               textAlign: TextAlign.right,
-              style: AppTextStyles.labelSmall
-                  .copyWith(color: AppColors.textPrimaryOf(context))),
+              // Right-aligned marks in a fixed-width box, one row per
+              // component — the exact case tabular figures exist for.
+              style: AppTextStyles.numericSmall.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimaryOf(context))),
         ),
       ]),
     );
@@ -374,8 +387,11 @@ class _CgpaCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          // The hero figure of the whole screen, and it recomputes as results
+          // are published. At 42px a proportional '1' vs '0' visibly shifts
+          // the '/ 4.00' beside it every time the CGPA changes.
           Text(value?.toStringAsFixed(2) ?? '—',
-              style: TextStyle(
+              style: AppTextStyles.numericLarge.copyWith(
                   color: accent, fontSize: 42, height: 1.0, fontWeight: FontWeight.w800)),
           const SizedBox(width: 8),
           Padding(
@@ -489,9 +505,16 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
           submissionId: id, approve: approve, reason: reason);
       await _load();
       if (mounted) {
+        // Publishing a class's results is irreversible from here; returning
+        // one is a refusal. Different weights, both on the commit path.
+        if (approve) {
+          AppHaptics.success();
+        } else {
+          AppHaptics.warning();
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(approve
-                ? 'Results published — the class has been notified ✓'
+                ? 'Results published — the class has been notified'
                 : 'Returned to the teacher'),
             backgroundColor: approve ? AppColors.green : AppColors.amber));
       }
