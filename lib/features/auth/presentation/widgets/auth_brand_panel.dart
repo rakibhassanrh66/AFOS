@@ -154,7 +154,11 @@ class _SmartFrame extends StatelessWidget {
       ),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(14),
-      child: Image.asset('assets/images/diu_logo.png', fit: BoxFit.contain,
+      // The brand panel's logo sits in a fixed-size badge, so a 360px decode
+      // covers it at any density this ships to — against a 1086px source that
+      // otherwise costs ~5 MB of ARGB on the one screen every signed-out user
+      // sees first.
+      child: Image.asset('assets/images/diu_logo.png', fit: BoxFit.contain, cacheWidth: 360,
           errorBuilder: (_, __, ___) => const Icon(Icons.school_rounded, color: Colors.white, size: 40)),
     ),
     );
