@@ -8,6 +8,8 @@ import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
@@ -216,6 +218,8 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
     await _guard(id, () async {
       final dropped = await _repo.deleteOffering(id, courseLabel: label);
       if (!mounted) return;
+      // Destructive, and it may have dropped enrolled students with it.
+      AppHaptics.warning();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(dropped == 0
             ? '$label deleted'
@@ -283,7 +287,8 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
               end: Alignment.bottomRight,
               colors: [AppColors.blueLight, AppColors.blue]),
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(
@@ -577,6 +582,10 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
       return;
     }
     if (!_searching) setState(() => _searching = true);
+    // NOT a motion token. This is how long to wait for typing to stop before
+    // spending a network request; borrowing a rung would couple search latency
+    // to animation feel, so retuning `base` would silently change how often the
+    // app queries Supabase. Same call as the transport search in batch 2.
     _searchDebounce = Timer(const Duration(milliseconds: 320), () async {
       final seq = ++_searchSeq;
       try {
@@ -652,8 +661,9 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
       }
       widget.onCreated();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Submitted for admin approval ✓'), backgroundColor: AppColors.green));
+            content: Text('Submitted for admin approval'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
