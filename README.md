@@ -123,7 +123,7 @@ AFOS opens. Sign in with your **university email** — registration requires one
 
 | What you see | What it means | Fix |
 |---|---|---|
-| **"App not installed"** | A different build of AFOS (a debug copy, or one signed with another key) is already on the phone. Android refuses to replace an app with one signed differently — this is the protection working. | Uninstall the existing AFOS, then install again. *You will be signed out; your data is on the server and comes back when you sign in.* |
+| **"App not installed"** &nbsp;·&nbsp; **"package conflicts with an existing package"** &nbsp;·&nbsp; **"App not installed as package conflicts"** | All three are the same thing: **a signature mismatch.** A different build of AFOS — a debug copy, a profile build, or one signed with another key — is already on the phone, and Android refuses to replace an app with one signed differently. This is the protection working, not a broken download. | Uninstall the existing AFOS, then install again. *You will be signed out and need to log in once; nothing on the server is lost — results, hall room, courses and everything else come straight back.* Every later update then installs in place. |
 | **"There was a problem parsing the package"** | The download was cut short. | Delete the file and download it again on a stable connection. |
 | **A permission toggle is greyed out with "Restricted setting"** | Android 13+ withholds some sensitive permissions from sideloaded apps until you unblock them. | Settings → Apps → AFOS → ⋮ (top right) → **Allow restricted settings**. |
 | **Play Protect uninstalled it** | Play Protect can remove a sideloaded app it keeps flagging. | Reinstall, and when prompted choose **Don't scan** / **Keep app**. |
