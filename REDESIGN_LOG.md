@@ -226,3 +226,96 @@ running on a device.
 (13), `room_availability_screen.dart` (12).
 
 ---
+
+## Phase 2 batch 3 — dept chat / lost & found / room availability · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch3`. ~1,500 LOC across the next three highest-slop screens.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `dept_chat_screen.dart` | 2 → **0** | 11 → **0\*** | 1 → **0** | 0 → **3** |
+| `lost_found_screen.dart` | 1 → **0** | 13 → **0\*** | 0 | 0 → **6** |
+| `room_availability_screen.dart` | 3 → **0** | 9 → **0\*** | 1 → **0** | 0 → **2** |
+
+\* every `BorderRadius.circular` / `Radius.circular` left in the three files
+now passes a token (`LiquidGlass.radiusPill`, `radiusCard`, `radiusCut`,
+`radiusControl`, `radiusSheet`). None is a literal.
+
+App-wide: raw `Duration(milliseconds:)` **58 → 51**, emoji **40 → 38**,
+haptic call sites **16 → 30**. Data layer: `git diff --stat main` on
+`lib/features/*/data`, `lib/core/services`, `lib/shared/models` = **0 lines**.
+
+**Two things this batch had to get right that a find-and-replace would break**
+
+1. **A signature radius is not a symmetric radius.** The lost & found card is a
+   photo header inside a rounded card. Swapping the card to `AppDepth.radius(2)`
+   makes its top-right corner the 8px AFOS cut while the other three are 22 —
+   so the old `BorderRadius.vertical(top: Radius.circular(16))` clip on the
+   photo would have left the image standing proud of the cut corner. The header
+   now clips to `topLeft: radiusCard, topRight: radiusCut`, i.e. the card's own
+   silhouette.
+2. **A chat bubble's tail corner is information.** Three corners round, one
+   tight, is what says who spoke — so the asymmetry stays. What changed is that
+   both values are now rungs (`radiusControl` 14 and `radiusCut` 8) instead of
+   the free-hand 16/4.
+
+**Bugs closed from BUG_REGISTER while in these files** (all presentation-layer,
+all in the three files in scope):
+
+- **P1-02, two controller leaks.** `room_availability._request` and
+  `lost_found._openClaimDialog` each built a `TextEditingController` per sheet
+  or dialog open and never released it — one leak per claim attempt. Both are
+  now `try { … } finally { ctrl.dispose(); }`. In the lost & found case the
+  field is read into a local *before* the `finally`, because the dispose has to
+  come before the value is used downstream.
+- **P1-01, one confirmed site.** `lost_found._pickImage` called `setState`
+  after the image-picker await with no `mounted` guard. The picker is a full
+  platform round-trip, so leaving the tab mid-pick throws. Guarded.
+- **Unregistered, found while editing.** `dept_chat._scrollToBottom` runs in a
+  post-frame callback that can land after the route is popped, touching a
+  disposed `ScrollController` and reading `context` off a defunct `State`. Now
+  returns early on `!mounted`.
+
+**Three touch targets under the 48dp floor**, all measured, not guessed:
+
+| where | was | now |
+|---|---:|---:|
+| room availability, day-selector row | 44 | 48 |
+| dept chat, send button | 44 | 48 |
+| lost & found, card "Claim" button | 30 | 48 |
+
+The Claim button sits in a fixed-extent grid tile, so raising it 18px needed
+`mainAxisExtent` 260 → 280 in the same delegate or the tile overflows. The
+arithmetic is in a comment next to it.
+
+**Press treatment, one element per screen** (Law 6). The free period chip, the
+channel row, and the send button each scale to `AppMotion.pressScale` inside
+`AppMotion.pressDuration`, reduced-motion aware. Haptics stay on the commit
+path, never on `onTapDown` — in dept chat the send haptic fires on the
+optimistic append, which is the moment the message actually appears.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM and non-ASCII preserved on all three files.
+
+**Deliberately NOT changed, and why**
+
+- **The three chat-background hex colours** (`0xFF0B1220`, `0xFF0E1F16`,
+  `0xFF1F0E1B` in `_ChatRoomScreen._chatBackgrounds`) stay as literals. They are
+  duplicated **verbatim** in `settings_screen.dart`, which is not in this
+  batch's scope. Tokenising only this copy would leave two definitions of the
+  same three colours free to drift. They need one paired change — add a
+  `chatBackgrounds` map to `app_colors.dart` and point both files at it — and
+  that touches the theme file plus an out-of-scope screen. **Reported, not
+  done.** App-wide `Color(0x..)` outside the theme therefore stays at 21.
+- `lost_found:264`'s `CachedNetworkImage` still has no `memCacheWidth`
+  (BUG_REGISTER P2-06). That is a decode-cost fix and belongs to Phase 7.
+- Spacing is still not systematically tokenised, same as batches 1 and 2. Only
+  the values this batch already had to touch moved onto the scale.
+
+**Still open for these screens**, same as every batch so far: missing empty
+states, full copy rewrite, and responsive verification at 320/400/768/1280 —
+all need the app running on a device.
+
+**Next:** Phase 2 batch 4 — `register_screen.dart` (10), `grades_screen.dart`
+(10), `payment_screen.dart` (10).
+
+---
