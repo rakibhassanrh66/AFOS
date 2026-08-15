@@ -541,6 +541,41 @@ class _SettingsState extends State<SettingsScreen> {
                 ])),
               ]),
 
+              const SizedBox(height: 16),
+
+              // ── Feedback ─────────────────────────────────────────────────
+              // The doctrine requires every haptic to sit behind a user
+              // setting. `AppHaptics.enabled` has existed since Phase 1 and
+              // nothing could change it — 92 call sites answering to a switch
+              // that was not on any screen. This is that switch.
+              _Section(title: 'Feedback', children: [
+                Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                  const Icon(Icons.vibration_rounded, color: AppColors.holoTeal, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Haptic feedback', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
+                    const SizedBox(height: 4),
+                    Text('A short vibration when an action commits — a choice landing, something saved, something refused.',
+                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
+                  ])),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: AppHaptics.enabled,
+                    builder: (_, on, __) => Switch(
+                      value: on,
+                      activeThumbColor: AppColors.holoTeal,
+                      onChanged: (v) {
+                        AppHaptics.setEnabled(v);
+                        // Fire one AFTER enabling, so turning it on
+                        // demonstrates what it does. Turning it off is
+                        // deliberately silent — a buzz confirming "no more
+                        // buzzing" is the joke nobody wants.
+                        if (v) AppHaptics.selection();
+                      },
+                    ),
+                  ),
+                ])),
+              ]),
+
               if (_biometricSupported) ...[
                 const SizedBox(height: 16),
                 // ── Security ────────────────────────────────────────────────

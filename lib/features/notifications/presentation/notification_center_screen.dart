@@ -212,8 +212,18 @@ class _NotifState extends State<NotificationCenterScreen> {
                               borderRadius: AppDepth.radius(1)),
                           child: const Icon(Icons.delete_outline_rounded,
                               color: Colors.white)),
-                        // A swipe-to-dismiss that has passed the threshold and
-                        // committed — the one gesture on this screen that
+                        // Feedback at the moment the swipe CROSSES the point of
+                        // no return, not only when the row is already gone.
+                        //
+                        // This is what `AppHaptics.threshold` was defined for
+                        // in Phase 1, and it had zero callers until now — the
+                        // gesture gave the finger nothing to feel until the
+                        // row vanished, so you could not tell whether letting
+                        // go would delete or spring back. `reached` flips
+                        // exactly once per crossing, so this does not chatter
+                        // while the finger hovers on the boundary.
+                        onUpdate: (d) { if (d.reached && !d.previousReached) AppHaptics.threshold(); },
+                        // Committed — the one gesture on this screen that
                         // destroys something.
                         onDismissed: (_) { AppHaptics.warning(); setState(() => _notifs.removeAt(i)); },
                         child: GestureDetector(
