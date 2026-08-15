@@ -96,6 +96,45 @@ class AppColors {
   static Color glowPurple(double opacity) => holoviolet.withValues(alpha: opacity);
   static Color glowTeal(double opacity)   => holoTeal.withValues(alpha: opacity);
 
+  // --- Auth surfaces --------------------------------------------------------
+  //
+  // The signed-out screens (login, register, complete-profile) paint their own
+  // canvas rather than the app's, because there is no shell behind them yet.
+  // These stops lived as raw hex in `login_screen.dart` and
+  // `auth_brand_panel.dart`, which share the first stop and drifted apart in
+  // the rest.
+  //
+  // NOTE — VALUES ARE PRESERVED EXACTLY, INCLUDING ONE THAT LOOKS LIKE A TYPO.
+  // [authDeep] is #0B1220. The app's declared dark canvas, [background] /
+  // `LiquidGlass.canvasDark`, is #0B1**1**20 — one hex digit apart, and the
+  // two are almost certainly meant to be the same colour. Snapping them
+  // together is a visible change to every signed-out screen plus the router's
+  // error page and the chat 'midnight' background, so it is NOT done here.
+  // Flagged in REDESIGN_LOG for a decision.
+  static const Color authDeep = Color(0xFF0B1220);
+
+  /// Login / register page background. Theme-aware.
+  static const List<Color> authCanvasDark = [
+    authDeep, Color(0xFF102035), Color(0xFF121B2E),
+  ];
+  static const List<Color> authCanvasLight = [
+    Color(0xFFF0F4FF), Color(0xFFFFFFFF), Color(0xFFE8EEFC),
+  ];
+
+  /// The wide-viewport brand panel beside the auth form. Deliberately dark in
+  /// BOTH themes — it is a marketing surface, not a content surface, so it does
+  /// not invert with the rest of the app.
+  static const List<Color> authBrandDark = [
+    authDeep, Color(0xFF16233D), Color(0xFF0F1B30),
+  ];
+  static const List<Color> authBrandLight = [
+    Color(0xFF0F1B30), Color(0xFF1B2E52), Color(0xFF16233D),
+  ];
+
+  /// Hairline grid behind the auth form.
+  static const Color authGridDark = Color(0xFF1A2840);
+  static const Color authGridLight = Color(0xFF0A1628);
+
   /// The four chat-room canvases a user can pick in Settings → Chat Background.
   ///
   /// WHY THIS IS HERE. These four values previously existed as raw hex in TWO

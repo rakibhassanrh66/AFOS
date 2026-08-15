@@ -10,7 +10,10 @@ import '../bloc/auth_state.dart';
 import '../data/repositories/auth_repository.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/auth/biometric_lock.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../shared/extensions/context_ext.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -148,7 +151,7 @@ class _LoginBodyState extends State<_LoginBody> {
         context: ctx,
         builder: (dctx) => AlertDialog(
           backgroundColor: AppColors.surfaceOf(dctx),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: AppDepth.radius(3)),
           title: Row(children: [
             const Icon(Icons.fingerprint_rounded, color: AppColors.holoBlue),
             const SizedBox(width: 10),
@@ -195,8 +198,9 @@ class _LoginBodyState extends State<_LoginBody> {
 
     return BlocListener<AuthBloc, AuthState>(
       listener: (ctx, state) {
-        if(state is AuthAuthenticated) _afterLogin(ctx);
-        if(state is AuthError) ctx.showSnack(state.message, isError:true);
+        // Signing in is the commit; a refused sign-in is the app saying no.
+        if(state is AuthAuthenticated) { AppHaptics.success(); _afterLogin(ctx); }
+        if(state is AuthError) { AppHaptics.warning(); ctx.showSnack(state.message, isError:true); }
       },
       child: Scaffold(
         backgroundColor: AppColors.surfaceOf(context),
@@ -274,8 +278,8 @@ class _FormPane extends StatelessWidget {
                   // sitting on top of it (the "Forgot password?" link
                   // specifically) instead of reading as a gentle backdrop.
                   colors: isDark
-                    ? const [Color(0xFF0B1220), Color(0xFF102035), Color(0xFF121B2E)]
-                    : const [Color(0xFFF0F4FF), Colors.white, Color(0xFFE8EEFC)],
+                    ? AppColors.authCanvasDark
+                    : AppColors.authCanvasLight,
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                 ),
               ),
@@ -334,7 +338,9 @@ class _FormPane extends StatelessWidget {
                             const SizedBox(width:8),
                             _logoLetter('S', AppColors.holoTeal, context),
                           ])))
-                        .animate().fadeIn(duration:500.ms,curve:Curves.easeOutCubic).slideY(begin:-0.3,curve:Curves.easeOutCubic),
+                        .animate()
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
+                        .slideY(begin:-0.3, curve: AppMotion.standard),
                       const SizedBox(height:32),
                       // Centered to match the logo above and the university
                       // footer below — the enclosing Column is
@@ -342,11 +348,14 @@ class _FormPane extends StatelessWidget {
                       // beneath), so these two lines need their own Center or
                       // they hug the left edge under a centered logo.
                       Center(child: Text('Welcome back', style:AppTextStyles.displayMedium.copyWith(color: textPrimary)))
-                        .animate(delay:120.ms).fadeIn(duration:350.ms).slideX(begin:-0.08,curve:Curves.easeOutCubic),
+                        .animate(delay: AppMotion.sequenceDelay(context, 3))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                        .slideX(begin:-0.08, curve: AppMotion.standard),
                       const SizedBox(height:4),
                       Center(child: Text('Sign in to your AFOS account',
                         style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)))
-                        .animate(delay:200.ms).fadeIn(duration:350.ms),
+                        .animate(delay: AppMotion.sequenceDelay(context, 5))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
                       const SizedBox(height:32),
                       AfosTextField(
                         hint:'Email address', controller:emailCtrl,
@@ -358,7 +367,9 @@ class _FormPane extends StatelessWidget {
                         // it only appears when the typed email matches the
                         // account whose session is stored on this device.
                         onChanged:(_) => onEmailChanged(),
-                      ).animate(delay:280.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      ).animate(delay: AppMotion.sequenceDelay(context, 7))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                        .slideY(begin:0.08, curve: AppMotion.standard),
                       const SizedBox(height:16),
                       AfosTextField(
                         hint:'Password', controller:passCtrl,
@@ -370,7 +381,9 @@ class _FormPane extends StatelessWidget {
                         trailingIcon: showFingerprint ? Icons.fingerprint_rounded : null,
                         onTrailingIconTap: showFingerprint ? onFingerprint : null,
                         trailingTooltip: 'Sign in with fingerprint / Face ID',
-                      ).animate(delay:340.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      ).animate(delay: AppMotion.sequenceDelay(context, 8))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                        .slideY(begin:0.08, curve: AppMotion.standard),
                       if (biometricMsg != null) ...[
                         const SizedBox(height:10),
                         Row(crossAxisAlignment:CrossAxisAlignment.start, children:[
@@ -410,7 +423,9 @@ class _FormPane extends StatelessWidget {
                             }
                           },
                         ),
-                      ).animate(delay:420.ms).fadeIn(duration:300.ms).slideY(begin:0.08,curve:Curves.easeOutCubic),
+                      ).animate(delay: AppMotion.sequenceDelay(context, 10))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                        .slideY(begin:0.08, curve: AppMotion.standard),
                       const SizedBox(height:28),
                       Row(mainAxisAlignment:MainAxisAlignment.center, children:[
                         Text("Don't have an account?", style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
@@ -419,11 +434,13 @@ class _FormPane extends StatelessWidget {
                           child:Text('Create account →',
                             style:TextStyle(color:textPrimary,fontWeight:FontWeight.w600)),
                         ),
-                      ]).animate(delay:480.ms).fadeIn(duration:300.ms),
+                      ]).animate(delay: AppMotion.sequenceDelay(context, 12))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
                       const SizedBox(height:12),
                       Center(child: Text('Daffodil International University',
                         style:AppTextStyles.labelSmall.copyWith(color: textSecondary)))
-                        .animate(delay:540.ms).fadeIn(duration:300.ms),
+                        .animate(delay: AppMotion.sequenceDelay(context, 13))
+                        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
                     ]),
                   ),
                 ),
@@ -439,7 +456,7 @@ class _FormPane extends StatelessWidget {
 Widget _logoLetter(String l, Color c, BuildContext context) => Container(
     width:44, height:44,
     decoration:BoxDecoration(
-      borderRadius:BorderRadius.circular(10),
+      borderRadius: AppDepth.radius(1),
       border:Border.all(color:c.withValues(alpha: 0.5)),
       color:c.withValues(alpha: 0.12),
     ),
@@ -453,7 +470,8 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color = (isDark ? const Color(0xFF1A2840) : const Color(0xFF0A1628)).withValues(alpha: isDark ? 1 : 0.05)
+      ..color = (isDark ? AppColors.authGridDark : AppColors.authGridLight)
+          .withValues(alpha: isDark ? 1 : 0.05)
       ..strokeWidth=0.3;
     for(double x=0;x<size.width;x+=40) {
       canvas.drawLine(Offset(x,0),Offset(x,size.height),p);

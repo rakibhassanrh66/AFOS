@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/data/bd_geography.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -311,6 +314,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       }
 
       RoleSession.markProfileCompleted();
+      AppHaptics.success();
       if (mounted) context.go('/home');
     } catch (e) {
       if (mounted) {
@@ -418,7 +422,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         isExpanded: true,
                         decoration: InputDecoration(hintText: 'Department', filled: true,
                             fillColor: AppColors.glassFill(context),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                            border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                                 borderSide: BorderSide(color: AppColors.borderOf(context)))),
                         dropdownColor: AppColors.surfaceOf(context),
                         style: TextStyle(color: textPrimary),
@@ -445,7 +449,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                               isExpanded: true,
                               decoration: InputDecoration(hintText: 'Designation / Job Title', filled: true,
                                   fillColor: AppColors.glassFill(context),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                                  border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                                       borderSide: BorderSide(color: AppColors.borderOf(context)))),
                               dropdownColor: AppColors.surfaceOf(context),
                               style: TextStyle(color: textPrimary),
@@ -480,7 +484,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AppColors.green.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: AppDepth.radius(1),
                           border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
                         ),
                         child: Row(children: [
@@ -551,7 +555,7 @@ class _AddressDropdown extends StatelessWidget {
       isExpanded: true,
       decoration: InputDecoration(hintText: hint, filled: true,
           fillColor: AppColors.glassFill(context),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+          border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
               borderSide: BorderSide(color: AppColors.borderOf(context)))),
       dropdownColor: AppColors.surfaceOf(context),
       style: TextStyle(color: textPrimary),
@@ -567,12 +571,13 @@ class _GenderChip extends StatelessWidget {
   const _GenderChip({required this.label, required this.selected, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
-      onTap: onTap,
-      child: Container(padding: const EdgeInsets.symmetric(vertical: 12),
+      onTap: () { AppHaptics.selection(); onTap(); },
+      // Vertical padding was 12 around 13px text — a ~37dp target.
+      child: Container(padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
           alignment: Alignment.center,
           decoration: BoxDecoration(
               color: selected ? AppColors.holoBlue : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: AppDepth.radius(1),
               border: Border.all(color: selected ? AppColors.holoBlue : AppColors.borderOf(context), width: 0.8)),
           child: Text(label, style: TextStyle(
               color: selected ? Colors.white : AppColors.textSecondaryOf(context),

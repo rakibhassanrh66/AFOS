@@ -135,4 +135,23 @@ class AppMotion {
     }
     return stagger * index;
   }
+
+  /// Delay for [step] of a screen's ONE orchestrated entrance, in units of
+  /// [stagger] (40ms).
+  ///
+  /// HOW THIS DIFFERS FROM [staggerFor], and why both exist. `staggerFor` caps
+  /// at [staggerMaxItems] because it feeds a LIST of unknown length, where
+  /// staggering row 40 means the last row lands 1.6s late and the app reads as
+  /// slow. A screen's entrance is the opposite case: a fixed, hand-authored
+  /// handful of elements where every one is meant to arrive, and the ordering
+  /// is the composition. Capping it would simply delete the choreography.
+  ///
+  /// Steps need not be contiguous — the author picks them to shape the rhythm
+  /// (0, 3, 5, 7, 8 …). What this guarantees is that the delays sit on the
+  /// 40ms grid instead of being hand-picked milliseconds, and that reduced
+  /// motion collapses the whole sequence to zero.
+  ///
+  /// Law 6 applies: ONE such sequence per screen.
+  static Duration sequenceDelay(BuildContext context, int step) =>
+      isReduced(context) || step <= 0 ? Duration.zero : stagger * step;
 }
