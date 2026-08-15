@@ -5,6 +5,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
+import '../../../core/auth/role_session.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
@@ -49,12 +50,27 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   final _refresh = RealtimeRefresh();
   final _crRefresh = RealtimeRefresh();
 
+  /// True for a super_admin, false for a delegate who reached this screen via
+  /// `permissions:delegate`.
+  ///
+  /// A delegate is here for ONE job — distributing work they already hold — so
+  /// role changes, approvals and deletion are not theirs to make. Assumed FALSE
+  /// until proven otherwise: the screen must not flash the destructive controls
+  /// for the frame before the role resolves.
+  bool _isSuperAdmin = false;
+
   static const _roles = ['all', 'student', 'teacher', 'admin', 'dept_admin', 'staff', 'exam_controller', 'super_admin'];
+
+  Future<void> _loadViewerRole() async {
+    final role = await RoleSession.ensureLoaded();
+    if (mounted) setState(() => _isSuperAdmin = role == 'super_admin');
+  }
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 3, vsync: this);
+    _loadViewerRole();
     _load();
     _loadCrRequests();
     // Debounced: `profiles` changes on every login and every profile edit
@@ -423,6 +439,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
           .from('user_permissions').select('permission_id')
           .eq('user_id', user['id']) as List;
       granted = grantedRes.map((r) => r['permission_id'] as String).toSet();
+
+      // A DELEGATE MAY ONLY PASS ON WHAT THEY THEMSELVES HOLD.
+      //
+      // The database enforces this — `delegate_grant_only_what_they_hold`
+      // refuses anything else — but a checkbox the server will reject is a
+      // trap: the admin ticks it, saves, and gets a permission error with no
+      // explanation of which box caused it. So the catalogue a non-super_admin
+      // sees is narrowed to their own grants, and the rule is visible in the
+      // UI rather than only discoverable by hitting it.
+      if (!_isSuperAdmin) {
+        final mineRes = await SupabaseConfig.client
+            .from('user_permissions').select('permission_id')
+            .eq('user_id', SupabaseConfig.uid!) as List;
+        final mine = mineRes.map((r) => r['permission_id'] as String).toSet();
+        catalog = catalog.where((p) => mine.contains(p['id'])).toList();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -623,13 +655,17 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                           // tab above), so every row shares one fixed
                           // template — guarded by the _filtered.isEmpty
                           // ternary above, so .first is safe.
+                          // A delegate gets the permission sheet and nothing
+                          // else. Changing a role or deleting an account stays
+                          // super_admin's, and the database refuses both for a
+                          // delegate independently of this.
                           prototypeItem: _UserCard(user: _filtered.first, pending: false,
-                              onDelete: () => _confirmDelete(_filtered.first),
-                              onChangeRole: () => _setRole(_filtered.first),
+                              onDelete: _isSuperAdmin ? () => _confirmDelete(_filtered.first) : null,
+                              onChangeRole: _isSuperAdmin ? () => _setRole(_filtered.first) : null,
                               onManagePermissions: () => _managePermissions(_filtered.first)),
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
-                              onDelete: () => _confirmDelete(_filtered[i]),
-                              onChangeRole: () => _setRole(_filtered[i]),
+                              onDelete: _isSuperAdmin ? () => _confirmDelete(_filtered[i]) : null,
+                              onChangeRole: _isSuperAdmin ? () => _setRole(_filtered[i]) : null,
                               onManagePermissions: () => _managePermissions(_filtered[i])))),
                 ]),
               ])),
