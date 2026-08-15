@@ -125,6 +125,40 @@ android {
     }
 }
 
+// EVERY ARTIFACT OF ONE RELEASE MUST SHARE ONE versionCode.
+//
+// Flutter's gradle plugin rewrites the versionCode when building
+// `--split-per-abi`, as `abiOffset * 1000 + versionCode` — armeabi-v7a 1,
+// arm64-v8a 2, x86_64 4. So release 2.8.3 shipped as:
+//
+//     AFOS-v2.8.3.apk            versionCode   68   (universal)
+//     AFOS-v2.8.3-arm64-v8a.apk  versionCode 2068   (split)
+//
+// That numbering exists for Google Play, which requires a distinct versionCode
+// per ABI in one release track. **AFOS is not on Play**, and outside it the
+// numbering is actively harmful: a phone that installed the 33 MB arm64 split
+// sits on 2068, and the in-app updater downloads the universal build — 68 —
+// which Android rejects as a DOWNGRADE. The update button then does nothing,
+// forever, on exactly the users who took the smaller download we recommended.
+//
+// Pinning every output to the plain versionCode makes the split and the
+// universal interchangeable: either installs over the other, and the in-app
+// updater works regardless of which one a user started from.
+// Uses the SAME legacy API Flutter's plugin uses to apply the multiplier, and
+// runs after it. `androidComponents.onVariants` looks like the modern answer
+// and does nothing here: Flutter sets `versionCodeOverride` on the legacy
+// output object, and that override wins. Verified by building both ways —
+// with onVariants the splits still came out 2069/1069.
+android.applicationVariants.all {
+    outputs.all {
+        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+            .let { out ->
+                val impl = out as? com.android.build.gradle.api.ApkVariantOutput
+                impl?.versionCodeOverride = flutter.versionCode
+            }
+    }
+}
+
 flutter {
     source = "../.."
 }
