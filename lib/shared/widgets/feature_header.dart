@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
@@ -86,7 +87,7 @@ class FeatureHeader extends StatelessWidget {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(13),
+                            borderRadius: AppDepth.radius(1),
                           ),
                           child: Icon(icon, color: Colors.white, size: 22),
                         ),

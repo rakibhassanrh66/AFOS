@@ -224,7 +224,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [AppColors.blueLight, AppColors.blue]),
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
       ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
           .slideY(begin: -0.06, curve: AppMotion.standard),
 
@@ -256,7 +256,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           child: Row(children: [
             for (final g in [1, 2])
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsetsDirectional.only(end: 8),
                 child: _Chip(
                   label: labGroupLabel(_selected?['batch'] as String?,
                       _selected?['section'] as String?, g),
@@ -352,7 +352,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ),
               if (sub != null)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsetsDirectional.only(end: 8),
                   child: PillBadge(
                       label: labGroupLabel(_selected?['batch'] as String?,
                           _selected?['section'] as String?, sub),
@@ -435,7 +435,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ),
               if (_isLab)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsetsDirectional.only(end: 8),
                   child: PillBadge(
                       label: sub == null
                           ? 'No group'
@@ -567,7 +567,7 @@ class _NewSessionFormState extends State<_NewSessionForm> {
         widget.offering['section'] as String?, widget.labSubgroup);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(4, 8, 4, 8),
       child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

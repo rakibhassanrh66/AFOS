@@ -121,7 +121,7 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Exam Seat Plan Upload'),
-      body: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+      body: ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
         const FeatureHeader(
           title: 'Exam Seat Plan Upload',
           subtitle: 'Publish room allocations from the official PDF',

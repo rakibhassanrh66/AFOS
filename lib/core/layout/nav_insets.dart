@@ -48,6 +48,10 @@ abstract final class NavInsets {
     double bottom = 16,
     bool fab = false,
   }) =>
+      // Stays EdgeInsets, not EdgeInsetsDirectional: the horizontal inset is
+      // the SAME on both sides, so there is no reading direction to respect,
+      // and several callers pass the result somewhere that demands a concrete
+      // EdgeInsets.
       EdgeInsets.fromLTRB(
           h, top, h, bottom + of(context) + (fab ? fabClearance : 0));
 

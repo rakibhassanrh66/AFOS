@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../theme/app_colors.dart';
+
 import '../../features/admin/presentation/manage_clubs_screen.dart';
 import '../../features/admin/presentation/manage_conference_rooms_screen.dart';
 import '../../features/admin/presentation/manage_course_offerings_admin_screen.dart';
@@ -287,12 +289,17 @@ class AppRouter {
         ],
       ),
     ],
+    // The 404. It was the last screen in the app painting its own raw hex —
+    // a hardcoded dark slab with white text, so in LIGHT mode a mistyped link
+    // handed the user a black rectangle that looked nothing like the app. It
+    // now takes the Scaffold's themed background and themed text, which also
+    // takes it out of the unresolved `#0B1220` vs `canvasDark` question
+    // entirely: it no longer has an opinion about that colour.
     errorBuilder: (c, s) => Scaffold(
-      backgroundColor: const Color(0xFF0B1220),
       body: Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
-        const Icon(Icons.error_outline, color: Color(0xFFD9576D), size: 48),
+        const Icon(Icons.error_outline, color: AppColors.red, size: 48),
         const SizedBox(height:16),
-        const Text('Page not found', style: TextStyle(color:Colors.white70)),
+        Text('Page not found', style: TextStyle(color: AppColors.textSecondaryOf(c))),
         const SizedBox(height:16),
         ElevatedButton(onPressed:()=>GoRouter.of(c).go('/home'), child:const Text('Go Home')),
       ])),

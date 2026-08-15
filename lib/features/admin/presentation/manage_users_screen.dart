@@ -139,7 +139,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
     final reasonCtrl = TextEditingController();
     await showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Reject CR Request', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 16),
@@ -282,7 +282,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   Future<String?> _pickRole(String current) => showGlassModal<String>(context,
       builder: (sheetCtx) => SafeArea(child: SingleChildScrollView(
         // Sheet content — GlassSheet's SafeArea already applies the nav inset.
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 20, 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Assign a role', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
           const SizedBox(height: 4),
@@ -386,7 +386,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                 // own SafeArea already consumes the shell's nav inset. Adding
                 // it again stacked a second ~107px of dead space inside the
                 // sheet.
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 20, 24),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Permissions for ${user['full_name'] ?? 'this user'}',
                       style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
@@ -465,7 +465,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
       appBar: const AfosAppBar(title: 'Manage Users'),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 4),
           child: RepaintBoundary(
             child: GlassCard(
               borderRadius: 16,
@@ -502,7 +502,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     : _pending.isEmpty
                     ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
-                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
+                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
                             onReject: () => _rejectAndDelete(_pending[i]),
@@ -512,7 +512,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                     : _crRequests.isEmpty
                     ? const EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
                         subtitle: 'Student requests to become Class Representative will show up here')
-                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _crRequests.length,
+                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _crRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _crRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -537,7 +537,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                               ]));
                         }),
                 Column(children: [
-                  Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: TextField(
+                  Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8), child: TextField(
                       onChanged: (v) => setState(() => _search = v),
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                       decoration: InputDecoration(hintText: 'Search name, email, ID', prefixIcon: const Icon(Icons.search),
@@ -564,7 +564,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
-                      : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
+                      : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
                           // This tab's _UserCard is always pending:false (no
                           // conditional Approve/Reject row like the Pending
                           // tab above), so every row shares one fixed
@@ -638,11 +638,11 @@ class _UserCard extends StatelessWidget {
         builder: (sheetCtx) => SafeArea(
             child: SingleChildScrollView(
                 // Sheet content — GlassSheet's SafeArea already applies it.
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 24, 24),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     CircleAvatar(radius: 24, backgroundColor: color.withValues(alpha: 0.15),
-                        backgroundImage: (user['avatar_url'] as String?)?.isNotEmpty == true ? CachedNetworkImageProvider(user['avatar_url']) : null,
+                        backgroundImage: (user['avatar_url'] as String?)?.isNotEmpty == true ? CachedNetworkImageProvider(user['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
                         child: (user['avatar_url'] as String?)?.isNotEmpty != true
                             ? Text(((user['full_name'] as String?)?.isNotEmpty == true ? (user['full_name'] as String)[0] : '?').toUpperCase(),
                                 style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18))
@@ -697,7 +697,7 @@ class _UserCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           CircleAvatar(radius: 20, backgroundColor: color.withValues(alpha: 0.15),
-              backgroundImage: (user['avatar_url'] as String?)?.isNotEmpty == true ? CachedNetworkImageProvider(user['avatar_url']) : null,
+              backgroundImage: (user['avatar_url'] as String?)?.isNotEmpty == true ? CachedNetworkImageProvider(user['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
               child: (user['avatar_url'] as String?)?.isNotEmpty != true
                   ? Text(((user['full_name'] as String?)?.isNotEmpty == true ? (user['full_name'] as String)[0] : '?').toUpperCase(),
                       style: TextStyle(color: color, fontWeight: FontWeight.bold))

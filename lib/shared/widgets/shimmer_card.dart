@@ -1,3 +1,4 @@
+import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../config/theme/app_colors.dart';
@@ -17,7 +18,15 @@ class ShimmerCard extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: base,
       highlightColor: AppColors.glassBorder(context),
-      period: const Duration(milliseconds: 1400),
+      // A process indicator, not a transition, so 1400ms is correct and the
+      // 620ms ceiling does not apply. But it swept forever regardless of
+      // reduced motion — and a skeleton communicates "loading" by its GEOMETRY,
+      // so freezing the sweep loses nothing. Effectively still under reduced
+      // motion (Shimmer has no disable flag; a near-zero-delta period is the
+      // supported way to still it).
+      period: AppMotion.isReduced(context)
+          ? const Duration(days: 1)
+          : const Duration(milliseconds: 1400),
       child: Container(
         width: width, height: height,
         decoration: BoxDecoration(

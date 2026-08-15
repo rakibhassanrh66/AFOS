@@ -75,6 +75,21 @@ class AppMotion {
   /// Symmetric — only for a value that moves and returns to where it started.
   static const Curve inOut = Curves.easeInOutCubic;
 
+  /// The one curve that overshoots. Reserved for a CONFIRMATION or an ARRIVAL:
+  /// a verification stamp landing, the splash logo punching in.
+  ///
+  /// WHY IT EXISTS. The first three curves cannot express "this thing arrived
+  /// with force", and screens kept reaching for `Curves.easeOutBack` /
+  /// `elasticOut` locally to get it — vr_id's verified stamp and the splash
+  /// choreography both did, which is exactly the drift a token layer is
+  /// supposed to prevent. Naming it makes the overshoot a deliberate, countable
+  /// decision instead of a per-file improvisation.
+  ///
+  /// NOT for press feedback: Law 4 requires an overshoot-free release, because
+  /// a control that springs past its resting size reads as unstable under the
+  /// finger. Use [standard] there.
+  static const Curve emphasis = Curves.easeOutBack;
+
   // ------------------------------------------------------------------ springs
   //
   // Springs, not fixed curves, for anything the user can interrupt (a sheet

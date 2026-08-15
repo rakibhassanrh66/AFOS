@@ -539,7 +539,7 @@ class _AllocationsTabState extends State<_AllocationsTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
         child: Row(children: [
           Expanded(
             child: Text(
@@ -878,7 +878,7 @@ class _AssignSheetState extends State<_AssignSheet> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Allocate teaching',
             style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -997,7 +997,7 @@ class _LeadersTabState extends State<_LeadersTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
         child: Row(children: [
           Expanded(
             child: Text('${_leaders.length} appointed',
@@ -1031,7 +1031,7 @@ class _LeadersTabState extends State<_LeadersTab> {
                           final t = l['profiles'] as Map<String, dynamic>? ?? const {};
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                            padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 6, 10),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceOf(ctx),
                               borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
@@ -1134,7 +1134,7 @@ class _AppointSheetState extends State<_AppointSheet> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Appoint a module leader',
             style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),

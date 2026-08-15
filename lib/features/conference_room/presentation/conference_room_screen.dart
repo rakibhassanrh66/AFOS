@@ -69,7 +69,7 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> with Single
           icon: Icons.meeting_room_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.holoTeal, AppColors.holoBlue]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         AnimatedBuilder(
           animation: _tab,
@@ -109,7 +109,7 @@ class _RequestsList extends StatelessWidget {
       return const EmptyState(icon: Icons.meeting_room_outlined,
         title: 'No requests yet', subtitle: 'Submit a new request from the other tab');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: requests.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: requests.length,
         itemBuilder: (ctx, i) {
           final r = requests[i];
           final status = r['status'] as String? ?? 'pending';
@@ -166,12 +166,16 @@ class _NewRequestFormState extends State<_NewRequestForm> {
   Future<void> _pickDate() async {
     final d = await showDatePicker(context: context, initialDate: DateTime.now(),
         firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 180)));
-    if (d != null) setState(() => _date = d);
+    // BUG_REGISTER P1-01: the picker is a route of its own, so this State can
+    // be torn down (session expiry, a deep link, the tab being swapped) while
+    // it is still open. `d` then arrives for a widget that no longer exists.
+    if (!mounted || d == null) return;
+    setState(() => _date = d);
   }
 
   Future<void> _pickTime(bool isStart) async {
     final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-    if (t == null) return;
+    if (!mounted || t == null) return;
     setState(() { if (isStart) {
       _start = t;
     } else {
@@ -196,6 +200,7 @@ class _NewRequestFormState extends State<_NewRequestForm> {
         message: _purposeCtrl.text.trim(),
         category: 'general', deepLink: '/admin/conference-rooms',
       );
+      if (!mounted) return;
       _purposeCtrl.clear();
       setState(() { _date = null; _start = null; _end = null; });
       widget.onSubmitted();
@@ -211,7 +216,7 @@ class _NewRequestFormState extends State<_NewRequestForm> {
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
-    return SingleChildScrollView(padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return SingleChildScrollView(padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Request a Conference Room', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 20),
       AfosTextField(hint: 'Purpose (e.g. Department meeting)', controller: _purposeCtrl, maxLines: 2),

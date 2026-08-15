@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -43,9 +44,9 @@ Future<LogoutChoice?> showRadialLogoutMenu(BuildContext context) {
     context: context,
     builder: (dctx) => AlertDialog(
       backgroundColor: AppColors.surfaceOf(dctx),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 6),
-      contentPadding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      shape: RoundedRectangleBorder(borderRadius: AppDepth.radius(3)),
+      titlePadding: const EdgeInsetsDirectional.fromSTEB(24, 22, 24, 6),
+      contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 0, 12, 4),
       title: Text('Leave AFOS?',
           style: TextStyle(
               color: AppColors.textPrimaryOf(dctx),
@@ -54,14 +55,14 @@ Future<LogoutChoice?> showRadialLogoutMenu(BuildContext context) {
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         for (final o in _kOptions)
           ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: AppDepth.radius(1)),
             leading: Container(
               width: 38,
               height: 38,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: o.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppDepth.radius(1),
               ),
               child: Icon(o.icon, color: o.color, size: 19),
             ),
@@ -76,7 +77,7 @@ Future<LogoutChoice?> showRadialLogoutMenu(BuildContext context) {
             onTap: () => Navigator.pop(dctx, o.choice),
           ),
       ]),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      actionsPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dctx),

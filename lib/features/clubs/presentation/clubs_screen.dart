@@ -309,7 +309,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
     final msgCtrl = TextEditingController();
     await showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Notice for $clubName', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 16),
@@ -361,7 +361,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Create Event for $clubName', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
                 const SizedBox(height: 16),
@@ -482,7 +482,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
             tabs: const [Tab(text: 'Discover'), Tab(text: 'My Clubs'), Tab(text: 'Events')])),
         Expanded(child: TabBarView(controller: _tab, children: [
           Column(children: [
-            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: TextField(
+            Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8), child: TextField(
                 onChanged: (v) => setState(() => _search = v),
                 style: TextStyle(color: AppColors.textPrimaryOf(context)),
                 decoration: InputDecoration(hintText: 'Search clubs', prefixIcon: const Icon(Icons.search_rounded),
@@ -530,7 +530,7 @@ class _FilterBar extends StatelessWidget {
     child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: filters.map((f) {
           final sel = selected == f;
-          return Padding(padding: const EdgeInsets.only(right: 8),
+          return Padding(padding: const EdgeInsetsDirectional.only(end: 8),
               child: GestureDetector(onTap: () => onSelect(f),
                   child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       // This chip is a direct child of a horizontally-
@@ -576,7 +576,7 @@ class _ClubList extends StatelessWidget {
     if (clubs.isEmpty) return const EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
     final canJoin = RoleSession.role == 'student';
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: clubs.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: clubs.length,
         // Guarded by the `if (clubs.isEmpty) return EmptyState(...)`
         // early-return above, so .first is safe. The index only drives the
         // stagger fade-in delay, not row height, so 0 is fine for the
@@ -612,7 +612,7 @@ class _ClubList extends StatelessWidget {
               Row(children: [
                 if ((c['short_name'] as String?)?.isNotEmpty == true)
                   Container(
-                      margin: const EdgeInsets.only(right: 8),
+                      margin: const EdgeInsetsDirectional.only(end: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                           color: AppColors.pink.withValues(alpha: 0.16),
@@ -713,7 +713,7 @@ class _MyClubsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.group_add_rounded,
         title: 'No clubs joined', subtitle: 'Discover and request to join clubs from the Discover tab');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: myClubs.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: myClubs.length,
         itemBuilder: (ctx, i) {
           final m = myClubs[i];
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
@@ -778,7 +778,7 @@ class _MyClubsTab extends StatelessWidget {
                         child: Row(children: [
                           CircleAvatar(radius: 16, backgroundColor: AppColors.pink.withValues(alpha: 0.15),
                               backgroundImage: (student['avatar_url'] as String?)?.isNotEmpty == true
-                                  ? CachedNetworkImageProvider(student['avatar_url']) : null,
+                                  ? CachedNetworkImageProvider(student['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
                               child: (student['avatar_url'] as String?)?.isNotEmpty != true
                                   ? Text(((student['full_name'] as String?)?.isNotEmpty == true ? (student['full_name'] as String)[0] : '?').toUpperCase(),
                                       style: const TextStyle(color: AppColors.pink, fontWeight: FontWeight.bold, fontSize: 12))
@@ -816,7 +816,7 @@ class _EventsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.event_rounded,
         title: 'No upcoming events', subtitle: 'Events will appear here');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: events.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: events.length,
         itemBuilder: (ctx, i) {
           final e = events[i];
           final eventId = e['id'] as String?;

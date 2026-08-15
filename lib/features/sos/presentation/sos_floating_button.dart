@@ -243,6 +243,16 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
         ? 'sos_voice_${DateTime.now().millisecondsSinceEpoch}.webm'
         : '${(await getTemporaryDirectory()).path}/sos_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _recorder.start(const RecordConfig(), path: path);
+    // BUG_REGISTER P1-01 — the STOP path above was guarded, the START path was
+    // not, and this one is the worse of the two: the sheet can be dismissed
+    // during the permission prompt or the platform start round-trip, and this
+    // would then both `setState` on a dead State and arm a 1s periodic timer
+    // that does it again every second. Stop the recorder on the way out, so a
+    // dispose() that landed mid-`start()` cannot leave the microphone hot.
+    if (!mounted) {
+      try { await _recorder.stop(); } catch (_) {}
+      return;
+    }
     setState(() { _recording = true; _recordSeconds = 0; _recordedPath = null; });
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       setState(() => _recordSeconds++);
@@ -275,7 +285,7 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+        padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.sos_rounded, color: AppColors.red, size: 40),
           const SizedBox(height: 12),

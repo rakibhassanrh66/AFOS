@@ -1,3 +1,5 @@
+import '../../config/theme/depth.dart';
+import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import 'supernova_loader.dart';
@@ -36,7 +38,7 @@ class _AfosButtonState extends State<AfosButton> {
     // reserved for the super-admin signal under the two-accent cap).
     final bgDeep = Color.lerp(bg, AppColors.background, 0.35)!;
     // Light hues (the brand teal included) need ink text, not white.
-    final fg = bg.computeLuminance() > 0.45 ? const Color(0xFF072A1C) : Colors.white;
+    final fg = AppColors.foregroundOn(bg);
     return MouseRegion(
       // No-op on touch (Android/iOS) -- this only ever fires with an
       // actual mouse on web/desktop.
@@ -50,11 +52,11 @@ class _AfosButtonState extends State<AfosButton> {
         onTapCancel: () => _setPressed(false),
         child: AnimatedScale(
           scale: _pressed ? 0.97 : (_hover ? 1.015 : 1.0),
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
+          duration: AppMotion.instant,
+          curve: AppMotion.standard,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds:220),
-            curve: Curves.easeOutCubic,
+            duration: AppMotion.base,
+            curve: AppMotion.standard,
             height: 52,
             decoration: BoxDecoration(
               gradient: widget.outlined ? null : LinearGradient(
@@ -63,7 +65,7 @@ class _AfosButtonState extends State<AfosButton> {
               border: widget.outlined
                   ? Border.all(color: _hover ? bg : bg.withValues(alpha: 0.7), width: 1.5)
                   : null,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppDepth.radius(1),
               color: widget.outlined ? (_hover ? bg.withValues(alpha: 0.08) : Colors.transparent) : null,
               boxShadow: widget.outlined ? null : [
                 BoxShadow(color: bg.withValues(alpha: _hover ? 0.5 : 0.35),

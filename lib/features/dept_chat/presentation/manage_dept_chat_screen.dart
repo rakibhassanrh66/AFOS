@@ -53,14 +53,14 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
           icon: Icons.forum_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.indigo, AppColors.blue]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _channels.isEmpty
               ? const EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No channels', subtitle: 'Nothing to moderate yet')
               : ListView.builder(
-                  padding: EdgeInsets.fromLTRB(12, 0, 12, 12 + NavInsets.of(context)),
+                  padding: EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12 + NavInsets.of(context)),
                   itemCount: _channels.length,
                   itemBuilder: (ctx, i) {
                     final ch = _channels[i];
@@ -154,7 +154,7 @@ class _ModerateChatRoomState extends State<_ModerateChatRoomScreen> {
           : _messages.isEmpty
               ? const EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No messages', subtitle: 'Nothing posted here yet')
               : ListView.builder(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                  padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
                   itemCount: _messages.length,
                   itemBuilder: (ctx, i) {
                     final m = _messages[i];

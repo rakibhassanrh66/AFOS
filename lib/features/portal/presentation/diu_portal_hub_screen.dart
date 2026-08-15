@@ -71,7 +71,7 @@ class DiuPortalHubScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            padding: const EdgeInsetsDirectional.only(start: 4, bottom: 10),
             child: Text(
               'These open the real DIU portal inside AFOS. Your portal login is '
               'separate from your AFOS account.',

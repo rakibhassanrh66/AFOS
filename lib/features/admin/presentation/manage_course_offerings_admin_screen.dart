@@ -107,7 +107,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
     try {
       final ok = await showGlassModal<bool>(context,
           builder: (sheetCtx) => Padding(
-                padding: EdgeInsets.fromLTRB(
+                padding: EdgeInsetsDirectional.fromSTEB(
                     24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
                 child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -238,7 +238,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
     try {
       final confirmed = await showGlassModal<bool>(context,
           builder: (sheetCtx) => Padding(
-                padding: EdgeInsets.fromLTRB(
+                padding: EdgeInsetsDirectional.fromSTEB(
                     24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
                 child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -306,7 +306,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [AppColors.amber, AppColors.orange]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
           animation: _tab,
@@ -353,7 +353,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
       ]);
     }
     return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
       itemCount: _reviewed.length,
       itemBuilder: (ctx, i) {
         final o = _reviewed[i];
@@ -451,7 +451,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
       ]);
     }
     return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
       itemCount: _pending.length,
       itemBuilder: (ctx, i) {
         final o = _pending[i];

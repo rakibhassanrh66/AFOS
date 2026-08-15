@@ -120,7 +120,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(status == 'resolved' ? 'Resolve Complaint' : 'Dismiss Complaint',
                     style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
@@ -195,7 +195,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Approve Application', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
                 const SizedBox(height: 8),
@@ -254,7 +254,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
           final textPrimary = AppColors.textPrimaryOf(sheetCtx);
           return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+              padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Reject Application', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
                 const SizedBox(height: 8),
@@ -387,7 +387,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
           icon: Icons.apartment_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.amber, AppColors.gold]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         AnimatedBuilder(
           animation: _tab,
@@ -440,7 +440,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                   ])))
                 : _visible.isEmpty
                 ? EmptyState(icon: Icons.apartment_outlined, title: 'No applications', subtitle: 'Nothing in "$_filter" right now')
-                : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
+                : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                     itemBuilder: (ctx, i) {
                       final a = _visible[i];
                       final profile = a['profiles'] as Map<String, dynamic>? ?? {};
@@ -537,7 +537,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                 ])))
               : _visibleComplaints.isEmpty
               ? EmptyState(icon: Icons.report_problem_outlined, title: 'No complaints', subtitle: 'Nothing in "$_complaintFilter" right now')
-              : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visibleComplaints.length,
+              : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visibleComplaints.length,
                   itemBuilder: (ctx, i) {
                     final c = _visibleComplaints[i];
                     final profile = c['profiles'] as Map<String, dynamic>? ?? {};

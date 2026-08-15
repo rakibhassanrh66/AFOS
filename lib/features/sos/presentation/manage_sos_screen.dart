@@ -94,18 +94,18 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
           icon: Icons.sos_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.red, AppColors.coral]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         // Super-admin only: the campus-wide SOS visibility switch. OFF hides
         // the SOS button/entry points for general users (super-admin keeps
         // personal access); ON turns it on for everyone for a real emergency.
         if (RoleSession.role == 'super_admin')
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
             child: ValueListenableBuilder<bool>(
               valueListenable: AppConfigService.instance.sosEnabled,
               builder: (_, enabled, __) => Container(
-                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                padding: const EdgeInsetsDirectional.fromSTEB(14, 8, 8, 8),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceOf(context),
                   borderRadius: AppDepth.radius(1),
@@ -157,7 +157,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                 ? ErrorView(message: _error!, onRetry: _load)
                 : _visible.isEmpty
                     ? EmptyState(icon: Icons.sos_rounded, title: 'Nothing here', subtitle: 'No "$_filter" alerts right now')
-                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
+                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final a = _visible[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};
@@ -176,7 +176,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                                     Flexible(child: Text(sender['full_name'] ?? 'Unknown',
                                         style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)),
                                         maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                    if (sender['is_verified'] == true) const Padding(padding: EdgeInsets.only(left: 5),
+                                    if (sender['is_verified'] == true) const Padding(padding: EdgeInsetsDirectional.only(start: 5),
                                         child: Icon(Icons.verified_rounded, color: AppColors.blue, size: 15)),
                                   ]),
                                   const SizedBox(height: 2),

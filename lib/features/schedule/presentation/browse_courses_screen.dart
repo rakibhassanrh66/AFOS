@@ -160,14 +160,14 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [AppColors.blueLight, AppColors.blue]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         )
             .animate()
             .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
         if (_canScopeToSection)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
             child: Row(children: [
               Expanded(
                 child: GlassChip(

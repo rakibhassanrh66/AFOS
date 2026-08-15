@@ -234,7 +234,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [AppColors.gold, AppColors.orange]),
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
       ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
           .slideY(begin: -0.06, curve: AppMotion.standard),
 
@@ -281,7 +281,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         ),
 
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8),
         child: Row(children: [
           if (status != null)
             PillBadge(
@@ -309,7 +309,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       if (_submission?['status'] == 'rejected' &&
           (_submission?['rejection_reason'] as String?)?.isNotEmpty == true)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -436,7 +436,7 @@ class _StudentMarksCard extends StatelessWidget {
         ),
         if (expanded)
           Padding(
-            padding: const EdgeInsets.fromLTRB(13, 0, 13, 13),
+            padding: const EdgeInsetsDirectional.fromSTEB(13, 0, 13, 13),
             child: Column(children: [
               for (final c in components)
                 _ComponentField(
@@ -528,7 +528,7 @@ class _ComponentFieldState extends State<_ComponentField> {
             ),
             if (widget.auto)
               Padding(
-                padding: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsetsDirectional.only(start: 6),
                 child: Icon(Icons.sync_rounded,
                     size: 13, color: AppColors.textSecondaryOf(context)),
               ),

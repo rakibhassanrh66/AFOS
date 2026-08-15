@@ -399,7 +399,7 @@ class _SettingsState extends State<SettingsScreen> {
       appBar: const AfosAppBar(title: 'Settings'),
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
-          : ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+          : ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
 
               // Profile identity now lives on its own /profile screen (bottom
               // nav) so it isn't shown in two places — Settings keeps only
@@ -653,7 +653,7 @@ class _SettingsState extends State<SettingsScreen> {
     final oldCtrl = TextEditingController(), newCtrl = TextEditingController();
     showGlassModal(context,
         builder: (sheetCtx) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Change Password', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 20),
@@ -688,7 +688,7 @@ class _SettingsState extends State<SettingsScreen> {
     bool saving = false;
     showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Feedback & Contribution Ideas', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 6),
@@ -756,7 +756,7 @@ class _Section extends StatelessWidget {
   const _Section({required this.title, required this.children});
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
+    Padding(padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
         child: Text(title.toUpperCase(),
             style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1.5, color: AppColors.textSecondaryOf(context)))),
     Container(decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),

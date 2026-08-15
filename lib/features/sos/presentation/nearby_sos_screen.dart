@@ -73,14 +73,14 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
           icon: Icons.shield_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.red, AppColors.coral]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(child: RefreshIndicator(
         onRefresh: _load,
         child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
             : _error != null
-                ? ListView(children: [Padding(padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + NavInsets.of(context)), child: Column(children: [
+                ? ListView(children: [Padding(padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24 + NavInsets.of(context)), child: Column(children: [
                     Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
                     const SizedBox(height: 12),
                     TextButton(onPressed: _load, child: const Text('Retry')),
@@ -89,7 +89,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                     ? ListView(children: const [EmptyState(icon: Icons.shield_outlined,
                         title: 'No active alerts near you',
                         subtitle: "You'll see it here if someone nearby needs help.")])
-                    : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _alerts.length,
+                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _alerts.length,
                         itemBuilder: (ctx, i) {
                           final a = _alerts[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};
@@ -99,13 +99,13 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                             child: ListTile(
                               onTap: () => context.push('/sos/${a['id']}'),
                               leading: CircleAvatar(backgroundColor: AppColors.red.withValues(alpha: 0.15),
-                                  backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url']) : null,
+                                  backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
                                   child: sender['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.red) : null),
                               title: Row(children: [
                                 Flexible(child: Text(sender['full_name'] as String? ?? 'Someone',
                                     style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700),
                                     maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                if (sender['is_verified'] == true) const Padding(padding: EdgeInsets.only(left: 5),
+                                if (sender['is_verified'] == true) const Padding(padding: EdgeInsetsDirectional.only(start: 5),
                                     child: Icon(Icons.verified_rounded, color: AppColors.blue, size: 15)),
                               ]),
                               subtitle: Text(a['zone_type'] == 'campus' ? 'On/near campus' : 'Nearby',

@@ -60,7 +60,7 @@ class _ForgotBodyState extends State<_ForgotBody> {
           builder: (context, outer) {
             final formCard = SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
                 child: Center(child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity),
                   child: GlassCard(

@@ -86,7 +86,7 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
           subtitle: '${_categories.length} fee categories',
           icon: Icons.payments_rounded,
           gradient: AppColors.goldGradient,
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
           trailing: (!_loading && _totalPaid > 0)
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -137,7 +137,7 @@ class _PayNowTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)),
       // Fixed 2-column count stretched into 2 giant tiles on a wide desktop
       // browser window; max-extent keeps each tile a consistent size and
       // adds columns as space allows instead (see dashboard_screen.dart).
@@ -253,7 +253,7 @@ class _HistoryTab extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
       itemCount: history.length,
       // Every row shares the same fixed template (icon + 2-line column +
       // amount/status column) — prototypeItem measures the real first row

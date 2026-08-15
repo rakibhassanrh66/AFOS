@@ -659,7 +659,7 @@ class _Step2 extends StatelessWidget {
         lastCategory = o.category;
       }
       items.add(DropdownMenuItem(value: o,
-          child: Padding(padding: const EdgeInsets.only(left: 8),
+          child: Padding(padding: const EdgeInsetsDirectional.only(start: 8),
               child: Text(o.title, overflow: TextOverflow.ellipsis))));
     }
     return items;

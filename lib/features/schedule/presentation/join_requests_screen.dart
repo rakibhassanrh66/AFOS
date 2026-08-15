@@ -199,7 +199,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     try {
       final ok = await showGlassModal<bool>(context,
           builder: (sheetCtx) => Padding(
-                padding: EdgeInsets.fromLTRB(
+                padding: EdgeInsetsDirectional.fromSTEB(
                     24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
                 child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -535,7 +535,7 @@ class SelectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10 + NavInsets.of(context)),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border(top: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
@@ -700,7 +700,7 @@ class JoinRequestCard extends StatelessWidget {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (selectable)
                 Padding(
-                  padding: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsetsDirectional.only(end: 4),
                   child: Checkbox(
                     value: selected,
                     onChanged: busy ? null : (_) => onToggleSelected(),
@@ -723,7 +723,7 @@ class JoinRequestCard extends StatelessWidget {
                     ),
                     if (student['is_verified'] == true)
                       const Padding(
-                        padding: EdgeInsets.only(left: 5),
+                        padding: EdgeInsetsDirectional.only(start: 5),
                         child: Icon(Icons.verified_rounded, size: 15, color: AppColors.blue),
                       ),
                   ]),
@@ -925,7 +925,7 @@ class _StudentAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 22,
       backgroundColor: AppColors.blue.withValues(alpha: 0.15),
-      backgroundImage: hasUrl ? CachedNetworkImageProvider(url) : null,
+      backgroundImage: hasUrl ? CachedNetworkImageProvider(url, maxWidth: 128, maxHeight: 128) : null,
       child: hasUrl
           ? null
           : Text(initial,

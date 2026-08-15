@@ -119,7 +119,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
       icon: icon,
       gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
           colors: [AppColors.blueLight, AppColors.blue]),
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
     ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard);
   }
 
@@ -200,7 +200,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
     final topicCtrl = TextEditingController();
     showGlassModal(ctx,
         builder: (_) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Book Session', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(ctx))),
               const SizedBox(height: 6),
@@ -246,7 +246,7 @@ class _MentorList extends StatelessWidget {
       return const EmptyState(icon: AppIcons.mentorship,
         title: 'No mentors available', subtitle: 'Mentors will appear here once faculty register');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: mentors.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: mentors.length,
         itemBuilder: (ctx, i) {
           final m = mentors[i];
           final profile = m['profiles'] as Map<String, dynamic>? ?? {};
@@ -310,7 +310,7 @@ class _SessionsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.event_note_rounded,
         title: 'No sessions yet', subtitle: 'Book your first mentorship session');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: sessions.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: sessions.length,
         itemBuilder: (ctx, i) {
           final s = sessions[i];
           final mentor = (s['mentors'] as Map?)?['profiles'] as Map? ?? {};
@@ -387,7 +387,7 @@ class _IncomingRequestsTabState extends State<_IncomingRequestsTab> {
       return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No requests yet', subtitle: 'Student mentorship requests addressed to you will appear here');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: widget.requests.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: widget.requests.length,
         itemBuilder: (ctx, i) {
           final r = widget.requests[i];
           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -476,7 +476,7 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
-    return SingleChildScrollView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), child: Column(
+    return SingleChildScrollView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (widget.profile == null)
         Text('Set up your mentor profile so students can find and book you.',
@@ -543,7 +543,7 @@ class _OversightTab extends StatelessWidget {
       return const EmptyState(icon: Icons.school_outlined,
         title: 'No mentorship activity yet', subtitle: 'Every booking across the system will show up here');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: bookings.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: bookings.length,
         itemBuilder: (ctx, i) {
           final b = bookings[i];
           final student = b['profiles'] as Map<String, dynamic>? ?? {};

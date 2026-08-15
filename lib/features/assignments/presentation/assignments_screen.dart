@@ -52,7 +52,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           icon: AppIcons.assignments,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.blue, AppColors.indigo]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(child: _isTeacher
             ? _TeacherAssignmentsTab(repo: _repo)
@@ -160,7 +160,7 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('New Assignment', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
           const SizedBox(height: 16),
@@ -250,7 +250,7 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
         title: 'No assignments yet', subtitle: 'Tap + to post one to a class you teach');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
+        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             // Guarded by the `if (_assignments.isEmpty) return EmptyState(...)`
             // early-return above, so .first is safe. The delete icon is
             // conditional (`if (!expired)`) but doesn't change row height.
@@ -337,7 +337,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
 
     await showGlassModal(context, builder: (sheetCtx) => StatefulBuilder(
         builder: (sheetCtx, setSheetState) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${existing == null ? 'Submit' : 'Update'}: ${a['title']}',
                   style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
@@ -399,7 +399,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
         title: 'No assignments yet', subtitle: 'Assignments from your teachers will show up here');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
+        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             itemBuilder: (ctx, i) {
               final a = _assignments[i];
               final deadline = DateTime.tryParse(a['deadline'] ?? '');
@@ -515,7 +515,7 @@ class _ObserveTabState extends State<_ObserveTab> {
     // Pull-to-refresh was missing here alone, so a super_admin had no way to
     // re-read the list short of leaving the screen.
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
+        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
         itemBuilder: (ctx, i) {
           final a = _all[i];
           final teacher = a['profiles'] as Map<String, dynamic>? ?? {};

@@ -90,7 +90,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
           icon: Icons.find_in_page_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.coral, AppColors.red]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
@@ -129,11 +129,11 @@ class _FeedTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8),
           child: SingleChildScrollView(scrollDirection: Axis.horizontal,
               child: Row(children: ['all', 'lost', 'found', 'returned'].map((f) {
                 final sel = filter == f;
-                return Padding(padding: const EdgeInsets.only(right: 8),
+                return Padding(padding: const EdgeInsetsDirectional.only(end: 8),
                     child: GestureDetector(
                         onTap: () { AppHaptics.selection(); onFilter(f); },
                         child: Container(
@@ -163,7 +163,7 @@ class _FeedTab extends StatelessWidget {
                   subtitle: 'Be the first to report a lost or found item')
               : RefreshIndicator(onRefresh: () async => onRefresh(), color: AppColors.blue,
                   child: GridView.builder(
-                      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                      padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
                       // Fixed 2-column count stretched into 2 wide tiles on a
                       // desktop browser window instead of more, reasonably-sized
                       // ones (see dashboard_screen.dart) -- max-extent keeps the
@@ -289,7 +289,7 @@ class _PostCard extends StatelessWidget {
               borderRadius: headerRadius),
               child: post['photo_url'] != null
                   ? ClipRRect(borderRadius: headerRadius,
-                      child: CachedNetworkImage(imageUrl: post['photo_url'], fit: BoxFit.cover,
+                      child: CachedNetworkImage(imageUrl: post['photo_url'], fit: BoxFit.cover, memCacheWidth: 440,
                           width: double.infinity,
                           errorWidget: (_, __, ___) => const Center(
                               child: Icon(Icons.image_not_supported_outlined,
@@ -391,7 +391,7 @@ class _PostTabState extends State<_PostTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)),
       child: Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: _TypeChip('I Lost Something', 'lost', _type, (v) => setState(() => _type = v))),
@@ -486,7 +486,7 @@ class _MyPostsTabState extends State<_MyPostsTab> {
       return const EmptyState(icon: Icons.post_add_rounded,
         title: 'No posts yet', subtitle: 'Post a lost or found item from the Post tab');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _myPosts.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _myPosts.length,
         itemBuilder: (ctx, i) {
           final p = _myPosts[i];
           final type = p['type'] as String? ?? 'lost';
@@ -617,7 +617,7 @@ class _ClaimsPanelState extends State<_ClaimsPanel> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(c['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context)))),
-              if (accepted) const Padding(padding: EdgeInsets.only(left: 6),
+              if (accepted) const Padding(padding: EdgeInsetsDirectional.only(start: 6),
                   child: Icon(Icons.check_circle_rounded, color: AppColors.green, size: 16)),
             ]),
             const SizedBox(height: 6),
@@ -700,7 +700,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
       return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No claims filed', subtitle: 'Claims you send from the Feed tab will appear here');
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _claims.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _claims.length,
         itemBuilder: (ctx, i) {
           final c = _claims[i];
           final post = c['lost_found_posts'] as Map<String, dynamic>? ?? {};
