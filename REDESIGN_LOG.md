@@ -319,3 +319,93 @@ all need the app running on a device.
 (10), `payment_screen.dart` (10).
 
 ---
+
+## Phase 2 batch 4 — register / grades / payment · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch4`. ~1,590 LOC.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `register_screen.dart` | 6 → **0** | 5 → **0** | 0 | 0 → **5** |
+| `grades_screen.dart` | 1 → **0** | 2 → **0** | 1 → **0** | 0 → **3** |
+| `payment_screen.dart` | 2 → **0** | 7 → **0** | 0 | 0 → **1** |
+
+All three files now contain **zero** raw `Duration`, **zero** raw radius
+literals and **zero** raw `Curves.` references.
+
+App-wide: raw `Duration(milliseconds:)` **51 → 45**, emoji **38 → 37**,
+haptic sites **30 → 39**. Data layer: `git diff --stat main` on
+`lib/features/*/data`, `lib/core/services`, `lib/shared/models` = **0 lines**.
+
+**The third type role finally gets used.** Phase 1 built `numericLarge` /
+`numericMedium` / `numericSmall` — tabular figures plus a slashed zero — and
+the audit then measured **zero uses of them anywhere in `lib/features/`**. The
+role existed on paper only. This batch is the first that had numbers worth the
+name, and there are now 5 call sites:
+
+| where | why it had to be tabular |
+|---|---|
+| CGPA hero, 42px | It recomputes as results publish. At that size a proportional `1` vs `0` visibly shoves the `/ 4.00` sitting beside it. |
+| total marks, per result row | A column down the result list; proportional digits leave it ragged. |
+| breakdown `12 / 20`, right-aligned in a 66px box | One row per mark component, all right-aligned — the exact case the role was written for. |
+| `৳` amount, per payment row | A right-aligned column of money. |
+| `৳` total-paid pill in the header | Recomputes when history loads, and the pill resizes under it otherwise. |
+
+Each is `numeric*.copyWith(fontSize: …)` matched to the style it replaced, so
+face, size and weight are unchanged — only the figures are tabular. Nothing
+moved.
+
+**Four touch targets under the 48dp floor**, all measured:
+
+| where | was | now |
+|---|---:|---:|
+| register, account-type option (Student/Teacher/Staff) | ~45 | 49 |
+| register, gender option | ~45 | 49 |
+| payment, fee tile | ok | — |
+| grades, result row | ok | — |
+
+Both register toggles were `vertical: 14` padding around 13px text. Moved to
+`AppSpace.lg`, which is on the scale and clears the floor.
+
+**Copy.** `'Account created! Please sign in to continue.'` →
+`'Account created. Sign in to continue.'` The exclamation is the chatbot voice
+the doctrine names; the instruction is the same and one word shorter.
+
+**Press treatment**, one element per screen: the payment fee tile. Grades and
+register are form/list surfaces whose primary controls are already `AfosButton`
+and `InkWell`, which carry their own press state — adding a second scale on top
+would double-animate.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all three files.
+
+**FINDING — there are two competing radius idioms in this codebase, and Phase 1
+created the second without retiring the first.**
+
+- `BorderRadius.circular(LiquidGlass.radiusCard / radiusControl / radiusSheet)`
+  — symmetric on all four corners. **56 sites across 18 files**, including
+  `dark_theme.dart`, `light_theme.dart`, `button_styles.dart` and three shared
+  widgets (`feature_header`, `stat_tile`, `logout_tile`).
+- `AppDepth.radius(n)` — routes through `LiquidGlass.signatureRadius`, so the
+  top-right corner is cut to 8 and the AFOS silhouette survives. **93 sites**,
+  and it is what batches 1–4 have been migrating raw literals onto.
+
+They are both "tokens", so neither shows up in the slop count, but they render
+differently. `grades_screen.dart` alone has 5 of the symmetric form.
+**I did not convert them**, because converting one screen's cards to the
+signature silhouette while `attendance`, `assignments`, `module_leader` and
+`offering_card` keep square corners would make the academic module internally
+inconsistent — worse than the current uniform-but-wrong state. This needs one
+app-wide pass over all 56 sites, including the theme and shared widgets, and it
+is a visible change that should be seen on a device before it is merged.
+**Reported, not done.**
+
+**Still open for these screens**, as in every batch: missing empty states, full
+copy rewrite beyond the one line above, and responsive verification at
+320/400/768/1280.
+
+**Next:** Phase 2 batch 5 — `hall_screen.dart` (9), `settings_screen.dart` (9),
+`manage_course_offerings_screen.dart` (9). Note `settings_screen.dart` holds the
+other copy of the three chat-background hex colours flagged in batch 3, so that
+paired fix can land with it.
+
+---
