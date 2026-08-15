@@ -885,3 +885,64 @@ few places overshoot carries meaning rather than decoration.
 `manage_stop_times_screen.dart` (4), `manage_notices_screen.dart` (4).
 
 ---
+
+## Phase 2 batch 11 — club chat + four admin screens · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch11`. Five files.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `club_chat_screen.dart` | 2 → **0** | 5 → **0** | 1 → **0** | 0 → **1** |
+| `manage_library_screen.dart` | 0 | 4 → **0** | 2 → **0** | 0 → **2** |
+| `notification_center_screen.dart` | 3 → **0** | 3 → **0** | 0 | 0 → **1** |
+| `manage_stop_times_screen.dart` | 0 | 4 → **0** | 0 | 0 → **2** |
+| `manage_notices_screen.dart` | 0 | 4 → **0** | 0 | 0 → **1** |
+
+App-wide: raw `Duration(milliseconds:)` **37 → 35**, emoji **18 → 15**, haptic
+sites **84 → 91**. Data layer: `git diff --stat main` on `lib/features/*/data`,
+`lib/core/services`, `lib/shared/models` = **0 lines**.
+
+### club chat was dept chat with different colours
+
+`club_chat_screen.dart` turned out to be a near-line-for-line sibling of
+`dept_chat_screen.dart`, migrated back in batch 3 — the same 16/16/4 bubble
+radii, the same 24px input pill, the same 44dp send circle, the same 300ms
+`_scrollToBottom`, and **the same `'No messages yet. Say hello! 👋'`**. Every
+fix batch 3 made applied here unchanged, including the two that were not
+cosmetic:
+
+- the post-frame `_scrollToBottom` guard (the callback can land after the route
+  is popped, touching a disposed `ScrollController`), and
+- the send button's 44dp → 48dp touch target, with press state.
+
+Two sibling screens drifting apart is how a design system dies, so they are now
+line-for-line consistent. Worth noting for the remaining batches: **grep for the
+shape, not just the file** — this one was invisible in the slop ranking because
+its numbers were middling, yet it held a copy of a bug already fixed.
+
+### Small but real
+
+`manage_stop_times_screen.dart`'s save reports `'Nothing to save — no timings
+entered yet'` on an amber snackbar. That is the app declining to act, not a
+success, so it now gets `warning` rather than `success` — the haptic vocabulary
+should agree with the colour that is already there.
+
+The notification centre's swipe-to-dismiss now fires `warning` on
+`onDismissed` — the one gesture on that screen that destroys something, and it
+had no confirmation beyond the row vanishing.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all five files.
+
+**Progress: 35 of 62 screens migrated.** The remaining screens are all slop ≤ 3.
+
+**Reminder of what Phase 2 will NOT reach:** the shell and shared widgets
+(`slide_menu.dart` at 22 is still the highest-slop file in the repo, plus
+`afos_button`, `afos_text_field`, `glass_bottom_nav`, `top_app_bar`,
+`glass_chip`, `radial_logout_menu`, `account_switcher_sheet`) — ~48 literals in
+code every screen renders. And `splash_screen.dart` (17), held for Phase 3.
+
+**Next:** Phase 2 batch 12 — `manage_hall_screen.dart` (3),
+`manage_dept_chat_screen.dart` (3), `manage_sos_screen.dart` (3),
+`sos_alert_detail_screen.dart` (3), `course_group_screen.dart` (4).
+
+---
