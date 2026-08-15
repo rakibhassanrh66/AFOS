@@ -3,6 +3,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -74,13 +78,15 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
                           _HeroLatest(release: _releases.first, textPrimary: textPrimary, textSecondary: textSecondary),
                           const SizedBox(height: 28),
                           Text('Release history', style: AppTextStyles.headlineMed.copyWith(color: textPrimary))
-                              .animate().fadeIn(duration: 300.ms),
+                              .animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
                           const SizedBox(height: 12),
                           for (var i = 0; i < _releases.length; i++)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _ReleaseRow(release: _releases[i], isLatest: i == 0)
-                                  .animate(delay: (i * 70).ms).fadeIn(duration: 300.ms).slideY(begin: 0.06, curve: Curves.easeOutCubic),
+                                  .animate(delay: AppMotion.staggerFor(context, i))
+                                  .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                                  .slideY(begin: 0.06, curve: AppMotion.standard),
                             ),
                           const SizedBox(height: 12),
                         ]),
@@ -111,7 +117,7 @@ class _HeroLatest extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(colors: [AppColors.holoBlue, AppColors.teal]),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
               ),
               child: const Text('LATEST',
                   textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
@@ -140,8 +146,10 @@ class _HeroLatest extends StatelessWidget {
             ),
         ]),
       ),
-    ).animate().fadeIn(duration: 400.ms, curve: Curves.easeOutExpo)
-        .slideY(begin: -0.08, end: 0, duration: 450.ms, curve: Curves.easeOutExpo);
+    ).animate()
+        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
+        .slideY(begin: -0.08, end: 0,
+            duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard);
   }
 
   String _formatDate(String? iso) {
@@ -176,13 +184,13 @@ class _ReleaseRowState extends State<_ReleaseRow> {
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => setState(() => _expanded = !_expanded),
+        onTap: () { AppHaptics.selection(); setState(() => _expanded = !_expanded); },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
+          duration: AppMotion.durationOf(context, AppMotion.tight),
+          curve: AppMotion.standard,
           decoration: BoxDecoration(
             color: AppColors.surfaceOf(context),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(color: _hover
                 ? AppColors.holoBlue.withValues(alpha: 0.4)
                 : AppColors.borderOf(context), width: _hover ? 1 : 0.5),
@@ -209,13 +217,14 @@ class _ReleaseRowState extends State<_ReleaseRow> {
                     style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
                     maxLines: 1, overflow: TextOverflow.ellipsis)),
                 AnimatedRotation(
-                  duration: const Duration(milliseconds: 200),
+                  duration: AppMotion.durationOf(context, AppMotion.base),
+                  curve: AppMotion.standard,
                   turns: _expanded ? 0.5 : 0,
                   child: Icon(Icons.expand_more_rounded, size: 20, color: textSecondary),
                 ),
               ]),
               AnimatedCrossFade(
-                duration: const Duration(milliseconds: 220),
+                duration: AppMotion.durationOf(context, AppMotion.base),
                 crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                 firstChild: const SizedBox(width: double.infinity),
                 secondChild: Padding(
