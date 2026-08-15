@@ -43,6 +43,23 @@
 --  Nothing else is required. Do not also send a manual broadcast.
 
 -- ---------------------------------------------------------------------
+--  v2.8.2 — run this ONCE the v2.8.2 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.2
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.8.2',
+  current_date,
+  'When Android Says No, It Now Says Why',
+  ARRAY[
+    'If an update is refused because a differently signed copy of AFOS is already installed, the app now tells you that is what happened and what to do about it. Android reports this as "App not installed as package conflicts with an existing package", which does not explain itself - and because the refusal happens inside Android after AFOS hands the file over, the app never hears about it and could not have told you before.',
+    'The install guide now lists every wording Android uses for that one cause, so searching the error finds the fix.'
+  ],
+  ARRAY['android','web']
+);
+
+
+-- ---------------------------------------------------------------------
 --  v2.8.1 — run this ONCE the v2.8.1 release job has published the APK.
 --  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.1
 --
