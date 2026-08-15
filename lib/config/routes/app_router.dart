@@ -150,9 +150,26 @@ class AppRouter {
       // there already allows a caller_can('conference','manage') grant, not
       // just super_admin, so the router now matches that instead of being
       // stricter than the data layer.
-      if (loc == '/admin/users' || loc == '/admin/clubs' || loc == '/admin/feedback') {
+      if (loc == '/admin/clubs' || loc == '/admin/feedback') {
         final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin') return '/home';
+      }
+      // Manage Users is super_admin's tool, with ONE exception: a delegate
+      // (`permissions:delegate`) needs this screen to distribute work, because
+      // it is where the permission sheet lives.
+      //
+      // Letting them THROUGH the door is not letting them do everything behind
+      // it. The screen itself hides role changes, approvals and deletion for a
+      // non-super_admin, and the database refuses those independently — a
+      // delegate can only grant areas they already hold, and never to
+      // themselves. The guard here matches the data layer rather than being
+      // stricter than it, which is the same correction Conference Rooms got.
+      if (loc == '/admin/users') {
+        final role = await RoleSession.ensureLoaded();
+        if (role != 'super_admin' &&
+            !await PermissionSession.ensureHas('permissions', 'delegate')) {
+          return '/home';
+        }
       }
       // Notices/rules can be authored by teachers too (course notices),
       // not just admin roles — kept outside the /admin prefix so it isn't
