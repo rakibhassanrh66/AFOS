@@ -632,3 +632,98 @@ palette — check whether they are the same paired-duplication shape as the chat
 backgrounds before splitting them across batches.
 
 ---
+
+## Phase 2 batch 8 — login / complete profile / releases · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch8`. ~1,500 LOC across four files (the brand panel came
+along — see below), plus two token-layer additions.
+
+| | durations | raw radii | hex | haptics |
+|---|---|---|---|---|
+| `login_screen.dart` | 8 → **0** | 2 → **0** | 3 → **0** | 0 → **2** |
+| `complete_profile_screen.dart` | 0 | 5 → **0** | 0 | 0 → **2** |
+| `releases_screen.dart` | 8 → **0** | 2 → **0** | 0 | 0 → **1** |
+| `auth_brand_panel.dart` | 17 → **0** | 4 → **0** | 3 → **0** | 0 → 0 |
+
+All four now hold zero raw durations, radii, `Curves.` and hex.
+
+App-wide: raw `Duration(milliseconds:)` **43 → 38**, haptic sites **67 → 72**,
+and hardcoded `Color(0x..)` outside the theme **15 → 9**. Data layer:
+`git diff --stat main` on `lib/features/*/data`, `lib/core/services`,
+`lib/shared/models` = **0 lines**.
+
+### The auth hex was NOT the chat-background shape — and it hides a likely typo
+
+Batch 7 flagged 3 hex values in `login_screen.dart` and 3 in
+`auth_brand_panel.dart` and asked whether they were the same duplicated-map
+problem as the chat backgrounds. **They are not.** They are two *different*
+gradients that happen to share their first stop: the auth page canvas and the
+brand side panel. So the fix is not one shared map but four named token lists —
+`authCanvasDark/Light`, `authBrandDark/Light` — plus `authGridDark/Light` for
+the hairline grid the login painter draws.
+
+`auth_brand_panel.dart` was pulled into this batch rather than left for later:
+it is the login/register screens' own side panel and shares the palette, so
+splitting them would have left half the auth surface on literals.
+
+**The finding worth your decision.** The shared first stop is `#0B1220`. The
+app's declared dark canvas — `AppColors.background` / `LiquidGlass.canvasDark` —
+is `#0B1**1**20`. **One hex digit apart.** They are almost certainly meant to be
+the same colour, and `#0B1220` has since spread to six places: both auth files,
+`app_router.dart`'s error page, `glass_chip.dart`, and the chat `'midnight'`
+background.
+
+I did **not** snap them together. That is a visible change to every signed-out
+screen plus the router error page and a user-selectable chat canvas, and it is a
+judgement about which value is the intended one — not something to infer.
+The token now carries the exact original value as `AppColors.authDeep`, with the
+near-collision documented at the definition. **Awaiting your call.**
+
+### `AppMotion.sequenceDelay` — a token the screens asked for
+
+Login has an eight-element staged entrance (logo, heading, subheading, two
+fields, button, footer link, university line) on hand-picked delays of
+120/200/280/340/420/480/540ms. The brand panel has its own seven-element one.
+Neither could use `AppMotion.staggerFor`: that helper **caps at six items** so a
+long list cannot trickle in — correct for a list, wrong for a fixed hero
+sequence where capping simply deletes the choreography.
+
+Rather than duplicate a local helper in both files, `sequenceDelay(context,
+step)` now lives in `motion.dart` beside `staggerFor`, with the difference
+between them documented at both. Steps are units of the 40ms `stagger` rung, so
+the delays sit on the grid (0, 3, 5, 7, 8, 10, 12, 13) instead of being
+hand-picked, and reduced motion collapses the whole sequence to zero.
+
+Also retired: `Curves.easeOutExpo`, which appeared 15 times across the brand
+panel and releases screen and is not in the token set.
+
+### A third perpetual animation found
+
+The brand panel had **three** loops running forever with no regard for reduced
+motion — two drifting glow blobs (5.2s, 6.4s) and the logo frame breathing
+(1.9s). Same call as `_PulseDot` in batch 2 and for the same reason: the
+durations are correct because these are ambient, not transitions, and a
+perpetual animation is the worst thing to inflict on someone who asked the
+system to stop moving things. Under reduced motion all three are now simply
+painted at rest.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all six touched
+files.
+
+**Self-correction worth recording:** my first draft of the `app_colors.dart`
+comment used a `⚠` character, which pushed the app-wide emoji count from 26 to
+27 — the constitution's own BANNED list, violated inside the file that defines
+the design tokens. Replaced with `NOTE —`; count back to 26. Worth noting that
+the check caught it, not review.
+
+**Still open**, unchanged: the 56-site symmetric-vs-signature radius split from
+batch 4; empty states, copy rewrite and responsive verification everywhere.
+
+**Progress: 21 of 62 screens migrated.** Remaining hardcoded hex: **9**, in
+`app_router.dart` (2), `splash_screen.dart` (3), `slide_menu.dart` (1),
+`transport_screen.dart` (1), `afos_button.dart` (1), `glass_chip.dart` (1).
+
+**Next:** Phase 2 batch 9 — `manage_users_screen.dart` (3),
+`module_leader_screen.dart` (5), `join_requests_screen.dart` (5).
+
+---
