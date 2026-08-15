@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -222,6 +224,62 @@ void main() {
     test('the feature constants are what we think they are', () {
       expect(const FontFeature.tabularFigures().feature, 'tnum');
       expect(const FontFeature.slashedZero().feature, 'zero');
+    });
+  });
+
+  group('one radius idiom per elevation tier', () {
+    // A SOURCE scan, not a widget test, because the thing being prevented is a
+    // second way of writing the same intent — and a widget test can only see
+    // the way that was actually used.
+    //
+    // THE HISTORY, so this test is not mistaken for pedantry. Two idioms
+    // co-existed for the whole redesign: `BorderRadius.circular(
+    // LiquidGlass.radiusCard)`, symmetric on all four corners, and
+    // `AppDepth.radius(2)`, which routes through `signatureRadius` and cuts the
+    // top-right to 8 — the AFOS silhouette. Both are "tokens", so neither
+    // showed up in any slop count, and they render visibly differently. The
+    // card tier was split 21-to-N across the academic module for four phases.
+    //
+    // Cards are now all signature. Control-tier (14) and pill-tier surfaces
+    // deliberately stay symmetric: a cut corner on a chip, a button or a text
+    // field reads as a rendering fault rather than a brand mark, and a chat
+    // bubble's asymmetry already carries meaning (which corner is tight says
+    // who spoke).
+    final libDart = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'));
+
+    test('no card-tier radius is written the symmetric way', () {
+      final offenders = <String>[];
+      for (final file in libDart) {
+        final src = file.readAsStringSync();
+        for (final tier in const ['radiusCard', 'radiusSheet']) {
+          if (src.contains('BorderRadius.circular(LiquidGlass.$tier)')) {
+            offenders.add('${file.path} uses BorderRadius.circular('
+                'LiquidGlass.$tier) — use AppDepth.radius() instead');
+          }
+        }
+      }
+      expect(offenders, isEmpty,
+          reason: 'A card or sheet drawn with a symmetric radius loses the '
+              'top-right cut, so it no longer matches the cards beside '
+              'it:\n${offenders.join('\n')}');
+    });
+
+    test('AppDepth.radius cuts the top-right corner for card and sheet tiers',
+        () {
+      // The other half of the rule: the helper the test above redirects people
+      // to must actually produce the silhouette. If signatureRadius were ever
+      // flattened, the test above would keep passing while every card went
+      // square.
+      for (final level in const [2, 3]) {
+        final r = AppDepth.radius(level);
+        expect(r.topRight, const Radius.circular(LiquidGlass.radiusCut),
+            reason: 'level $level lost its cut corner');
+        expect(r.topLeft, isNot(r.topRight),
+            reason: 'level $level is symmetric — the silhouette is gone');
+      }
     });
   });
 }

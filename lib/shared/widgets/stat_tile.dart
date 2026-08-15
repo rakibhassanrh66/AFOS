@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import 'pressable.dart';
 
 /// A compact number-over-label stat tile — one component replacing the three
 /// hand-rolled `_StatTile`s (manage_users / manage_clubs /
@@ -91,6 +92,9 @@ class StatTile extends StatelessWidget {
       ),
     );
     if (onTap == null) return tile;
-    return GestureDetector(onTap: onTap, child: tile);
+    // Pressable, not a bare GestureDetector: a stat tile is a control that
+    // navigates, and it answered a touch with nothing at all until the route
+    // pushed.
+    return Pressable(onTap: onTap, child: tile);
   }
 }

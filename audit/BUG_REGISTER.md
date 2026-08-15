@@ -121,3 +121,104 @@ are callback bodies rather than post-await code — **false positives, do not
 ## Totals
 
 **4 P1 groups (22 concrete sites) · 6 P2 · 4 P3.**
+
+---
+
+# RUNTIME FINDINGS — added 2026-08-15 (Phase 8, device pass)
+
+The register above states plainly that it "does not list runtime bugs... no
+device run, profile-mode trace, or manual walkthrough was performed." This
+section is that gap being closed. Device: **motorola edge 60 pro, Android 16,
+wireless ADB**, running a profile build of this branch.
+
+## R1 — P0. `flutter build apk --release` FAILS. No release could be built at all.
+
+```
+android\app\src\main\java\io\flutter\plugins\GeneratedPluginRegistrant.java:84:
+  error: package dev.flutter.plugins.integration_test does not exist
+```
+
+`integration_test` is a **dev_dependency**. Release builds exclude dev
+dependencies' native plugins, but the generated registrant on disk was stale and
+still registered `IntegrationTestPlugin`, so `assembleRelease` failed at javac.
+
+**Why nothing caught it.** This is the CLAUDE.md gotcha in its purest form —
+*`flutter build web` never compiles `android/`*. Web built green through twelve
+redesign batches, `flutter analyze` was 0, 310 tests passed, and the app could
+not have been shipped. The only thing that surfaces it is a real
+`flutter build apk`.
+
+**Fix:** deleted the stale generated file (gitignored build artifact, backed up
+first) and let the tool regenerate it. Release then built.
+
+**Worth automating:** a CI job that runs `flutter build apk --release`, since
+nothing else in the loop touches Gradle.
+
+## R2 — P1. APK per-ABI is OVER the performance budget.
+
+| ABI | size | budget | over by |
+|---|---:|---:|---:|
+| `armeabi-v7a` | 31.4 MB | 28 MB | **+3.4 MB** |
+| `arm64-v8a` | 34.6 MB | 28 MB | **+6.6 MB** |
+| `x86_64` | 37.0 MB | 28 MB | **+9.0 MB** |
+
+Split-per-abi release, tree-shaking on (icons reduced 97–99%). `arm64-v8a` is
+the one that matters for real devices and it is **24% over**.
+
+The budget is not adjusted to fit the measurement. Reducing this means looking
+at dependencies — the app carries `mobile_scanner`, `webview_flutter`,
+`geolocator`, `record`, `audioplayers`, OneSignal and a passkeys stack — which is
+a dependency-audit phase, not a redesign one.
+
+## R3 — P2. Web FCP/TTI cannot meet the budget, and the reason is arithmetic.
+
+Critical-path payload, gzipped, measured from `build/web`:
+
+| file | raw | gzip |
+|---|---:|---:|
+| `main.dart.js` | 5.58 MB | **1.64 MB** |
+| `canvaskit.wasm` | 6.89 MB | **2.77 MB** |
+| `canvaskit/chromium/canvaskit.wasm` | 5.49 MB | 2.08 MB |
+
+That is **~3.7–4.4 MB before first paint**. The budget is FCP < 1800 ms on 4G.
+No 4G connection delivers 4 MB in 1.8 s, so the budget is missed by construction,
+independent of any code in `lib/`.
+
+**Not verified in a browser, and that is a limitation, not a claim:** Chrome is
+not on PATH on this machine (already documented), Playwright's Chrome is not
+installed, and the browser extension is not connected. The payload numbers are
+real; the resulting FCP is inferred from them.
+
+The lever is the renderer (CanvasKit vs the lighter path) and deferred wasm
+loading — a rendering decision with visual consequences, so it is flagged, not
+taken.
+
+## R4 — P3. The 404 page's button ran edge-to-edge. **Fixed.**
+
+Found by deep-linking a route that does not exist. The app theme sets a button
+`minimumSize` of `Size(double.infinity, 52)`, so the unconstrained
+`ElevatedButton` in `errorBuilder` spanned the full screen width and touched
+both bezels. Nothing overflowed, so no test could see it. Now inset 32.
+
+## What the device pass CONFIRMED working
+
+| | result |
+|---|---|
+| Cold start to first frame rasterized | **664 ms** (budget < 1800 ms) — `timeToFirstFrame` 499 ms, framework init 271 ms |
+| `am start -W` TotalTime, cold, 3 runs | 1065 / 1049 / 1027 ms |
+| Reduced motion skips the splash arc | **Confirmed.** At 1.6 s with animations on the splash is still mid-wipe; with `transition_animation_scale=0` the app is already past it. |
+| `EmptyState` on device (VR-ID access log) | Renders correctly, and the AFOS top-right corner cut is visible on the icon badge |
+| Card-tier signature radius | Visible on My Results' CGPA card and course cards |
+| Themed 404 | Now takes the app canvas instead of a hardcoded dark slab |
+| Screens walked without error | dashboard, browse courses, clubs, lost & found, transport, hall, payment, VR-ID (3 tabs), results, assignments, my attendance, slide menu, login |
+
+**Note on the measurement:** `animator_duration_scale` is NOT what Flutter reads
+for `MediaQuery.disableAnimations` on Android — it reads
+`transition_animation_scale`. Testing the wrong one showed a false failure. All
+three scales were restored to 1 afterwards.
+
+## Not covered
+
+Roles other than `student` and `super_admin`; the teacher/admin-only screens
+(marks entry, attendance register, module leader, join requests, the manage_*
+admin screens) were not walked with a role that can reach them.

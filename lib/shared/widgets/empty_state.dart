@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
@@ -28,7 +29,7 @@ class EmptyState extends StatelessWidget {
           Container(width: 80, height: 80,
             decoration: BoxDecoration(
               color: AppColors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: AppDepth.radius(2),
               border: Border.all(color: AppColors.blue.withValues(alpha: 0.2)),
             ),
             child: Icon(icon, color: AppColors.blue, size: 36),

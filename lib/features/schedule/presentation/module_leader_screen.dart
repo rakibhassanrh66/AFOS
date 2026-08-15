@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/haptics/app_haptics.dart';
@@ -342,7 +343,7 @@ class TeachingAssignmentCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -539,7 +540,7 @@ class _AllocationsTabState extends State<_AllocationsTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
         child: Row(children: [
           Expanded(
             child: Text(
@@ -660,7 +661,7 @@ class AllocationCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -878,7 +879,7 @@ class _AssignSheetState extends State<_AssignSheet> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Allocate teaching',
             style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -997,7 +998,7 @@ class _LeadersTabState extends State<_LeadersTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
         child: Row(children: [
           Expanded(
             child: Text('${_leaders.length} appointed',
@@ -1031,10 +1032,10 @@ class _LeadersTabState extends State<_LeadersTab> {
                           final t = l['profiles'] as Map<String, dynamic>? ?? const {};
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                            padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 6, 10),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceOf(ctx),
-                              borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+                              borderRadius: AppDepth.radius(2),
                               border: Border.all(color: AppColors.borderOf(ctx), width: 0.5),
                             ),
                             child: Row(children: [
@@ -1134,7 +1135,7 @@ class _AppointSheetState extends State<_AppointSheet> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Appoint a module leader',
             style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),

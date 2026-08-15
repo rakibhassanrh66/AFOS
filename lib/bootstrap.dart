@@ -13,6 +13,7 @@ import 'config/supabase_config.dart';
 import 'core/di/injection.dart';
 import 'core/auth/biometric_lock.dart';
 import 'core/auth/secure_session_storage.dart';
+import 'core/haptics/app_haptics.dart';
 import 'core/utils/pending_credentials_store.dart';
 import 'core/services/app_config_service.dart';
 import 'core/services/app_update_service.dart';
@@ -273,6 +274,12 @@ Future<void> bootstrap() async {
       AppRouter.router.push('/reset-password');
     }
   });
+
+  // Restore the haptics preference before the first frame, so a user who
+  // turned buzzing off does not get one buzz on launch before the setting
+  // loads. Awaited because it is a single SharedPreferences read, already
+  // warm from the session restore above.
+  await AppHaptics.load();
 
   configureDependencies();
 }

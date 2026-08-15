@@ -1,3 +1,4 @@
+import '../../config/theme/motion.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -89,9 +90,9 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _ctrl = AnimationController(vsync: this, duration: AppMotion.slow);
     // easeInOutCubic gives the smooth, weighty glide of the reference design.
-    _move = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
+    _move = CurvedAnimation(parent: _ctrl, curve: AppMotion.inOut);
     _ctrl.value = 1.0; // at rest, the planet sits on its target
     _prev = _display;
   }
@@ -130,7 +131,7 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
     );
     final border = AppColors.glassBorder(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
           GlassBottomNav.sideMargin, GlassBottomNav.planetLift, GlassBottomNav.sideMargin, GlassBottomNav.bottomMargin),
       child: SizedBox(
         height: GlassBottomNav.barHeight,
@@ -283,7 +284,7 @@ class _NavItem extends StatelessWidget {
         Expanded(
           child: Center(
             child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
+              duration: AppMotion.tight,
               // The active tab's icon lives in the planet above, so fade the
               // in-bar copy out as the planet arrives.
               opacity: active ? 0.0 : 0.55,

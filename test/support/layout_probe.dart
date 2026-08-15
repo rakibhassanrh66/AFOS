@@ -27,10 +27,22 @@ import 'package:flutter_test/flutter_test.dart';
 /// Real devices, smallest first. The vertical-text failure starts at 1.0x on a
 /// 320dp phone and reaches a 412dp phone by 1.3x, so a default-scale-only sweep
 /// would miss it.
+///
+/// The last two are the WEB build, which ships on Vercel and is a first-class
+/// target — the constitution names 320/400/768/1280 and this harness covered
+/// only the phone half of that for four phases. Wide viewports fail
+/// differently from narrow ones: nothing is cramped, so nothing overflows, and
+/// the fault is a row that stretches until its parts lose any relationship to
+/// each other. That is not what this probe detects, which is worth being
+/// honest about — what the wide sizes DO catch here is the opposite mistake,
+/// a fixed-width child that assumed a phone.
 const probeSizes = <String, Size>{
   '320x568 (small Android)': Size(320, 568),
   '360x780 (common Android)': Size(360, 780),
+  '400x860 (constitution breakpoint)': Size(400, 860),
   '412x915 (large Android)': Size(412, 915),
+  '768x1024 (tablet / web)': Size(768, 1024),
+  '1280x800 (desktop web)': Size(1280, 800),
 };
 
 /// Up to a 2.0x accessibility text scale — the largest Android offers.

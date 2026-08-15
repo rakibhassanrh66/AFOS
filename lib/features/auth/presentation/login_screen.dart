@@ -307,7 +307,7 @@ class _FormPane extends StatelessWidget {
               // device and there is nothing to scroll — until the keyboard opens
               // or the screen is genuinely too short, when it scrolls properly.
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, _vPad, 28, _vPad),
+                padding: const EdgeInsetsDirectional.fromSTEB(28, _vPad, 28, _vPad),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                       minHeight: (constraints.maxHeight - _vPad * 2).clamp(0.0, double.infinity)),
@@ -328,7 +328,11 @@ class _FormPane extends StatelessWidget {
                     child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
                       const SizedBox(height:16),
                       // Logo
-                      Center(child: Image.asset('assets/images/diu_logo.png', height:88,
+                      // cacheWidth, because the source is 1086x1196 and decodes
+                      // to ~5 MB of ARGB to paint an 88px logo. 264 = 88 at a
+                      // 3x device pixel ratio, which is the densest screen this
+                      // ships to, so it is still pixel-sharp at ~0.3 MB.
+                      Center(child: Image.asset('assets/images/diu_logo.png', height:88, cacheWidth: 264,
                           errorBuilder: (_, __, ___) => Row(mainAxisSize:MainAxisSize.min, children:[
                             _logoLetter('A', AppColors.holoBlue, context),
                             const SizedBox(width:8),

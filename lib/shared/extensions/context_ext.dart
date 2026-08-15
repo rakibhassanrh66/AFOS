@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
+import '../../config/theme/depth.dart';
 
 extension ContextExt on BuildContext {
   ThemeData    get theme   => Theme.of(this);
@@ -17,7 +18,7 @@ extension ContextExt on BuildContext {
       content: Text(msg, style: const TextStyle(color: Colors.white)),
       backgroundColor: isError ? AppColors.red : AppColors.green,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: AppDepth.radius(1)),
       margin: const EdgeInsets.all(16),
     ));
   }

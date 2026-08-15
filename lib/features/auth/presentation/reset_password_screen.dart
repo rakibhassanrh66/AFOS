@@ -66,7 +66,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       body: LayoutBuilder(builder: (context, outer) {
         return SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+            padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
             child: Center(child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: outer.maxWidth >= Responsive.mediumBreakpoint ? 460 : double.infinity),
               child: GlassCard(

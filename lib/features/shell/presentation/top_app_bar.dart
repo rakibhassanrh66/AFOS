@@ -1,3 +1,4 @@
+import '../../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -45,12 +46,12 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
       // The bar is now a floating, rounded glass pill detached from the screen
       // edges — not an edge-to-edge Material bar.
       title: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 12, 10),
         child: Container(
           height: 54,
           decoration: BoxDecoration(
             color: Color.alphaBlend(AppColors.glassFill(context), AppColors.surfaceOf(context)),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
             border: Border.all(color: borderColor, width: _isSuperAdmin ? 1.5 : 1),
             boxShadow: [
               BoxShadow(
@@ -82,11 +83,11 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
             Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
               Flexible(child: Text(title, style:AppTextStyles.headlineMed.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
-              if (_isSuperAdmin) Padding(padding: const EdgeInsets.only(left: 8), child: Container(
+              if (_isSuperAdmin) Padding(padding: const EdgeInsetsDirectional.only(start: 8), child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [AppColors.holoviolet, AppColors.holoviolet.withValues(alpha: 0.6)]),
-                      borderRadius: BorderRadius.circular(20)),
+                      borderRadius: BorderRadius.circular(LiquidGlass.radiusPill)),
                   child: const Text('SUPER ADMIN',
                       textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                       style: TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: 0.5)))),
@@ -197,7 +198,16 @@ class _NotificationBellState extends State<_NotificationBell> {
             child: Text(_unread > 9 ? '9+' : '$_unread', textAlign: TextAlign.center,
                 textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                 style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w700)))
-            .animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(end: 1.15, duration: 700.ms))),
+            // The FIFTH perpetual animation found in this sweep, and the worst
+            // placed: the unread badge pulses forever in the app bar, so it ran
+            // on every screen in the app regardless of reduced motion. Under
+            // reduced motion the badge is simply drawn at rest — it still says
+            // the same thing, because the number is the information.
+            .animate(
+                onPlay: (c) { if (!AppMotion.isReduced(context)) c.repeat(reverse: true); })
+            .scaleXY(
+                end: AppMotion.isReduced(context) ? 1.0 : 1.15,
+                duration: AppMotion.durationOf(context, AppMotion.hero)))),
     ]);
   }
 }

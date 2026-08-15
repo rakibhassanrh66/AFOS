@@ -1,3 +1,7 @@
+import 'package:flutter/foundation.dart' show listEquals;
+
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -7,6 +11,7 @@ import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../core/auth/permission_session.dart';
+import '../../../core/navigation/nav_destinations.dart';
 import '../../../core/navigation/router_location.dart';
 import '../../../core/services/app_config_service.dart';
 import 'dart:ui' show ImageFilter;
@@ -142,7 +147,10 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Clubs',          AppIcons.clubs,       '/clubs',         AppColors.pink),
     _MenuItem('Results',        AppIcons.results,     '/grades',        AppColors.gold),
     _MenuItem('Assignments',    AppIcons.assignments, '/assignments',   AppColors.holoTeal),
-    _MenuItem('Mentorship',     AppIcons.mentorship,  '/mentorship',    Color(0xFF60A5FA)),
+    // Was a stray Color(0xFF60A5FA) — the only literal in this list, and it
+    // DISAGREED with AppColors.moduleColors['mentorship'] (blueLight), so the
+    // module had two identities depending on where you looked at it.
+    _MenuItem('Mentorship',     AppIcons.mentorship,  '/mentorship',    AppColors.blueLight),
     _MenuItem('Dept Chat',      AppIcons.deptChat,    '/dept-chat',     AppColors.indigo),
     _MenuItem('Nearby SOS Alerts', Icons.sos_rounded, '/sos/nearby',    AppColors.red),
     _MenuItem('Notifications',  AppIcons.notifications, '/notifications', AppColors.red),
@@ -336,7 +344,36 @@ class _SlideMenuState extends State<SlideMenu> {
       final pinned = _quickAccessItems.map((it) => it.route).toSet();
       items = items.where((it) => !pinned.contains(it.route)).toList();
     }
+    _publishDestinations(items);
     return items;
+  }
+
+  /// Hand the resolved list to anything else that needs to know where this user
+  /// may go — currently the web command palette.
+  ///
+  /// Published rather than recomputed. `_roleItems` above encodes the role
+  /// matrix, the delegated `resource:action` grants, the CR flag and the SOS
+  /// toggle, and its grants deliberately match the ones `app_router.dart`
+  /// guards each route with. A second implementation of that is how a palette
+  /// ends up offering a destination the router then refuses.
+  ///
+  /// Includes the pinned quick-access four even on the web rail, where the
+  /// menu itself hides them: the rail hides them because they are ALREADY on
+  /// screen above, which is not a reason for the palette to be unable to reach
+  /// Settings.
+  void _publishDestinations(List<_MenuItem> items) {
+    final all = <_MenuItem>[..._quickAccessItems, ...items];
+    final seen = <String>{};
+    final next = <NavDestination>[
+      for (final m in all)
+        if (seen.add(m.route)) NavDestination(m.label, m.icon, m.route, m.color),
+    ];
+    // Built during build(), so defer the notify — mutating a ValueNotifier
+    // whose listeners are also building would throw.
+    if (listEquals(navDestinations.value, next)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) navDestinations.value = next;
+    });
   }
 
   List<_MenuItem> get _roleItems {
@@ -459,7 +496,7 @@ class _SlideMenuState extends State<SlideMenu> {
                   // it, and it is already positioned clear of the gesture bar.
                   // Adding the inset here just put ~107px of dead space under
                   // the last menu item.
-                  builder: (ctx, _) => ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 8), children:[
+                  builder: (ctx, _) => ListView(padding: const EdgeInsetsDirectional.fromSTEB(0, 8, 0, 8), children:[
                   // Web rail: pin the 4 quick-access destinations at the top
                   // (the mobile floating bottom bar covers these on phones).
                   if (widget.permanent) ...[
@@ -508,7 +545,7 @@ class _SlideMenuState extends State<SlideMenu> {
                   // detached Logout row.
                   Divider(color: border, height: 1),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                    padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 6),
                     // Builder so the tile gets its OWN context: the radial
                     // menu reads that render box to place the burst origin.
                     child: Builder(
@@ -534,7 +571,7 @@ class _SlideMenuState extends State<SlideMenu> {
     final isSuperAdmin = _user?.role == 'super_admin';
     final ringColor = isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue;
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+      padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 20, 22),
       decoration: BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [ringColor.withValues(alpha:0.14), Colors.transparent]),
@@ -582,7 +619,7 @@ class _SlideMenuState extends State<SlideMenu> {
             padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),
             decoration:BoxDecoration(
               border:Border.all(color:AppColors.gold.withValues(alpha:0.4)),
-              borderRadius:BorderRadius.circular(12),
+              borderRadius: AppDepth.radius(1),
               gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors:[
                 AppColors.gold.withValues(alpha:0.12), Colors.transparent,
               ]),
@@ -649,10 +686,10 @@ class _MenuTileState extends State<_MenuTile> {
         onExit: (_) => setState(() => _hover = false),
         cursor: SystemMouseCursors.click,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
+          duration: AppMotion.tight,
+          curve: AppMotion.standard,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppDepth.radius(1),
             color: isActive
                 ? item.color.withValues(alpha: 0.12)
                 : (_hover ? item.color.withValues(alpha: 0.07) : Colors.transparent),
@@ -662,9 +699,9 @@ class _MenuTileState extends State<_MenuTile> {
           ),
           child: Material(
         color: Colors.transparent,
-        borderRadius:BorderRadius.circular(10),
+        borderRadius: AppDepth.radius(1),
         child: InkWell(
-          borderRadius:BorderRadius.circular(10),
+          borderRadius: AppDepth.radius(1),
           onTap:(){
             context.read<ShellBloc>().add(CloseMenu());
             // `push`, matching every other in-shell entry point (dashboard
@@ -680,28 +717,28 @@ class _MenuTileState extends State<_MenuTile> {
             context.push(item.route);
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.fromLTRB(
+            duration: AppMotion.tight,
+            curve: AppMotion.standard,
+            padding: EdgeInsetsDirectional.fromSTEB(
                 _hover && !isActive ? 14 : 12, 10, 12, 10),
             decoration:isActive?BoxDecoration(
               border:Border(left:BorderSide(color:item.color,width:3)),
             ):null,
             child: Row(children:[
               AnimatedScale(
-                duration: const Duration(milliseconds: 160),
-                curve: Curves.easeOutCubic,
+                duration: AppMotion.tight,
+                curve: AppMotion.standard,
                 scale: _hover && !isActive ? 1.08 : 1.0,
                 child: Container(width:34,height:34, alignment: Alignment.center,
                 decoration: isActive
                     ? BoxDecoration(
                         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                             colors: [item.color, item.color.withValues(alpha: 0.7)]),
-                        borderRadius:BorderRadius.circular(10),
+                        borderRadius: AppDepth.radius(1),
                         boxShadow: [BoxShadow(color: item.color.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))])
                     : BoxDecoration(
                         color:item.color.withValues(alpha: _hover ? 0.22 : 0.15),
-                        borderRadius:BorderRadius.circular(10)),
+                        borderRadius: AppDepth.radius(1)),
                 child:Icon(item.icon,color: isActive ? Colors.white : item.color,size:18)),
               ),
               const SizedBox(width:12),
@@ -719,9 +756,15 @@ class _MenuTileState extends State<_MenuTile> {
       ),
         ),
       ),
-    ).animate(delay:Duration(milliseconds:widget.delay))
-      .fadeIn(duration:140.ms,curve:Curves.easeOutCubic)
-      .slideX(begin:-0.05,duration:140.ms,curve:Curves.easeOutCubic);
+    // The caller passes `(i*15).clamp(0,90)` — its own hand-rolled stagger.
+    // Routed through the ladder so reduced motion collapses the whole menu's
+    // entrance instead of only its durations.
+    ).animate(delay: AppMotion.isReduced(context)
+              ? Duration.zero
+              : Duration(milliseconds: widget.delay))
+      .fadeIn(duration: AppMotion.durationOf(context, AppMotion.tight), curve: AppMotion.standard)
+      .slideX(begin:-0.05,
+          duration: AppMotion.durationOf(context, AppMotion.tight), curve: AppMotion.standard);
   }
 }
 
@@ -737,7 +780,7 @@ class _Avatar extends StatelessWidget {
         border:Border.all(color:ringColor.withValues(alpha:0.6),width: isSuperAdmin ? 3 : 2),
         boxShadow:[BoxShadow(color:ringColor.withValues(alpha:0.25),blurRadius:12,spreadRadius:-2)]),
       child: ClipOval(child: url!=null && url!.isNotEmpty
-        ? CachedNetworkImage(imageUrl:url!,fit:BoxFit.cover,
+        ? CachedNetworkImage(imageUrl:url!,fit:BoxFit.cover,memCacheWidth:128,
             errorWidget:(_,__,___)=>_initials(context, initials))
         : _initials(context, initials)),
     );
@@ -762,7 +805,7 @@ class _Chip extends StatelessWidget {
   // wrapped around their text.
   Widget build(BuildContext context) => Container(
     padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
-    decoration:BoxDecoration(color:color.withValues(alpha:0.15),borderRadius:BorderRadius.circular(20),
+    decoration:BoxDecoration(color:color.withValues(alpha:0.15),borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
       border:Border.all(color:color.withValues(alpha:0.3))),
     child:Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
       style:TextStyle(color:color,fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
@@ -791,12 +834,12 @@ class _QuickRailTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppDepth.radius(1),
           onTap: () => context.go(item.route),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: AppDepth.radius(1),
               color: active ? item.color.withValues(alpha: 0.14) : Colors.transparent,
               border: active ? Border(left: BorderSide(color: item.color, width: 3)) : null,
             ),
@@ -804,7 +847,7 @@ class _QuickRailTile extends StatelessWidget {
               Container(width: 34, height: 34, alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: item.color.withValues(alpha: active ? 0.22 : 0.15),
-                  borderRadius: BorderRadius.circular(10)),
+                  borderRadius: AppDepth.radius(1)),
                 child: Icon(item.icon, color: item.color, size: 18)),
               const SizedBox(width: 12),
               Expanded(child: Text(item.label,

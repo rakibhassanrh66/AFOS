@@ -15,6 +15,7 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -155,7 +156,7 @@ class _MyVrIdTab extends StatelessWidget {
     if (loading) return const Center(child: SupernovaLoader(size: 40, color: AppColors.blue));
     if (user == null) return Center(child: Text('Could not load profile', style: TextStyle(color: AppColors.textSecondaryOf(context))));
     final countdownColor = countdown > 30 ? AppColors.green : countdown > 10 ? AppColors.amber : AppColors.red;
-    return SingleChildScrollView(padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + NavInsets.of(context)), child: Column(children: [
+    return SingleChildScrollView(padding: EdgeInsetsDirectional.fromSTEB(20, 20, 20, 20 + NavInsets.of(context)), child: Column(children: [
       RepaintBoundary(
         child: GlassCard(
           glowColor: AppColors.blue,
@@ -171,7 +172,7 @@ class _MyVrIdTab extends StatelessWidget {
                 shape: BoxShape.circle, color: AppColors.blue.withValues(alpha:0.1),
                 border: Border.all(color: AppColors.blue.withValues(alpha:0.4), width: 2)),
                 child: ClipOval(child: (user!.avatarUrl?.isNotEmpty ?? false)
-                    ? CachedNetworkImage(imageUrl: user!.avatarUrl!, fit: BoxFit.cover,
+                    ? CachedNetworkImage(imageUrl: user!.avatarUrl!, fit: BoxFit.cover, memCacheWidth: 200,
                         errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))
                     : const Icon(Icons.person_rounded, color: AppColors.blue, size: 36))),
             const SizedBox(height: 10),
@@ -286,14 +287,11 @@ class _VerifiedView extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
     Icon(expired ? Icons.timer_off_rounded : verified ? Icons.verified_rounded : Icons.cancel_rounded,
         color: expired ? AppColors.amber : verified ? AppColors.green : AppColors.red, size: 72)
-        // Was easeOutBack, i.e. a deliberate overshoot on the verification
-        // stamp. The token set has three curves and none of them overshoots, so
-        // this is now `standard`. If the flourish is wanted back it belongs in
-        // motion.dart as an emphasis curve, not as a per-file exception —
-        // recorded in REDESIGN_LOG.
+        // The overshoot is back, and now it is a token: AppMotion.emphasis
+        // exists precisely because this stamp and the splash both wanted it.
         .animate().scale(
             duration: AppMotion.durationOf(context, AppMotion.slow),
-            curve: AppMotion.standard),
+            curve: AppMotion.emphasis),
     const SizedBox(height: 20),
     Text(expired ? 'QR Expired' : verified ? 'VERIFIED' : 'INVALID',
         style: AppTextStyles.displayMedium.copyWith(
@@ -304,7 +302,7 @@ class _VerifiedView extends StatelessWidget {
           shape: BoxShape.circle, color: AppColors.green.withValues(alpha:0.1),
           border: Border.all(color: AppColors.green.withValues(alpha:0.4), width: 2)),
           child: ClipOval(child: (user.avatarUrl?.isNotEmpty ?? false)
-              ? CachedNetworkImage(imageUrl: user.avatarUrl!, fit: BoxFit.cover,
+              ? CachedNetworkImage(imageUrl: user.avatarUrl!, fit: BoxFit.cover, memCacheWidth: 200,
                   errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.green, size: 44))
               : const Icon(Icons.person_rounded, color: AppColors.green, size: 44))),
       const SizedBox(height: 16),
@@ -363,13 +361,13 @@ class _AccessLogTabState extends State<_AccessLogTab> {
       return ErrorView(message: _error!, onRetry: _load);
     }
     if (_logs.isEmpty) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.history_rounded, color: AppColors.textMutedOf(context), size: 52),
-      const SizedBox(height: 16),
-      Text('No scans yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-    ]));
+      return const EmptyState(
+        icon: Icons.history_rounded,
+        title: 'No scans yet',
+        subtitle: 'Every time your ID is scanned, the record appears here.',
+      );
     }
-    return ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _logs.length,
+    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _logs.length,
         // Guarded by the `if (_logs.isEmpty) return Center(...)`
         // early-return above, so .first is safe.
         prototypeItem: _buildLogRow(context, _logs.first),

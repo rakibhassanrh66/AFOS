@@ -68,7 +68,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
     bool saving = false;
     await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Assign Room', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 16),
@@ -106,7 +106,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
     bool saving = false;
     await showGlassModal(context,
         builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) => SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Reject Request', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 16),
@@ -147,7 +147,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
       appBar: const AfosAppBar(title: 'Conference Rooms'),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 4),
           child: RepaintBoundary(
             child: GlassCard(
               borderRadius: 16,
@@ -183,7 +183,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _visible.isEmpty
                 ? EmptyState(icon: Icons.meeting_room_outlined, title: 'No requests', subtitle: 'Nothing in "$_filter" right now')
-                : ListView.builder(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
+                : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                     itemBuilder: (ctx, i) {
                       final r = _visible[i];
                       final requester = r['profiles'] as Map<String, dynamic>? ?? {};

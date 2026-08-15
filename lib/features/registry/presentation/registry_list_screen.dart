@@ -101,7 +101,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
       builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheetState) {
         final textPrimary = AppColors.textPrimaryOf(sheetCtx);
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+          padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(existing == null ? 'Add ${_isDepartments ? 'Department' : 'Faculty'}' : 'Edit ${_isDepartments ? 'Department' : 'Faculty'}',
                 style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
@@ -188,7 +188,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
           icon: _isDepartments ? Icons.school_rounded : Icons.account_balance_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.indigo, AppColors.blue]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -200,7 +200,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                   ? EmptyState(icon: Icons.account_balance_outlined, title: 'No ${widget.title.toLowerCase()} yet',
                       subtitle: _canWrite ? 'Tap + to add one' : 'Nothing has been added yet')
                   : ListView.builder(
-                      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + NavInsets.of(context)),
+                      padding: EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8 + NavInsets.of(context)),
                       itemCount: _items.length,
                       // Guarded by the _items.isEmpty ternary above — this
                       // branch never renders with an empty list, so .first is safe.

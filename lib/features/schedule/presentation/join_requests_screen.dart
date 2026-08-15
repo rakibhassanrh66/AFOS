@@ -6,6 +6,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -199,7 +200,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     try {
       final ok = await showGlassModal<bool>(context,
           builder: (sheetCtx) => Padding(
-                padding: EdgeInsets.fromLTRB(
+                padding: EdgeInsetsDirectional.fromSTEB(
                     24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
                 child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -535,7 +536,7 @@ class SelectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + NavInsets.of(context)),
+      padding: EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10 + NavInsets.of(context)),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border(top: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
@@ -686,21 +687,21 @@ class JoinRequestCard extends StatelessWidget {
         color: selected
             ? AppColors.blue.withValues(alpha: 0.08)
             : AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(
             color: accent.withValues(alpha: selected ? 0.6 : 0.35),
             width: selected ? 1.2 : 0.8),
       ),
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (selectable)
                 Padding(
-                  padding: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsetsDirectional.only(end: 4),
                   child: Checkbox(
                     value: selected,
                     onChanged: busy ? null : (_) => onToggleSelected(),
@@ -723,7 +724,7 @@ class JoinRequestCard extends StatelessWidget {
                     ),
                     if (student['is_verified'] == true)
                       const Padding(
-                        padding: EdgeInsets.only(left: 5),
+                        padding: EdgeInsetsDirectional.only(start: 5),
                         child: Icon(Icons.verified_rounded, size: 15, color: AppColors.blue),
                       ),
                   ]),
@@ -862,7 +863,7 @@ class BulkAdmitBar extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.green.withValues(alpha: 0.3), width: 0.8),
       ),
       // Explanation above, button below — NOT text beside button.
@@ -925,7 +926,7 @@ class _StudentAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 22,
       backgroundColor: AppColors.blue.withValues(alpha: 0.15),
-      backgroundImage: hasUrl ? CachedNetworkImageProvider(url) : null,
+      backgroundImage: hasUrl ? CachedNetworkImageProvider(url, maxWidth: 128, maxHeight: 128) : null,
       child: hasUrl
           ? null
           : Text(initial,

@@ -13,6 +13,7 @@ import '../../../config/theme/motion.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -22,6 +23,7 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/models/transport_schedule.dart';
 import '../data/repositories/transport_repository.dart';
+import '../data/route_geometry_service.dart';
 import '../data/stop_offsets_repository.dart';
 import '../data/stop_time_calculator.dart';
 import '../data/transport_display.dart';
@@ -218,7 +220,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
     // is correct in both cases without needing to know which one it is in.
     return LayoutBuilder(builder: (context, constraints) {
       return Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, bottom: mq.viewInsets.bottom),
+        padding: EdgeInsetsDirectional.only(start: 20, end: 20, bottom: mq.viewInsets.bottom),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.72),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -374,7 +376,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                     icon: Icons.directions_bus_filled_rounded,
                     gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                         colors: [AppColors.holoTeal, AppColors.holoBlue]),
-                    margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
                     trailing: (!loading && liveCount > 0)
                         ? Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -626,7 +628,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     final matches = _matches;
     // The stop whose times the user is really asking about.
     final focusStop = _from ?? _to;
-    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+    return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
       Text('Where are you, and where are you going?',
           style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 4),
@@ -1031,7 +1033,7 @@ class _StopDropdown extends StatelessWidget {
   // overlay that anchored badly and couldn't be searched.
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
       child: Row(children: [
         Container(width: 36, height: 36, alignment: Alignment.center,
             decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
@@ -1129,17 +1131,17 @@ class _MyRouteTabState extends State<_MyRouteTab> {
   @override
   Widget build(BuildContext context) {
     if(widget.routes.isEmpty) {
-      return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.directions_bus_outlined, size: 40, color: AppColors.textSecondaryOf(context)),
-        const SizedBox(height: 12),
-        Text('No routes available', style: TextStyle(color: AppColors.textSecondaryOf(context))),
-      ])));
+      return const EmptyState(
+        icon: Icons.directions_bus_outlined,
+        title: 'No routes available',
+        subtitle: 'Bus routes appear here once transport publishes a schedule.',
+      );
     }
     final selected = widget.routes.where((r) => r['id'] == _selectedRoute).firstOrNull;
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
     final toDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'to_dsc_trips');
     final fromDsc = selected == null ? <Trip>[] : _tripsOf(selected, 'from_dsc_trips');
-    return ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),children:[
+    return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),children:[
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
       if (_autoSuggested && selected != null) ...[
@@ -1149,7 +1151,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
       ],
       const SizedBox(height:12),
       Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
         decoration: BoxDecoration(color: AppColors.surfaceOf(context),
             borderRadius: LiquidGlass.signatureRadius(16),
             border: Border.all(color: AppColors.borderOf(context), width: 0.6)),
@@ -1330,7 +1332,7 @@ class _DepartureHeroCard extends StatelessWidget {
     final textPrimary = AppColors.textPrimaryOf(context);
     final textSecondary = AppColors.textSecondaryOf(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
             colors: [accent.withValues(alpha: 0.16), accent.withValues(alpha: 0.04)],
@@ -1675,8 +1677,11 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
   @override
   Widget build(BuildContext context) {
     if (widget.routes.isEmpty) {
-      return Center(
-        child:Text('No routes',style:TextStyle(color:AppColors.textSecondaryOf(context))));
+      return const EmptyState(
+        icon: Icons.schedule_outlined,
+        title: 'No schedules yet',
+        subtitle: 'Departure times appear here once transport publishes them.',
+      );
     }
     final visible = _visible;
     // Group by schedule_type into the source document's own sections
@@ -1726,7 +1731,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
       // schedule doesn't get a redundant header.
       if (grouped.length > 1) {
         children.add(Padding(
-          padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+          padding: const EdgeInsetsDirectional.fromSTEB(4, 6, 4, 8),
           child: Text('${type.label.toUpperCase()}${isTodaySection ? '  ·  TODAY' : ''}',
               style: AppTextStyles.labelSmall.copyWith(
                   letterSpacing: 1.5,
@@ -1759,7 +1764,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
       // route meant scrolling the whole list. Searches stop names too, because
       // riders know where they board, not the route's official title.
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
         child: TextField(
           controller: _searchCtrl,
           focusNode: widget.searchFocus,
@@ -1789,7 +1794,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ),
       ),
       Expanded(child: ListView(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + NavInsets.of(context)),
+        padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
         children: children)),
     ]);
   }
@@ -1918,6 +1923,36 @@ class _MapTabState extends State<_MapTab> {
   /// map could not tell you the name of the place you were looking at.
   int? _selectedStop;
 
+  /// The road-following line for the selected route, once it has been fetched.
+  ///
+  /// Null means "not resolved yet" — the map draws the stop chords in the
+  /// meantime rather than nothing, because a visible approximate line beats an
+  /// empty map while a network call is in flight.
+  List<LatLng>? _snappedRoute;
+
+  /// False when the line on screen is the raw stop-to-stop chords rather than
+  /// real road geometry. Drives the "approximate" note: presenting a straight
+  /// line as if it were the route is the failure this whole change exists to
+  /// end, and doing it silently after a failed fetch would just reintroduce it.
+  bool _routeIsSnapped = false;
+
+  /// Current map zoom, tracked so the line's width and point density can follow
+  /// it. A route drawn at a fixed pixel width is a hairline at z16 and a smear
+  /// at z10 — width has to scale with how much ground a pixel covers.
+  double _zoom = 12;
+
+  /// Stroke width for [zoom]. Deliberately a narrow range: the line must stay
+  /// legible when the whole 15km route is on screen without becoming a slab
+  /// that hides the road it is tracing when you zoom in.
+  static double _strokeFor(double zoom) =>
+      zoom <= 11 ? 3.0 : (zoom >= 16 ? 6.0 : 3.0 + (zoom - 11) * 0.6);
+
+  /// Douglas–Peucker tolerance in degrees for [zoom]. Roughly "collapse
+  /// anything finer than a couple of pixels at this scale": generous when the
+  /// whole route is in view, near-lossless once the user is inspecting streets.
+  static double _simplifyToleranceFor(double zoom) =>
+      zoom >= 15 ? 0 : (zoom <= 11 ? 0.0004 : 0.0004 / (1 << (zoom.round() - 11)));
+
   String? get _routeId => widget.route?['id'] as String?;
 
   /// Stop names straight off the route row. These always exist, unlike the
@@ -1944,16 +1979,37 @@ class _MapTabState extends State<_MapTab> {
   Future<void> _loadStops() async {
     final routeId = _routeId;
     if (routeId == null) { if (mounted) setState(() => _stops = null); return; }
-    setState(() => _loadingStops = true);
+    setState(() { _loadingStops = true; _snappedRoute = null; _routeIsSnapped = false; });
     try {
       final stops = await widget.repo.fetchStops(routeId);
       if (mounted) {
         setState(() { _stops = stops; _loadingStops = false; _selectedStop = null; });
         _fitToRoute();
+        // Deliberately NOT awaited inside the loading state. The stops are what
+        // the screen needs to be usable; the road geometry is an improvement on
+        // a line it can already draw. Blocking the map on a third-party routing
+        // call would trade a working screen for a prettier one.
+        _loadRouteGeometry(routeId);
       }
     } catch (_) {
       if (mounted) setState(() { _stops = []; _loadingStops = false; _selectedStop = null; });
     }
+  }
+
+  /// Replaces the stop-chord line with real road geometry when it arrives.
+  ///
+  /// Guarded on the route id because a user can switch routes while this is in
+  /// flight, and painting route A's roads under route B's stops is worse than
+  /// painting nothing.
+  Future<void> _loadRouteGeometry(String routeId) async {
+    final stops = _routePoints;
+    if (stops.length < 2) return;
+    final geo = await RouteGeometryService.forStops(routeId, stops);
+    if (!mounted || _routeId != routeId) return;
+    setState(() {
+      _snappedRoute = geo.snapped ? geo.points : null;
+      _routeIsSnapped = geo.snapped;
+    });
   }
 
   /// Stops that can actually be drawn, in running order, keeping the NAME
@@ -1992,6 +2048,9 @@ class _MapTabState extends State<_MapTab> {
           // Asymmetric on purpose: the info panel and the locate button sit
           // over the bottom of the map, so a route fitted symmetrically puts
           // its last stops underneath them.
+          // EdgeInsets, not directional: this is a MAP CAMERA inset in screen
+          // space, not text layout — flutter_map takes a concrete EdgeInsets,
+          // and the horizontal values are equal regardless.
           padding: const EdgeInsets.fromLTRB(48, 64, 48, 160),
           maxZoom: 15,
         ));
@@ -2026,6 +2085,13 @@ class _MapTabState extends State<_MapTab> {
   @override
   Widget build(BuildContext context) {
     final routePoints = _routePoints;
+    // The snapped road geometry when we have it, the stop chords until then.
+    // Simplified for the current zoom: a snapped Dhaka route is ~2,000 points
+    // and at z11 most of them fall inside one pixel, so drawing them all costs
+    // layout and raster time for fidelity nobody can see.
+    final drawnRoute = _snappedRoute == null
+        ? routePoints
+        : RouteGeometryService.simplify(_snappedRoute!, _simplifyToleranceFor(_zoom));
     final hasRoute = widget.route != null;
     // This used to be the normal case, and the comment here used to say so:
     // `transport_stops` held only the retired legacy import, so `fetchStops`
@@ -2047,6 +2113,15 @@ class _MapTabState extends State<_MapTab> {
         options: MapOptions(
           initialCenter: const LatLng(_diuLat, _diuLng),
           initialZoom: 12,
+          // Track zoom so the route's width and point density follow it.
+          // setState only when the rounded zoom actually changes — a rebuild on
+          // every frame of a pinch would cost more than the simplification
+          // saves.
+          onPositionChanged: (pos, _) {
+            if (pos.zoom.round() != _zoom.round()) {
+              setState(() => _zoom = pos.zoom);
+            }
+          },
           // Tapping empty map dismisses the stop callout, the same way tapping
           // outside any other transient surface in the app closes it.
           onTap: (_, __) { if (_selectedStop != null) setState(() => _selectedStop = null); },
@@ -2074,16 +2149,26 @@ class _MapTabState extends State<_MapTab> {
           else
             _osmTiles(),
 
-          if (routePoints.length >= 2) PolylineLayer(polylines: [
+          if (drawnRoute.length >= 2) PolylineLayer(polylines: [
             // Casing under the line. A single 4px teal stroke disappeared over
             // pale roads and green parkland at some zooms; a darker, wider
             // stroke beneath it keeps the route readable on any tile.
             Polyline(
-              points: routePoints,
-              strokeWidth: 8,
+              points: drawnRoute,
+              strokeWidth: _strokeFor(_zoom) + 3.5,
               color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.55),
             ),
-            Polyline(points: routePoints, strokeWidth: 4.5, color: AppColors.holoTeal),
+            Polyline(
+              points: drawnRoute,
+              strokeWidth: _strokeFor(_zoom),
+              color: AppColors.holoTeal,
+              // Dashed while it is only the stop chords, solid once it is the
+              // real road. The line itself says which one you are looking at,
+              // so the note below is a confirmation rather than the only clue.
+              pattern: _routeIsSnapped
+                  ? const StrokePattern.solid()
+                  : StrokePattern.dashed(segments: const [10, 8]),
+            ),
           ]),
 
           MarkerLayer(markers: [
@@ -2200,6 +2285,37 @@ class _MapTabState extends State<_MapTab> {
               onBrowseRoutes: widget.onBrowseRoutes,
             ),
           ],
+          // The route IS drawable but the line is still stop-to-stop chords —
+          // the routing service was unreachable, rate-limited, or has not
+          // answered yet. Say so. A straight line presented as the route is the
+          // exact defect this work exists to remove, and letting a failed fetch
+          // silently restore it would be worse than the original bug, because
+          // now it would be intermittent.
+          if (hasRoute && !showNoPathNote && !_routeIsSnapped && routePoints.length >= 2) ...[
+            const SizedBox(height: 12),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.12),
+                borderRadius: AppDepth.radius(1),
+                border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(children: [
+                  const Icon(Icons.timeline_rounded, size: 18, color: AppColors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Approximate route — showing straight lines between stops '
+                      'while the road path loads.',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textSecondaryOf(context)),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ],
         ]),
       ),
     ]);
@@ -2294,7 +2410,7 @@ class _StopCallout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 6, 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         borderRadius: LiquidGlass.signatureRadius(14),
@@ -2344,7 +2460,7 @@ class _MapInfoPanel extends StatelessWidget {
     final textSecondary = AppColors.textSecondaryOf(context);
     final hasRoute = routeLabel != null;
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         borderRadius: AppDepth.radius(2),

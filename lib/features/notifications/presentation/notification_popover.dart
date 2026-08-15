@@ -34,7 +34,7 @@ Future<void> showNotificationPopover(BuildContext context) {
         child: Align(
           alignment: Alignment.topRight,
           child: Padding(
-            padding: const EdgeInsets.only(top: 64, right: 12),
+            padding: const EdgeInsetsDirectional.only(top: 64, end: 12),
             child: SizedBox(
               width: width,
               child: ConstrainedBox(
@@ -179,7 +179,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 8),
             child: Row(children: [
               Icon(AppIcons.notifications, size: 18, color: glass.accentSecondary),
               const SizedBox(width: 8),
@@ -237,14 +237,20 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                           Icon(Icons.notifications_none_rounded,
                               size: 34, color: AppColors.textMutedOf(context)),
                           const SizedBox(height: 8),
-                          Text("You're all caught up!",
+                          Text("You're all caught up.",
                               style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.textSecondaryOf(context))),
                         ]),
                       )
+                    // BUG_REGISTER P2-05 — confirmed bounded, and worth saying
+                    // so here because the bound is 150 lines away: `_load()`
+                    // ends in `.limit(20)`, so `shrinkWrap` lays out at most 20
+                    // rows, not an open-ended feed. The full list is a route
+                    // away behind 'See all notifications'. If that limit is
+                    // ever raised, this becomes a real cost.
                     : ListView.separated(
                         shrinkWrap: true,
-                        padding: EdgeInsets.fromLTRB(0, 4, 0, 4 + NavInsets.of(context)),
+                        padding: EdgeInsetsDirectional.fromSTEB(0, 4, 0, 4 + NavInsets.of(context)),
                         itemCount: _notifs.length,
                         separatorBuilder: (_, __) =>
                             Divider(height: 1, indent: 56, color: glass.glassBorder),
@@ -309,7 +315,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                                       Container(
                                           width: 7,
                                           height: 7,
-                                          margin: const EdgeInsets.only(top: 5, left: 6),
+                                          margin: const EdgeInsetsDirectional.only(top: 5, start: 6),
                                           decoration: BoxDecoration(
                                               color: glass.accentSecondary,
                                               shape: BoxShape.circle)),

@@ -102,7 +102,7 @@ class _TransportImportPreviewScreenState extends State<TransportImportPreviewScr
           // bottom inset for both. Adding it here counted the clearance twice
           // and left ~145px of dead space between the last route card and the
           // confirm bar.
-          Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), children: [
+          Expanded(child: ListView(padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16), children: [
             FeatureHeader(
               title: 'Schedule for ${parsed.semester}',
               subtitle: '${_routes.length} routes'
@@ -116,7 +116,7 @@ class _TransportImportPreviewScreenState extends State<TransportImportPreviewScr
             const SizedBox(height: 8),
             for (final entry in bySection.entries) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+                padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 8),
                 child: Text(entry.key.label.toUpperCase(),
                     style: AppTextStyles.labelSmall.copyWith(
                         letterSpacing: 1.5, color: AppColors.textSecondaryOf(context))),
@@ -163,7 +163,7 @@ class _BroadcastMessageField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.glassFill(context),
         borderRadius: AppDepth.radius(1),
@@ -440,7 +440,7 @@ class _RouteEditSheetState extends State<_RouteEditSheet> {
     // screen's stop picker sheet (showGlassModal turns GlassSheet's own lift
     // off), so several stacked text fields here don't fight the keyboard.
     return Padding(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 4, bottom: mq.viewInsets.bottom),
+      padding: EdgeInsetsDirectional.only(start: 20, end: 20, top: 4, bottom: mq.viewInsets.bottom),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: (mq.size.height - mq.viewInsets.bottom) * 0.85),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -694,7 +694,7 @@ class _ConfirmBar extends StatelessWidget {
       // body SafeArea (:97), which has already consumed the shell's bottom
       // inset for the whole column — so MediaQuery.padding.bottom reads 0 at
       // this point and adding it was a no-op that looked like it did something.
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border(top: BorderSide(color: AppColors.borderOf(context), width: 0.5)),

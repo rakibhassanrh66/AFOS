@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import 'pressable.dart';
 
 /// A single glass tab item.
 class GlassTab {
@@ -117,9 +118,10 @@ class _Segment extends StatelessWidget {
             applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
       ),
     );
-    return GestureDetector(
+    // A tab switch is the definition of "a discrete choice landed", so this one
+    // keeps its haptic.
+    return Pressable(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
         child: tab.icon == null

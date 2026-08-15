@@ -73,7 +73,7 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
                       constraints: BoxConstraints(
                           maxWidth: Responsive.isDesktop(context) ? 720 : double.infinity),
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)),
+                        padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           _HeroLatest(release: _releases.first, textPrimary: textPrimary, textSecondary: textSecondary),
                           const SizedBox(height: 28),
@@ -260,7 +260,7 @@ class _PlatformIcons extends StatelessWidget {
   Widget build(BuildContext context) {
     final secondary = AppColors.textSecondaryOf(context);
     Widget chip(IconData icon, bool active) => Padding(
-      padding: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsetsDirectional.only(start: 4),
       child: Icon(icon, size: 15, color: active ? AppColors.holoBlue : secondary.withValues(alpha: 0.3)),
     );
     return Row(mainAxisSize: MainAxisSize.min, children: [

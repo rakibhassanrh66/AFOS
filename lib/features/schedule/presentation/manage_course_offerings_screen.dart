@@ -7,6 +7,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
@@ -168,7 +169,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
 
     final ok = await showGlassModal<bool>(context,
         builder: (sheetCtx) => Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
               child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,7 +287,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [AppColors.blueLight, AppColors.blue]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
@@ -685,7 +686,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
     return Form(
       key: _formKey,
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
         child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1022,7 +1023,7 @@ class EndedOfferingRow extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.borderOf(context), width: 0.5),
       ),
       // Text above, actions below — NOT text beside button.

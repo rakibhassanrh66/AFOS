@@ -168,7 +168,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
           icon: Icons.local_library_rounded,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.blue, AppColors.indigo]),
-          margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
           trailing: (!_loading && _totalFine > 0)
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -232,7 +232,7 @@ class _BorrowedTab extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       color: AppColors.blue,
-      child: ListView(padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+      child: ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
         if (fine > 0) RepaintBoundary(
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -387,7 +387,7 @@ class _SearchTab extends StatelessWidget {
           ? const EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
           : ListView.builder(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 0 + NavInsets.of(context)),
+              padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0 + NavInsets.of(context)),
               itemCount: results.length,
               // Not guarded by an isEmpty early-return in this build method
               // (the ternary above only swaps in EmptyState when the user has
@@ -462,7 +462,7 @@ class _SearchTab extends StatelessWidget {
           return SafeArea(child: SingleChildScrollView(
               // Sheet content — GlassSheet's SafeArea already applies the nav
               // inset; adding it here stacked a second band of dead space.
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(width: 64, height: 88,
@@ -470,7 +470,7 @@ class _SearchTab extends StatelessWidget {
                           borderRadius: AppDepth.radius(0)),
                       child: (book['cover_url'] as String?)?.isNotEmpty == true
                           ? ClipRRect(borderRadius: AppDepth.radius(0),
-                              child: CachedNetworkImage(imageUrl: book['cover_url'] as String, fit: BoxFit.cover,
+                              child: CachedNetworkImage(imageUrl: book['cover_url'] as String, fit: BoxFit.cover, memCacheWidth: 300,
                                   errorWidget: (_, __, ___) => const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)))
                           : const Icon(Icons.book_rounded, color: AppColors.blue, size: 28)),
                   const SizedBox(width: 14),

@@ -89,7 +89,7 @@ class UserDetailsSheet extends StatelessWidget {
             CircleAvatar(
               radius: 36,
               backgroundColor: AppColors.blue.withValues(alpha: 0.15),
-              backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
+              backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl, maxWidth: 128, maxHeight: 128) : null,
               child: avatarUrl == null
                   ? Text((fullName?.isNotEmpty == true ? fullName![0] : '?').toUpperCase(),
                       style: const TextStyle(color: AppColors.blue, fontSize: 26, fontWeight: FontWeight.w800))
@@ -100,7 +100,7 @@ class UserDetailsSheet extends StatelessWidget {
               Flexible(child: Text(fullName?.isNotEmpty == true ? fullName! : 'Unknown',
                   style: AppTextStyles.headlineMed.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
               if (isVerified)
-                const Padding(padding: EdgeInsets.only(left: 6),
+                const Padding(padding: EdgeInsetsDirectional.only(start: 6),
                     child: Icon(Icons.verified_rounded, color: AppColors.blue, size: 20)),
             ]),
           ])),

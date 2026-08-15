@@ -1,3 +1,4 @@
+import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
@@ -108,7 +109,7 @@ class InfoCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (leading != null)
-          Padding(padding: const EdgeInsets.only(right: 12), child: leading)
+          Padding(padding: const EdgeInsetsDirectional.only(end: 12), child: leading)
         else if (icon != null) ...[
           Container(
             width: 40,
@@ -116,7 +117,7 @@ class InfoCard extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: AppDepth.radius(1),
             ),
             child: Icon(icon, color: accent, size: 20),
           ),
@@ -172,7 +173,7 @@ class InfoCard extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 160),
             child: Padding(
-                padding: const EdgeInsets.only(left: 8), child: trailing),
+                padding: const EdgeInsetsDirectional.only(start: 8), child: trailing),
           ),
       ],
     );

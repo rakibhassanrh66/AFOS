@@ -35,7 +35,7 @@
 
 | | | |
 |:---:|:---:|:---:|
-| [🚀 Overview](#-overview) | [⬇ Download](#-download) | [✨ What's Inside](#-whats-inside) |
+| [🚀 Overview](#-overview) | [⬇ Install](#-install-afos) | [✨ What's Inside](#-whats-inside) |
 | [🏗 Architecture](#-architecture) | [🔐 Role-Based Access](#-role-based-access-flow) | [🪪 VR-ID Flow](#-vr-id-verification-flow) |
 | [🧰 Tech Stack](#-tech-stack) | [🛠 Developer Setup](#%EF%B8%8F-developer-setup) | [📂 Project Structure](#-project-structure) |
 | [🗺 Roadmap](#-roadmap) | [🤝 Contributing](#-contributing) | [📜 License](#-license) |
@@ -62,16 +62,104 @@ One login. One app. Every facility on campus — routines, transport, halls, lib
 
 ---
 
-## ⬇ Download
+## ⬇ Install AFOS
 
-Grab the latest Android build from the **[Releases](../../releases)** page:
+<div align="center">
 
-1. Download the `.apk`
-2. Open it on your phone
-3. Allow **"install from unknown sources"** if prompted
-4. No Play Store account needed ✅
+### [**⬇ Download the latest APK**](../../releases/latest)
 
-> ⚠️ **University-scoped app** — a valid university email is required to register, with a small allowlist of bootstrap accounts reserved for testing.
+*One file. No Play Store account. No developer options.*
+
+</div>
+
+The Releases page publishes a **single universal APK** — `AFOS-vX.Y.Z.apk` — that
+runs on every Android phone (ARM and x86, 32- and 64-bit). There is no "which
+one do I pick".
+
+Every published APK is **signed with the same certificate** and CI refuses to
+publish a build whose signature does not match it:
+
+```
+SHA-256  2f:49:80:2b:75:33:aa:2f:19:3b:30:de:86:ed:d7:f1
+         24:c3:eb:bf:0e:61:96:fb:0c:05:ca:61:4a:03:62:3f
+```
+
+That fingerprint is why updates install cleanly over each other — and it is
+worth knowing, because Android is going to ask you some alarming questions on
+the way in. **All of them are normal for an app installed outside the Play
+Store.** Here is exactly what you will see, in order.
+
+### 1 · Your browser warns about the file
+
+Chrome shows *"This type of file can harm your device"* for **every** `.apk`,
+regardless of what is inside it. Tap **Download anyway**.
+
+### 2 · Android asks for permission to install
+
+Open the downloaded file. If this is your first sideloaded app, Android says
+*"For your security, your phone isn't allowed to install unknown apps from this
+source."*
+
+Tap **Settings** → turn on **Allow from this source** → press back. The
+permission is granted to the *browser*, once, not to AFOS.
+
+### 3 · Play Protect says the app is unsafe — expected
+
+You will see *"Unsafe app blocked"* or *"App scan recommended"*.
+
+Tap **More details** → **Install anyway**.
+
+Play Protect flags anything it has not seen distributed through the Play Store.
+It is a statement about *distribution*, not about the app. If that trade is not
+one you want to make, the **[web version](#-web)** needs no install at all.
+
+### 4 · Done
+
+AFOS opens. Sign in with your **university email** — registration requires one.
+
+---
+
+### If something goes wrong
+
+| What you see | What it means | Fix |
+|---|---|---|
+| **"App not installed"** | A different build of AFOS (a debug copy, or one signed with another key) is already on the phone. Android refuses to replace an app with one signed differently — this is the protection working. | Uninstall the existing AFOS, then install again. *You will be signed out; your data is on the server and comes back when you sign in.* |
+| **"There was a problem parsing the package"** | The download was cut short. | Delete the file and download it again on a stable connection. |
+| **A permission toggle is greyed out with "Restricted setting"** | Android 13+ withholds some sensitive permissions from sideloaded apps until you unblock them. | Settings → Apps → AFOS → ⋮ (top right) → **Allow restricted settings**. |
+| **Play Protect uninstalled it** | Play Protect can remove a sideloaded app it keeps flagging. | Reinstall, and when prompted choose **Don't scan** / **Keep app**. |
+
+---
+
+### 🔄 Updating — the app does it for itself
+
+**You only sideload once.** After that, AFOS checks for new releases on its own
+and updates in place:
+
+- A card appears in **Settings** the moment a new version is published.
+- Tapping it opens an update sheet that shows the version, what changed, the
+  download progress, and a verification step — the app checks the file is a
+  complete, real APK before handing it to Android.
+- Android's installer confirms, exactly as in step 3 above. Play Protect does
+  not re-prompt for an update to an app you already trusted.
+
+**Your account survives an update.** Signing in is not repeated: the session
+lives in the Android keystore and is untouched. What *is* cleared is the local
+page cache, deliberately — a new version can expect a different shape of cached
+data — and it refills from the server the moment you open a screen. Anything you
+saved while offline is also kept and syncs as normal.
+
+### 🌐 Web
+
+No install, nothing to allow, always the current version:
+
+AFOS also ships as a web build on Vercel — the current deployment URL is on the
+repository's **[Deployments](../../deployments)** page.
+
+On web, press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> anywhere to jump
+straight to any screen you have access to.
+
+> ⚠️ **University-scoped** — registration requires a valid university email, with
+> a small allowlist of bootstrap accounts reserved for testing.
 
 ---
 
