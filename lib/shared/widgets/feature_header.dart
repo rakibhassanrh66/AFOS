@@ -49,7 +49,7 @@ class FeatureHeader extends StatelessWidget {
       padding: margin,
       child: RepaintBoundary(
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+          borderRadius: AppDepth.radius(2),
           clipBehavior: Clip.antiAlias,
           child: DecoratedBox(
             decoration: BoxDecoration(gradient: g),

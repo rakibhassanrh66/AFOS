@@ -107,7 +107,7 @@ class _AssignmentSubmissionsScreenState extends State<AssignmentSubmissionsScree
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceOf(context),
-                      borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+                      borderRadius: AppDepth.radius(2),
                       border: Border.all(
                           color: AppColors.glassBorder(context), width: 0.8),
                     ),
@@ -219,13 +219,13 @@ class _SubmissionCardState extends State<_SubmissionCard> {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(children: [
         InkWell(
           onTap: () => setState(() => _open = !_open),
-          borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+          borderRadius: AppDepth.radius(2),
           child: Padding(
             padding: const EdgeInsets.all(13),
             child: Row(children: [

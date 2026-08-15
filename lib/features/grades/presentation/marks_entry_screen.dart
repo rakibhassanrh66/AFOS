@@ -400,13 +400,13 @@ class _StudentMarksCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(children: [
         InkWell(
           onTap: onToggle,
-          borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+          borderRadius: AppDepth.radius(2),
           child: Padding(
             padding: const EdgeInsets.all(13),
             child: Row(children: [
