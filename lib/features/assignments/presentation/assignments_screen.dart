@@ -4,7 +4,9 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
@@ -144,6 +146,7 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
         maxMarks: maxMarks,
       );
       widget.onCreated();
+      AppHaptics.success();
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -228,6 +231,7 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
   Future<void> _delete(String id) async {
     try {
       await widget.repo.deleteAssignment(id);
+      AppHaptics.warning();
       _load();
     } catch (e) {
       if (mounted) {
@@ -268,14 +272,16 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
     final count = ((a['assignment_submissions'] as List?)?.firstOrNull as Map?)?['count'] ?? 0;
     final maxMarks = ((a['max_marks'] as num?) ?? 10).toDouble();
     return Container(margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(1),
             border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
         // The card previously showed a submission count and did nothing when
         // tapped — getSubmissions() existed in the repository from day one and
         // was never called from anywhere. This is the way in to marking.
         child: InkWell(
-          onTap: () => _openSubmissions(ctx, a),
-          borderRadius: BorderRadius.circular(12),
+          onTap: () { AppHaptics.selection(); _openSubmissions(ctx, a); },
+          // Must match the Container above, or the ink splash spills past the
+          // card's corners.
+          borderRadius: AppDepth.radius(1),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -369,6 +375,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
                   }
                   await widget.repo.submitAssignment(
                       a['id'] as String, ctrl.text.trim(), attachmentPath: path);
+                  AppHaptics.success();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                   _load();
                 } catch (e) {
@@ -403,7 +410,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
               final maxMarks = ((a['max_marks'] as num?) ?? 10).toDouble();
               final feedback = mine?['feedback'] as String?;
               return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+                  decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                       border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(a['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
@@ -413,7 +420,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
                     if ((a['description'] as String?)?.isNotEmpty == true)
                       Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(a['description'],
                           style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))),
-                    Text(submitted ? 'Submitted ✓' : expired ? 'Deadline passed' : 'Due ${deadline != null ? AppFormatters.dateTime(deadline) : ''}',
+                    Text(submitted ? 'Submitted' : expired ? 'Deadline passed' : 'Due ${deadline != null ? AppFormatters.dateTime(deadline) : ''}',
                         style: TextStyle(color: submitted ? AppColors.green : expired ? AppColors.red : AppColors.amber,
                             fontSize: 12, fontWeight: FontWeight.w600)),
                     // The mark and the teacher's comments are the whole point of
@@ -450,15 +457,18 @@ class _MarkResult extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppDepth.radius(1),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.grading_rounded, size: 15, color: color),
           const SizedBox(width: 6),
+          // A mark out of a maximum — the tabular case, same as the grades
+          // breakdown rows.
           Text('${marks.toStringAsFixed(marks % 1 == 0 ? 0 : 1)} / ${maxMarks.toStringAsFixed(0)}',
-              style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+              style: AppTextStyles.numericSmall.copyWith(
+                  color: color, fontSize: 13, fontWeight: FontWeight.w700)),
         ]),
         if (feedback != null && feedback!.isNotEmpty) ...[
           const SizedBox(height: 5),
@@ -510,7 +520,7 @@ class _ObserveTabState extends State<_ObserveTab> {
           final a = _all[i];
           final teacher = a['profiles'] as Map<String, dynamic>? ?? {};
           return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
                   border: Border.all(color: AppColors.borderOf(context), width: 0.5)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(a['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),

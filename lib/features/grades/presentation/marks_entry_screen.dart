@@ -4,7 +4,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -180,8 +183,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       await _repo.submitResults(_selected!['id'] as String);
       await _loadDetail();
       if (mounted) {
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Sent for approval ✓'), backgroundColor: AppColors.green));
+            content: Text('Sent for approval'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -231,7 +235,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             end: Alignment.bottomRight,
             colors: [AppColors.gold, AppColors.orange]),
         margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+      ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+          .slideY(begin: -0.06, curve: AppMotion.standard),
 
       if (_offerings.length > 1)
         SizedBox(
@@ -247,6 +252,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               final sel = o['id'] == _selected?['id'];
               return GestureDetector(
                 onTap: () {
+                  AppHaptics.selection();
                   setState(() {
                     _selected = o;
                     _roster = []; _marks = {}; _totals = {};
@@ -258,7 +264,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   decoration: BoxDecoration(
                     color: AppColors.gold.withValues(alpha: sel ? 0.9 : 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: AppDepth.radius(1),
                     border: Border.all(
                         color: AppColors.gold.withValues(alpha: sel ? 1 : 0.3), width: 0.8),
                   ),
@@ -416,8 +422,11 @@ class _StudentMarksCard extends StatelessWidget {
                             .copyWith(color: AppColors.textSecondaryOf(context))),
                 ]),
               ),
+              // Running total per student, recomputed as marks are typed, one
+              // per roster row — it must not jitter and it must align.
               Text(total.toStringAsFixed(total % 1 == 0 ? 0 : 1),
-                  style: AppTextStyles.headlineMed.copyWith(color: color)),
+                  style: AppTextStyles.numericLarge.copyWith(
+                      fontSize: 18, fontWeight: FontWeight.w700, color: color)),
               const SizedBox(width: 8),
               Flexible(child: PillBadge(label: letter ?? '—', color: color)),
               Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
@@ -535,7 +544,11 @@ class _ComponentFieldState extends State<_ComponentField> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
             onSubmitted: (_) => _commit(),
-            style: TextStyle(
+            // The whole point of this screen is a COLUMN of these fields, one
+            // per student, each holding a number the teacher is typing. With
+            // proportional figures a '1' is narrower than a '0', so the digits
+            // shift under the caret as you type and no two rows line up.
+            style: AppTextStyles.numericMedium.copyWith(
                 color: over ? AppColors.red : AppColors.textPrimaryOf(context),
                 fontWeight: FontWeight.w700),
             decoration: InputDecoration(
@@ -547,7 +560,7 @@ class _ComponentFieldState extends State<_ComponentField> {
                   ? AppColors.textSecondaryOf(context).withValues(alpha: 0.06)
                   : AppColors.blue.withValues(alpha: 0.06),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  borderRadius: AppDepth.radius(0), borderSide: BorderSide.none),
             ),
           ),
         ),
@@ -555,8 +568,8 @@ class _ComponentFieldState extends State<_ComponentField> {
           width: 42,
           child: Text('/ ${widget.max.toStringAsFixed(0)}',
               textAlign: TextAlign.right,
-              style: AppTextStyles.labelSmall
-                  .copyWith(color: AppColors.textSecondaryOf(context))),
+              style: AppTextStyles.numericSmall
+                  .copyWith(fontWeight: FontWeight.w500, color: AppColors.textSecondaryOf(context))),
         ),
       ]),
     );
