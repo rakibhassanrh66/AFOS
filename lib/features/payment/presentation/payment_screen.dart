@@ -4,6 +4,10 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/animations/page_transitions.dart';
@@ -86,16 +90,20 @@ class _PaymentState extends State<PaymentScreen> with SingleTickerProviderStateM
           trailing: (!_loading && _totalPaid > 0)
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: AppDepth.radius(1)),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    // Tabular: this figure recomputes as records load, and
+                    // proportional digits make the whole pill resize under it.
                     Text('৳${_totalPaid.toStringAsFixed(0)}', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                        style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.0, fontWeight: FontWeight.w800)),
+                        style: AppTextStyles.numericMedium.copyWith(
+                            color: Colors.white, fontSize: 16, height: 1.0, fontWeight: FontWeight.w800)),
                     Text('total paid', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 10, height: 1.0)),
                   ]),
                 )
               : null,
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, curve: Curves.easeOutCubic),
+        ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+            .slideY(begin: -0.06, curve: AppMotion.standard),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(
@@ -148,20 +156,45 @@ class _PayNowTab extends StatelessWidget {
   }
 }
 
-class _PayCard extends StatelessWidget {
+/// The fee tile is the only tappable thing on this tab, so it carries the
+/// screen's press treatment (Law 6).
+class _PayCard extends StatefulWidget {
   final _PayCat cat; final int index;
   const _PayCard({required this.cat, required this.index});
+  @override
+  State<_PayCard> createState() => _PayCardState();
+}
+
+class _PayCardState extends State<_PayCard> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  void _open() {
+    AppHaptics.selection();
+    Navigator.push(context,
+        appPageRoute(PaymentWebViewScreen(category: widget.cat.label)));
+  }
 
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
+    final cat = widget.cat;
     return GestureDetector(
-      onTap: () => Navigator.push(context,
-          appPageRoute(PaymentWebViewScreen(category: cat.label))),
-      child: RepaintBoundary(
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: _open,
+      child: AnimatedScale(
+        scale: _pressed ? AppMotion.pressScale : 1.0,
+        duration: AppMotion.durationOf(context, AppMotion.pressDuration),
+        curve: AppMotion.standard,
+        child: RepaintBoundary(
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppDepth.radius(2),
             gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [cat.color.withValues(alpha:AppColors.isDark(context)?0.32:0.22),
@@ -171,14 +204,17 @@ class _PayCard extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceOf(context),
-              borderRadius: BorderRadius.circular(15)),
+              // The 1px gradient hairline means the inner fill sits one pixel
+              // inside the outer silhouette, so its radius has to be the card
+              // rung minus that pixel — not a rung of its own.
+              borderRadius: LiquidGlass.signatureRadius(LiquidGlass.radiusCard - 1)),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Container(
                 width: 52, height: 52,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
                       colors: [cat.color, cat.color.withValues(alpha: 0.7)]),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: AppDepth.radius(1),
                   boxShadow: [BoxShadow(color: cat.color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
                 child: Icon(cat.icon, color: Colors.white, size: 26),
               ),
@@ -192,8 +228,10 @@ class _PayCard extends StatelessWidget {
             ]),
           ),
         ),
-      ).animate(delay: Duration(milliseconds: index * 60))
-          .fadeIn(curve: Curves.easeOutCubic).scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutCubic),
+        ).animate(delay: AppMotion.staggerFor(context, widget.index))
+            .fadeIn(curve: AppMotion.standard)
+            .scale(begin: const Offset(0.95, 0.95), curve: AppMotion.standard),
+      ),
     );
   }
 }
@@ -236,13 +274,13 @@ class _HistoryTab extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+            color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(1),
             border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
         child: Row(children: [
           Container(
             width: 40, height: 40,
             decoration: BoxDecoration(
-                color: AppColors.holoBlue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
+                color: AppColors.holoBlue.withValues(alpha:0.1), borderRadius: AppDepth.radius(1)),
             child: const Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
           ),
           const SizedBox(width: 12),
@@ -255,12 +293,15 @@ class _HistoryTab extends StatelessWidget {
                 style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            // A right-aligned column of money. Proportional digits make the
+            // amounts fail to line up down the list; same face, same size,
+            // same weight as titleLarge — only the figures change.
             Text('৳${p['amount'] ?? 0}',
-                style: AppTextStyles.titleLarge.copyWith(color: AppColors.gold)),
+                style: AppTextStyles.numericMedium.copyWith(color: AppColors.gold, fontSize: 16)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
+                  color: statusColor.withValues(alpha:0.12), borderRadius: AppDepth.radius(1)),
               child: Text(status.toUpperCase(),
                   style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
             ),

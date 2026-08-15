@@ -9,6 +9,10 @@ import '../data/repositories/auth_repository.dart';
 import '../data/repositories/academic_repository.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../shared/extensions/context_ext.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -131,7 +135,8 @@ class _RegisterBodyState extends State<_RegisterBody> {
     return BlocListener<AuthBloc, AuthState>(
       listener:(ctx,state) {
         if(state is AuthRegistrationSuccess) {
-          ctx.showSnack('Account created! Please sign in to continue.');
+          AppHaptics.success();
+          ctx.showSnack('Account created. Sign in to continue.');
           ctx.go('/auth/login');
         }
         if(state is AuthError) ctx.showSnack(state.message, isError:true);
@@ -154,7 +159,9 @@ class _RegisterBodyState extends State<_RegisterBody> {
                   errorBuilder: (_, __, ___) => const SizedBox.shrink())),
               const SizedBox(height:12),
               _StepIndicator(step:_step)
-                .animate().fadeIn(duration:300.ms).slideY(begin:-0.1,curve:Curves.easeOutCubic),
+                .animate()
+                .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
+                .slideY(begin:-0.1, curve: AppMotion.standard),
               const SizedBox(height:20),
               Expanded(
                 child: GlassCard(
@@ -162,9 +169,11 @@ class _RegisterBodyState extends State<_RegisterBody> {
                   padding: const EdgeInsets.all(20),
                   child: SingleChildScrollView(
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds:320),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
+                      // A panel swapping inside a card, not a page push — the
+                      // `base` rung, same as a tab switch.
+                      duration: AppMotion.durationOf(context, AppMotion.base),
+                      switchInCurve: AppMotion.standard,
+                      switchOutCurve: AppMotion.exit,
                       // Default layoutBuilder stacks the outgoing and incoming
                       // step widgets on top of each other at their full
                       // heights during the crossfade — since each step has a
@@ -225,7 +234,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
                 builder:(ctx,state) => Row(children:[
                   if(_step>0) Expanded(child: AfosButton(
                     label:'Back', outlined:true,
-                    onTap:()=>setState(()=>_step--))),
+                    onTap:(){ AppHaptics.selection(); setState(()=>_step--); })),
                   if(_step>0) const SizedBox(width:12),
                   Expanded(child: AfosButton(
                     label: _step==2?'Create Account':'Next →',
@@ -247,7 +256,11 @@ class _RegisterBodyState extends State<_RegisterBody> {
                         return;
                       }
                       if(_formKeys[_step].currentState!.validate()) {
-                        if(_step<2) { setState(()=>_step++); }
+                        // Advancing a step is a discrete choice landing. The
+                        // final submit gets `success` instead, on the
+                        // AuthRegistrationSuccess listener above, because that
+                        // is where the account actually exists.
+                        if(_step<2) { AppHaptics.selection(); setState(()=>_step++); }
                         else {
                           ctx.read<AuthBloc>().add(AuthRegisterRequested(
                             email:_emailCtrl.text.trim(),
@@ -312,8 +325,8 @@ class _StepIndicator extends StatelessWidget {
     final border = AppColors.borderOf(context);
     return Row(children: List.generate(3,(i) => Expanded(child: Row(children:[
       AnimatedContainer(
-        duration: const Duration(milliseconds:250),
-        curve: Curves.easeOutCubic,
+        duration: AppMotion.durationOf(context, AppMotion.tight),
+        curve: AppMotion.standard,
         width:28,height:28,
         decoration:BoxDecoration(
           shape:BoxShape.circle,
@@ -330,7 +343,7 @@ class _StepIndicator extends StatelessWidget {
               color:i==step?Colors.white:textSecondary,fontWeight:FontWeight.w600)),
       ),
       if(i<2) Expanded(child:AnimatedContainer(
-        duration: const Duration(milliseconds:250),
+        duration: AppMotion.durationOf(context, AppMotion.tight),
         height:1,
         color:i<step?AppColors.holoBlue:border)),
     ]))));
@@ -348,15 +361,16 @@ class _AccountTypeToggle extends StatelessWidget {
     Widget option(String label, AccountType type) {
       final selected = value == type;
       return Expanded(child: GestureDetector(
-        onTap: () => onChanged(type),
+        onTap: () { AppHaptics.selection(); onChanged(type); },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds:220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical:14, horizontal:8),
+          duration: AppMotion.durationOf(context, AppMotion.tight),
+          curve: AppMotion.standard,
+          // Vertical padding was 14, leaving the option ~45dp tall.
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.lg, horizontal:8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? AppColors.holoBlue : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(color: selected ? AppColors.holoBlue : border, width:0.8),
           ),
           child: Text(label, textAlign: TextAlign.center, style: TextStyle(
@@ -425,15 +439,16 @@ class _GenderToggle extends StatelessWidget {
     Widget option(String label, String v) {
       final selected = value == v;
       return Expanded(child: GestureDetector(
-        onTap: () => onChanged(v),
+        onTap: () { AppHaptics.selection(); onChanged(v); },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds:220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical:14, horizontal:8),
+          duration: AppMotion.durationOf(context, AppMotion.tight),
+          curve: AppMotion.standard,
+          // Vertical padding was 14, leaving the option ~45dp tall.
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.lg, horizontal:8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? AppColors.holoBlue : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: AppDepth.radius(1),
             border: Border.all(color: selected ? AppColors.holoBlue : border, width:0.8),
           ),
           child: Text(label, textAlign: TextAlign.center, style: TextStyle(
@@ -484,11 +499,11 @@ class _Step2 extends StatelessWidget {
     hintStyle: TextStyle(color: AppColors.textSecondaryOf(context)),
     prefixIcon:Icon(icon, color:AppColors.textSecondaryOf(context), size:20),
     filled:true, fillColor:AppColors.glassFill(context),
-    border:OutlineInputBorder(borderRadius:BorderRadius.circular(12),
+    border:OutlineInputBorder(borderRadius: AppDepth.radius(1),
       borderSide:BorderSide(color:AppColors.borderOf(context),width:0.5)),
-    enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(12),
+    enabledBorder:OutlineInputBorder(borderRadius: AppDepth.radius(1),
       borderSide:BorderSide(color:AppColors.borderOf(context),width:0.5)),
-    focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(12),
+    focusedBorder:OutlineInputBorder(borderRadius: AppDepth.radius(1),
       borderSide:const BorderSide(color:AppColors.holoBlue,width:1.2)),
   );
 
