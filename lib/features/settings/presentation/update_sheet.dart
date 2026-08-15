@@ -327,6 +327,35 @@ class _StageFooter extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
             ),
+            const SizedBox(height: 12),
+            // The one refusal the app cannot catch for you.
+            //
+            // A signature mismatch is rejected by Android's package installer
+            // AFTER we hand off, so `downloadAndInstall` returns success and
+            // nothing here ever hears about it — the user is left on a dead end
+            // reading "App not installed as package conflicts with an existing
+            // package" with no idea that it means "you have a differently
+            // signed build". It only happens to someone who installed a debug
+            // or profile copy at some point, but for them it is unfixable
+            // guesswork without this sentence.
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.10),
+                borderRadius: AppDepth.radius(1),
+                border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Text(
+                  'If Android says the package conflicts with an existing one, '
+                  'a differently signed copy of AFOS is installed. Uninstall it '
+                  'first, then install this — you will sign in once, and nothing '
+                  'on the server is lost.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+                ),
+              ),
+            ),
             const SizedBox(height: 14),
             AfosButton(label: 'Done', outlined: true, onTap: onClose),
           ]),
