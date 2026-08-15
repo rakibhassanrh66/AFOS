@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/haptics/app_haptics.dart';
@@ -342,7 +343,7 @@ class TeachingAssignmentCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -660,7 +661,7 @@ class AllocationCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1034,7 +1035,7 @@ class _LeadersTabState extends State<_LeadersTab> {
                             padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 6, 10),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceOf(ctx),
-                              borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+                              borderRadius: AppDepth.radius(2),
                               border: Border.all(color: AppColors.borderOf(ctx), width: 0.5),
                             ),
                             child: Row(children: [

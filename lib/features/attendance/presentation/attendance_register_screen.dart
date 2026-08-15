@@ -270,7 +270,7 @@ class _RegisterSummaryBar extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.glassBorder(context), width: 0.8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -376,7 +376,7 @@ class _RegisterRow extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(
             color: attendanceStatusColor(status).withValues(alpha: 0.3), width: 0.8),
       ),

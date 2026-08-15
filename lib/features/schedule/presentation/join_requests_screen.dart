@@ -6,6 +6,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -686,14 +687,14 @@ class JoinRequestCard extends StatelessWidget {
         color: selected
             ? AppColors.blue.withValues(alpha: 0.08)
             : AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(
             color: accent.withValues(alpha: selected ? 0.6 : 0.35),
             width: selected ? 1.2 : 0.8),
       ),
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -862,7 +863,7 @@ class BulkAdmitBar extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(LiquidGlass.radiusCard),
+        borderRadius: AppDepth.radius(2),
         border: Border.all(color: AppColors.green.withValues(alpha: 0.3), width: 0.8),
       ),
       // Explanation above, button below — NOT text beside button.
