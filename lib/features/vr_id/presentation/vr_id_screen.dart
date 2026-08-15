@@ -10,6 +10,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -176,7 +179,7 @@ class _MyVrIdTab extends StatelessWidget {
             Text(user!.department, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
             const SizedBox(height: 16),
             token.isNotEmpty ? AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
+              duration: AppMotion.durationOf(context, AppMotion.base),
               child: QrImageView(key: ValueKey(token), data: token,
                   version: QrVersions.auto, size: 180,
                   backgroundColor: Colors.white, padding: const EdgeInsets.all(10)),
@@ -199,7 +202,7 @@ class _MyVrIdTab extends StatelessWidget {
             ]),
           ]),
         ),
-      ).animate().fadeIn(duration: 600.ms),
+      ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow)),
     ]));
   }
 }
@@ -210,7 +213,7 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(20),
+    decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
         border: Border.all(color: color.withValues(alpha:0.3))),
     child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
         maxLines: 1, overflow: TextOverflow.ellipsis));
@@ -268,7 +271,7 @@ class _ScanTabState extends State<_ScanTab> {
     return Stack(children: [
       MobileScanner(controller: _ctrl, onDetect: _onDetect),
       Center(child: Container(width: 220, height: 220,
-          decoration: BoxDecoration(border: Border.all(color: AppColors.blue, width: 2), borderRadius: BorderRadius.circular(16)))),
+          decoration: BoxDecoration(border: Border.all(color: AppColors.blue, width: 2), borderRadius: AppDepth.radius(2)))),
       Positioned(bottom: 40, left: 0, right: 0, child: Center(
           child: Text('Point camera at a VR-ID QR code', style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)))),
     ]);
@@ -283,9 +286,16 @@ class _VerifiedView extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
     Icon(expired ? Icons.timer_off_rounded : verified ? Icons.verified_rounded : Icons.cancel_rounded,
         color: expired ? AppColors.amber : verified ? AppColors.green : AppColors.red, size: 72)
-        .animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
+        // Was easeOutBack, i.e. a deliberate overshoot on the verification
+        // stamp. The token set has three curves and none of them overshoots, so
+        // this is now `standard`. If the flourish is wanted back it belongs in
+        // motion.dart as an emphasis curve, not as a per-file exception —
+        // recorded in REDESIGN_LOG.
+        .animate().scale(
+            duration: AppMotion.durationOf(context, AppMotion.slow),
+            curve: AppMotion.standard),
     const SizedBox(height: 20),
-    Text(expired ? 'QR Expired' : verified ? 'VERIFIED ✓' : 'INVALID',
+    Text(expired ? 'QR Expired' : verified ? 'VERIFIED' : 'INVALID',
         style: AppTextStyles.displayMedium.copyWith(
             color: expired ? AppColors.amber : verified ? AppColors.green : AppColors.red)),
     if (verified) ...[
@@ -370,11 +380,11 @@ class _AccessLogTabState extends State<_AccessLogTab> {
     final scanner = (log['scanned_by'] as Map?)?['full_name'] ?? 'Unknown';
     final time = log['scanned_at'] != null ? DateTime.tryParse(log['scanned_at']) : null;
     return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(10),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(1),
             border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
         child: Row(children: [
           Container(width: 36, height: 36, decoration: BoxDecoration(
-              color: AppColors.green.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
+              color: AppColors.green.withValues(alpha:0.1), borderRadius: AppDepth.radius(0)),
               child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.green, size: 18)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

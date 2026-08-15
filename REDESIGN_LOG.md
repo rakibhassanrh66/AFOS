@@ -798,3 +798,90 @@ Also fixed: **P1-01 in `module_leader_screen.dart`** — `_respond` calls
 the remaining screens are mostly slop ≤ 5, so batches can widen to 4–5 files.
 
 ---
+
+## Phase 2 batch 10 — the five highest-slop remaining screens · 2026-08-15 · COMPLETE
+Branch `redesign/p2-batch10`. Batch widened to five files, re-picked from a
+fresh full-repo slop scan rather than the stale batch-9 guess.
+
+| | durations | raw radii | emoji | haptics |
+|---|---|---|---|---|
+| `forgot_password_screen.dart` | 14 → **0** | 0 | 0 | — |
+| `reset_password_screen.dart` | 11 → **0** | 0 | 0 | — |
+| `admin_upload_routine_screen.dart` | 2 → **0** | 5 → **0** | 6 → **0** | 0 → **3** |
+| `transport_import_preview_screen.dart` | 0 | 11 → **0** | 0 | — |
+| `vr_id_screen.dart` | 4 → **0** | 4 → **0** | 1 → **0** | — |
+
+App-wide: raw `Duration(milliseconds:)` **38 → 37**, emoji **24 → 18**, haptic
+sites **81 → 84**. Data layer: `git diff --stat main` on `lib/features/*/data`,
+`lib/core/services`, `lib/shared/models` = **0 lines**.
+
+### The best find in this batch: an emoji that was load-bearing
+
+`admin_upload_routine_screen.dart` built its upload result as a string with a
+`✅` or `⚠` glued to the front — and rendered it as
+`Text(result, style: TextStyle(color: AppColors.green))`, **unconditionally
+green**. So `"⚠ Saved, but no users were notified"` was painted in exactly the
+same success colour as a clean import, and the *only* thing distinguishing a
+partial failure from a success was an emoji: one that renders differently per
+platform, that a screen reader announces as "warning sign", and that cannot take
+a theme colour.
+
+Deleting the glyph would have destroyed the signal. The severity belongs in the
+outcome, not in the characters, so `_notifyOutcome` now returns
+`({String note, bool warned})`, `_PendingUpload` carries a `resultWarning` flag,
+and the result line renders with a real `Icon` and amber-or-green from that flag.
+A partial failure now *looks* like one. The haptic follows the same split —
+`warning` when the routine saved but the broadcast did not.
+
+This is the clearest example so far of why "remove the emoji" is not the task.
+The task is to find out what the emoji was doing and give that job to something
+that can actually do it.
+
+### Two auth screens, one entrance pattern
+
+`forgot_password_screen.dart` and `reset_password_screen.dart` are the same
+staged reveal as login — scale-in badge, then heading, subheading, field,
+button on hand-picked 120/180/260/320/380ms delays. All three now share
+`AppMotion.sequenceDelay`, which batch 8 promoted into `motion.dart` precisely
+because this pattern kept recurring. Third and fourth users, no new code.
+
+Copy on the success view was rewritten while there: `'Check your inbox!'` →
+`'Check your inbox'`, and `'A password reset link has been sent to your email.'`
+→ `'We sent a password reset link to your email.'` — active voice, and the
+exclamation is the chatbot tell the doctrine names.
+
+### A curve the token set cannot express
+
+`vr_id_screen.dart`'s verification stamp scaled in on `Curves.easeOutBack` — a
+deliberate overshoot on the one confirmation moment of that screen. The token
+set has exactly three curves (`standard`, `exit`, `inOut`) and **none of them
+overshoots**, so it is now `standard`.
+
+That is the constitution followed, but it is a real loss, and inventing a fourth
+curve inside a screen file would be exactly the drift the token layer exists to
+stop. **If the flourish is wanted back, it belongs in `motion.dart` as an
+emphasis curve** — worth deciding, because a confirmation stamp is one of the
+few places overshoot carries meaning rather than decoration.
+
+### Scope notes
+
+- **`splash_screen.dart` was deliberately skipped.** It ranks third on the slop
+  scan (17) but it is **Phase 3's declared scope** — splash and hero motion.
+  Migrating it now would mean rewriting it twice.
+- **The shell and shared widgets are accumulating slop no screen batch will ever
+  reach**: `slide_menu.dart` (22 — now the highest in the repo),
+  `afos_button.dart` (6), `afos_text_field.dart` (5), `glass_bottom_nav.dart`
+  (3), `top_app_bar.dart` (3), `glass_chip.dart` (3), `radial_logout_menu.dart`
+  (3), `account_switcher_sheet.dart` (3). That is ~48 literals in code **every
+  screen renders**, and Phase 2 is scoped to screens. It needs its own pass.
+
+**Verification:** `flutter analyze` 0 issues · `flutter test` **302 passing** ·
+`flutter build web` succeeds · no BOM, non-ASCII preserved on all five files.
+
+**Progress: 30 of 62 screens migrated.**
+
+**Next:** Phase 2 batch 11 — `club_chat_screen.dart` (7),
+`manage_library_screen.dart` (6), `notification_center_screen.dart` (6),
+`manage_stop_times_screen.dart` (4), `manage_notices_screen.dart` (4).
+
+---
