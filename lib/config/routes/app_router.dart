@@ -292,9 +292,8 @@ class AppRouter {
     // The 404. It was the last screen in the app painting its own raw hex —
     // a hardcoded dark slab with white text, so in LIGHT mode a mistyped link
     // handed the user a black rectangle that looked nothing like the app. It
-    // now takes the Scaffold's themed background and themed text, which also
-    // takes it out of the unresolved `#0B1220` vs `canvasDark` question
-    // entirely: it no longer has an opinion about that colour.
+    // now takes the Scaffold's themed background and themed text, so it has no
+    // opinion about the canvas colour at all.
     errorBuilder: (c, s) => Scaffold(
       body: Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
         const Icon(Icons.error_outline, color: AppColors.red, size: 48),

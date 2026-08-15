@@ -13,6 +13,7 @@ import '../../../config/theme/motion.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -1129,11 +1130,11 @@ class _MyRouteTabState extends State<_MyRouteTab> {
   @override
   Widget build(BuildContext context) {
     if(widget.routes.isEmpty) {
-      return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.directions_bus_outlined, size: 40, color: AppColors.textSecondaryOf(context)),
-        const SizedBox(height: 12),
-        Text('No routes available', style: TextStyle(color: AppColors.textSecondaryOf(context))),
-      ])));
+      return const EmptyState(
+        icon: Icons.directions_bus_outlined,
+        title: 'No routes available',
+        subtitle: 'Bus routes appear here once transport publishes a schedule.',
+      );
     }
     final selected = widget.routes.where((r) => r['id'] == _selectedRoute).firstOrNull;
     final stops = ((selected?['stops'] as List?) ?? const []).cast<Map>().map((s) => _cleanStop(s['name'] as String? ?? '')).where((s) => s.isNotEmpty).toList();
@@ -1675,8 +1676,11 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
   @override
   Widget build(BuildContext context) {
     if (widget.routes.isEmpty) {
-      return Center(
-        child:Text('No routes',style:TextStyle(color:AppColors.textSecondaryOf(context))));
+      return const EmptyState(
+        icon: Icons.schedule_outlined,
+        title: 'No schedules yet',
+        subtitle: 'Departure times appear here once transport publishes them.',
+      );
     }
     final visible = _visible;
     // Group by schedule_type into the source document's own sections

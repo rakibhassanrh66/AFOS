@@ -8,6 +8,7 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../data/repositories/course_offering_repository.dart';
@@ -201,11 +202,10 @@ class _CourseGroupScreenState extends State<CourseGroupScreen> {
           child: _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
               : _messages.isEmpty
-                  ? Center(
-                      child: Text('No messages in this course group yet. Start the conversation.',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodyMedium
-                              .copyWith(color: AppColors.textSecondaryOf(context))))
+                  ? const EmptyState(
+                      icon: Icons.forum_outlined,
+                      title: 'No messages yet',
+                      subtitle: 'Be the first to post in this course group.')
                   : ListView.builder(
                       controller: _scrollCtrl,
                       // Plain padding, not NavInsets: the composer sits BELOW

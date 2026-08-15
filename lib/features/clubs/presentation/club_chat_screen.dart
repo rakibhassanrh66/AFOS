@@ -12,6 +12,7 @@ import '../../../core/utils/chat_naming.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 
@@ -156,9 +157,10 @@ class _ClubChatState extends State<ClubChatScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
             : _messages.isEmpty
-                ? Center(child: Text('No messages in this club yet. Start the conversation.',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
+                ? const EmptyState(
+                    icon: Icons.forum_outlined,
+                    title: 'No messages yet',
+                    subtitle: 'Be the first to post in this club.')
                 : ListView.builder(
                     controller: _scrollCtrl,
                     // No bottom inset: _ClubInputBar sits below this list and

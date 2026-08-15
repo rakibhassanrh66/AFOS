@@ -15,6 +15,7 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../shared/models/user_model.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -360,11 +361,11 @@ class _AccessLogTabState extends State<_AccessLogTab> {
       return ErrorView(message: _error!, onRetry: _load);
     }
     if (_logs.isEmpty) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.history_rounded, color: AppColors.textMutedOf(context), size: 52),
-      const SizedBox(height: 16),
-      Text('No scans yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-    ]));
+      return const EmptyState(
+        icon: Icons.history_rounded,
+        title: 'No scans yet',
+        subtitle: 'Every time your ID is scanned, the record appears here.',
+      );
     }
     return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _logs.length,
         // Guarded by the `if (_logs.isEmpty) return Center(...)`

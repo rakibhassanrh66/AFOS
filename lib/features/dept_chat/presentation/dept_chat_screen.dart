@@ -15,6 +15,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/animations/page_transitions.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -365,9 +366,10 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
             : _messages.isEmpty
-                ? Center(child: Text('No messages in #$name yet. Start the conversation.',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
+                ? EmptyState(
+                    icon: Icons.forum_outlined,
+                    title: 'No messages yet',
+                    subtitle: 'Be the first to post in #$name.')
                 : ListView.builder(
                     controller: _scrollCtrl,
                     // No bottom inset: _InputBar sits below this list and owns

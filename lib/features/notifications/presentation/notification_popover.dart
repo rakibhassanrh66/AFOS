@@ -242,6 +242,12 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                                   color: AppColors.textSecondaryOf(context))),
                         ]),
                       )
+                    // BUG_REGISTER P2-05 — confirmed bounded, and worth saying
+                    // so here because the bound is 150 lines away: `_load()`
+                    // ends in `.limit(20)`, so `shrinkWrap` lays out at most 20
+                    // rows, not an open-ended feed. The full list is a route
+                    // away behind 'See all notifications'. If that limit is
+                    // ever raised, this becomes a real cost.
                     : ListView.separated(
                         shrinkWrap: true,
                         padding: EdgeInsetsDirectional.fromSTEB(0, 4, 0, 4 + NavInsets.of(context)),
