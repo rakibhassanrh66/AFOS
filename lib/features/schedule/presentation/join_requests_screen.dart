@@ -7,6 +7,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_text_field.dart';
@@ -277,9 +278,16 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     await _load();
     if (!mounted) return;
     setState(() => _bulkBusy = false);
+    // A bulk decision over a whole section. Success is a commit; a partial
+    // failure is the app refusing part of what was asked.
+    if (failures.isEmpty) {
+      AppHaptics.success();
+    } else {
+      AppHaptics.warning();
+    }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(failures.isEmpty
-          ? '$verb $done student${done == 1 ? '' : 's'} ✓'
+          ? '$verb $done student${done == 1 ? '' : 's'}'
           : '$verb $done · ${failures.length} failed: ${failures.first}'),
       backgroundColor: failures.isEmpty ? AppColors.green : AppColors.amber,
       duration: Duration(seconds: failures.isEmpty ? 3 : 6),

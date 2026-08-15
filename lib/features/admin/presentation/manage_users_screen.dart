@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/role_labels.dart';
@@ -121,6 +123,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         message: 'You are now the Class Representative for your section.',
         category: 'general',
       );
+      AppHaptics.success();
       // Same reasoning as _approve: don't leave the reviewed request sitting in
       // the pending list until a realtime event happens to arrive.
       await _loadCrRequests();
@@ -204,6 +207,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         message: 'Your AFOS account has been approved — welcome!',
         category: 'general',
       );
+      // Approving an account lets someone into the app. Irreversible in
+      // practice, and the admin is usually working through a queue — the
+      // confirmation needs to land in the hand, not just in a list that
+      // re-sorts.
+      AppHaptics.success();
       await _load();
     } catch (e) {
       if (mounted) {
@@ -242,6 +250,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
       final data = res.data;
       if (data is Map && data['error'] != null) throw Exception(data['error']);
       if (mounted) {
+        // Destructive and unrecoverable — the heaviest verb in the vocabulary.
+        AppHaptics.warning();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${user['full_name']} deleted'), backgroundColor: AppColors.green));
       }
@@ -324,6 +334,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
         category: 'general',
       );
       if (mounted) {
+        // Granting or removing privilege. Same weight as a delete: the admin
+        // must feel that this landed.
+        AppHaptics.success();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('${user['full_name'] ?? 'User'} is now "$picked"'), backgroundColor: AppColors.green));
       }
@@ -529,7 +542,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                       decoration: InputDecoration(hintText: 'Search name, email, ID', prefixIcon: const Icon(Icons.search),
                           filled: true, fillColor: AppColors.glassFill(context),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))),
+                          border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none)))),
                   // Was a horizontal ListView — always left-anchored, and with
                   // 7+ roles this also hid chips off-screen with no visual cue
                   // to scroll. Wrap centers what fits per line and flows the
@@ -679,7 +692,7 @@ class _UserCard extends StatelessWidget {
       child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: BorderRadius.circular(14),
+      decoration: BoxDecoration(color: AppColors.surfaceOf(context), borderRadius: AppDepth.radius(1),
           border: Border.all(color: pending ? AppColors.gold.withValues(alpha: 0.4) : AppColors.borderOf(context), width: pending ? 1 : 0.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -702,7 +715,7 @@ class _UserCard extends StatelessWidget {
         const SizedBox(height: 10),
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: AppDepth.radius(0)),
               child: Text(roleLabel(role), style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
           const SizedBox(width: 8),
           // Expanded, not Flexible-beside-a-Spacer. `Spacer` is an `Expanded`
