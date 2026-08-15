@@ -4,6 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/liquid_glass_tokens.dart';
+import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/chat_naming.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
@@ -97,6 +101,8 @@ class _ClubChatState extends State<ClubChatScreen> {
       },
     };
     setState(() => _messages = [..._messages, optimistic]);
+    // The optimistic append IS the commit from the sender's point of view.
+    AppHaptics.selection();
     _scrollToBottom();
 
     try {
@@ -120,10 +126,13 @@ class _ClubChatState extends State<ClubChatScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
+      // Same guard as dept_chat: this callback can land after the route is
+      // popped, touching a disposed ScrollController and reading `context` off
+      // a defunct State.
+      if (!mounted || !_scrollCtrl.hasClients) return;
+      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+          duration: AppMotion.durationOf(context, AppMotion.base),
+          curve: AppMotion.standard);
     });
   }
 
@@ -147,7 +156,8 @@ class _ClubChatState extends State<ClubChatScreen> {
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
             : _messages.isEmpty
-                ? Center(child: Text('No messages yet. Say hello! 👋',
+                ? Center(child: Text('No messages in this club yet. Start the conversation.',
+                    textAlign: TextAlign.center,
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))))
                 : ListView.builder(
                     controller: _scrollCtrl,
@@ -215,9 +225,14 @@ class _ClubMsgBubble extends StatelessWidget {
         decoration: BoxDecoration(
             gradient: isMe ? AppColors.pinkGradient : null,
             color: isMe ? null : AppColors.surfaceOf(context),
+            // Identical treatment to dept_chat's bubble: the tail corner is
+            // information (it says who spoke), so the asymmetry stays, but both
+            // values are rungs — control 14 round, cut 8 for the tail.
             borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMe ? 16 : 4), bottomRight: Radius.circular(isMe ? 4 : 16))),
+                topLeft: const Radius.circular(LiquidGlass.radiusControl),
+                topRight: const Radius.circular(LiquidGlass.radiusControl),
+                bottomLeft: Radius.circular(isMe ? LiquidGlass.radiusControl : LiquidGlass.radiusCut),
+                bottomRight: Radius.circular(isMe ? LiquidGlass.radiusCut : LiquidGlass.radiusControl))),
         child: IntrinsicHeight(child: Row(children: [
           if (isOfficer && !isMe) Container(width: 2, color: AppColors.gold),
           Expanded(child: Padding(
@@ -273,22 +288,51 @@ class _ClubInputBar extends StatelessWidget {
             style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 14),
             decoration: InputDecoration(
                 hintText: 'Message...', contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     borderSide: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     borderSide: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
                     borderSide: const BorderSide(color: AppColors.pink, width: 1.5)),
                 filled: true, fillColor: AppColors.surfaceOf(context)),
             onSubmitted: (_) => onSend())),
         const SizedBox(width: 8),
-        GestureDetector(
-          onTap: onSend,
-          child: Container(width: 44, height: 44,
-              decoration: const BoxDecoration(gradient: AppColors.pinkGradient, shape: BoxShape.circle),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20)),
-        ),
+        _ClubSendButton(onSend: onSend),
       ]),
     );
   }
+}
+
+/// Mirrors dept_chat's `_SendButton` — press state, and the 48dp floor the
+/// 44x44 circle was under.
+class _ClubSendButton extends StatefulWidget {
+  final VoidCallback onSend;
+  const _ClubSendButton({required this.onSend});
+  @override
+  State<_ClubSendButton> createState() => _ClubSendButtonState();
+}
+
+class _ClubSendButtonState extends State<_ClubSendButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        onTap: widget.onSend,
+        child: AnimatedScale(
+          scale: _pressed ? AppMotion.pressScale : 1.0,
+          duration: AppMotion.durationOf(context, AppMotion.pressDuration),
+          curve: AppMotion.standard,
+          child: Container(
+              width: AppSpace.minTouchTarget, height: AppSpace.minTouchTarget,
+              decoration: const BoxDecoration(gradient: AppColors.pinkGradient, shape: BoxShape.circle),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20)),
+        ),
+      );
 }

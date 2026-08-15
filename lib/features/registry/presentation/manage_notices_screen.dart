@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/depth.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
@@ -95,7 +97,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                   initialValue: category,
                   decoration: InputDecoration(hintText: 'Category', filled: true,
                       fillColor: AppColors.glassFill(sheetCtx),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                      border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                           borderSide: BorderSide(color: AppColors.borderOf(sheetCtx)))),
                   dropdownColor: AppColors.surfaceOf(sheetCtx),
                   style: TextStyle(color: textPrimary),
@@ -113,7 +115,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                     initialValue: notifyRole,
                     decoration: InputDecoration(hintText: 'Notify', filled: true,
                         fillColor: AppColors.glassFill(sheetCtx),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                        border: OutlineInputBorder(borderRadius: AppDepth.radius(1),
                             borderSide: BorderSide(color: AppColors.borderOf(sheetCtx)))),
                     dropdownColor: AppColors.surfaceOf(sheetCtx),
                     style: TextStyle(color: textPrimary),
@@ -165,6 +167,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                           'category': category,
                         }).eq('id', existing['id']);
                       }
+                      AppHaptics.success();
                       if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     } catch (e) {
                       if (sheetCtx.mounted) {
@@ -218,12 +221,12 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
     final textSecondary = AppColors.textSecondaryOf(ctx);
     return Container(margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: BorderRadius.circular(12),
+        decoration: BoxDecoration(color: AppColors.surfaceOf(ctx), borderRadius: AppDepth.radius(1),
             border: Border.all(color: AppColors.borderOf(ctx), width: 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                 child: Text(category.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
             const Spacer(),
             IconButton(icon: const Icon(Icons.edit_outlined, size: 18),
