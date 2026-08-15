@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../config/supabase_config.dart';
+import 'handover_scan_screen.dart';
 import '../../../core/network/storage_upload_service.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -467,12 +468,74 @@ class _MyPostsTabState extends State<_MyPostsTab> {
   @override
   void initState() { super.initState(); _load(); }
 
+  /// Opens the VR-ID scan that completes a handover.
+  ///
+  /// Needs the accepted claimant's NAME, not just their id: the scanner tells
+  /// the poster who to ask for, and "scan the claimant" is useless when three
+  /// people claimed the same wallet.
+  Future<void> _startHandover(Map<String, dynamic> post) async {
+    String claimantName = 'the claimant';
+    try {
+      final rows = await SupabaseConfig.client
+          .from('lost_found_claims')
+          .select('claimant_id, profiles!claimant_id(full_name)')
+          .eq('post_id', post['id']).eq('status', 'accepted')
+          .order('created_at', ascending: false).limit(1) as List;
+      final row = rows.firstOrNull as Map<String, dynamic>?;
+      // PostgREST embeds return an object OR a list depending on the
+      // relationship it infers -- UserModel handles both and so does this.
+      final prof = row?['profiles'];
+      Object? name;
+      if (prof is List && prof.isNotEmpty) {
+        final first = prof.first;
+        if (first is Map) name = first['full_name'];
+      } else if (prof is Map) {
+        name = prof['full_name'];
+      }
+      if (name is String && name.trim().isNotEmpty) claimantName = name;
+    } catch (_) {
+      // Falls back to the generic label; a missing name must not block a
+      // handover that the database will verify anyway.
+    }
+    if (!mounted) return;
+
+    final done = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => HandoverScanScreen(
+        postId: post['id'] as String,
+        itemTitle: post['title'] as String? ?? 'this item',
+        claimantName: claimantName,
+      ),
+    ));
+    if (done == true && mounted) _load();
+  }
+
+  /// Plain English for a status the database stores as a keyword.
+  ///
+  /// 'awaiting_handover' was being rendered to users verbatim.
+  String _statusLabel(Map<String, dynamic> p) {
+    final status = p['status'] as String? ?? '';
+    switch (status) {
+      case 'awaiting_handover':
+        return 'Waiting to hand over';
+      case 'returned':
+        // The distinction that makes the record worth keeping: proven by a
+        // campus-ID scan, or closed on someone's word.
+        return p['handover_verified'] == true
+            ? 'Returned - ID verified'
+            : 'Returned - not verified';
+      case 'active':
+        return 'Open';
+      default:
+        return status;
+    }
+  }
+
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
       final res = await SupabaseConfig.client.from('lost_found_posts')
-          .select('id, poster_id, title, description, type, photo_url, location_text, status')
+          .select('id, poster_id, title, description, type, photo_url, location_text, status, handover_verified, returned_to')
           .eq('poster_id', uid).order('created_at', ascending: false) as List;
       if (mounted) setState(() => _myPosts = res.cast());
     } catch (_) {}
@@ -502,18 +565,31 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(p['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                  Text(p['status'] ?? '', style: TextStyle(color: color, fontSize: 12)),
+                  // Raw status strings leaked to the user ('awaiting_handover'),
+                  // and 'returned' said nothing about whether anyone actually
+                  // proved they collected it -- which is the whole question
+                  // this feature now answers.
+                  Row(children: [
+                    Text(_statusLabel(p), style: TextStyle(color: color, fontSize: 12)),
+                    if (p['status'] == 'returned' && p['handover_verified'] == true) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.verified_rounded, size: 13, color: AppColors.green),
+                    ],
+                  ]),
                 ])),
-                if (p['status'] == 'active') Flexible(
+                // WAS a one-tap "Mark Found" that set the post to 'returned'
+                // on the poster's word alone -- no counterparty, no evidence,
+                // and no record of who received the item. An item could be
+                // closed with nobody having claimed it.
+                //
+                // Now the button only appears once a claim has been accepted,
+                // and it opens the VR-ID scan. The database refuses to mark
+                // anything returned any other way.
+                if (p['status'] == 'awaiting_handover') Flexible(
                   child: TextButton(
-                      onPressed: () async {
-                        await SupabaseConfig.client.from('lost_found_posts')
-                            .update({'status': 'returned'}).eq('id', p['id']);
-                        AppHaptics.success();
-                        _load();
-                      },
-                      child: Text(type == 'lost' ? 'Mark Found' : 'Mark Claimed',
-                          maxLines: 1, style: const TextStyle(fontSize: 11))),
+                      onPressed: () => _startHandover(p),
+                      child: const Text('Hand over',
+                          maxLines: 1, style: TextStyle(fontSize: 11))),
                 ),
                 IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20),
@@ -571,7 +647,20 @@ class _ClaimsPanelState extends State<_ClaimsPanel> {
   }
 
   Future<void> _respond(Map<String, dynamic> claim, String status) async {
-    await SupabaseConfig.client.from('lost_found_claims').update({'status': status}).eq('id', claim['id']);
+    // Accepting goes through the RPC, not a bare status update.
+    //
+    // The two used to be separate: the client set the claim's status, and a
+    // trigger independently decided the POST was 'returned' the same instant —
+    // before the two people had met, with nothing recording who received the
+    // item. Accepting now means "this is the person", and the item is only
+    // returned once their VR-ID has been scanned.
+    if (status == 'accepted') {
+      await SupabaseConfig.client.rpc('accept_lost_found_claim',
+          params: {'p_claim_id': claim['id']});
+    } else {
+      await SupabaseConfig.client.from('lost_found_claims')
+          .update({'status': status}).eq('id', claim['id']);
+    }
     // Accepting hands someone their property back and is not undoable from
     // here; rejecting is a refusal. Different weights, same commit point.
     if (status == 'accepted') {
