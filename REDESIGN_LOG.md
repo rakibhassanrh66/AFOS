@@ -1690,3 +1690,85 @@ Subject restored, temporary grant removed.
 subsequent runs succeeded identically. Recorded as transient, not diagnosed.)*
 
 ---
+
+## 2026-08-16 — The web becomes a console
+
+**Files:** `lib/core/auth/capabilities.dart` (new),
+`lib/features/web/presentation/` (new: `web_sidebar.dart`,
+`consoles/role_console.dart`, `consoles/work_queue.dart`,
+`widgets/web_layout.dart`, `widgets/adaptive_list.dart`),
+`app_shell.dart`, `top_app_bar.dart`, `dashboard_screen.dart`,
+34 `*_screen.dart` files, `vercel.json`,
+`test/capabilities_test.dart` + `test/web_layout_test.dart` (new)
+
+### The diagnosis
+
+The web build was the Android app centred in a column — `AdaptiveContentWidth`
+in `core/utils/responsive.dart`, adopted by three files, plus one `kIsWeb`
+branch swapping the drawer for a 248px rail. Nothing else differed.
+
+And the home screen was **wrong for most people**, not merely un-designed.
+`dashboard_screen.dart` renders a fixed twelve-tile grid whose only role logic
+is subtracting four student-only tiles, and it never reads `PermissionSession`
+— zero references in 1035 lines. A staff member, a delegated officer, a teacher
+and an exam controller all landed on the same eight student-facing tiles.
+Routine upload, hall management, CR approval, marks entry, the activity log
+appeared nowhere. That was the "staff and officers still get nothing" report,
+and it was never a permissions bug.
+
+### What shipped
+
+**One capability model.** `capabilities.dart` answers "what can this person
+do", read by the slide menu, the web sidebar, the console and the Ctrl+K
+palette. `staffMenuRoutes` and `delegatedRoutes` keep their signatures and are
+re-exported from it, so the 29 existing tests keep pinning behaviour. Capability
+is role **and** grants: measured against the live database, `role_permissions`
+has rows for only three roles, so a grants-only model would show a teacher an
+empty app.
+
+**Grouped sidebar.** The rail was the phone drawer stood on its end —
+twenty-five identical rows for a super_admin. Now five collapsible groups, with
+the group holding the current route pinned open, and a dot on anything that
+arrived through a grant rather than the role.
+
+**Role console.** Replaces the dashboard above 1024px. Leads with **work**:
+every granted area as a live queue with a count, above everything else. Staff
+with no areas get an explanation rather than eight useless tiles.
+
+**Desktop chrome for all 52 screens at once**, through `AfosAppBar` — the
+component they already share. Flat page header, not the floating glass pill;
+the shell already owns the one blurred surface the constitution allows.
+
+**Density on 34 screens.** `AdaptiveList` makes each list *row* the item, so two
+or three columns appear on desktop **without giving up lazy building**. GridView
+was rejected (fixed height), `Wrap` was rejected (eager). The four conversations
+and two horizontal strips were deliberately left alone.
+
+**Content width 1440** — correcting my own first attempt, which removed the
+letterbox entirely. A card list stretched to 1900px is not denser; it is a line
+of text with 1700px of dead space after it.
+
+### Deployment bugs found while measuring
+
+- `vercel.json` pinned Flutter **3.41.6** while everything is developed and
+  tested on **3.44.8** — the shipped web was built by a different compiler than
+  the one that verified it.
+- No `Cache-Control` headers at all. Added, deliberately **without** `immutable`
+  on `main.dart.js` or canvaskit: their filenames are stable across builds, so
+  `immutable` would pin users to a stale build forever.
+- The old `build/web` measured 18.1 MB with a source map — an instrumented
+  build, not a release. A real release is **5.69 MB** (~1.34 MB brotli).
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **407 passing** (32 new) ·
+web release builds, is served locally and **loads in a real browser**
+(Playwright's bundled Chromium; Chrome is not installed here) with one expected
+OneSignal warning · release APK **31.1 / 34.2 / 36.7 MB — byte-identical** to
+before the web layer existed, which is the proof `kIsWeb` stripped all of it.
+
+**Not verified here:** the authenticated shell. Reaching it requires typing a
+password, which this process does not do, so the primitives behind every swept
+screen are pinned by widget tests at desktop and narrow widths instead.
+
+---
