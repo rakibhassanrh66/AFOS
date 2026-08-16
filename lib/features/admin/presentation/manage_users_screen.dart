@@ -337,7 +337,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
 
   Future<void> _approve(Map<String, dynamic> user) async {
     try {
-      await SupabaseConfig.client.from('profiles').update({'is_verified': true}).eq('id', user['id']);
+      // Via the RPC for the same reason as _setRole: a users:approve holder is
+      // not matched by admin_manage_all_profiles, so a direct UPDATE would
+      // affect zero rows and look like a dead button.
+      await SupabaseConfig.client.rpc('set_user_verified', params: {
+        'p_user_id': user['id'], 'p_verified': true,
+      });
       // Reflect it locally straight away instead of waiting for the realtime
       // round-trip to come back and call _load(). The subscription is still the
       // thing that keeps OTHER admins' screens in sync, but making the acting
@@ -508,10 +513,20 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
         'Change role');
     if (!confirm) return;
     try {
-      final roleRow = await SupabaseConfig.client.from('roles').select('id').eq('name', picked).maybeSingle();
-      final update = <String, dynamic>{'role': picked};
-      if (roleRow != null && roleRow['id'] != null) update['role_id'] = roleRow['id'];
-      await SupabaseConfig.client.from('profiles').update(update).eq('id', user['id']);
+      // Through the RPC, not a direct UPDATE. `admin_manage_all_profiles` is
+      // admin/super_admin only, so for a roles:assign holder a direct write
+      // affected ZERO ROWS — silently, because RLS filters rather than errors,
+      // which reads as "I pressed the button and nothing happened".
+      //
+      // The RPC grants reach, not permission: it checks the grant, and
+      // protect_profile_privileged_columns still enforces the ceiling, the
+      // self-edit ban and the "you cannot change an admin's role" rule. It
+      // also keeps role_id in sync with role, which the old two-field update
+      // did by hand and could get half-right.
+      await SupabaseConfig.client.rpc('set_user_role', params: {
+        'p_user_id': user['id'],
+        'p_role': picked,
+      });
       await NotificationService.sendToUsers(
         userIds: [user['id'] as String],
         title: 'Your role was updated',
@@ -881,7 +896,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                     : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
-                            onReject: () => _rejectAndDelete(_pending[i]),
+                            // Reject DELETES the account outright (auth row,
+                            // storage, every owned row, via the delete-user
+                            // edge function). That is not "approve, but no" —
+                            // it is the most destructive action in the app
+                            // wearing a mild label, so it stays super_admin's
+                            // even though approving does not.
+                            onReject: _isSuperAdmin ? () => _rejectAndDelete(_pending[i]) : null,
                             onDelete: _isSuperAdmin ? () => _confirmDelete(_pending[i]) : null)),
                 ],
                 if (_canApproveCr) ...[
@@ -1232,10 +1253,15 @@ class _UserCard extends StatelessWidget {
         if (pending) ...[
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: OutlinedButton(onPressed: onReject,
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
-                child: const Text('Reject'))),
-            const SizedBox(width: 8),
+            // A disabled Reject button would still say "you could do this if
+            // you tried harder". Absent is the honest rendering for a
+            // users:approve holder, whose job is the approving half.
+            if (onReject != null) ...[
+              Expanded(child: OutlinedButton(onPressed: onReject,
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
+                  child: const Text('Reject'))),
+              const SizedBox(width: 8),
+            ],
             Expanded(child: ElevatedButton(onPressed: onApprove,
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
                 child: const Text('Approve'))),
