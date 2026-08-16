@@ -136,24 +136,37 @@ class _ShellBody extends StatelessWidget {
     // "wide screen" in general.
     final isDesktop = kIsWeb && Responsive.isExpanded(context);
 
-    // THE LETTERBOX IS GONE ON DESKTOP, and it was the whole problem.
+    // CONTENT WIDTH ON DESKTOP: 1440, not 1100, and not unlimited.
     //
-    // `AdaptiveContentWidth` centres content in a 1100px column above 600px.
-    // That is the right call for a tablet showing a phone-shaped screen, and
-    // it is exactly why the web build read as "a phone app someone forgot to
-    // resize": on a 1920px monitor it threw away 800px and rendered a queue of
-    // thirty items as a narrow ribbon down the middle.
+    // `AdaptiveContentWidth` centres everything in a 1100px column above
+    // 600px. On a 1920px monitor that threw away 800px and rendered a
+    // thirty-item queue as a ribbon down the middle — the single clearest
+    // reason the web build read as "a phone app someone forgot to resize".
     //
-    // Screens that genuinely want a reading-width column now say so
-    // themselves, through `WebPage(maxContentWidth: ...)` — a form should be
-    // narrow, a table should not, and only the screen knows which it is. The
-    // shell's job is to hand over the space, not to decide in advance that
-    // nobody wants it.
+    // The first fix here was to remove it on desktop entirely. That was wrong
+    // in the other direction: a list of cards stretched to 1900px is not
+    // denser, it is just a line of text with 1700px of dead space after it,
+    // and long line lengths are harder to read, not easier. Neither extreme is
+    // the answer.
+    //
+    // 1440 is the working width: wide enough for a real table, a master/detail
+    // split, or four columns of a grid, and narrow enough that a line of body
+    // text stays readable. Screens that want more say so with `WebFullBleed`;
+    // screens that want less say so with `WebPage(maxContentWidth:)`. The
+    // shell sets a sane default instead of deciding for everyone.
     //
     // Below the desktop breakpoint nothing changes: tablets and narrow browser
-    // windows keep the letterbox they had.
+    // windows keep the 1100px letterbox they had.
     Widget content = OfflineBanner(
-      child: isDesktop ? child : AdaptiveContentWidth(child: child),
+      child: isDesktop
+          ? Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1440),
+                child: child,
+              ),
+            )
+          : AdaptiveContentWidth(child: child),
     );
 
     // Ctrl/Cmd+K anywhere in the authenticated shell.
