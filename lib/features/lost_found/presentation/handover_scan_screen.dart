@@ -27,16 +27,29 @@ import '../../../shared/widgets/afos_button.dart';
 ///
 /// The scan is also written to `vr_access_log` by the same RPC, so the handover
 /// leaves the same trail as every other campus ID scan.
+///
+/// WHO SCANS WHOM. The receiver scans the giver — whoever ends up holding the
+/// item is the one who has to prove who handed it over. On a `lost` post that
+/// is the poster scanning the finder; on a `found` post it is the claimant
+/// scanning the poster. This screen used to assume the first case in its copy
+/// ("scanning confirms THEY collected it"), which was exactly backwards for
+/// half of all handovers.
 class HandoverScanScreen extends StatefulWidget {
   final String postId;
   final String itemTitle;
-  final String claimantName;
+
+  /// The person being scanned: the one handing the item over.
+  final String giverName;
+
+  /// 'lost' or 'found' — only used to word the confirmation honestly.
+  final String postType;
 
   const HandoverScanScreen({
     super.key,
     required this.postId,
     required this.itemTitle,
-    required this.claimantName,
+    required this.giverName,
+    required this.postType,
   });
 
   @override
@@ -121,14 +134,14 @@ class _HandoverScanScreenState extends State<HandoverScanScreen> {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(children: [
-                Text('Scan ${widget.claimantName}\'s VR-ID',
+                Text('Scan ${widget.giverName}\'s VR-ID',
                     textAlign: TextAlign.center,
                     style: AppTextStyles.titleMedium
                         .copyWith(color: Colors.white)),
                 const SizedBox(height: 4),
                 Text(
-                  'Ask them to open AFOS → My VR-ID. Scanning confirms they '
-                  'collected "${widget.itemTitle}".',
+                  'Ask them to open AFOS → My VR-ID. Scanning confirms that '
+                  'YOU received "${widget.itemTitle}" from them.',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.labelSmall
                       .copyWith(color: Colors.white70),
@@ -191,8 +204,11 @@ class _HandoverScanScreenState extends State<HandoverScanScreen> {
                       .copyWith(color: AppColors.textPrimaryOf(context))),
               const SizedBox(height: 8),
               Text(
-                '"${widget.itemTitle}" is recorded as returned to '
-                '${widget.claimantName}, verified by their campus ID.',
+                widget.postType == 'lost'
+                    ? '"${widget.itemTitle}" is recorded as returned to you by '
+                      '${widget.giverName}, verified by their campus ID.'
+                    : '"${widget.itemTitle}" is recorded as collected by you '
+                      'from ${widget.giverName}, verified by their campus ID.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.bodyMedium
                     .copyWith(color: AppColors.textSecondaryOf(context)),

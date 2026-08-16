@@ -1540,3 +1540,104 @@ Policy predicates were evaluated as a real manager (role `staff`, holding
 | `may_appoint_a_manager` | f |
 
 ---
+
+## 2026-08-16 — Authority that works without the super_admin in the room
+
+**Files:** four migrations (`20260816011000` … `20260816012500`),
+`lib/features/admin/presentation/activity_log_screen.dart` (new),
+`lib/features/lost_found/presentation/lost_found_chat_screen.dart` (new),
+`manage_users_screen.dart`, `manage_feedback_screen.dart`,
+`feedback_screen.dart`, `lost_found_screen.dart`, `handover_scan_screen.dart`,
+`slide_menu.dart`, `app_router.dart`, `test/staff_menu_permissions_test.dart`
+
+### The bottleneck, and the hole underneath it
+
+The previous batch distributes WORK. Every DECISION still resolved to one
+policy: `get_my_profile_role() = 'super_admin'`. Approving a CR, approving a
+signup, reading feedback, changing a role. An officer who joins to run a
+department had two options — be made super_admin, which hands them the whole
+system, or wait for the owner.
+
+Five permissions now carry decisions: `cr:approve`, `users:approve`,
+`roles:assign`, `feedback:triage`, and `audit:read` (which already existed and
+had never been readable). They are ordinary rows in `permissions`, granted and
+audited by machinery that already exists. A super_admin gives `cr:approve` to a
+management head; the head passes it to a course teacher.
+
+**`roles:assign` is bounded in the trigger, not the UI.** A holder may set only
+`student`, `teacher`, `staff`, `exam_controller` — never on their own row, and
+never on someone whose current role is outside that list. Writing that bound
+turned up a hole that predated it: the trigger allowed **`admin` to change roles
+without limit**, so any admin could promote anyone, including a second account
+of their own, straight to `super_admin`. Admin is now bounded the same way.
+
+### The CR queue was decorative
+
+Found while adding `cr:approve`, not reported. `own_student_update` lets a
+student UPDATE their own `students` row, and `protect_student_admin_columns`
+guarded only `status` and `cgpa`. **`is_cr` was guarded by nothing.** One PATCH
+to `/rest/v1/students?profile_id=eq.<self>` with `{"is_cr": true}` skipped the
+approval queue entirely, granting `empty_room_requests` insert rights and the CR
+badge in course chat. No uniqueness constraint either, so a section could hold
+any number of CRs.
+
+Now the trigger guards `is_cr`/`cr_since`, a partial unique index enforces one
+CR per section, and `approve_cr_request` does the whole thing in one transaction
+— demote the outgoing CR, promote the new one, stamp the review, and answer
+everyone else waiting on that section instead of leaving them pending forever.
+
+### Lost & Found — reachable, then provable
+
+Measured, not guessed: `profiles.phone` is nullable and 4 of 11 profiles had
+none; `contact_preference`/`contact_value` had **zero references in `lib/`**;
+`own_lf_manage` is an `ALL` policy so a poster could write `status='returned'`
+straight from the client and skip the verified RPC; and `returned_to` was always
+the claimant.
+
+That last one matters most. **Who receives depends on which way the item is
+travelling:**
+
+| type | receiver (scans, and is recorded) | giver (is scanned) |
+|---|---|---|
+| `lost` | poster — they lost it | claimant — they found it |
+| `found` | claimant — they own it | poster — they found it |
+
+The receiver scans the giver. Before, the poster always confirmed and the
+claimant was always recorded, so on a `lost` post the log said the finder walked
+away with someone else's property. The confirm button therefore moved: My Posts
+for a lost item, My Claims for a found one.
+
+Contact opens only once a claim is accepted — a `tel:` call and a realtime
+thread that **expires 24h after acceptance in the RLS predicate**, not in a
+cleanup job, so an expired thread is unreadable whether or not any row was
+deleted. The number is never written to the post; it is released through an RPC
+to one counterparty while the window is open. The old "Contact poster" dialog
+read `profiles` directly, relying on a policy with **no expiry**.
+
+### Oversight
+
+`/admin/activity` unions the three decision trails — permission grants and
+revokes, CR decisions, handovers — newest first, filterable, with handovers
+closed without a scan flagged rather than blended in. `permission_audit` had
+been recording faithfully since it was added and had never had a reader.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **375 passing** (12 new) ·
+release APK builds on all three ABIs (31.1 / 34.2 / 36.7 MB) ·
+Supabase advisors: no ERROR-level findings, no new WARN categories.
+
+Every policy evaluated as a real user via `set_config` on
+`request.jwt.claims`, including the cases that must FAIL:
+
+| case | result |
+|---|---|
+| plain student sets own `is_cr` | refused — "assigned by approval, not set directly" |
+| `roles:assign` holder writes `super_admin` | refused — lists the four allowed roles |
+| `roles:assign` holder writes `teacher` | allowed |
+| plain student reads `authority_activity_log` | refused — "Not authorized" |
+| manager reads an area they hold / do not hold | `t` / `f` |
+
+Both test subjects were restored afterwards.
+
+---

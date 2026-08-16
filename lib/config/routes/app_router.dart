@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../../features/admin/presentation/manage_clubs_screen.dart';
 import '../../features/admin/presentation/manage_conference_rooms_screen.dart';
 import '../../features/admin/presentation/manage_course_offerings_admin_screen.dart';
+import '../../features/admin/presentation/activity_log_screen.dart';
 import '../../features/admin/presentation/manage_feedback_screen.dart';
 import '../../features/admin/presentation/manage_users_screen.dart';
 import '../../features/assignments/presentation/assignments_screen.dart';
@@ -150,7 +151,12 @@ class AppRouter {
       // there already allows a caller_can('conference','manage') grant, not
       // just super_admin, so the router now matches that instead of being
       // stricter than the data layer.
-      if (loc == '/admin/clubs' || loc == '/admin/feedback') {
+      //
+      // Feedback moved OUT of this pair: `feedback:triage` now exists and RLS
+      // honours it, so keeping the router at super_admin-only would be
+      // stricter than the data layer — the mistake Conference Rooms made. It
+      // is handled below. Clubs has no equivalent grant and stays here.
+      if (loc == '/admin/clubs') {
         final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin') return '/home';
       }
@@ -164,10 +170,39 @@ class AppRouter {
       // delegate can only grant areas they already hold, and never to
       // themselves. The guard here matches the data layer rather than being
       // stricter than it, which is the same correction Conference Rooms got.
+      //
+      // FOUR grants now open it, not one. Manage Users is where work is
+      // distributed (`permissions:delegate`), signups are approved
+      // (`users:approve`), CR requests are decided (`cr:approve`) and roles are
+      // set (`roles:assign`). Each is a separate job that happens to live on
+      // the same screen, and the screen shows only the tabs and controls the
+      // holder can use — so admitting any one of them is correct, and refusing
+      // three of them at the door would hide a tool the database allows.
       if (loc == '/admin/users') {
         final role = await RoleSession.ensureLoaded();
+        if (role != 'super_admin') {
+          final grants = await PermissionSession.ensureLoaded();
+          const opensManageUsers = [
+            'permissions:delegate', 'users:approve', 'cr:approve', 'roles:assign',
+          ];
+          if (!opensManageUsers.any(grants.contains)) return '/home';
+        }
+      }
+      // The oversight screen. Deliberately NOT open to admin/dept_admin by
+      // role: reading who did what to whom is a specific authority, granted on
+      // purpose, not a side effect of being an admin.
+      if (loc == '/admin/activity') {
+        final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin' &&
-            !await PermissionSession.ensureHas('permissions', 'delegate')) {
+            !await PermissionSession.ensureHas('audit', 'read')) {
+          return '/home';
+        }
+      }
+      // Feedback triage — the IT-staff loop.
+      if (loc == '/admin/feedback') {
+        final role = await RoleSession.ensureLoaded();
+        if (role != 'super_admin' &&
+            !await PermissionSession.ensureHas('feedback', 'triage')) {
           return '/home';
         }
       }
@@ -261,6 +296,7 @@ class AppRouter {
           GoRoute(path: '/admin/library', pageBuilder: (c,s) => slideRightPage(const ManageLibraryScreen(), s)),
           GoRoute(path: '/admin/users',   pageBuilder: (c,s) => slideRightPage(const ManageUsersScreen(), s)),
           GoRoute(path: '/admin/feedback', pageBuilder: (c,s) => slideRightPage(const ManageFeedbackScreen(), s)),
+          GoRoute(path: '/admin/activity', pageBuilder: (c,s) => slideRightPage(const ActivityLogScreen(), s)),
           GoRoute(path: '/admin/clubs',   pageBuilder: (c,s) => slideRightPage(const ManageClubsScreen(), s)),
           GoRoute(path: '/admin/conference-rooms', pageBuilder: (c,s) => slideRightPage(const ManageConferenceRoomsScreen(), s)),
           GoRoute(path: '/conference-room', pageBuilder: (c,s) => slideRightPage(const ConferenceRoomScreen(), s)),

@@ -12,6 +12,7 @@ import 'package:afos_v7/features/shell/presentation/slide_menu.dart';
 /// regressing.
 void main() {
   _delegationIsRoleAgnostic();
+  _decisionGrantsReachTheMenu();
 
   group('staff menu with no delegated permissions', () {
     final routes = staffMenuRoutes(const {});
@@ -194,6 +195,59 @@ void _delegationIsRoleAgnostic() {
       final baseline = staffMenuRoutes(const {});
       final extra = staff.where((r) => !baseline.contains(r)).toList();
       expect(extra, delegatedRoutes(grants));
+    });
+  });
+}
+
+/// Decisions are delegable now, not just work.
+///
+/// The gap these pin: every approval in the app used to resolve to
+/// `get_my_profile_role() = 'super_admin'`. An officer running a department
+/// had to be made super_admin — which hands them account deletion — or wait
+/// for the owner. `cr:approve`, `users:approve`, `roles:assign`,
+/// `feedback:triage` and `audit:read` are ordinary grants, so the menu has to
+/// treat them like every other one.
+void _decisionGrantsReachTheMenu() {
+  group('decision permissions unlock their screens', () {
+    test('audit:read reveals the activity log, and nothing else does', () {
+      expect(delegatedRoutes(const {'audit:read'}), ['/admin/activity']);
+      expect(delegatedRoutes(const {'library:manage'}),
+          isNot(contains('/admin/activity')));
+    });
+
+    test('feedback:triage reveals feedback triage', () {
+      expect(delegatedRoutes(const {'feedback:triage'}), ['/admin/feedback']);
+    });
+
+    test('four separate jobs all open Manage Users', () {
+      // They are four different reasons to need one screen, and the router
+      // admits the same four. A holder of any one must get the menu entry.
+      for (final g in ['permissions:delegate', 'users:approve', 'cr:approve',
+                       'roles:assign']) {
+        expect(delegatedRoutes({g}), contains('/admin/users'),
+            reason: '\$g must reveal Manage Users');
+      }
+    });
+
+    test('holding several of them lists Manage Users once', () {
+      final all = delegatedRoutes(const {
+        'permissions:delegate', 'users:approve', 'cr:approve', 'roles:assign',
+      });
+      expect(all.where((r) => r == '/admin/users').length, 1);
+    });
+
+    test('a decision grant does not leak a work screen', () {
+      // cr:approve is authority over a decision, not a licence to upload
+      // routines. Nothing but the four Manage Users grants may widen it.
+      expect(delegatedRoutes(const {'cr:approve'}), ['/admin/users']);
+    });
+
+    test('staff get decision screens through the same shared list', () {
+      const grants = {'cr:approve', 'audit:read'};
+      final staff = staffMenuRoutes(grants);
+      expect(staff, containsAll(['/admin/users', '/admin/activity']));
+      // and still ends with Feedback
+      expect(staff.last, '/feedback');
     });
   });
 }
