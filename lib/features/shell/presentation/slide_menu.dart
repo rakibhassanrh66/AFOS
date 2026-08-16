@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../bloc/shell_bloc.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
+import '../../../core/auth/capabilities.dart';
 import '../../../core/auth/permission_session.dart';
 import '../../../core/navigation/nav_destinations.dart';
 import '../../../core/navigation/router_location.dart';
@@ -23,76 +24,16 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
 
-/// The routes a staff member or officer may see, given the permissions
-/// delegated to them, in menu order.
+/// Re-exported from the capability model so the two cannot drift.
 ///
-/// Top-level and public for the same reason `joinRequestMatchesSection` is:
-/// this decides what a whole class of employees can reach, which makes it the
-/// one piece of this screen that has to be pinned by a test rather than
-/// eyeballed. The widget below builds its items from exactly this list, so
-/// there is no second copy of the rule to drift.
-///
-/// The first six and the last are unconditional — what anyone gets for being
-/// an employee. Everything between them is delegated per person by a
-/// super_admin (Manage Users -> "Distribute admin work"). The resource:action
-/// pairs match app_router.dart's guards for the same routes exactly; if the
-/// two ever disagree, the menu offers a door the router slams.
-@visibleForTesting
-List<String> staffMenuRoutes(Set<String> grants) => [
-      '/home',
-      '/transport',
-      '/lost-found',
-      '/sos/nearby',
-      '/notifications',
-      '/settings',
-      ...delegatedRoutes(grants),
-      '/feedback',
-    ];
+/// These two functions ARE the tested contract (29 cases in
+/// `test/staff_menu_permissions_test.dart`), so their signatures do not move.
+/// What moved is where the answer comes from: `lib/core/auth/capabilities.dart`
+/// now owns it, and the web sidebar, the role consoles and the command palette
+/// read the same source. Before this, the dashboard answered the same question
+/// with a hardcoded twelve-tile grid that never consulted a grant at all.
+export '../../../core/auth/capabilities.dart' show staffMenuRoutes, delegatedRoutes;
 
-/// The routes unlocked purely by a DELEGATED grant, for anyone, in menu order.
-///
-/// WHY THIS IS SEPARATE, and it is the fix for a live bug. This list used to
-/// be inlined in [staffMenuRoutes], which meant only `staff` benefited from
-/// delegation. Grant `library:manage` to a teacher or `routine:upload` to a
-/// student and the router let them through (it asks PermissionSession) and RLS
-/// let them do the work — but their menu never showed the entry, so the
-/// capability was reachable only by typing the URL.
-///
-/// That is the same defect that was found and fixed for staff, left in place
-/// for every other role. A permission is a permission: whoever holds it should
-/// see the door.
-///
-/// The resource:action pairs match app_router.dart's guards exactly. If the two
-/// disagree, the menu offers a door the router slams.
-@visibleForTesting
-List<String> delegatedRoutes(Set<String> grants) {
-  bool can(String resource, String action) => grants.contains('$resource:$action');
-  return [
-    // One screen, three grants that each unlock it — mirrors the router, which
-    // admits any one of them.
-    if (can('routine', 'upload') || can('transport', 'upload') || can('exam_seat', 'upload'))
-      '/admin/upload',
-    if (can('course_offerings', 'manage')) '/admin/course-offerings',
-    if (can('hall', 'manage')) '/admin/hall',
-    if (can('library', 'manage')) '/admin/library',
-    if (can('conference', 'manage')) '/conference-room',
-    if (can('sos', 'manage')) '/admin/sos',
-    if (can('notice', 'publish')) '/manage-notices',
-    if (can('exam_seat', 'upload')) '/manage-exam-seats',
-    // FOUR DIFFERENT JOBS, ONE SCREEN. Manage Users is where work is
-    // distributed, signups are approved, CR requests are decided and roles are
-    // set. Any one of those grants is a reason to be able to open it; the
-    // router admits the same four, and the screen itself shows only the tabs
-    // and controls the holder can actually use.
-    if (can('permissions', 'delegate') || can('users', 'approve') ||
-        can('cr', 'approve') || can('roles', 'assign'))
-      '/admin/users',
-    // Reading what happened under you.
-    if (can('audit', 'read')) '/admin/activity',
-    // The IT-staff loop: what are people asking for, and what did we say.
-    if (can('feedback', 'triage')) '/admin/feedback',
-  ];
-}
 
 class SlideMenu extends StatefulWidget {
   // True when rendered as the permanent desktop nav rail (app_shell.dart,
@@ -157,203 +98,34 @@ class _SlideMenuState extends State<SlideMenu> {
     } catch(_) {}
   }
 
-  // Base items every role gets. Everyone can browse Clubs (read-only for
-  // non-students — the Join/Apply actions inside are gated to role==student
-  // both client-side and at the RLS layer). Library stays student-only
-  // (see _studentOnlyItems) since it's a personal borrowing record, not
-  // something to just "view".
-  // The 4 quick-access destinations pinned at the top of the web rail (they
-  // are the floating bottom bar's items on mobile).
+  // THE CATALOGUE MOVED.
+  //
+  // Everything from `_quickAccessItems` to `_baseRoleItems` used to live here:
+  // a second copy of every route, icon, label and colour in the app, kept in
+  // step with the dashboard's own twelve-tile copy by hand. They did not stay
+  // in step -- Mentorship carried a stray Color(0xFF60A5FA) here that
+  // disagreed with AppColors.moduleColors['mentorship'], so the module had two
+  // identities depending on which screen you looked at.
+  //
+  // It now lives in lib/core/auth/capabilities.dart, which the web sidebar,
+  // the role consoles and the command palette read as well. This widget is a
+  // renderer again rather than a second source of truth.
+
+  /// The four destinations pinned at the top of the web rail. They are the
+  /// floating bottom bar's items on mobile, which is why they are a rail
+  /// concern and not part of the capability model.
   static const _quickAccessItems = [
-    _MenuItem('Home',     AppIcons.dashboard, '/home',     AppColors.blue),
-    _MenuItem('Search',   Icons.search_rounded, '/search', AppColors.holoTeal),
-    _MenuItem('Profile',  Icons.person_rounded, '/profile', AppColors.holoBlue),
-    _MenuItem('Settings', AppIcons.settings,  '/settings', AppColors.textSecondary),
+    Caps.dashboard,
+    AppCapability(label: 'Search', route: '/search', icon: Icons.search_rounded,
+        accent: AppColors.holoTeal, group: CapabilityGroup.personal),
+    Caps.profile,
+    Caps.settings,
   ];
 
-  static const _commonItems = [
-    _MenuItem('Dashboard',      AppIcons.dashboard,   '/home',          AppColors.blue),
-    _MenuItem('Class Schedule', AppIcons.schedule,    '/schedule',      AppColors.blue),
-    _MenuItem('Transport',      AppIcons.transport,   '/transport',     AppColors.teal),
-    _MenuItem('Lost & Found',   AppIcons.lostFound,   '/lost-found',    AppColors.coral),
-    _MenuItem('Clubs',          AppIcons.clubs,       '/clubs',         AppColors.pink),
-    _MenuItem('Results',        AppIcons.results,     '/grades',        AppColors.gold),
-    _MenuItem('Assignments',    AppIcons.assignments, '/assignments',   AppColors.holoTeal),
-    // Was a stray Color(0xFF60A5FA) — the only literal in this list, and it
-    // DISAGREED with AppColors.moduleColors['mentorship'] (blueLight), so the
-    // module had two identities depending on where you looked at it.
-    _MenuItem('Mentorship',     AppIcons.mentorship,  '/mentorship',    AppColors.blueLight),
-    _MenuItem('Dept Chat',      AppIcons.deptChat,    '/dept-chat',     AppColors.indigo),
-    _MenuItem('Nearby SOS Alerts', Icons.sos_rounded, '/sos/nearby',    AppColors.red),
-    _MenuItem('Notifications',  AppIcons.notifications, '/notifications', AppColors.red),
-    _MenuItem('Settings',       AppIcons.settings,    '/settings',      AppColors.textSecondary),
-  ];
+  List<AppCapability> get _roleItems =>
+      capabilitiesFor(role: _user?.role, grants: _grants, isCr: _isCr);
 
-  // Deliberately last in every role's list, not folded into _commonItems
-  // (which every role branch below inserts more items after) -- the user
-  // asked for it at the true end of the menu, not buried in the middle.
-  static const _feedbackItem =
-    _MenuItem('Feedback & Ideas', Icons.lightbulb_outline_rounded, '/feedback', AppColors.teal);
-
-  // Student-only: hall allocation, payment, exam seating, and library are
-  // student-personal records — a teacher/staff member has none of their own.
-  static const _studentOnlyItems = [
-    // ONE entry, not nine. It opens a hub listing the DIU portal pages
-    // (ledger, waiver, transport card, notice board, ...). Student-only
-    // because those are the student's own portal records — a teacher or staff
-    // member has no ledger, waiver or transport card of their own.
-    _MenuItem('DIU Portal',     Icons.language_rounded, '/portal',      AppColors.holoBlue),
-    _MenuItem('Library',        AppIcons.library,     '/library',       AppColors.indigo),
-    _MenuItem('Hall Allocation',AppIcons.hall,         '/hall',          AppColors.amber),
-    _MenuItem('Payment',        AppIcons.payment,      '/payment',       AppColors.gold),
-    _MenuItem('Exam Seat Plan', AppIcons.examSeat,     '/exam-seat',     AppColors.orange),
-  ];
-
-  static const _conferenceRoomItem =
-    _MenuItem('Conference Room', AppIcons.conferenceRoom, '/conference-room', AppColors.holoTeal);
-
-  static const _roomAvailabilityItem =
-    _MenuItem('Room Availability', AppIcons.schedule, '/room-availability', AppColors.holoTeal);
-
-  static const _myOfferingsItem =
-    _MenuItem('My Course Offerings', AppIcons.schedule, '/schedule/my-offerings', AppColors.blue);
-
-  // Teacher-only: the register is scoped to offerings they own, so it has
-  // nothing to show anyone else.
-  static const _attendanceItem =
-    _MenuItem('Attendance', Icons.how_to_reg_rounded, '/attendance', AppColors.green);
-
-  // Shown to every teacher rather than only to appointed module leaders: the
-  // appointment lives in a table, not in RoleSession, so the menu cannot know
-  // without a query. The screen itself says "Not a module leader" to anyone
-  // who opens it without the appointment.
-  // Its own menu entry, not just a tab inside My Course Offerings. As a tab it
-  // was undiscoverable, and it reproducibly rendered blank while its title
-  // showed a live count -- see JoinRequestsScreen for why that path was
-  // abandoned rather than patched.
-  static const _joinRequestsItem =
-    _MenuItem('Join Requests', Icons.how_to_reg_rounded, '/schedule/join-requests', AppColors.green);
-
-  static const _teachingLoadItem =
-    _MenuItem('Teaching Load', Icons.assignment_ind_rounded, '/schedule/teaching-load', AppColors.indigo);
-
-  // Student-facing counterpart to the teacher's register. The RLS policy for
-  // it shipped with attendance and nothing ever called it, so a student had no
-  // way to see their own record until it showed up as a lost Attendance mark.
-  static const _myAttendanceItem =
-    _MenuItem('My Attendance', Icons.fact_check_outlined, '/my-attendance', AppColors.green);
-
-  static const _browseCoursesItem =
-    _MenuItem('Browse Courses', Icons.menu_book_rounded, '/schedule/browse-courses', AppColors.blue);
-
-  static const _adminItems = [
-    _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue),
-    _MenuItem('Course Offerings', AppIcons.schedule, '/admin/course-offerings', AppColors.blue),
-    _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber),
-    _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple),
-    _MenuItem('Moderate Dept Chats', AppIcons.moderateChat, '/admin/dept-chat', AppColors.indigo),
-    _MenuItem('Manage Faculties', AppIcons.faculties, '/admin/faculties', AppColors.holoviolet),
-    _MenuItem('Manage Departments', AppIcons.hall, '/admin/departments', AppColors.holoTeal),
-    _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red),
-    _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange),
-    _sosAdminItem,
-  ];
-
-  // What a staff member or officer gets purely for being an employee, before
-  // anyone has delegated them anything. Transport and Lost & Found are
-  // campus-wide services, Nearby SOS is a personal-safety feature every role
-  // has (and is separately gated by the app-wide SOS toggle), and the rest is
-  // their own account. Nothing here is an administrative tool.
-  static const _staffBaseItems = [
-    _MenuItem('Dashboard',         AppIcons.dashboard,     '/home',          AppColors.blue),
-    _MenuItem('Transport',         AppIcons.transport,     '/transport',     AppColors.teal),
-    _MenuItem('Lost & Found',      AppIcons.lostFound,     '/lost-found',    AppColors.coral),
-    _MenuItem('Nearby SOS Alerts', Icons.sos_rounded,      '/sos/nearby',    AppColors.red),
-    _MenuItem('Notifications',     AppIcons.notifications, '/notifications', AppColors.red),
-    _MenuItem('Settings',          AppIcons.settings,      '/settings',      AppColors.textSecondary),
-  ];
-
-  // Every item a staff member could possibly see, in menu order. Which of them
-  // actually render is decided by staffMenuRoutes(); this is only the
-  // route -> presentation lookup.
-  static const _staffCandidateItems = [
-    ..._staffBaseItems,
-    _uploadRoutineItem,
-    _courseOfferingsAdminItem,
-    _hallAdminItem,
-    _libraryAdminItem,
-    _conferenceRoomItem,
-    _sosAdminItem,
-    _noticesItem,
-    _examSeatsItem,
-    _delegateUsersItem,
-    _activityLogItem,
-    _feedbackTriageItem,
-    _feedbackItem,
-  ];
-
-  // Individually-grantable admin entries. These already existed inside
-  // _adminItems as list literals; pulling the delegatable ones out as named
-  // constants lets the staff branch include exactly one of them without
-  // duplicating the route or the icon and letting the two copies drift.
-  static const _uploadRoutineItem =
-    _MenuItem('Upload Routine/Transport', AppIcons.uploadRoutine, '/admin/upload', AppColors.holoBlue);
-
-  static const _courseOfferingsAdminItem =
-    _MenuItem('Course Offerings', AppIcons.schedule, '/admin/course-offerings', AppColors.blue);
-
-  static const _hallAdminItem =
-    _MenuItem('Manage Hall', AppIcons.hall, '/admin/hall', AppColors.amber);
-
-  static const _libraryAdminItem =
-    _MenuItem('Manage Library', AppIcons.library, '/admin/library', AppColors.purple);
-
-  // Staff should be able to run and help too, same as any other admin-tier
-  // role -- but the staff branch below doesn't fall through to
-  // _adminItems, so this needs adding to both places explicitly.
-  static const _sosAdminItem =
-    _MenuItem('Manage SOS Alerts', Icons.sos_rounded, '/admin/sos', AppColors.red);
-
-  static const _noticesItem =
-    _MenuItem('Notices & Rules', AppIcons.notices, '/manage-notices', AppColors.red);
-
-  static const _examSeatsItem =
-    _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange);
-
-  /// Manage Users as a DELEGATE sees it.
-  ///
-  /// Same route, different label and colour on purpose: a delegate opens this
-  /// screen to distribute work they already hold, and the screen itself hides
-  /// role changes, approvals and deletion for them. Calling it "Manage Users"
-  /// would promise a tool they do not have.
-  static const _delegateUsersItem =
-    _MenuItem('Assign Work Areas', AppIcons.manageUsers, '/admin/users', AppColors.holoviolet);
-
-  /// What happened under you: permission grants and revokes, CR decisions, and
-  /// Lost & Found handovers, in one list. super_admin gets it from
-  /// _superAdminItems; anyone else needs `audit:read`.
-  static const _activityLogItem =
-    _MenuItem('Activity Log', Icons.history_rounded, '/admin/activity', AppColors.holoTeal);
-
-  /// Reading and answering everyone's feedback — the collect-and-note loop —
-  /// as distinct from _feedbackItem, which is where a user SENDS feedback.
-  static const _feedbackTriageItem =
-    _MenuItem('Feedback Triage', Icons.fact_check_rounded, '/admin/feedback', AppColors.holoBlue);
-
-  // super_admin only — not even ordinary admin/dept_admin get this (see the
-  // dedicated /admin/users redirect guard in app_router.dart).
-  static const _superAdminItems = [
-    _MenuItem('Manage Users', AppIcons.manageUsers, '/admin/users', AppColors.holoviolet),
-    _MenuItem('Manage Clubs', AppIcons.manageClubs, '/admin/clubs', AppColors.holoviolet),
-    _MenuItem('Conference Rooms', AppIcons.conferenceRoom, '/admin/conference-rooms', AppColors.holoviolet),
-    _MenuItem('Feedback & Contributions', Icons.feedback_outlined, '/admin/feedback', AppColors.holoviolet),
-    // The oversight half of delegating. Once managers can approve CRs, set
-    // roles and hand out work, "what happened under me" needs an answer that
-    // is not "ask them".
-    _MenuItem('Activity Log', Icons.history_rounded, '/admin/activity', AppColors.holoviolet),
-  ];
-
-  // Semester only means something for a student — a teacher/staff/admin
+  // Semester only means something for a student -- a teacher/staff/admin
   // profile row still carries a leftover default `semester` value, so show
   // role-appropriate info instead for everyone else.
   String get _secondaryChipLabel {
@@ -371,34 +143,32 @@ class _SlideMenuState extends State<SlideMenu> {
     }
   }
 
-  List<_MenuItem> get _effectiveItems {
+  /// The role's list, minus anything this context should not show.
+  ///
+  /// Both filters are pure VISIBILITY -- the route guards and RLS are
+  /// unchanged either way.
+  List<AppCapability> get _effectiveItems {
     var items = _roleItems;
     // "Nearby SOS Alerts" is gated behind the campus-emergency SOS toggle:
     // general users see it only when a super-admin has switched SOS ON;
-    // super_admin always sees it. Pure visibility filter — the route/RLS are
-    // unchanged.
+    // super_admin always sees it.
     final sosVisible = _user?.role == 'super_admin' || AppConfigService.instance.sosEnabled.value;
     if (!sosVisible) {
-      items = items.where((it) => it.route != '/sos/nearby').toList();
+      items = items.where((it) => it.route != Caps.nearbySos.route).toList();
     }
 
     // On the web rail ONLY, drop anything the pinned quick-access strip is
-    // already showing.
+    // already showing. The rail pins Home/Search/Profile/Settings at the top
+    // and then lists the role's menu underneath -- and that menu opens with
+    // 'Dashboard' -> /home and ends with 'Settings' -> /settings. Same routes,
+    // different labels, so on /home BOTH highlighted at once.
     //
-    // The rail pins Home/Search/Profile/Settings at the top and then lists the
-    // role's menu underneath — and that menu opens with 'Dashboard' → /home and
-    // ends with 'Settings' → /settings. Same routes, same icons, different
-    // labels. So on /home BOTH "Home" and "Dashboard" highlighted at once, and
-    // the second copy sat further down the rail behind the divider looking like
-    // a stray entry. Same for Settings.
-    //
-    // Filtered by route, not by label, because that is what actually makes them
-    // the same destination — 'Home' and 'Dashboard' were never going to match
-    // on text.
+    // Filtered by ROUTE, not label: that is what actually makes them the same
+    // destination -- 'Home' and 'Dashboard' were never going to match on text.
     //
     // Only when `permanent`: on a phone the quick-access four are the floating
-    // bottom bar, not part of this drawer, so removing them here would leave no
-    // way to reach Dashboard or Settings from the menu at all.
+    // bottom bar, not part of this drawer, so removing them here would leave
+    // no way to reach Dashboard or Settings from the menu at all.
     if (widget.permanent) {
       final pinned = _quickAccessItems.map((it) => it.route).toSet();
       items = items.where((it) => !pinned.contains(it.route)).toList();
@@ -407,127 +177,32 @@ class _SlideMenuState extends State<SlideMenu> {
     return items;
   }
 
-  /// Hand the resolved list to anything else that needs to know where this user
-  /// may go — currently the web command palette.
+  /// Hand the resolved list to anything else that needs to know where this
+  /// user may go -- currently the web command palette.
   ///
-  /// Published rather than recomputed. `_roleItems` above encodes the role
-  /// matrix, the delegated `resource:action` grants, the CR flag and the SOS
-  /// toggle, and its grants deliberately match the ones `app_router.dart`
-  /// guards each route with. A second implementation of that is how a palette
-  /// ends up offering a destination the router then refuses.
+  /// Published rather than recomputed. The capability model encodes the role
+  /// matrix, the delegated `resource:action` grants and the CR flag, and its
+  /// grants deliberately match the ones app_router.dart guards each route
+  /// with. A second implementation of that is how a palette ends up offering a
+  /// destination the router then refuses.
   ///
   /// Includes the pinned quick-access four even on the web rail, where the
   /// menu itself hides them: the rail hides them because they are ALREADY on
-  /// screen above, which is not a reason for the palette to be unable to reach
-  /// Settings.
-  void _publishDestinations(List<_MenuItem> items) {
-    final all = <_MenuItem>[..._quickAccessItems, ...items];
+  /// screen above, which is not a reason for the palette to be unable to
+  /// reach Settings.
+  void _publishDestinations(List<AppCapability> items) {
+    final all = <AppCapability>[..._quickAccessItems, ...items];
     final seen = <String>{};
     final next = <NavDestination>[
       for (final m in all)
-        if (seen.add(m.route)) NavDestination(m.label, m.icon, m.route, m.color),
+        if (seen.add(m.route)) NavDestination(m.label, m.icon, m.route, m.accent),
     ];
-    // Built during build(), so defer the notify — mutating a ValueNotifier
+    // Built during build(), so defer the notify -- mutating a ValueNotifier
     // whose listeners are also building would throw.
     if (listEquals(navDestinations.value, next)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) navDestinations.value = next;
     });
-  }
-
-  /// The role's own menu, PLUS anything individually delegated to this person.
-  ///
-  /// The delegated half used to apply to `staff` only. Every other role
-  /// returned a fixed list, so a teacher granted `library:manage` — or a
-  /// student granted `routine:upload` — could do the work (RLS allows it) and
-  /// reach the screen (the router allows it), but had no menu entry for it.
-  /// The capability existed and was invisible.
-  ///
-  /// Appended rather than merged into each branch: the role's own ordering is
-  /// deliberate, and a granted extra belongs at the end as an addition rather
-  /// than interleaved into a list somebody chose the order of.
-  List<_MenuItem> get _roleItems {
-    final base = _baseRoleItems;
-    // staff already builds itself entirely from grants; adding them again
-    // would duplicate every entry.
-    if (_user?.role == 'staff') return base;
-
-    final have = base.map((m) => m.route).toSet();
-    final byRoute = {for (final m in _staffCandidateItems) m.route: m};
-    final extras = <_MenuItem>[
-      for (final route in delegatedRoutes(_grants))
-        if (!have.contains(route) && byRoute[route] != null) byRoute[route]!,
-    ];
-    if (extras.isEmpty) return base;
-    // Feedback stays last, as it always has.
-    final feedbackIdx = base.indexWhere((m) => m.route == '/feedback');
-    if (feedbackIdx < 0) return [...base, ...extras];
-    return [
-      ...base.sublist(0, feedbackIdx),
-      ...extras,
-      ...base.sublist(feedbackIdx),
-    ];
-  }
-
-  List<_MenuItem> get _baseRoleItems {
-    final role = _user?.role;
-    // Admin-tier roles get oversight tools (Manage Hall, etc.), not the
-    // student-personal-record screens themselves — an admin has no hall
-    // room, exam seat, or payment of their own to apply for, so showing
-    // those would be nonsensical, not just redundant.
-    if (role == 'super_admin') {
-      return [..._commonItems, ..._adminItems, _teachingLoadItem, ..._superAdminItems, _feedbackItem];
-    }
-    if (const ['admin', 'dept_admin'].contains(role)) {
-      return [..._commonItems, ..._adminItems, _teachingLoadItem, _feedbackItem];
-    }
-    if (role == 'teacher') {
-      // Teachers can author course notices/rules but don't get the rest
-      // of the admin toolset (routine upload, faculty/department registry).
-      return [..._commonItems, _myOfferingsItem, _joinRequestsItem, _attendanceItem, _teachingLoadItem, _noticesItem, _conferenceRoomItem, _roomAvailabilityItem, _feedbackItem];
-    }
-    if (role == 'staff') {
-      // Staff/officers start from almost nothing and earn the rest.
-      //
-      // This branch used to be `[..._commonItems, _conferenceRoomItem,
-      // _libraryAdminItem, _sosAdminItem, _feedbackItem]`, which handed every
-      // staff member Class Schedule, Clubs, Results, Assignments, Mentorship
-      // and Dept Chat (all of _commonItems) plus Conference Room, Manage
-      // Library and Manage SOS Alerts — unconditionally. A Registrar has no
-      // classes, no club membership, no results and no assignments; and
-      // "Manage Library" being handed out with the job title rather than with
-      // a decision is the opposite of least privilege.
-      //
-      // What remains below is what any employee needs regardless of posting.
-      // Everything else is delegated per person by a super_admin through
-      // Manage Users -> "Distribute admin work", and appears here the moment
-      // it is granted. The resource:action pairs are exactly the ones
-      // app_router.dart guards the matching routes with, so the menu and the
-      // router can never disagree about who may open what.
-      // Built from staffMenuRoutes() rather than repeating the conditions, so
-      // the tested rule and the rendered menu cannot disagree.
-      final byRoute = {for (final m in _staffCandidateItems) m.route: m};
-      return [
-        for (final route in staffMenuRoutes(_grants))
-          if (byRoute[route] != null) byRoute[route]!,
-      ];
-    }
-    if (role == 'exam_controller') {
-      // Was previously falling through to the student branch below,
-      // showing personal-record items (Hall/Payment/Library) that make no
-      // sense for this role — same class of bug as the admin-tier fix
-      // above, just never caught for this specific role until now.
-      return [..._commonItems, _examSeatsItem, _feedbackItem];
-    }
-    // A CR (Class Representative) is a per-section flag on the `students`
-    // row, not a distinct `role` — so this is the one student-branch case
-    // that needs an extra check rather than a role switch. The server-side
-    // RLS policy on empty_room_requests already allows CR inserts; without
-    // this the menu item simply never existed for them to reach it.
-    if (_isCr) {
-      return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _myAttendanceItem, _roomAvailabilityItem, _feedbackItem];
-    }
-    return [..._commonItems, ..._studentOnlyItems, _browseCoursesItem, _myAttendanceItem, _feedbackItem];
   }
 
   @override
@@ -760,7 +435,7 @@ class _SlideMenuState extends State<SlideMenu> {
 }
 
 class _MenuTile extends StatefulWidget {
-  final _MenuItem item;
+  final AppCapability item;
   final bool isActive;
   final int index, delay;
   const _MenuTile({required this.item,required this.isActive,required this.index,required this.delay});
@@ -790,10 +465,10 @@ class _MenuTileState extends State<_MenuTile> {
           decoration: BoxDecoration(
             borderRadius: AppDepth.radius(1),
             color: isActive
-                ? item.color.withValues(alpha: 0.12)
-                : (_hover ? item.color.withValues(alpha: 0.07) : Colors.transparent),
+                ? item.accent.withValues(alpha: 0.12)
+                : (_hover ? item.accent.withValues(alpha: 0.07) : Colors.transparent),
             border: _hover && !isActive
-                ? Border.all(color: item.color.withValues(alpha: 0.25))
+                ? Border.all(color: item.accent.withValues(alpha: 0.25))
                 : Border.all(color: Colors.transparent),
           ),
           child: Material(
@@ -821,7 +496,7 @@ class _MenuTileState extends State<_MenuTile> {
             padding: EdgeInsetsDirectional.fromSTEB(
                 _hover && !isActive ? 14 : 12, 10, 12, 10),
             decoration:isActive?BoxDecoration(
-              border:Border(left:BorderSide(color:item.color,width:3)),
+              border:Border(left:BorderSide(color:item.accent,width:3)),
             ):null,
             child: Row(children:[
               AnimatedScale(
@@ -832,13 +507,13 @@ class _MenuTileState extends State<_MenuTile> {
                 decoration: isActive
                     ? BoxDecoration(
                         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                            colors: [item.color, item.color.withValues(alpha: 0.7)]),
+                            colors: [item.accent, item.accent.withValues(alpha: 0.7)]),
                         borderRadius: AppDepth.radius(1),
-                        boxShadow: [BoxShadow(color: item.color.withValues(alpha: 0.35), blurRadius: 8, offset: AppDepth.litOffset(3))])
+                        boxShadow: [BoxShadow(color: item.accent.withValues(alpha: 0.35), blurRadius: 8, offset: AppDepth.litOffset(3))])
                     : BoxDecoration(
-                        color:item.color.withValues(alpha: _hover ? 0.22 : 0.15),
+                        color:item.accent.withValues(alpha: _hover ? 0.22 : 0.15),
                         borderRadius: AppDepth.radius(1)),
-                child:Icon(item.icon,color: isActive ? Colors.white : item.color,size:18)),
+                child:Icon(item.icon,color: isActive ? Colors.white : item.accent,size:18)),
               ),
               const SizedBox(width:12),
               // Expanded + ellipsis, not a bare Text: long labels ("Upload
@@ -847,7 +522,7 @@ class _MenuTileState extends State<_MenuTile> {
               Expanded(child: Text(item.label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style:TextStyle(
-                color:isActive?item.color:textPrimary,
+                color:isActive?item.accent:textPrimary,
                 fontSize:14, fontWeight:isActive?FontWeight.w600:FontWeight.w400))),
             ]),
           ),
@@ -912,17 +587,16 @@ class _Chip extends StatelessWidget {
   );
 }
 
-class _MenuItem {
-  final String label, route;
-  final IconData icon;
-  final Color color;
-  const _MenuItem(this.label,this.icon,this.route,this.color);
-}
+// _MenuItem is gone. It was a fourth definition of "a thing you can navigate
+// to" -- alongside the dashboard's _Module, the palette's NavDestination and
+// the router's own table -- and the one that carried a colour disagreeing with
+// AppColors.moduleColors. AppCapability replaces it; `.color` became `.accent`
+// because the value is an accent, not the widget's colour.
 
 /// A pinned quick-access tile for the web rail: highlights by the active route
 /// and navigates with `go` (no ShellBloc index side effects).
 class _QuickRailTile extends StatelessWidget {
-  final _MenuItem item;
+  final AppCapability item;
   final bool active;
   const _QuickRailTile({required this.item, required this.active});
   @override
@@ -939,19 +613,19 @@ class _QuickRailTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: AppDepth.radius(1),
-              color: active ? item.color.withValues(alpha: 0.14) : Colors.transparent,
-              border: active ? Border(left: BorderSide(color: item.color, width: 3)) : null,
+              color: active ? item.accent.withValues(alpha: 0.14) : Colors.transparent,
+              border: active ? Border(left: BorderSide(color: item.accent, width: 3)) : null,
             ),
             child: Row(children: [
               Container(width: 34, height: 34, alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: item.color.withValues(alpha: active ? 0.22 : 0.15),
+                  color: item.accent.withValues(alpha: active ? 0.22 : 0.15),
                   borderRadius: AppDepth.radius(1)),
-                child: Icon(item.icon, color: item.color, size: 18)),
+                child: Icon(item.icon, color: item.accent, size: 18)),
               const SizedBox(width: 12),
               Expanded(child: Text(item.label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: active ? item.color : textPrimary,
+                style: TextStyle(color: active ? item.accent : textPrimary,
                   fontSize: 14, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
             ]),
           ),

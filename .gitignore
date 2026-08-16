@@ -99,6 +99,24 @@ supabase/.temp/
 .codex/
 .claude/
 .cursor/
+# Same family, caught 2026-08-16 when a `git add -A` swept 64 of their files
+# into a staged commit. Never pushed, so they have no history here -- but the
+# near miss is the argument for listing every one of them rather than the two
+# that happened to exist when this block was written.
+#
+# .agents/skills/ in particular is a vendored copy of assistant skill packs:
+# thousands of lines of tooling documentation that say a great deal about how
+# this repo is worked on and nothing about how to build or run AFOS.
+.agents/
+.codebuddy/
+.junie/
+.kiro/
+.playwright-mcp/
+skills-lock.json
+# MCP server declarations are machine-local (paths, which servers are wired
+# up). This one carries no credentials -- checked -- but it still describes a
+# private workflow, and the next edit to it might not be as harmless.
+.mcp.json
 .aider*
 .continue/
 .windsurfrules
