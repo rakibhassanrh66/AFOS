@@ -30,6 +30,7 @@ import 'course_group_screen.dart';
 import 'join_requests_screen.dart';
 import 'widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 String _normKey(Object? v) => (v as String? ?? '').trim().toUpperCase();
 
@@ -333,7 +334,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
     // is the point: an archived offering is filtered out of every other list in
     // the app, so if this screen hides it too there is nowhere left that
     // explains where the course went.
-    return ListView.builder(
+    return AdaptiveList(
       padding: NavInsets.content(context, top: 0, fab: true),
       itemCount: _offerings.length + (_archived.isEmpty ? 0 : _archived.length + 1),
       itemBuilder: (ctx, rawIndex) {

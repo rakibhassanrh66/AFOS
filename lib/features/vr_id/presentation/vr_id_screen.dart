@@ -27,6 +27,7 @@ import '../../../core/utils/formatters.dart';
 import '../data/vr_id_pdf_generator.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 class VrIdScreen extends StatefulWidget {
   const VrIdScreen({super.key});
   @override State<VrIdScreen> createState() => _VrIdState();
@@ -367,7 +368,7 @@ class _AccessLogTabState extends State<_AccessLogTab> {
         subtitle: 'Every time your ID is scanned, the record appears here.',
       );
     }
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _logs.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _logs.length,
         // Guarded by the `if (_logs.isEmpty) return Center(...)`
         // early-return above, so .first is safe.
         prototypeItem: _buildLogRow(context, _logs.first),

@@ -15,6 +15,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Staff/admin-side book checkout — real DIU library policy requires a
 /// physical sign-in/handover, so borrowing was never meant to be pure
 /// student self-service. Previously there was no way for ANYONE to issue a
@@ -106,7 +107,7 @@ class _ManageLibraryState extends State<ManageLibraryScreen> with SingleTickerPr
                   ? ErrorView(message: _error!, onRetry: _load)
                   : _activeBorrows.isEmpty
                       ? const EmptyState(icon: Icons.menu_book_rounded, title: 'No books currently borrowed', subtitle: 'Issued books will appear here')
-                      : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _activeBorrows.length,
+                      : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _activeBorrows.length,
                           // Guarded by the _activeBorrows.isEmpty ternary above, so .first is safe.
                           prototypeItem: _buildBorrowRow(context, _activeBorrows.first),
                           itemBuilder: (ctx, i) => _buildBorrowRow(ctx, _activeBorrows[i])),

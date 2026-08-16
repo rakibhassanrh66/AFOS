@@ -17,6 +17,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Shows which room(s) the student's own batch+section is assigned for
 /// each exam — confirmed against a real DIU seat-plan document that this
 /// is genuinely all it publishes (room capacity per section, split across
@@ -123,7 +124,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
                     title: 'No seat plan yet', subtitle: 'Room allocations will appear here once published')
                 : RefreshIndicator(
                     onRefresh: _load, color: AppColors.blue,
-                    child: ListView.builder(
+                    child: AdaptiveList(
                         padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
                         itemCount: sessions.length,
                         itemBuilder: (ctx, i) => _SessionCard(session: sessions[i], index: i)))),

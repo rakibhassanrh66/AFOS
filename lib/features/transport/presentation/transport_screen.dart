@@ -30,6 +30,7 @@ import '../data/transport_display.dart';
 import 'manage_stop_times_screen.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Reads a route row's per-trip objects ({time, note, status}) for one
 /// direction into typed [Trip]s, dropping blanks.
 List<Trip> _tripsOf(Map r, String key) =>
@@ -250,7 +251,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
           ? Padding(padding: const EdgeInsets.symmetric(vertical: 28),
               child: Center(child: Text('No matches for "${_query.trim()}"',
                   textAlign: TextAlign.center, style: TextStyle(color: textSecondary))))
-          : ListView.builder(
+          : AdaptiveList(
               shrinkWrap: true,
               itemCount: filtered.length,
               itemBuilder: (_, i) {

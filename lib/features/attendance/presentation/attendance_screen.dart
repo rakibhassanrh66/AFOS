@@ -22,6 +22,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/attendance_repository.dart';
 import 'attendance_register_screen.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// Teacher-facing attendance.
 ///
@@ -319,7 +320,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             subtitle: 'Tap "Take Attendance" to start today\'s register'),
       ]);
     }
-    return ListView.builder(
+    return AdaptiveList(
       padding: NavInsets.content(context, top: 0, fab: true),
       itemCount: visible.length,
       itemBuilder: (ctx, i) {
@@ -392,7 +393,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             subtitle: 'Approved students on this course appear here'),
       ]);
     }
-    return ListView.builder(
+    return AdaptiveList(
       padding: NavInsets.content(context, top: 0, fab: true),
       itemCount: visible.length,
       itemBuilder: (ctx, i) {

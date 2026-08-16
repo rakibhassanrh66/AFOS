@@ -18,6 +18,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/marks_repository.dart';
 import 'marks_entry_screen.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 const _publisherRoles = ['admin', 'dept_admin', 'super_admin', 'exam_controller'];
 
@@ -586,7 +587,7 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
                           subtitle: 'Submitted results appear here for approval')
                       : RefreshIndicator(
                           onRefresh: _load,
-                          child: ListView.builder(
+                          child: AdaptiveList(
                             padding: NavInsets.content(context, top: 0),
                             itemCount: _pending.length,
                             itemBuilder: (ctx, i) => _card(_pending[i]),

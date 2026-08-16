@@ -10,6 +10,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Super Admin / admin cross-department moderation view — the regular
 /// DeptChatScreen hard-filters to the viewer's own department for every
 /// role (dept_chat_screen.dart:31-33), so there was previously no way for
@@ -59,7 +60,7 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _channels.isEmpty
               ? const EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No channels', subtitle: 'Nothing to moderate yet')
-              : ListView.builder(
+              : AdaptiveList(
                   padding: EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12 + NavInsets.of(context)),
                   itemCount: _channels.length,
                   itemBuilder: (ctx, i) {
@@ -153,7 +154,7 @@ class _ModerateChatRoomState extends State<_ModerateChatRoomScreen> {
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _messages.isEmpty
               ? const EmptyState(icon: Icons.chat_bubble_outline_rounded, title: 'No messages', subtitle: 'Nothing posted here yet')
-              : ListView.builder(
+              : AdaptiveList(
                   padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
                   itemCount: _messages.length,
                   itemBuilder: (ctx, i) {

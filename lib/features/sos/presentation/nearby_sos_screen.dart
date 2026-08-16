@@ -14,6 +14,7 @@ import '../data/repositories/sos_repository.dart';
 
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Active SOS alerts within 5km of the current user -- gated entirely by
 /// sos_alerts' nearby_select_sos_alerts RLS policy (live-verified), not
 /// client-side filtering. Anyone reachable here is someone who could
@@ -89,7 +90,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
                     ? ListView(children: const [EmptyState(icon: Icons.shield_outlined,
                         title: 'No active alerts near you',
                         subtitle: "You'll see it here if someone nearby needs help.")])
-                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _alerts.length,
+                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _alerts.length,
                         itemBuilder: (ctx, i) {
                           final a = _alerts[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};

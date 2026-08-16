@@ -29,6 +29,7 @@ import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Refuses to go on without a phone number, and offers the fix.
 ///
 /// The database refuses too — `require_phone_for_lost_found` is a BEFORE INSERT
@@ -579,7 +580,7 @@ class _MyPostsTabState extends State<_MyPostsTab> {
       return const EmptyState(icon: Icons.post_add_rounded,
         title: 'No posts yet', subtitle: 'Post a lost or found item from the Post tab');
     }
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _myPosts.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _myPosts.length,
         itemBuilder: (ctx, i) {
           final p = _myPosts[i];
           final type = p['type'] as String? ?? 'lost';
@@ -1026,7 +1027,7 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
       return const EmptyState(icon: Icons.inbox_outlined,
         title: 'No claims filed', subtitle: 'Claims you send from the Feed tab will appear here');
     }
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _claims.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _claims.length,
         itemBuilder: (ctx, i) {
           final c = _claims[i];
           final post = c['lost_found_posts'] as Map<String, dynamic>? ?? {};

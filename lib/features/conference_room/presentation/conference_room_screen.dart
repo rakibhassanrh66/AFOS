@@ -15,6 +15,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Teacher/staff-facing conference room booking — request purpose/date/
 /// time, super_admin approves and assigns the actual room number.
 class ConferenceRoomScreen extends StatefulWidget {
@@ -109,7 +110,7 @@ class _RequestsList extends StatelessWidget {
       return const EmptyState(icon: Icons.meeting_room_outlined,
         title: 'No requests yet', subtitle: 'Submit a new request from the other tab');
     }
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: requests.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: requests.length,
         itemBuilder: (ctx, i) {
           final r = requests[i];
           final status = r['status'] as String? ?? 'pending';

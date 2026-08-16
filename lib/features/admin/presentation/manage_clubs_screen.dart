@@ -17,6 +17,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Super-admin-only: approve/reject club membership requests and officer
 /// post (secretary/vice_president/president) requests. Regular admins have
 /// no route here — clubs.president_id carries real notification-broadcast
@@ -258,7 +259,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             : TabBarView(controller: _tab, children: [
                 _membershipRequests.isEmpty
                     ? const EmptyState(icon: Icons.group_add_outlined, title: 'No pending requests', subtitle: 'Membership requests will show up here')
-                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _membershipRequests.length,
+                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _membershipRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _membershipRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -274,7 +275,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
                         }),
                 _postRequests.isEmpty
                     ? const EmptyState(icon: Icons.workspace_premium_outlined, title: 'No pending post applications', subtitle: 'Officer post applications will show up here')
-                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _postRequests.length,
+                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _postRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _postRequests[i];
                           final member = r['profiles'] as Map<String, dynamic>? ?? {};

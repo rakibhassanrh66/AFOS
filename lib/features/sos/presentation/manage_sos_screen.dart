@@ -18,6 +18,7 @@ import '../data/repositories/sos_repository.dart';
 
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Admin/staff oversight of every SOS alert system-wide -- same filter-tab
 /// + refetch-on-any-change pattern as manage_hall_screen.dart, since
 /// sos_alerts.stream() can't embed the sender's profile either.
@@ -157,7 +158,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                 ? ErrorView(message: _error!, onRetry: _load)
                 : _visible.isEmpty
                     ? EmptyState(icon: Icons.sos_rounded, title: 'Nothing here', subtitle: 'No "$_filter" alerts right now')
-                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
+                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                         itemBuilder: (ctx, i) {
                           final a = _visible[i];
                           final sender = a['profiles'] as Map<String, dynamic>? ?? {};

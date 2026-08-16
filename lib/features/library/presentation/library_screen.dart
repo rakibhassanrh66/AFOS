@@ -20,6 +20,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
   @override State<LibraryScreen> createState() => _LibraryState();
@@ -386,7 +387,7 @@ class _SearchTab extends StatelessWidget {
       Expanded(child: results.isEmpty && ctrl.text.isNotEmpty && !searching
           ? const EmptyState(icon: Icons.search_off_rounded, title: 'No results',
               subtitle: 'Try a different search term')
-          : ListView.builder(
+          : AdaptiveList(
               padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0 + NavInsets.of(context)),
               itemCount: results.length,
               // Not guarded by an isEmpty early-return in this build method

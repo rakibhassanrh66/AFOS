@@ -17,6 +17,7 @@ import '../data/repositories/course_offering_repository.dart';
 import 'course_group_screen.dart';
 import 'widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// Student-facing: the courses running this term for their own batch and
 /// section, with a fallback view of everything in the department (which is
@@ -243,7 +244,7 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
         ),
       ]);
     }
-    return ListView.builder(
+    return AdaptiveList(
       padding: NavInsets.content(context, top: 0),
       itemCount: _offerings.length + (elsewhere.isEmpty ? 0 : elsewhere.length + 1),
       itemBuilder: (ctx, rawIndex) {

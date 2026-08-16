@@ -18,6 +18,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../schedule/data/repositories/course_offering_repository.dart';
 import '../../schedule/presentation/widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// Admin-facing approval queue for teacher-declared course offerings.
 /// Approving publishes one `schedule_slots` row per declared meeting, so it
@@ -352,7 +353,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
             subtitle: 'Offerings you approve or decline will be listed here with who decided and when'),
       ]);
     }
-    return ListView.builder(
+    return AdaptiveList(
       padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
       itemCount: _reviewed.length,
       itemBuilder: (ctx, i) {
@@ -450,7 +451,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
             subtitle: 'Course offerings teachers submit will appear here'),
       ]);
     }
-    return ListView.builder(
+    return AdaptiveList(
       padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
       itemCount: _pending.length,
       itemBuilder: (ctx, i) {

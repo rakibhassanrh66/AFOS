@@ -17,6 +17,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
   @override State<NotificationCenterScreen> createState() => _NotifState();
@@ -180,7 +181,7 @@ class _NotifState extends State<NotificationCenterScreen> {
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.blue,
-                  child: ListView.builder(
+                  child: AdaptiveList(
                     padding: EdgeInsetsDirectional.fromSTEB(12, 12, 12, 12 + NavInsets.of(context)),
                     itemCount: _notifs.length + (_hasMore ? 1 : 0),
                     itemBuilder: (ctx, i) {

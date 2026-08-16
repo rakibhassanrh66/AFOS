@@ -27,6 +27,7 @@ import 'club_chat_screen.dart';
 
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 IconData categoryIcon(String? category) => switch (category) {
       'Tech' => Icons.memory_rounded,
       'Sports' => Icons.sports_soccer_rounded,
@@ -576,7 +577,7 @@ class _ClubList extends StatelessWidget {
     if (clubs.isEmpty) return const EmptyState(icon: AppIcons.clubs, title: 'No clubs found', subtitle: 'Check back later');
     final joinedIds = myClubs.map((m) => m['club_id'] as String? ?? '').toSet();
     final canJoin = RoleSession.role == 'student';
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: clubs.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: clubs.length,
         // Guarded by the `if (clubs.isEmpty) return EmptyState(...)`
         // early-return above, so .first is safe. The index only drives the
         // stagger fade-in delay, not row height, so 0 is fine for the
@@ -713,7 +714,7 @@ class _MyClubsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.group_add_rounded,
         title: 'No clubs joined', subtitle: 'Discover and request to join clubs from the Discover tab');
     }
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: myClubs.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: myClubs.length,
         itemBuilder: (ctx, i) {
           final m = myClubs[i];
           final club = m['clubs'] as Map<String, dynamic>? ?? {};
@@ -816,7 +817,7 @@ class _EventsTab extends StatelessWidget {
       return const EmptyState(icon: Icons.event_rounded,
         title: 'No upcoming events', subtitle: 'Events will appear here');
     }
-    return ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: events.length,
+    return AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: events.length,
         itemBuilder: (ctx, i) {
           final e = events[i];
           final eventId = e['id'] as String?;
