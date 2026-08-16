@@ -5,6 +5,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
+import '../../../core/auth/permission_session.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -62,6 +63,23 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   /// for the frame before the role resolves.
   bool _isSuperAdmin = false;
 
+  /// The four jobs that live on this screen, each with its own grant.
+  ///
+  /// WHY FOUR FLAGS AND NOT ONE. This screen used to answer a single question —
+  /// "are you super_admin?" — and show or hide everything on that. That is
+  /// what made the authority model unusable: the only way to let someone
+  /// approve a CR request was to make them super_admin, which also handed them
+  /// account deletion. Each capability is now separate, so a course teacher can
+  /// be given exactly "decide CR requests for my section" and nothing else,
+  /// and the screen shows them exactly that.
+  ///
+  /// All default FALSE and resolve async. The screen must never flash a
+  /// destructive control for the frame before the answer arrives.
+  bool _canApproveUsers = false;   // users:approve   — the signup queue
+  bool _canApproveCr = false;      // cr:approve      — the CR queue
+  bool _canAssignRoles = false;    // roles:assign    — change someone's role
+  bool _canDelegate = false;       // permissions:delegate — hand out work
+
   /// Who holds which delegated areas, keyed by user id.
   ///
   /// WHY THIS IS LOADED FOR THE WHOLE LIST AND NOT PER CARD. Management was
@@ -101,19 +119,34 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
 
   Future<void> _loadViewerRole() async {
     final role = await RoleSession.ensureLoaded();
+    final grants = await PermissionSession.ensureLoaded();
     if (!mounted) return;
     setState(() {
       _isSuperAdmin = role == 'super_admin';
-      // A DELEGATE IS HERE FOR ONE JOB.
+      // A super_admin holds everything without needing a row for it.
+      _canApproveUsers = _isSuperAdmin || grants.contains('users:approve');
+      _canApproveCr    = _isSuperAdmin || grants.contains('cr:approve');
+      _canAssignRoles  = _isSuperAdmin || grants.contains('roles:assign');
+      _canDelegate     = _isSuperAdmin || grants.contains('permissions:delegate');
+      // THE TABS ARE THE VIEWER'S JOBS, NOT THE SCREEN'S FEATURES.
       //
-      // Approving signups and deciding CR requests are super_admin's, and RLS
-      // refuses both for a delegate. Showing them the Pending tab offered two
-      // buttons whose only possible outcome was a permission error, on a
-      // screen they were correctly allowed to open. The tabs now describe what
-      // this viewer can actually do rather than what the screen can do.
-      _setTabCount(_isSuperAdmin ? 3 : 1);
+      // Before, a delegate saw the Pending and CR queues and got a permission
+      // error from every button in them — offering a door the database slams.
+      // Now each queue appears only for the person who can act on it, so a
+      // teacher holding cr:approve opens this screen and sees the CR queue and
+      // nothing else.
+      _setTabCount(_visibleTabs.length);
     });
   }
+
+  /// Which tabs this viewer gets, in a fixed order. Read by the tab bar, the
+  /// TabBarView and _setTabCount, so the three cannot disagree — a mismatch
+  /// between controller length and child count is a crash, not a glitch.
+  List<String> get _visibleTabs => [
+        if (_canApproveUsers) 'pending',
+        if (_canApproveCr) 'cr',
+        'users', // everyone who can open this screen at all gets the directory
+      ];
 
   void _setTabCount(int length) {
     if (_tab.length == length) return;
@@ -212,12 +245,18 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
 
   Future<void> _approveCr(Map<String, dynamic> req) async {
     try {
-      await SupabaseConfig.client.from('students').update({
-        'is_cr': true, 'cr_since': DateTime.now().toIso8601String(),
-      }).eq('profile_id', req['student_id']);
-      await SupabaseConfig.client.from('cr_requests').update({
-        'status': 'approved', 'reviewed_by': SupabaseConfig.uid, 'reviewed_at': DateTime.now().toIso8601String(),
-      }).eq('id', req['id']);
+      // ONE TRANSACTION, NOT TWO CLIENT WRITES.
+      //
+      // This used to be an UPDATE on `students` followed by an UPDATE on
+      // `cr_requests`. If the second failed, a CR existed whose request was
+      // still sitting in the queue. Nothing demoted the outgoing CR either, so
+      // a section accumulated them — and with the one-CR-per-section unique
+      // index now in place, the first write would simply start failing with a
+      // constraint name. approve_cr_request does the whole thing server-side:
+      // demote the previous CR, promote this one, stamp the review, and answer
+      // everyone else waiting on the same section.
+      await SupabaseConfig.client
+          .rpc('approve_cr_request', params: {'p_request_id': req['id']});
       await NotificationService.sendToUsers(
         userIds: [req['student_id']],
         title: 'CR request approved',
@@ -250,16 +289,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                 final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(sheetCtx);
                 try {
-                  await SupabaseConfig.client.from('cr_requests').update({
-                    'status': 'rejected', 'rejection_reason': reasonCtrl.text.trim(),
-                    'reviewed_by': SupabaseConfig.uid, 'reviewed_at': DateTime.now().toIso8601String(),
-                  }).eq('id', req['id']);
+                  // Via the RPC for the same reason as approval: the write
+                  // policy on cr_requests is super_admin-only, so a cr:approve
+                  // holder can decide a request only through a function that
+                  // checks the grant. A direct UPDATE would silently affect
+                  // zero rows for them — RLS filters rather than errors.
+                  await SupabaseConfig.client.rpc('reject_cr_request', params: {
+                    'p_request_id': req['id'],
+                    'p_reason': reasonCtrl.text.trim(),
+                  });
                   await NotificationService.sendToUsers(
                     userIds: [req['student_id']],
                     title: 'CR request declined',
                     message: reasonCtrl.text.trim().isNotEmpty ? reasonCtrl.text.trim() : 'Your CR request was not approved.',
                     category: 'general',
                   );
+                  await _loadCrRequests();
                 } catch (e) {
                   messenger.showSnackBar(
                     SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
@@ -387,6 +432,20 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   // Roles a super-admin can assign. `all` is only a filter, not a role.
   static const _assignableRoles = ['student', 'teacher', 'staff', 'admin', 'dept_admin', 'exam_controller', 'super_admin'];
 
+  /// What a `roles:assign` holder may set, as opposed to a super_admin.
+  ///
+  /// This list is a MIRROR, not the rule. The rule is the `c_assignable` array
+  /// in `protect_profile_privileged_columns`, which refuses anything else no
+  /// matter what the client sends. Duplicating it here is what stops the
+  /// picker offering "Super Admin" to someone who would then get a trigger
+  /// exception quoting a Postgres array — the same reason the permission
+  /// catalogue is filtered for a delegate.
+  ///
+  /// These four are exactly the roles that confer no authority over other
+  /// people. Handing out admin, dept_admin or super_admin stays the
+  /// super_admin's own decision.
+  static const _delegateAssignableRoles = ['student', 'teacher', 'staff', 'exam_controller'];
+
   Future<String?> _pickRole(String current) => showGlassModal<String>(context,
       builder: (sheetCtx) => SafeArea(child: SingleChildScrollView(
         // Sheet content — GlassSheet's SafeArea already applies the nav inset.
@@ -394,10 +453,16 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Assign a role', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
           const SizedBox(height: 4),
-          Text('Takes effect immediately — access is enforced by the database (RLS).',
+          Text(
+              _isSuperAdmin
+                  ? 'Takes effect immediately — access is enforced by the database (RLS).'
+                  : 'Takes effect immediately, enforced by the database. Admin '
+                    'and Super Admin are not on this list: those roles carry '
+                    'authority over other people, so only a super-admin can '
+                    'assign them.',
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
           const SizedBox(height: 12),
-          ..._assignableRoles.map((r) {
+          ...(_isSuperAdmin ? _assignableRoles : _delegateAssignableRoles).map((r) {
             final sel = r == current;
             final c = _UserCard._roleColors[r] ?? AppColors.textSecondary;
             return ListTile(
@@ -424,6 +489,18 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
       return;
     }
     final current = user['role'] as String? ?? 'student';
+    // Taking authority away is as consequential as granting it: without this,
+    // a roles:assign holder could demote an admin to student and then promote
+    // them back to anything on their own list. The trigger refuses it too —
+    // this is so the refusal arrives as a sentence rather than a Postgres
+    // exception after the picker has already been used.
+    if (!_isSuperAdmin && !_delegateAssignableRoles.contains(current)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Only a super-admin can change the role of a '
+              '${roleLabel(current)}.'),
+          backgroundColor: AppColors.amber));
+      return;
+    }
     final picked = await _pickRole(current);
     if (picked == null || picked == current || !mounted) return;
     final confirm = await _confirmAction('Change role?',
@@ -775,7 +852,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
           ),
         ),
         // One tab needs no tab bar to switch between.
-        if (_isSuperAdmin)
+        if (_visibleTabs.length > 1)
           AnimatedBuilder(
             animation: _tab,
             builder: (ctx, _) => GlassTabBar(
@@ -783,16 +860,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
               currentIndex: _tab.index,
               onChanged: (i) => _tab.animateTo(i),
               tabs: [
-                GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
-                GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
-                const GlassTab('All Users', icon: Icons.people_alt_rounded),
+                for (final t in _visibleTabs)
+                  switch (t) {
+                    'pending' => GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
+                    'cr' => GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
+                    _ => const GlassTab('All Users', icon: Icons.people_alt_rounded),
+                  },
               ],
             ),
           ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : TabBarView(controller: _tab, children: [
-                if (_isSuperAdmin) ...[
+                if (_canApproveUsers) ...[
                 _error != null
                     ? ErrorView(message: _error!, onRetry: _load)
                     : _pending.isEmpty
@@ -802,7 +882,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
                             onReject: () => _rejectAndDelete(_pending[i]),
-                            onDelete: () => _confirmDelete(_pending[i]))),
+                            onDelete: _isSuperAdmin ? () => _confirmDelete(_pending[i]) : null)),
+                ],
+                if (_canApproveCr) ...[
                 _crError != null
                     ? ErrorView(message: _crError!, onRetry: _loadCrRequests)
                     : _crRequests.isEmpty
@@ -892,20 +974,30 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                           // (delegate_grant_only_what_they_hold requires the
                           // delegate to hold permissions:delegate, and the
                           // super_admin path is what the UI must not imply).
+                          // EACH CONTROL FOLLOWS ITS OWN GRANT.
+                          //
+                          // Deleting an account is the single most destructive
+                          // thing in the app and stays super_admin's, with no
+                          // permission for it in the catalogue at all.
+                          // Appointing a manager is super_admin's too, so the
+                          // tier cannot recruit itself sideways. Role changes
+                          // follow roles:assign, bounded by a ceiling in the
+                          // trigger. Distributing work follows
+                          // permissions:delegate.
                           prototypeItem: _UserCard(user: _filtered.first, pending: false,
                               isManager: _isManager(_filtered.first),
                               areaCount: _areaCount(_filtered.first),
                               onDelete: _isSuperAdmin ? () => _confirmDelete(_filtered.first) : null,
-                              onChangeRole: _isSuperAdmin ? () => _setRole(_filtered.first) : null,
+                              onChangeRole: _canAssignRoles ? () => _setRole(_filtered.first) : null,
                               onToggleManager: _isSuperAdmin ? () => _toggleManager(_filtered.first) : null,
-                              onManagePermissions: () => _managePermissions(_filtered.first)),
+                              onManagePermissions: _canDelegate ? () => _managePermissions(_filtered.first) : null),
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
                               isManager: _isManager(_filtered[i]),
                               areaCount: _areaCount(_filtered[i]),
                               onDelete: _isSuperAdmin ? () => _confirmDelete(_filtered[i]) : null,
-                              onChangeRole: _isSuperAdmin ? () => _setRole(_filtered[i]) : null,
+                              onChangeRole: _canAssignRoles ? () => _setRole(_filtered[i]) : null,
                               onToggleManager: _isSuperAdmin ? () => _toggleManager(_filtered[i]) : null,
-                              onManagePermissions: () => _managePermissions(_filtered[i])))),
+                              onManagePermissions: _canDelegate ? () => _managePermissions(_filtered[i]) : null))),
                 ]),
               ])),
       ]),

@@ -181,6 +181,33 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                         ]),
                         const SizedBox(height: 6),
                         Text(item['message'] as String? ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                        // THE ANSWER, next to the question.
+                        //
+                        // Before this, a report could be marked "actioned" and
+                        // the person who sent it was never told anything — the
+                        // status was a note the team left for itself. The
+                        // reply lands here because `own_read_feedback` already
+                        // returns the sender their own row, so a column on it
+                        // IS the delivery mechanism.
+                        if ((item['triage_note'] as String?)?.trim().isNotEmpty == true)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(top: 10),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.holoviolet.withValues(alpha: 0.08),
+                              borderRadius: AppDepth.radius(1),
+                              border: Border.all(color: AppColors.holoviolet.withValues(alpha: 0.25)),
+                            ),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('Reply from the team',
+                                  style: AppTextStyles.labelSmall.copyWith(
+                                      color: AppColors.holoviolet, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 2),
+                              Text(item['triage_note'] as String,
+                                  style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
+                            ]),
+                          ),
                         if (createdAt != null) Padding(padding: const EdgeInsets.only(top: 8),
                             child: Text(AppFormatters.relativeTime(createdAt),
                                 style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 10))),

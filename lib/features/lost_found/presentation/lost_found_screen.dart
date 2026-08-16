@@ -3,9 +3,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../config/supabase_config.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'handover_scan_screen.dart';
+import 'lost_found_chat_screen.dart';
 import '../../../core/network/storage_upload_service.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -26,6 +29,62 @@ import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 
 import '../../../core/layout/nav_insets.dart';
+/// Refuses to go on without a phone number, and offers the fix.
+///
+/// The database refuses too — `require_phone_for_lost_found` is a BEFORE INSERT
+/// trigger on both posts and claims, so this cannot be skipped by any client.
+/// But a trigger exception arrives after the user has filled in a whole form,
+/// and it arrives as an error rather than as an errand. This asks first, and
+/// sends them to the one screen that fixes it.
+///
+/// Why the requirement exists at all: the entire point of the new flow is that
+/// the two people can reach each other. A post from someone with no number is
+/// a dead end that looks like a live one.
+Future<bool> ensurePhoneOnFile(BuildContext context) async {
+  final uid = SupabaseConfig.uid;
+  if (uid == null) return false;
+  try {
+    final row = await SupabaseConfig.client
+        .from('profiles').select('phone').eq('id', uid).maybeSingle();
+    final phone = (row?['phone'] as String?)?.trim() ?? '';
+    if (phone.isNotEmpty) return true;
+  } catch (_) {
+    // Could not check. Let it through — the trigger is the real gate, and
+    // blocking a post because a lookup failed is the worse failure.
+    return true;
+  }
+  if (!context.mounted) return false;
+
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: AppColors.surfaceOf(dctx),
+      title: Text('Add your phone number first',
+          style: TextStyle(color: AppColors.textPrimaryOf(dctx))),
+      content: Text(
+        'Lost & Found works by putting two people in touch — whoever finds '
+        'your item needs to be able to call you. Your number is only ever '
+        'shown to the one person whose claim you accept, and only for 24 hours.',
+        style: TextStyle(color: AppColors.textSecondaryOf(dctx)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dctx, false),
+          child: Text('Not now',
+              style: TextStyle(color: AppColors.textSecondaryOf(dctx))),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.holoviolet),
+          onPressed: () => Navigator.pop(dctx, true),
+          child: const Text('Add it in Settings'),
+        ),
+      ],
+    ),
+  );
+  if (go == true && context.mounted) context.push('/settings');
+  return false;
+}
+
 class LostFoundScreen extends StatefulWidget {
   const LostFoundScreen({super.key});
   @override State<LostFoundScreen> createState() => _LFState();
@@ -214,6 +273,10 @@ class _PostCard extends StatelessWidget {
   }
 
   Future<void> _openClaimDialog(BuildContext context) async {
+    // Same gate as posting: a claim from someone unreachable is a dead end for
+    // the person who found the item.
+    if (!await ensurePhoneOnFile(context)) return;
+    if (!context.mounted) return;
     final msgCtrl = TextEditingController();
     bool? sent;
     String message = '';
@@ -361,6 +424,7 @@ class _PostTabState extends State<_PostTab> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!await ensurePhoneOnFile(context)) return;
     setState(() => _loading = true);
     try {
       String? photoUrl;
@@ -468,46 +532,12 @@ class _MyPostsTabState extends State<_MyPostsTab> {
   @override
   void initState() { super.initState(); _load(); }
 
-  /// Opens the VR-ID scan that completes a handover.
-  ///
-  /// Needs the accepted claimant's NAME, not just their id: the scanner tells
-  /// the poster who to ask for, and "scan the claimant" is useless when three
-  /// people claimed the same wallet.
-  Future<void> _startHandover(Map<String, dynamic> post) async {
-    String claimantName = 'the claimant';
-    try {
-      final rows = await SupabaseConfig.client
-          .from('lost_found_claims')
-          .select('claimant_id, profiles!claimant_id(full_name)')
-          .eq('post_id', post['id']).eq('status', 'accepted')
-          .order('created_at', ascending: false).limit(1) as List;
-      final row = rows.firstOrNull as Map<String, dynamic>?;
-      // PostgREST embeds return an object OR a list depending on the
-      // relationship it infers -- UserModel handles both and so does this.
-      final prof = row?['profiles'];
-      Object? name;
-      if (prof is List && prof.isNotEmpty) {
-        final first = prof.first;
-        if (first is Map) name = first['full_name'];
-      } else if (prof is Map) {
-        name = prof['full_name'];
-      }
-      if (name is String && name.trim().isNotEmpty) claimantName = name;
-    } catch (_) {
-      // Falls back to the generic label; a missing name must not block a
-      // handover that the database will verify anyway.
-    }
-    if (!mounted) return;
-
-    final done = await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => HandoverScanScreen(
-        postId: post['id'] as String,
-        itemTitle: post['title'] as String? ?? 'this item',
-        claimantName: claimantName,
-      ),
-    ));
-    if (done == true && mounted) _load();
-  }
+  // The old _startHandover lived here: it fetched the accepted claimant's name
+  // itself and always opened the scanner AS THE POSTER. Both halves are now
+  // wrong -- _HandoverPanel already holds the counterparty (through the RPC
+  // that also enforces the 24h window), and on a `found` post the claimant is
+  // the one who scans. Keeping a second path to the scanner would have meant
+  // two places deciding who receives, which is the bug this batch is fixing.
 
   /// Plain English for a status the database stores as a keyword.
   ///
@@ -585,12 +615,10 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                 // Now the button only appears once a claim has been accepted,
                 // and it opens the VR-ID scan. The database refuses to mark
                 // anything returned any other way.
-                if (p['status'] == 'awaiting_handover') Flexible(
-                  child: TextButton(
-                      onPressed: () => _startHandover(p),
-                      child: const Text('Hand over',
-                          maxLines: 1, style: TextStyle(fontSize: 11))),
-                ),
+                // The action itself moved into _HandoverPanel below the row,
+                // because it is no longer one button: contacting the other
+                // person is half the job, and WHO confirms depends on which
+                // way the item is travelling.
                 IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20),
                     tooltip: 'Delete post',
@@ -613,6 +641,19 @@ class _MyPostsTabState extends State<_MyPostsTab> {
                     }),
               ]),
               _ClaimsPanel(postId: p['id'], onResolved: _load),
+              // On MY posts, I am the receiver only when I am the one who lost
+              // the item. If I posted a `found` item, the claimant collects it
+              // from me and confirms on their own My Claims tab — so I get
+              // Call and Message here, and no confirm button, because
+              // confirming would be me signing for my own handover.
+              if (p['status'] == 'awaiting_handover')
+                _HandoverPanel(
+                  postId: p['id'] as String,
+                  itemTitle: p['title'] as String? ?? 'this item',
+                  postType: p['type'] as String? ?? 'lost',
+                  iAmReceiver: (p['type'] as String? ?? 'lost') == 'lost',
+                  onChanged: _load,
+                ),
               ]));
         });
   }
@@ -726,6 +767,189 @@ class _ClaimsPanelState extends State<_ClaimsPanel> {
   }
 }
 
+/// Everything the two people in a handover can do, in one place.
+///
+/// WHO CONFIRMS DEPENDS ON WHICH WAY THE ITEM IS TRAVELLING. This is the rule
+/// the whole flow now turns on, and it was previously wrong:
+///
+///   type    | receiver (confirms, and is recorded) | giver (is scanned)
+///   --------+--------------------------------------+---------------------------
+///   lost    | poster   — they lost it              | claimant — they found it
+///   found   | claimant — they own it               | poster   — they found it
+///
+/// The receiver scans the giver. Before this, the POSTER always confirmed and
+/// the CLAIMANT was always recorded as having received the item — so on a
+/// `lost` post, the log said the finder walked away with someone else's
+/// property. The button therefore has to appear on My Posts for a lost item
+/// and on My Claims for a found one, which is why this is a shared widget
+/// rather than something living in one tab.
+///
+/// Contact is deliberately unavailable until a claim is accepted. Before that
+/// point the two people have no established relationship, and handing out a
+/// phone number to anyone who taps "claim" is how a lost-and-found board
+/// becomes a directory.
+class _HandoverPanel extends StatefulWidget {
+  final String postId;
+  final String itemTitle;
+  final String postType;      // 'lost' | 'found'
+  final bool iAmReceiver;
+  final VoidCallback onChanged;
+
+  const _HandoverPanel({
+    required this.postId,
+    required this.itemTitle,
+    required this.postType,
+    required this.iAmReceiver,
+    required this.onChanged,
+  });
+
+  @override
+  State<_HandoverPanel> createState() => _HandoverPanelState();
+}
+
+class _HandoverPanelState extends State<_HandoverPanel> {
+  Map<String, dynamic>? _other;
+  bool _loading = true;
+  String? _closedReason;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContact();
+  }
+
+  Future<void> _loadContact() async {
+    try {
+      // Through the RPC, not a profiles select. The RPC is the only path that
+      // also enforces the 24-hour window — `accepted_claim_parties_read_profiles`
+      // would happily keep serving the number forever.
+      final res = await SupabaseConfig.client.rpc(
+          'lost_found_counterparty_contact',
+          params: {'p_post_id': widget.postId}) as List;
+      if (!mounted) return;
+      setState(() {
+        _other = res.isEmpty ? null : res.first as Map<String, dynamic>;
+        _loading = false;
+      });
+    } catch (e) {
+      // An expired window raises rather than returning empty, and that is a
+      // sentence worth showing rather than an error to swallow.
+      if (mounted) setState(() { _closedReason = friendlyError(e); _loading = false; });
+    }
+  }
+
+  Future<void> _call() async {
+    final phone = _other?['phone'] as String?;
+    if (phone == null || phone.isEmpty) return;
+    // Same launcher pattern as sos_alert_detail_screen.
+    await launchUrl(Uri.parse('tel:$phone'));
+  }
+
+  void _message() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LostFoundChatScreen(
+        postId: widget.postId,
+        itemTitle: widget.itemTitle,
+        otherName: _other?['full_name'] as String? ?? 'the other person',
+      ),
+    ));
+  }
+
+  Future<void> _confirmReceipt() async {
+    final done = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => HandoverScanScreen(
+        postId: widget.postId,
+        itemTitle: widget.itemTitle,
+        giverName: _other?['full_name'] as String? ?? 'the other person',
+        postType: widget.postType,
+      ),
+    ));
+    if (done == true && mounted) {
+      // Both people are told, not just the one holding the phone that scanned.
+      final otherId = _other?['profile_id'] as String?;
+      if (otherId != null) {
+        await NotificationService.sendToUsers(
+          userIds: [otherId],
+          title: 'Handover confirmed',
+          message: '"${widget.itemTitle}" is recorded as returned, verified by '
+              'a campus ID scan.',
+          category: 'general',
+        );
+      }
+      widget.onChanged();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: SizedBox(height: 2, child: LinearProgressIndicator()),
+      );
+    }
+
+    if (_closedReason != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(_closedReason!,
+            style: AppTextStyles.labelSmall
+                .copyWith(color: AppColors.textMutedOf(context))),
+      );
+    }
+
+    final phone = _other?['phone'] as String?;
+    final name = _other?['full_name'] as String? ?? 'the other person';
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 10),
+      Divider(height: 1, color: AppColors.borderOf(context)),
+      const SizedBox(height: 10),
+      Text(
+        widget.iAmReceiver
+            ? 'Arrange to meet $name. When they hand it over, confirm below by '
+              'scanning their campus ID.'
+            : 'Arrange to meet $name. They confirm the handover by scanning '
+              'YOUR campus ID, so have it ready.',
+        style: AppTextStyles.labelSmall
+            .copyWith(color: AppColors.textSecondaryOf(context)),
+      ),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        if (phone != null && phone.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: _call,
+            style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.green,
+                side: const BorderSide(color: AppColors.green),
+                // 48dp minimum touch target.
+                minimumSize: const Size(0, 48)),
+            icon: const Icon(Icons.call_rounded, size: 18),
+            label: const Text('Call'),
+          ),
+        OutlinedButton.icon(
+          onPressed: _message,
+          style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.holoBlue,
+              side: const BorderSide(color: AppColors.holoBlue),
+              minimumSize: const Size(0, 48)),
+          icon: const Icon(Icons.forum_rounded, size: 18),
+          label: const Text('Message'),
+        ),
+        if (widget.iAmReceiver)
+          FilledButton.icon(
+            onPressed: _confirmReceipt,
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.green,
+                minimumSize: const Size(0, 48)),
+            icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+            label: const Text('I received it'),
+          ),
+      ]),
+    ]);
+  }
+}
+
 class _MyClaimsTab extends StatefulWidget {
   const _MyClaimsTab();
   @override State<_MyClaimsTab> createState() => _MyClaimsTabState();
@@ -782,6 +1006,19 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
     }
   }
 
+  // ^ _showContact is kept only for a claim whose post is already CLOSED, where
+  // there is no live handover panel but the two people may still need to reach
+  // each other about it. It is not the contact path any more: _HandoverPanel
+  // is, for two reasons beyond this dialog being tedious to use.
+  //
+  // First, this reads the profile DIRECTLY, which relies on
+  // `accepted_claim_parties_read_profiles` -- a policy with no expiry. The
+  // number stays readable long after the item changed hands. The RPC the panel
+  // calls enforces the same 24-hour window as the message thread.
+  //
+  // Second, showing a number is not contacting someone. `tel:` and a message
+  // thread are what a person standing in a corridor actually needs.
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(16), child: ShimmerList());
@@ -815,13 +1052,37 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 8),
                 Row(children: [
-                  if (status == 'accepted' && post['poster_id'] != null) TextButton(
-                      onPressed: () => _showContact(context, post['poster_id']),
-                      child: const Text('Contact poster', style: TextStyle(fontSize: 11, color: AppColors.blue))),
+                  // Only once the handover panel is gone: while it is showing,
+                  // Call and Message are right there and better.
+                  if (status == 'accepted' &&
+                      post['status'] != 'awaiting_handover' &&
+                      post['poster_id'] != null)
+                    TextButton(
+                        onPressed: () => _showContact(context, post['poster_id']),
+                        child: const Text('Contact poster',
+                            style: TextStyle(fontSize: 11, color: AppColors.blue))),
                   TextButton(onPressed: () => _withdraw(c['id']),
                       child: Text(status == 'pending' ? 'Withdraw' : 'Clear record',
                           style: TextStyle(fontSize: 11, color: AppColors.textMutedOf(context)))),
                 ]),
+                // THE HALF THAT WAS MISSING ENTIRELY.
+                //
+                // A claimant used to get one thing here: a dialog showing the
+                // poster's phone and email as text to copy out by hand. No
+                // call, no message, and -- on a `found` post, where THEY are
+                // the one collecting the item -- no way to confirm they
+                // received it. The poster confirmed on their behalf, and the
+                // record said the poster had received their own item back.
+                if (status == 'accepted' &&
+                    (post['status'] == 'awaiting_handover'))
+                  _HandoverPanel(
+                    postId: c['post_id'] as String,
+                    itemTitle: post['title'] as String? ?? 'this item',
+                    postType: post['type'] as String? ?? 'found',
+                    // I claimed a `found` post => the item comes to me.
+                    iAmReceiver: (post['type'] as String? ?? 'found') == 'found',
+                    onChanged: _load,
+                  ),
               ]));
         });
   }

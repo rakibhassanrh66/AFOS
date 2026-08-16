@@ -79,9 +79,18 @@ List<String> delegatedRoutes(Set<String> grants) {
     if (can('sos', 'manage')) '/admin/sos',
     if (can('notice', 'publish')) '/manage-notices',
     if (can('exam_seat', 'upload')) '/manage-exam-seats',
-    // Distributing work is itself a delegated capability, and its screen is
-    // Manage Users — which the router now opens for a delegate.
-    if (can('permissions', 'delegate')) '/admin/users',
+    // FOUR DIFFERENT JOBS, ONE SCREEN. Manage Users is where work is
+    // distributed, signups are approved, CR requests are decided and roles are
+    // set. Any one of those grants is a reason to be able to open it; the
+    // router admits the same four, and the screen itself shows only the tabs
+    // and controls the holder can actually use.
+    if (can('permissions', 'delegate') || can('users', 'approve') ||
+        can('cr', 'approve') || can('roles', 'assign'))
+      '/admin/users',
+    // Reading what happened under you.
+    if (can('audit', 'read')) '/admin/activity',
+    // The IT-staff loop: what are people asking for, and what did we say.
+    if (can('feedback', 'triage')) '/admin/feedback',
   ];
 }
 
@@ -278,6 +287,8 @@ class _SlideMenuState extends State<SlideMenu> {
     _noticesItem,
     _examSeatsItem,
     _delegateUsersItem,
+    _activityLogItem,
+    _feedbackTriageItem,
     _feedbackItem,
   ];
 
@@ -318,6 +329,17 @@ class _SlideMenuState extends State<SlideMenu> {
   static const _delegateUsersItem =
     _MenuItem('Assign Work Areas', AppIcons.manageUsers, '/admin/users', AppColors.holoviolet);
 
+  /// What happened under you: permission grants and revokes, CR decisions, and
+  /// Lost & Found handovers, in one list. super_admin gets it from
+  /// _superAdminItems; anyone else needs `audit:read`.
+  static const _activityLogItem =
+    _MenuItem('Activity Log', Icons.history_rounded, '/admin/activity', AppColors.holoTeal);
+
+  /// Reading and answering everyone's feedback — the collect-and-note loop —
+  /// as distinct from _feedbackItem, which is where a user SENDS feedback.
+  static const _feedbackTriageItem =
+    _MenuItem('Feedback Triage', Icons.fact_check_rounded, '/admin/feedback', AppColors.holoBlue);
+
   // super_admin only — not even ordinary admin/dept_admin get this (see the
   // dedicated /admin/users redirect guard in app_router.dart).
   static const _superAdminItems = [
@@ -325,6 +347,10 @@ class _SlideMenuState extends State<SlideMenu> {
     _MenuItem('Manage Clubs', AppIcons.manageClubs, '/admin/clubs', AppColors.holoviolet),
     _MenuItem('Conference Rooms', AppIcons.conferenceRoom, '/admin/conference-rooms', AppColors.holoviolet),
     _MenuItem('Feedback & Contributions', Icons.feedback_outlined, '/admin/feedback', AppColors.holoviolet),
+    // The oversight half of delegating. Once managers can approve CRs, set
+    // roles and hand out work, "what happened under me" needs an answer that
+    // is not "ask them".
+    _MenuItem('Activity Log', Icons.history_rounded, '/admin/activity', AppColors.holoviolet),
   ];
 
   // Semester only means something for a student — a teacher/staff/admin
