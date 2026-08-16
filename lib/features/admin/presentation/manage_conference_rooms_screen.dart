@@ -18,6 +18,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 class ManageConferenceRoomsScreen extends StatefulWidget {
   const ManageConferenceRoomsScreen({super.key});
   @override State<ManageConferenceRoomsScreen> createState() => _ManageConferenceRoomsScreenState();
@@ -183,7 +184,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _visible.isEmpty
                 ? EmptyState(icon: Icons.meeting_room_outlined, title: 'No requests', subtitle: 'Nothing in "$_filter" right now')
-                : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
+                : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,
                     itemBuilder: (ctx, i) {
                       final r = _visible[i];
                       final requester = r['profiles'] as Map<String, dynamic>? ?? {};

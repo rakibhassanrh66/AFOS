@@ -12,6 +12,7 @@ import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// What happened under you.
 ///
@@ -138,7 +139,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                               'handovers will appear here as they happen')
                       : RefreshIndicator(
                           onRefresh: _load,
-                          child: ListView.builder(
+                          child: AdaptiveList(
                             padding: EdgeInsetsDirectional.fromSTEB(
                                 16, 8, 16, 16 + NavInsets.of(context)),
                             itemCount: _filtered.length,

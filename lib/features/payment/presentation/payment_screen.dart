@@ -20,6 +20,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import 'payment_webview_screen.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
   @override State<PaymentScreen> createState() => _PaymentState();
@@ -250,7 +251,7 @@ class _HistoryTab extends StatelessWidget {
         subtitle: 'Payments you make through the portal are listed here.',
       );
     }
-    return ListView.builder(
+    return AdaptiveList(
       padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
       itemCount: history.length,
       // Every row shares the same fixed template (icon + 2-line column +

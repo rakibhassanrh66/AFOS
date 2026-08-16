@@ -14,6 +14,7 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/assignments_repository.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// What a class handed in, and where the teacher marks it.
 ///
@@ -136,7 +137,7 @@ class _AssignmentSubmissionsScreenState extends State<AssignmentSubmissionsScree
                             subtitle: 'Submissions from your class appear here')
                         : RefreshIndicator(
                             onRefresh: _load,
-                            child: ListView.builder(
+                            child: AdaptiveList(
                               padding: NavInsets.content(context, top: 0),
                               itemCount: _submissions.length,
                               itemBuilder: (ctx, i) => _SubmissionCard(

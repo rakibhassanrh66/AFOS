@@ -19,6 +19,7 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/teaching_assignment_repository.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 const _adminRoles = ['admin', 'dept_admin', 'super_admin'];
 
@@ -260,7 +261,7 @@ class _MyAssignmentsTabState extends State<_MyAssignmentsTab> {
     }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.builder(
+      child: AdaptiveList(
         padding: NavInsets.content(context),
         itemCount: _rows.length,
         itemBuilder: (ctx, i) => TeachingAssignmentCard(
@@ -584,7 +585,7 @@ class _AllocationsTabState extends State<_AllocationsTab> {
                         subtitle: 'Allocate a course, batch and section to a teacher')
                     : RefreshIndicator(
                         onRefresh: _load,
-                        child: ListView.builder(
+                        child: AdaptiveList(
                           padding: NavInsets.content(context, top: 0),
                           itemCount: _rows.length,
                           itemBuilder: (ctx, i) => AllocationCard(
@@ -1024,7 +1025,7 @@ class _LeadersTabState extends State<_LeadersTab> {
                         icon: Icons.manage_accounts_outlined,
                         title: 'No module leaders yet',
                         subtitle: 'Appoint a teacher to allocate a department\'s teaching')
-                    : ListView.builder(
+                    : AdaptiveList(
                         padding: NavInsets.content(context, top: 0),
                         itemCount: _leaders.length,
                         itemBuilder: (ctx, i) {

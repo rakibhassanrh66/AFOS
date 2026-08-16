@@ -18,6 +18,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../attendance/data/repositories/attendance_repository.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/marks_repository.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// Colour for a letter grade, by band rather than by exact letter so a scale
 /// change doesn't leave an unmapped grade rendering grey.
@@ -343,7 +344,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     }
     return RefreshIndicator(
       onRefresh: _loadDetail,
-      child: ListView.builder(
+      child: AdaptiveList(
         padding: NavInsets.content(context, top: 0),
         itemCount: _roster.length,
         itemBuilder: (ctx, i) {

@@ -26,6 +26,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -893,7 +894,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                     : _pending.isEmpty
                     ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
-                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
+                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
                         itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
                             onApprove: () => _approve(_pending[i]),
                             // Reject DELETES the account outright (auth row,
@@ -911,7 +912,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                     : _crRequests.isEmpty
                     ? const EmptyState(icon: Icons.badge_outlined, title: 'No CR requests',
                         subtitle: 'Student requests to become Class Representative will show up here')
-                    : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _crRequests.length,
+                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _crRequests.length,
                         itemBuilder: (ctx, i) {
                           final r = _crRequests[i];
                           final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -978,7 +979,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
-                      : ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
+                      : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
                           // This tab's _UserCard is always pending:false (no
                           // conditional Approve/Reject row like the Pending
                           // tab above), so every row shares one fixed

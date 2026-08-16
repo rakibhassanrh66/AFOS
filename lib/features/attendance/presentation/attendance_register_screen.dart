@@ -14,6 +14,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/attendance_repository.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 
 /// Colour and short label for each attendance state. One table so the register
 /// row, the summary chips and the session cards can't drift apart on what
@@ -220,7 +221,7 @@ class _AttendanceRegisterScreenState extends State<AttendanceRegisterScreen> {
     }
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.builder(
+      child: AdaptiveList(
         padding: NavInsets.content(context, top: 0),
         itemCount: _roster.length,
         itemBuilder: (ctx, i) {

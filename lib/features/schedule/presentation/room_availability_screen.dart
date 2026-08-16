@@ -19,6 +19,7 @@ import '../data/models/class_slot.dart';
 import '../data/repositories/schedule_repository.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 /// Room x period availability for a department, teacher/CR-only — this is
 /// inherently a room-centric view (the source routine PDF's own axis is
 /// Room x Period), not a personal one, so it's a separate screen from the
@@ -247,7 +248,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
                     title: 'No routine data yet',
                     subtitle: 'Once a routine is uploaded for this department, '
                         'room availability appears here.')
-                : RefreshIndicator(onRefresh: _load, color: AppColors.holoBlue, child: ListView.builder(
+                : RefreshIndicator(onRefresh: _load, color: AppColors.holoBlue, child: AdaptiveList(
                     padding: EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16 + NavInsets.of(context)),
                     itemCount: _rooms.length,
                     // Guarded by the `_rooms.isEmpty || _periods.isEmpty`

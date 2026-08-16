@@ -1,3 +1,4 @@
+import 'package:afos_v7/features/web/presentation/widgets/adaptive_list.dart';
 import 'package:afos_v7/features/web/presentation/widgets/web_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -180,6 +181,51 @@ void main() {
       // information, "7 waiting" is.
       expect(find.text('7 waiting'), findsOneWidget);
       expect(find.text('Users'), findsOneWidget);
+    });
+  });
+
+  group('AdaptiveList — columns on desktop, lazily', () {
+    // On Android and below the desktop breakpoint this must be exactly the
+    // ListView.builder it replaced. kIsWeb is false in the test VM, so these
+    // cases pin the NON-web path, which is the one that must not regress: 34
+    // screens now route their main list through this widget, and a mistake
+    // here is a mistake on all of them at once.
+    testWidgets('is a plain lazy list when not on web', (t) async {
+      await pumpAt(t, const Size(1600, 1000), SizedBox(
+        height: 600,
+        child: AdaptiveList(
+          itemCount: 500,
+          itemBuilder: (c, i) => SizedBox(height: 60, child: Text('row$i')),
+        ),
+      ));
+      // Laziness is the property that matters: 500 items, only the visible
+      // handful built. Building all of them is how a screen takes four
+      // seconds to open, which is why the constitution bans unbounded lists.
+      expect(find.text('row0'), findsOneWidget);
+      expect(find.text('row499'), findsNothing);
+    });
+
+    testWidgets('passes padding and count through unchanged', (t) async {
+      await pumpAt(t, const Size(1600, 1000), SizedBox(
+        height: 400,
+        child: AdaptiveList(
+          padding: const EdgeInsets.all(24),
+          itemCount: 3,
+          itemBuilder: (c, i) => SizedBox(height: 50, child: Text('row$i')),
+        ),
+      ));
+      for (var i = 0; i < 3; i++) {
+        expect(find.text('row$i'), findsOneWidget);
+      }
+    });
+
+    testWidgets('an empty list renders nothing and does not throw', (t) async {
+      await pumpAt(t, const Size(1600, 1000), SizedBox(
+        height: 200,
+        child: AdaptiveList(itemCount: 0, itemBuilder: (c, i) => const Text('x')),
+      ));
+      expect(find.text('x'), findsNothing);
+      expect(t.takeException(), isNull);
     });
   });
 }

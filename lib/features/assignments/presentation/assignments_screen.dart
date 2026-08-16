@@ -23,6 +23,7 @@ import '../data/repositories/assignments_repository.dart';
 import 'assignment_submissions_screen.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({super.key});
   @override State<AssignmentsScreen> createState() => _AssignmentsScreenState();
@@ -250,7 +251,7 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
         title: 'No assignments yet', subtitle: 'Tap + to post one to a class you teach');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
+        child: AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             // Guarded by the `if (_assignments.isEmpty) return EmptyState(...)`
             // early-return above, so .first is safe. The delete icon is
             // conditional (`if (!expired)`) but doesn't change row height.
@@ -399,7 +400,7 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
         title: 'No assignments yet', subtitle: 'Assignments from your teachers will show up here');
     }
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
+        child: AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             itemBuilder: (ctx, i) {
               final a = _assignments[i];
               final deadline = DateTime.tryParse(a['deadline'] ?? '');
@@ -515,7 +516,7 @@ class _ObserveTabState extends State<_ObserveTab> {
     // Pull-to-refresh was missing here alone, so a super_admin had no way to
     // re-read the list short of leaving the screen.
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: ListView.builder(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
+        child: AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _all.length,
         itemBuilder: (ctx, i) {
           final a = _all[i];
           final teacher = a['profiles'] as Map<String, dynamic>? ?? {};
