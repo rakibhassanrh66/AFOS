@@ -43,6 +43,34 @@
 --  Nothing else is required. Do not also send a manual broadcast.
 
 -- ---------------------------------------------------------------------
+--  v2.8.8 - run this ONCE the v2.8.8 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.8
+--
+--  ANNOUNCING 2.8.8 AND NOT 2.8.7, on purpose. 2.8.7 shipped the decision
+--  tier; 2.8.8 shipped the row policy that lets it reach its rows. Without
+--  2.8.8 a users:approve or roles:assign holder sees an empty queue and every
+--  button does nothing. Announcing 2.8.7 would hand people a build whose
+--  headline feature is silently inert.
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.8.8',
+  current_date,
+  'Someone Else Can Say Yes Now',
+  ARRAY[
+    'Approving things no longer waits for one person. Class Representative requests, new account approvals, role changes and feedback replies can each be handed to a specific member of staff or a course teacher - one job at a time, without making anyone a super-admin. Whoever receives one gets exactly that tool in their menu and nothing else.',
+    'A section can only have one Class Representative, and the database now enforces it. Approving a new CR retires the previous one and answers everyone else waiting in that section, instead of leaving their requests pending forever.',
+    'Lost and Found puts the two of you in touch. Once a claim is accepted you can call the other person or message them in the app to arrange where to meet - and that conversation closes itself 24 hours later.',
+    'The person who RECEIVES the item is now the one who confirms it, by scanning the other person''s campus ID. If you lost something, you confirm when you get it back. If you found something, the owner confirms when they collect it. Previously the record could say the finder had walked off with it.',
+    'Lost and Found needs your phone number, and asks for it before you fill in the form rather than failing afterwards. It is only ever shown to the one person whose claim you accept, and only while that 24-hour window is open.',
+    'Feedback gets a reply. When someone reads your report they can write back, and the answer appears next to what you sent.',
+    'Super-admins get an Activity Log: every permission change, CR decision and item handover in one list, with anything closed without an ID scan flagged.'
+  ],
+  ARRAY['android','web']
+);
+
+
+-- ---------------------------------------------------------------------
 --  v2.8.2 — run this ONCE the v2.8.2 release job has published the APK.
 --  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.2
 -- ---------------------------------------------------------------------
