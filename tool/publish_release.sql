@@ -43,6 +43,32 @@
 --  Nothing else is required. Do not also send a manual broadcast.
 
 -- ---------------------------------------------------------------------
+--  v2.9.0 - run this ONCE the v2.9.0 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.9.0
+--
+--  A WEB release, mostly. The Android APK is byte-identical in size to
+--  v2.8.8 because the entire web layer is behind kIsWeb and tree-shaken out
+--  of it -- so the phone gets the CR-approval constraint fix and nothing else
+--  visible. Written for people who use both.
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.9.0',
+  current_date,
+  'The Website Grows Up',
+  ARRAY[
+    'Opening AFOS on a laptop no longer gives you the phone app in a narrow strip down the middle. There is a proper sidebar grouped by what things are - You, Academics, Campus, Operations, Oversight - so a menu that was twenty-five identical rows is now five headings you can collapse.',
+    'The home screen on a computer now shows WORK instead of app icons. If someone has given you an area to look after, it appears first with a live count of what is waiting in it - so you know where your afternoon goes before you click anything.',
+    'Staff and officers finally see their own job. Previously the home screen showed everyone the same eight student tiles no matter what they had been given, so routine upload, hall management and CR approval were invisible there. If your account has no areas assigned yet, it now says so plainly instead of showing a screen full of things you cannot use.',
+    'Lists use the width of your screen. A queue of thirty items now fills the page in two or three columns instead of one long ribbon, on 34 different screens. Long conversations stay in a single column, because that is how reading works.',
+    'Anything given to you individually is marked with a small dot, so you can tell what comes with your job from what someone handed you.',
+    'On phones nothing changes. This release is about the website.'
+  ],
+  ARRAY['android','web']
+);
+
+
+-- ---------------------------------------------------------------------
 --  v2.8.8 - run this ONCE the v2.8.8 release job has published the APK.
 --  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.8.8
 --
