@@ -117,6 +117,33 @@ skills-lock.json
 # up). This one carries no credentials -- checked -- but it still describes a
 # private workflow, and the next edit to it might not be as harmless.
 .mcp.json
+
+# --- Internal working documents ---------------------------------------------
+# Removed from the repo 2026-08-16. All of these still exist on the maintainer's
+# machine; they are simply not the public's business, and they were the answer
+# to "why can anyone see how we work on this".
+#
+# CLAUDE.md / AGENTS.md    the project constitution. Two copies of the same
+#                          document, and line 113 of CLAUDE.md published a
+#                          machine path: C:\RakibFlutter\bin\flutter.bat.
+# audit/                   internal assessments -- SLOP_REPORT ("baseline
+#                          violation count"), PARITY_REPORT, BUG_REGISTER,
+#                          CONTRACT_MAP. A running list of this project's own
+#                          weaknesses, published next to the code.
+# .gitlab-ci.yml           a stale pipeline for a CI system this project does
+#                          not use (GitHub Actions does the work). It named
+#                          SUPABASE_SERVICE_ROLE_KEY as an expected variable --
+#                          no value, but it told a reader exactly which secret
+#                          to go looking for.
+#
+# What stays public, deliberately: README.md, SECURITY.md and RELEASING.md are
+# written FOR outsiders, and supabase/migrations/ is the schema's source of
+# truth -- hiding it would be hiding the security model reviewers are invited
+# to check.
+CLAUDE.md
+AGENTS.md
+audit/
+.gitlab-ci.yml
 .aider*
 .continue/
 .windsurfrules
