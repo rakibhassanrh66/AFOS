@@ -307,3 +307,16 @@ create trigger require_phone_on_lf_claim before insert on public.lost_found_clai
   for each row execute function public.require_phone_for_lost_found();
 
 revoke all on function public.require_phone_for_lost_found() from public, anon, authenticated;
+
+-- ------------------------------------------------------------------ realtime
+-- Without this the chat screen subscribes to a channel that never fires.
+-- Supabase only streams changes for tables in the `supabase_realtime`
+-- publication, and a new table is not added to it automatically -- so each
+-- side would see the other's messages only by leaving and reopening the
+-- thread. For a "meet me at the gate" conversation that is the whole feature
+-- failing quietly, which is the worst way for it to fail.
+--
+-- Adding a table to the publication does NOT bypass RLS: realtime re-checks
+-- the row policies per subscriber, so lf_thread_read still decides who
+-- receives an event, including the 24-hour expiry.
+alter publication supabase_realtime add table public.lost_found_messages;
