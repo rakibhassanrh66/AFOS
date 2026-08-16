@@ -11,6 +11,8 @@ import 'package:afos_v7/features/shell/presentation/slide_menu.dart';
 /// what is ABSENT with no grants, and absence is exactly what nobody notices
 /// regressing.
 void main() {
+  _delegationIsRoleAgnostic();
+
   group('staff menu with no delegated permissions', () {
     final routes = staffMenuRoutes(const {});
 
@@ -131,6 +133,67 @@ void main() {
     test('an unrelated grant changes nothing', () {
       expect(staffMenuRoutes(const {'marks:insert', 'students:select'}),
           staffMenuRoutes(const {}));
+    });
+  });
+}
+
+/// Delegation is not a staff-only feature.
+///
+/// THE BUG THESE PIN. `delegatedRoutes` used to be inlined inside
+/// `staffMenuRoutes`, so only `staff` gained anything from a grant. Grant
+/// `library:manage` to a TEACHER, or `routine:upload` to a STUDENT, and:
+///   * RLS allowed the work,
+///   * app_router allowed the screen (it asks PermissionSession),
+///   * and the menu showed nothing — reachable only by typing the URL.
+///
+/// It is the same defect that was found and fixed for staff, left in place for
+/// every other role. These tests are about the shared list, so a future edit
+/// cannot quietly re-inline it and strand the other roles again.
+void _delegationIsRoleAgnostic() {
+  group('delegated routes are independent of role', () {
+    test('no grants unlocks nothing', () {
+      expect(delegatedRoutes(const {}), isEmpty);
+    });
+
+    test('one grant unlocks exactly one screen', () {
+      expect(delegatedRoutes(const {'library:manage'}), ['/admin/library']);
+      expect(delegatedRoutes(const {'hall:manage'}), ['/admin/hall']);
+      expect(delegatedRoutes(const {'notice:publish'}), ['/manage-notices']);
+    });
+
+    test('the upload screen answers to any of its three grants, once', () {
+      const each = ['routine:upload', 'transport:upload', 'exam_seat:upload'];
+      for (final g in each) {
+        expect(delegatedRoutes({g}), contains('/admin/upload'),
+            reason: '$g must reveal the upload screen');
+      }
+      // All three together must not list it three times.
+      final all = delegatedRoutes(each.toSet());
+      expect(all.where((r) => r == '/admin/upload').length, 1);
+    });
+
+    test('permissions:delegate reveals the assign-work screen', () {
+      // A senior manager needs Manage Users, because that is where the
+      // permission sheet lives. The router opens it for them too.
+      expect(delegatedRoutes(const {'permissions:delegate'}),
+          contains('/admin/users'));
+      expect(delegatedRoutes(const {'library:manage'}),
+          isNot(contains('/admin/users')),
+          reason: 'holding an unrelated area must not expose Manage Users');
+    });
+
+    test('an unknown grant unlocks nothing', () {
+      expect(delegatedRoutes(const {'nonsense:action'}), isEmpty);
+    });
+
+    test('staffMenuRoutes is its baseline plus exactly these', () {
+      // The one that stops the two drifting apart again: whatever staff gets
+      // beyond the employee baseline must BE the delegated list.
+      const grants = {'library:manage', 'hall:manage'};
+      final staff = staffMenuRoutes(grants);
+      final baseline = staffMenuRoutes(const {});
+      final extra = staff.where((r) => !baseline.contains(r)).toList();
+      expect(extra, delegatedRoutes(grants));
     });
   });
 }
