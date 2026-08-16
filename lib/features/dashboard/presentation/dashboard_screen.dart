@@ -19,6 +19,9 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../schedule/data/models/class_slot.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../../core/utils/responsive.dart';
+import '../../web/presentation/consoles/role_console.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -407,6 +410,32 @@ class _DashboardState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ON A DESKTOP BROWSER THIS SCREEN HANDS OVER ENTIRELY.
+    //
+    // What follows is a twelve-tile launcher whose only role logic is
+    // subtracting four student-only tiles (`_studentOnlyModules`). It never
+    // reads PermissionSession — zero references in this file — so a staff
+    // member, a delegated officer, a teacher and an exam controller all landed
+    // on the SAME eight student-facing tiles, with routine upload, hall
+    // management, CR approval and the activity log appearing nowhere.
+    //
+    // That is defensible on a phone: you opened the app for a reason, and a
+    // launcher is a reasonable answer to "what is in here". On a desktop,
+    // where someone sits down to work for an hour, it is a wasted screen. The
+    // console leads with what is WAITING, built from the same capability model
+    // the sidebar reads.
+    //
+    // `kIsWeb` is a compile-time constant, so RoleConsole and everything it
+    // pulls in are tree-shaken out of the Android AOT build — the same
+    // mechanism app_shell.dart uses for the command palette, and the reason
+    // the web layer cannot grow the APK.
+    //
+    // Narrow browser windows keep the mobile dashboard: the console is a
+    // multi-column layout and would be worse than these tiles at 500px.
+    if (kIsWeb && Responsive.isExpanded(context)) {
+      return const RoleConsole();
+    }
+
     return Scaffold(
       backgroundColor: AppColors.isDark(context) ? AppColors.background : AppColors.lightBg,
       appBar: const AfosAppBar(title: 'Dashboard'),
