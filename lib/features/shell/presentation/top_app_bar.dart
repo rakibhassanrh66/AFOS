@@ -1,5 +1,6 @@
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,15 +20,48 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
   const AfosAppBar({super.key, required this.title, this.actions});
-  // Toolbar area for the floating pill (AppBar adds the status-bar inset on
-  // top of this at runtime).
-  @override Size get preferredSize => const Size.fromHeight(70);
+
+  /// 70 on mobile for the floating pill; 84 on a desktop browser for the page
+  /// header that replaces it.
+  ///
+  /// This getter cannot read context, so it cannot ask how wide the window is.
+  /// `kIsWeb` alone is the right test anyway: a narrow browser window still
+  /// gets the desktop header, and the header is the better answer there too —
+  /// what it must never do is appear in the Android build, and kIsWeb is a
+  /// compile-time constant, so it does not.
+  @override
+  Size get preferredSize =>
+      kIsWeb ? const Size.fromHeight(84) : const Size.fromHeight(70);
 
   bool get _isSuperAdmin => RoleSession.role == 'super_admin';
 
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
+
+    // ON THE WEB THIS IS NOT A PHONE TOOLBAR.
+    //
+    // The floating glass pill below is a phone component: a hamburger on the
+    // left for a thumb, a centred title, a bell on the right. On a desktop
+    // browser the sidebar is permanently visible, so the hamburger opens
+    // nothing; and the pill's 54px height and pill radius sat above every page
+    // as a second bar under the sidebar's own header — the "two stacked bars"
+    // that made the web read as a resized phone app.
+    //
+    // The desktop header is a page title: large, left-aligned, sitting on the
+    // page rather than floating over it, with the screen's own actions inline
+    // where a mouse expects them. Same widget, same call sites — all 52
+    // screens that already use AfosAppBar get this without being edited, which
+    // is the only way a 62-screen sweep stays consistent.
+    if (kIsWeb) {
+      setWebTitle('$title - AFOS');
+      return _WebPageHeader(
+        title: title,
+        actions: actions,
+        isSuperAdmin: _isSuperAdmin,
+      );
+    }
+
     // AfosAppBar must stay a bare PreferredSizeWidget (Scaffold.appBar
     // requires it), so it can't be wrapped in Flutter's Title widget the
     // usual way -- every screen already passes its own meaningful title
@@ -100,6 +134,83 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// The desktop replacement for the floating pill.
+///
+/// Deliberately NOT glass and NOT floating. The shell already owns one blurred
+/// surface (the constitution's rule is that blur belongs to the shell and a
+/// content surface does not add another), and a second translucent bar
+/// hovering over every page was the single loudest reason the web build looked
+/// like a phone app someone had resized.
+///
+/// What it is instead: a page title in the display role, left-aligned, with a
+/// hairline under it separating chrome from content, and the screen's own
+/// actions inline on the right where a mouse looks for them.
+class _WebPageHeader extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final List<Widget>? actions;
+  final bool isSuperAdmin;
+
+  const _WebPageHeader({
+    required this.title,
+    required this.actions,
+    required this.isSuperAdmin,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(84);
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    return Container(
+      height: 84,
+      padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 16, 0),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderOf(context), width: 0.5),
+        ),
+      ),
+      child: Row(children: [
+        Flexible(
+          child: Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.displayMedium.copyWith(
+                  color: textPrimary, fontWeight: FontWeight.w700)),
+        ),
+        if (isSuperAdmin) ...[
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              // Flat fill, not the mobile pill's gradient: the constitution
+              // bans symmetric two-stop gradients, and a badge this small has
+              // nothing to gain from one.
+              color: AppColors.holoviolet.withValues(alpha: 0.16),
+              borderRadius: AppDepth.radius(0),
+            ),
+            child: const Text('SUPER ADMIN',
+                textHeightBehavior: TextHeightBehavior(
+                    applyHeightToFirstAscent: false,
+                    applyHeightToLastDescent: false),
+                style: TextStyle(
+                    color: AppColors.holoviolet,
+                    fontSize: 10,
+                    height: 1.0,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5)),
+          ),
+        ],
+        const Spacer(),
+        ...?actions,
+        _NotificationBell(color: textPrimary),
+        const SizedBox(width: 4),
+      ]),
     );
   }
 }
