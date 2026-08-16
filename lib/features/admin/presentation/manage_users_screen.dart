@@ -36,7 +36,10 @@ class ManageUsersScreen extends StatefulWidget {
   @override State<ManageUsersScreen> createState() => _ManageUsersScreenState();
 }
 
-class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTickerProviderStateMixin {
+// TickerProviderStateMixin, not Single: the tab set depends on who is looking,
+// and the controller is rebuilt once that resolves. Two controllers exist for
+// the frame between the swap and the old one's disposal, which Single forbids.
+class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProviderStateMixin {
   late TabController _tab;
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _crRequests = [];
@@ -59,19 +62,101 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
   /// for the frame before the role resolves.
   bool _isSuperAdmin = false;
 
-  static const _roles = ['all', 'student', 'teacher', 'admin', 'dept_admin', 'staff', 'exam_controller', 'super_admin'];
+  /// Who holds which delegated areas, keyed by user id.
+  ///
+  /// WHY THIS IS LOADED FOR THE WHOLE LIST AND NOT PER CARD. Management was
+  /// invisible: a user's card showed role, department and join date, so the
+  /// only way to learn that someone could hand out work was to open their
+  /// permission sheet, one user at a time. There was no answer to "who are my
+  /// managers" short of checking all of them. One query for every row is the
+  /// difference between a list you can read and a list you have to interrogate.
+  ///
+  /// RLS decides what lands here, and correctly returns different things to
+  /// different viewers: a super_admin sees every grant; a manager sees only
+  /// grants for areas they themselves hold (see the
+  /// delegate_read_what_they_may_delegate policy). Both are exactly the set
+  /// that viewer is allowed to act on, so the badges never promise a control
+  /// the database will refuse.
+  Map<String, Set<String>> _grantsByUser = {};
+
+  /// permission id of `permissions:delegate` — the one grant that means
+  /// "this person may distribute work to others". Null until the catalogue
+  /// loads, and every manager check below is false while it is.
+  String? _delegatePermId;
+
+  static const _roles = ['all', 'management', 'student', 'teacher', 'admin', 'dept_admin', 'staff', 'exam_controller', 'super_admin'];
+
+  bool _isManager(Map<String, dynamic> user) =>
+      _delegatePermId != null &&
+      (_grantsByUser[user['id']]?.contains(_delegatePermId) ?? false);
+
+  /// Areas a user can act in, NOT counting `permissions:delegate` itself.
+  /// Being allowed to hand out work is not itself a job, and counting it as
+  /// one makes a manager with nothing to distribute look equipped.
+  int _areaCount(Map<String, dynamic> user) {
+    final g = _grantsByUser[user['id']];
+    if (g == null) return 0;
+    return g.where((id) => id != _delegatePermId).length;
+  }
 
   Future<void> _loadViewerRole() async {
     final role = await RoleSession.ensureLoaded();
-    if (mounted) setState(() => _isSuperAdmin = role == 'super_admin');
+    if (!mounted) return;
+    setState(() {
+      _isSuperAdmin = role == 'super_admin';
+      // A DELEGATE IS HERE FOR ONE JOB.
+      //
+      // Approving signups and deciding CR requests are super_admin's, and RLS
+      // refuses both for a delegate. Showing them the Pending tab offered two
+      // buttons whose only possible outcome was a permission error, on a
+      // screen they were correctly allowed to open. The tabs now describe what
+      // this viewer can actually do rather than what the screen can do.
+      _setTabCount(_isSuperAdmin ? 3 : 1);
+    });
+  }
+
+  void _setTabCount(int length) {
+    if (_tab.length == length) return;
+    final old = _tab;
+    _tab = TabController(length: length, vsync: this);
+    // Disposed after this frame: the running build still holds the old one.
+    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
+
+  Future<void> _loadGrants() async {
+    try {
+      final delegateRow = await SupabaseConfig.client
+          .from('permissions').select('id')
+          .eq('resource', 'permissions').eq('action', 'delegate').maybeSingle();
+      final rows = await SupabaseConfig.client
+          .from('user_permissions').select('user_id, permission_id') as List;
+      final map = <String, Set<String>>{};
+      for (final r in rows.cast<Map<String, dynamic>>()) {
+        (map[r['user_id'] as String] ??= <String>{}).add(r['permission_id'] as String);
+      }
+      if (mounted) {
+        setState(() {
+          _grantsByUser = map;
+          _delegatePermId = delegateRow?['id'] as String?;
+        });
+      }
+    } catch (_) {
+      // Deliberately silent, and deliberately not surfaced as _error. These
+      // are badges on a list that is otherwise fine; failing to decorate a row
+      // is not a reason to replace the whole user list with an error state.
+    }
   }
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    // Starts at 1 — the All Users tab everyone here gets — and grows to 3 once
+    // the viewer proves to be super_admin. Same reasoning as _isSuperAdmin
+    // defaulting false: never flash controls that may not be theirs.
+    _tab = TabController(length: 1, vsync: this);
     _loadViewerRole();
     _load();
+    _loadGrants();
     _loadCrRequests();
     // Debounced: `profiles` changes on every login and every profile edit
     // anywhere in the app, and each event used to trigger a full re-download of
@@ -187,7 +272,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
 
   List<Map<String, dynamic>> get _filtered {
     var list = _users;
-    if (_roleFilter != 'all') list = list.where((u) => u['role'] == _roleFilter).toList();
+    // "Management" is a capability, not a role — that is the whole point of
+    // the tier. It cuts across student/teacher/staff, so it filters on the
+    // grant rather than on profiles.role.
+    if (_roleFilter == 'management') {
+      list = list.where(_isManager).toList();
+    } else if (_roleFilter != 'all') {
+      list = list.where((u) => u['role'] == _roleFilter).toList();
+    }
     if (_search.trim().isNotEmpty) {
       final q = _search.trim().toLowerCase();
       list = list.where((u) =>
@@ -418,6 +510,92 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
     if (go == true && mounted) await _managePermissions(user);
   }
 
+  /// Promote someone into — or out of — the management tier, in one action.
+  ///
+  /// WHAT WAS WRONG. The tier existed in the database the moment
+  /// `permissions:delegate` was added, but there was no way to *appoint*
+  /// anyone: a super-admin had to open a 26-row checkbox list and know that
+  /// the row reading "Permissions: delegate" was the one that means "this
+  /// person can now hand out work to others". It sat between "Notice: publish"
+  /// and "Routine: upload" looking like just another area. Appointing a
+  /// manager is a decision about authority, not a checkbox, so it gets its own
+  /// action that says what it does.
+  ///
+  /// It also does the second half nobody remembered: a manager may only pass
+  /// on areas they themselves hold, so a manager with zero areas can
+  /// distribute NOTHING. Promoting without granting areas produces a manager
+  /// who opens the sheet to an empty list — the same dead end that made staff
+  /// accounts useless. So the area picker follows immediately.
+  Future<void> _toggleManager(Map<String, dynamic> user) async {
+    final permId = _delegatePermId;
+    if (permId == null) return;
+    final name = user['full_name'] ?? 'This user';
+    final isManager = _isManager(user);
+
+    if (user['id'] == SupabaseConfig.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("You can't change your own management access"),
+          backgroundColor: AppColors.red));
+      return;
+    }
+
+    final areas = _areaCount(user);
+    final ok = await _confirmAction(
+      isManager ? 'Remove management access?' : 'Make $name a manager?',
+      isManager
+          ? '$name will keep their own work areas but can no longer give any '
+            'of them to anyone else. Areas they already handed out stay in '
+            'place — this stops them distributing more, it does not undo what '
+            'they did.'
+          : '$name will be able to give their own work areas to other people, '
+            'and to take them back. They can never grant an area they do not '
+            'hold themselves, so they cannot promote anyone above their own '
+            'level — including themselves.'
+            '${areas == 0 ? '\n\nThey hold no areas yet, so they would have '
+                'nothing to give. Assign areas on the next screen.' : ''}',
+      isManager ? 'Remove access' : 'Make manager',
+    );
+    if (!ok) return;
+
+    try {
+      if (isManager) {
+        await SupabaseConfig.client.from('user_permissions').delete()
+            .eq('user_id', user['id']).eq('permission_id', permId);
+      } else {
+        await SupabaseConfig.client.from('user_permissions').insert({
+          'user_id': user['id'], 'permission_id': permId,
+          'granted_by': SupabaseConfig.uid,
+        });
+      }
+      await NotificationService.sendToUsers(
+        userIds: [user['id'] as String],
+        title: isManager ? 'Management access removed' : 'You are now a manager',
+        message: isManager
+            ? 'You can no longer assign your work areas to other people.'
+            : 'You can now assign your own work areas to other people from '
+              'Assign Work Areas.',
+        category: 'general',
+      );
+      await _loadGrants();
+      if (!mounted) return;
+      AppHaptics.success();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isManager
+              ? '$name is no longer a manager'
+              : '$name can now distribute their work areas'),
+          backgroundColor: isManager ? AppColors.amber : AppColors.green));
+
+      // Straight into the areas, because a manager holding nothing is a
+      // manager who can do nothing.
+      if (!isManager && _areaCount(user) == 0) await _managePermissions(user);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+  }
+
   /// Grants ONE specific admin area to a user without changing their role —
   /// "distribute admin work" (e.g. a student handles transport uploads
   /// without becoming a full `admin`). Writes to `user_permissions`, which
@@ -453,7 +631,16 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
             .from('user_permissions').select('permission_id')
             .eq('user_id', SupabaseConfig.uid!) as List;
         final mine = mineRes.map((r) => r['permission_id'] as String).toSet();
-        catalog = catalog.where((p) => mine.contains(p['id'])).toList();
+        catalog = catalog.where((p) =>
+            mine.contains(p['id']) &&
+            // ...except the one permission a manager holds but may not pass
+            // on. Appointing managers is super_admin's, so the manager tier
+            // cannot widen itself: otherwise one manager could clone their
+            // own authority to anyone, and the only trace would be an audit
+            // row nobody was watching. The database refuses this too — the
+            // checkbox is removed so it never looks available.
+            !(p['resource'] == 'permissions' && p['action'] == 'delegate')
+        ).toList();
       }
     } catch (e) {
       if (mounted) {
@@ -525,9 +712,15 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
       await NotificationService.sendToUsers(
         userIds: [user['id'] as String],
         title: 'Your permissions were updated',
-        message: 'A super-admin changed which admin tools you can access in AFOS.',
+        // Not "a super-admin" any more — a manager can be the one doing this,
+        // and telling the recipient it was a super-admin when it was their
+        // department's manager is a small untruth the app has no reason to tell.
+        message: 'Your work areas in AFOS were changed. Open the menu to see '
+            'what you can now access.',
         category: 'general',
       );
+      // The badges on the list are now stale by exactly this change.
+      await _loadGrants();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Permissions updated for ${user['full_name'] ?? 'user'}'), backgroundColor: AppColors.green));
@@ -556,32 +749,50 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
               borderRadius: 16,
               glowColor: AppColors.holoviolet,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(children: [
-                Expanded(child: _StatTile(label: 'Pending', value: _pending.length)),
-                _StatDivider(),
-                Expanded(child: _StatTile(label: 'CR Requests', value: _crRequests.length)),
-                _StatDivider(),
-                Expanded(child: _StatTile(label: 'Total Users', value: _users.length)),
-              ]),
+              // Counts of queues a delegate cannot work are noise to them; the
+              // one number they need is how many people hold delegated areas.
+              child: Row(children: _isSuperAdmin
+                  ? [
+                      Expanded(child: _StatTile(label: 'Pending', value: _pending.length)),
+                      _StatDivider(),
+                      Expanded(child: _StatTile(label: 'CR Requests', value: _crRequests.length)),
+                      _StatDivider(),
+                      Expanded(child: _StatTile(label: 'Total Users', value: _users.length)),
+                    ]
+                  : [
+                      // No "Managers" count here. A manager cannot READ who
+                      // else holds permissions:delegate — that is deliberate,
+                      // so the tier cannot be enumerated from inside it — and
+                      // a tile reading 0 would be a confident lie rather than
+                      // an absence. What they can see is their own remit.
+                      Expanded(child: _StatTile(
+                          label: 'In your areas',
+                          value: _users.where((u) => _areaCount(u) > 0).length)),
+                      _StatDivider(),
+                      Expanded(child: _StatTile(label: 'Total Users', value: _users.length)),
+                    ]),
             ),
           ),
         ),
-        AnimatedBuilder(
-          animation: _tab,
-          builder: (ctx, _) => GlassTabBar(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            currentIndex: _tab.index,
-            onChanged: (i) => _tab.animateTo(i),
-            tabs: [
-              GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
-              GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
-              const GlassTab('All Users', icon: Icons.people_alt_rounded),
-            ],
+        // One tab needs no tab bar to switch between.
+        if (_isSuperAdmin)
+          AnimatedBuilder(
+            animation: _tab,
+            builder: (ctx, _) => GlassTabBar(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              currentIndex: _tab.index,
+              onChanged: (i) => _tab.animateTo(i),
+              tabs: [
+                GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
+                GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
+                const GlassTab('All Users', icon: Icons.people_alt_rounded),
+              ],
+            ),
           ),
-        ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : TabBarView(controller: _tab, children: [
+                if (_isSuperAdmin) ...[
                 _error != null
                     ? ErrorView(message: _error!, onRetry: _load)
                     : _pending.isEmpty
@@ -621,6 +832,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                                 ]),
                               ]));
                         }),
+                ],
                 Column(children: [
                   Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8), child: TextField(
                       onChanged: (v) => setState(() => _search = v),
@@ -635,10 +847,24 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
-                      children: _roles.map((r) {
+                      // The Management filter is super_admin's: a manager
+                      // cannot read who else holds permissions:delegate, so
+                      // for them the filter would always come back empty.
+                      children: _roles
+                          .where((r) => r != 'management' || _isSuperAdmin)
+                          .map((r) {
                         final sel = r == _roleFilter;
+                        // 'management' is not in the roles table, so roleLabel
+                        // would render the raw key. It is a grant, shown here
+                        // because "who can hand out work" is a question this
+                        // list previously could not answer at all.
+                        final label = switch (r) {
+                          'all' => 'All',
+                          'management' => 'Management (${_users.where(_isManager).length})',
+                          _ => roleLabel(r),
+                        };
                         return GlassChip(
-                          label: r == 'all' ? 'All' : roleLabel(r),
+                          label: label,
                           selected: sel,
                           color: AppColors.holoviolet,
                           onTap: () => setState(() => _roleFilter = r));
@@ -659,13 +885,26 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with SingleTicker
                           // else. Changing a role or deleting an account stays
                           // super_admin's, and the database refuses both for a
                           // delegate independently of this.
+                          // Appointing a manager is super_admin's alone. A
+                          // manager handing out management would let the tier
+                          // grow itself sideways with no one able to see it
+                          // happen; the database refuses it independently
+                          // (delegate_grant_only_what_they_hold requires the
+                          // delegate to hold permissions:delegate, and the
+                          // super_admin path is what the UI must not imply).
                           prototypeItem: _UserCard(user: _filtered.first, pending: false,
+                              isManager: _isManager(_filtered.first),
+                              areaCount: _areaCount(_filtered.first),
                               onDelete: _isSuperAdmin ? () => _confirmDelete(_filtered.first) : null,
                               onChangeRole: _isSuperAdmin ? () => _setRole(_filtered.first) : null,
+                              onToggleManager: _isSuperAdmin ? () => _toggleManager(_filtered.first) : null,
                               onManagePermissions: () => _managePermissions(_filtered.first)),
                           itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_filtered[i]['id']), user: _filtered[i], pending: false,
+                              isManager: _isManager(_filtered[i]),
+                              areaCount: _areaCount(_filtered[i]),
                               onDelete: _isSuperAdmin ? () => _confirmDelete(_filtered[i]) : null,
                               onChangeRole: _isSuperAdmin ? () => _setRole(_filtered[i]) : null,
+                              onToggleManager: _isSuperAdmin ? () => _toggleManager(_filtered[i]) : null,
                               onManagePermissions: () => _managePermissions(_filtered[i])))),
                 ]),
               ])),
@@ -695,8 +934,15 @@ class _StatDivider extends StatelessWidget {
 
 class _UserCard extends StatelessWidget {
   final Map<String, dynamic> user; final bool pending;
-  final VoidCallback? onApprove, onReject, onDelete, onChangeRole, onManagePermissions;
-  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete, this.onChangeRole, this.onManagePermissions});
+  final VoidCallback? onApprove, onReject, onDelete, onChangeRole, onManagePermissions, onToggleManager;
+
+  /// Holds `permissions:delegate` — may hand their own areas to others.
+  final bool isManager;
+
+  /// Delegated areas held, excluding `permissions:delegate` itself.
+  final int areaCount;
+
+  const _UserCard({super.key, required this.user, required this.pending, this.onApprove, this.onReject, this.onDelete, this.onChangeRole, this.onManagePermissions, this.onToggleManager, this.isManager = false, this.areaCount = 0});
 
   static const _roleColors = {
     'super_admin': AppColors.holoviolet, 'admin': AppColors.holoBlue, 'dept_admin': AppColors.holoTeal,
@@ -764,7 +1010,33 @@ class _UserCard extends StatelessWidget {
                             side: const BorderSide(color: AppColors.holoviolet)),
                         onPressed: () { Navigator.pop(sheetCtx); onManagePermissions!(); },
                         icon: const Icon(Icons.rule_rounded, size: 18),
-                        label: const Text('Distribute admin work (permissions)'))),
+                        label: Text(areaCount == 0
+                            ? 'Assign work areas'
+                            : 'Work areas ($areaCount assigned)'))),
+                  ],
+                  if (onToggleManager != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                            foregroundColor: isManager ? AppColors.amber : AppColors.holoTeal,
+                            side: BorderSide(color: isManager ? AppColors.amber : AppColors.holoTeal)),
+                        onPressed: () { Navigator.pop(sheetCtx); onToggleManager!(); },
+                        icon: Icon(isManager
+                            ? Icons.person_remove_alt_1_rounded
+                            : Icons.supervisor_account_rounded, size: 18),
+                        label: Text(isManager
+                            ? 'Remove management access'
+                            : 'Make a manager'))),
+                    const SizedBox(height: 6),
+                    Text(
+                      isManager
+                          ? 'They can pass their own work areas to other people. '
+                            'They can never grant an area they do not hold.'
+                          : 'A manager can hand their own work areas to other '
+                            'people, and take them back — without becoming an admin.',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textSecondaryOf(sheetCtx)),
+                    ),
                   ],
                 ]))));
   }
@@ -806,6 +1078,40 @@ class _UserCard extends StatelessWidget {
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: AppDepth.radius(0)),
               child: Text(roleLabel(role), style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
+          // AUTHORITY THAT DOES NOT COME FROM THE ROLE.
+          //
+          // These two facts decide what this person can actually do, and
+          // neither is visible in `role`: a `student` holding four areas has
+          // more reach than a `staff` holding none. Without them the list
+          // answers "what were they signed up as", not "what can they do".
+          if (isManager) ...[
+            const SizedBox(width: 6),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                    color: AppColors.holoviolet.withValues(alpha: 0.14),
+                    borderRadius: AppDepth.radius(0)),
+                child: const Text('Manager',
+                    style: TextStyle(color: AppColors.holoviolet, fontSize: 11, fontWeight: FontWeight.w700))),
+          ],
+          if (areaCount > 0) ...[
+            const SizedBox(width: 6),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                    color: AppColors.holoTeal.withValues(alpha: 0.14),
+                    borderRadius: AppDepth.radius(0)),
+                child: Text(areaCount == 1 ? '1 area' : '$areaCount areas',
+                    style: const TextStyle(color: AppColors.holoTeal, fontSize: 11, fontWeight: FontWeight.w700))),
+          ] else if (isManager) ...[
+            // A manager with nothing to give. Worth calling out: they will
+            // open the sheet to an empty list and conclude the app is broken.
+            const SizedBox(width: 6),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                    color: AppColors.amber.withValues(alpha: 0.14),
+                    borderRadius: AppDepth.radius(0)),
+                child: const Text('no areas',
+                    style: TextStyle(color: AppColors.amber, fontSize: 11, fontWeight: FontWeight.w700))),
+          ],
           const SizedBox(width: 8),
           // Expanded, not Flexible-beside-a-Spacer. `Spacer` is an `Expanded`
           // with flex 1 and `Flexible` defaults to flex 1, so the two split the

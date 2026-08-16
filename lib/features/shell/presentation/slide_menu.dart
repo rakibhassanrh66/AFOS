@@ -38,15 +38,36 @@ import '../../../shared/widgets/radial_logout_menu.dart';
 /// pairs match app_router.dart's guards for the same routes exactly; if the
 /// two ever disagree, the menu offers a door the router slams.
 @visibleForTesting
-List<String> staffMenuRoutes(Set<String> grants) {
+List<String> staffMenuRoutes(Set<String> grants) => [
+      '/home',
+      '/transport',
+      '/lost-found',
+      '/sos/nearby',
+      '/notifications',
+      '/settings',
+      ...delegatedRoutes(grants),
+      '/feedback',
+    ];
+
+/// The routes unlocked purely by a DELEGATED grant, for anyone, in menu order.
+///
+/// WHY THIS IS SEPARATE, and it is the fix for a live bug. This list used to
+/// be inlined in [staffMenuRoutes], which meant only `staff` benefited from
+/// delegation. Grant `library:manage` to a teacher or `routine:upload` to a
+/// student and the router let them through (it asks PermissionSession) and RLS
+/// let them do the work — but their menu never showed the entry, so the
+/// capability was reachable only by typing the URL.
+///
+/// That is the same defect that was found and fixed for staff, left in place
+/// for every other role. A permission is a permission: whoever holds it should
+/// see the door.
+///
+/// The resource:action pairs match app_router.dart's guards exactly. If the two
+/// disagree, the menu offers a door the router slams.
+@visibleForTesting
+List<String> delegatedRoutes(Set<String> grants) {
   bool can(String resource, String action) => grants.contains('$resource:$action');
   return [
-    '/home',
-    '/transport',
-    '/lost-found',
-    '/sos/nearby',
-    '/notifications',
-    '/settings',
     // One screen, three grants that each unlock it — mirrors the router, which
     // admits any one of them.
     if (can('routine', 'upload') || can('transport', 'upload') || can('exam_seat', 'upload'))
@@ -58,7 +79,9 @@ List<String> staffMenuRoutes(Set<String> grants) {
     if (can('sos', 'manage')) '/admin/sos',
     if (can('notice', 'publish')) '/manage-notices',
     if (can('exam_seat', 'upload')) '/manage-exam-seats',
-    '/feedback',
+    // Distributing work is itself a delegated capability, and its screen is
+    // Manage Users — which the router now opens for a delegate.
+    if (can('permissions', 'delegate')) '/admin/users',
   ];
 }
 
@@ -254,6 +277,7 @@ class _SlideMenuState extends State<SlideMenu> {
     _sosAdminItem,
     _noticesItem,
     _examSeatsItem,
+    _delegateUsersItem,
     _feedbackItem,
   ];
 
@@ -284,6 +308,15 @@ class _SlideMenuState extends State<SlideMenu> {
 
   static const _examSeatsItem =
     _MenuItem('Manage Exam Seats', AppIcons.examSeat, '/manage-exam-seats', AppColors.orange);
+
+  /// Manage Users as a DELEGATE sees it.
+  ///
+  /// Same route, different label and colour on purpose: a delegate opens this
+  /// screen to distribute work they already hold, and the screen itself hides
+  /// role changes, approvals and deletion for them. Calling it "Manage Users"
+  /// would promise a tool they do not have.
+  static const _delegateUsersItem =
+    _MenuItem('Assign Work Areas', AppIcons.manageUsers, '/admin/users', AppColors.holoviolet);
 
   // super_admin only — not even ordinary admin/dept_admin get this (see the
   // dedicated /admin/users redirect guard in app_router.dart).
@@ -376,7 +409,41 @@ class _SlideMenuState extends State<SlideMenu> {
     });
   }
 
+  /// The role's own menu, PLUS anything individually delegated to this person.
+  ///
+  /// The delegated half used to apply to `staff` only. Every other role
+  /// returned a fixed list, so a teacher granted `library:manage` — or a
+  /// student granted `routine:upload` — could do the work (RLS allows it) and
+  /// reach the screen (the router allows it), but had no menu entry for it.
+  /// The capability existed and was invisible.
+  ///
+  /// Appended rather than merged into each branch: the role's own ordering is
+  /// deliberate, and a granted extra belongs at the end as an addition rather
+  /// than interleaved into a list somebody chose the order of.
   List<_MenuItem> get _roleItems {
+    final base = _baseRoleItems;
+    // staff already builds itself entirely from grants; adding them again
+    // would duplicate every entry.
+    if (_user?.role == 'staff') return base;
+
+    final have = base.map((m) => m.route).toSet();
+    final byRoute = {for (final m in _staffCandidateItems) m.route: m};
+    final extras = <_MenuItem>[
+      for (final route in delegatedRoutes(_grants))
+        if (!have.contains(route) && byRoute[route] != null) byRoute[route]!,
+    ];
+    if (extras.isEmpty) return base;
+    // Feedback stays last, as it always has.
+    final feedbackIdx = base.indexWhere((m) => m.route == '/feedback');
+    if (feedbackIdx < 0) return [...base, ...extras];
+    return [
+      ...base.sublist(0, feedbackIdx),
+      ...extras,
+      ...base.sublist(feedbackIdx),
+    ];
+  }
+
+  List<_MenuItem> get _baseRoleItems {
     final role = _user?.role;
     // Admin-tier roles get oversight tools (Manage Hall, etc.), not the
     // student-personal-record screens themselves — an admin has no hall
