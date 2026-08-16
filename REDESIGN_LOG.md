@@ -1468,3 +1468,75 @@ the release job has uploaded the APK. Announcing first means everyone who taps
 Update gets an error until CI catches up.
 
 ---
+
+## 2026-08-16 — The management tier, made usable
+
+**Files:** `lib/features/shell/presentation/slide_menu.dart`,
+`lib/features/admin/presentation/manage_users_screen.dart`,
+`test/staff_menu_permissions_test.dart`,
+`supabase/migrations/20260816003500_delegate_can_read_what_they_may_delegate.sql`,
+`supabase/migrations/20260816004500_only_super_admin_appoints_a_manager.sql`
+
+Delegation shipped in the previous batch and was, on inspection of the live
+policies, broken in three separate directions.
+
+**A grant changed the menu for `staff` and for nobody else.** `delegatedRoutes`
+was inlined inside `staffMenuRoutes`. A teacher granted `library:manage`, or a
+student granted `routine:upload`, passed the router guard (which asks
+`PermissionSession`) and passed RLS — and got no menu entry. The capability was
+real and unreachable. The list is now a shared function applied to every role,
+deduped against the role's own routes, with Feedback kept last.
+
+**A manager could write what they could not read.** INSERT and DELETE each got
+a delegate policy; SELECT did not. Reading another user's grants matched
+neither `user_id = auth.uid()` nor `super_admin`, so it returned zero rows —
+silently, because RLS filters rather than errors. Three consequences: the
+permission sheet showed every checkbox unticked for someone who already held
+areas; revoking was impossible, because the client computes revocations as
+`granted - selected` and `granted` was always empty; and re-ticking a held area
+produced an INSERT violating `user_permissions_pkey`, failing with a
+constraint name for a box that looked unticked. Delegation only ever worked in
+the direction that hands out more access. Fixed by letting a delegate read a
+row when the permission on it is one they hold — the same test that already
+decides whether they may change it, so visibility and authority became the
+same set.
+
+**The tier could recruit into itself.** `permissions:delegate` is stored in the
+same table as every working area, so "pass on anything you hold" applied to it:
+a manager could appoint managers, who could appoint managers. No stated
+invariant broke — nobody gains an area they lack — but authority to do a job
+and authority to hand out that job are different powers, and only the second
+compounds. Appointing and dismissing is now super_admin's alone, and a manager
+can no longer enumerate the tier from inside it.
+
+**And the reason none of it was visible.** Appointing a manager meant opening a
+26-row checkbox list and knowing that "Permissions: delegate" — sitting between
+"Notice: publish" and "Routine: upload" — was the row that means *this person
+can now hand out work*. There is now a "Make a manager" action that says what
+it does, a Manager / N areas / **no areas** badge on every card, a Management
+filter, and the area picker following the appointment, because a manager
+holding nothing can distribute nothing.
+
+The screen also stops showing a delegate the Pending and CR queues, whose
+buttons RLS refuses for them, and stops telling recipients that "a super-admin"
+changed their permissions when it may have been their manager.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **369 passing** (6 new, pinning that
+delegated routes are role-independent and that `staffMenuRoutes` is its
+baseline plus exactly that list) · release APK builds on all three ABIs
+(31.1 / 34.2 / 36.6 MB) · pushed to `main` as `1ff9c55`.
+
+Policy predicates were evaluated as a real manager (role `staff`, holding
+`routine:upload` + `permissions:delegate`) via `set_config` on
+`request.jwt.claims`:
+
+| check | result |
+|---|---|
+| `is_a_manager` | t |
+| `may_touch_routine_upload` | t — the area they hold |
+| `may_touch_library_manage` | f — an area they do not |
+| `may_appoint_a_manager` | f |
+
+---
