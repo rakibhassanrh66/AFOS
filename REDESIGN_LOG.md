@@ -1641,3 +1641,52 @@ Every policy evaluated as a real user via `set_config` on
 Both test subjects were restored afterwards.
 
 ---
+
+## 2026-08-16 (same day, follow-up) — The decision tier could not reach its rows
+
+**File:** `supabase/migrations/20260816014500_the_decision_tier_could_not_reach_its_rows.sql`,
+`lib/features/admin/presentation/manage_users_screen.dart`
+
+Caught by checking the read path after shipping the write path, which is the
+lesson here rather than the fix.
+
+`protect_profile_privileged_columns` was taught to permit a `users:approve` or
+`roles:assign` holder. The ROW POLICIES were not:
+
+```
+admin_manage_all_profiles (UPDATE): admin, super_admin
+admin_read_all (SELECT):            admin, teacher, dept_admin, super_admin
+```
+
+A staff member holding either grant matched neither. The pending queue rendered
+**empty** for them, and every write affected **zero rows** — silently, because
+RLS filters rather than errors. The button did nothing and said nothing.
+
+**Third time this exact shape appeared in two days** —
+`delegate_read_what_they_may_delegate`, `cr_approver_reads_requests`, and this.
+Each time a capability was added at the trigger or RPC layer without the row
+policy that lets the caller reach the row. Naming it as a pattern: *when a
+permission gains write authority, check the read path in the same change,
+because the failure mode is silence.*
+
+Fixed with a SELECT policy plus two narrow `SECURITY DEFINER` RPCs
+(`set_user_role`, `set_user_verified`) rather than a broad UPDATE policy — a
+general profiles UPDATE would have let a `roles:assign` holder edit anyone's
+name, email or phone, which the trigger does not guard. The RPCs grant reach,
+not permission: the trigger still enforces the ceiling.
+
+Rejecting a pending signup DELETES the account, so it stays super_admin's even
+though approving does not — and the button is hidden rather than disabled.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **375 passing** · release APK builds
+on all three ABIs. As a real `roles:assign` holder via `request.jwt.claims`:
+`set_user_role(<student>, 'super_admin')` refused **by the trigger, through the
+RPC**; `set_user_role(<student>, 'teacher')` allowed with `role_id` synced.
+Subject restored, temporary grant removed.
+
+*(First `build apk` attempt failed in Gradle with no error text captured; two
+subsequent runs succeeded identically. Recorded as transient, not diagnosed.)*
+
+---
