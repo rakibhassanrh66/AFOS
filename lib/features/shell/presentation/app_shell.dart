@@ -17,6 +17,7 @@ import '../../../shared/widgets/offline_banner.dart';
 import '../../sos/presentation/sos_floating_button.dart';
 import '../bloc/shell_bloc.dart';
 import 'command_palette.dart';
+import '../../web/presentation/web_sidebar.dart';
 import 'slide_menu.dart';
 
 /// The 4 quick-access destinations shown in the floating bottom nav (mobile/
@@ -134,7 +135,26 @@ class _ShellBody extends StatelessWidget {
     // is specifically about a mouse-and-keyboard browser window, not
     // "wide screen" in general.
     final isDesktop = kIsWeb && Responsive.isExpanded(context);
-    Widget content = OfflineBanner(child: AdaptiveContentWidth(child: child));
+
+    // THE LETTERBOX IS GONE ON DESKTOP, and it was the whole problem.
+    //
+    // `AdaptiveContentWidth` centres content in a 1100px column above 600px.
+    // That is the right call for a tablet showing a phone-shaped screen, and
+    // it is exactly why the web build read as "a phone app someone forgot to
+    // resize": on a 1920px monitor it threw away 800px and rendered a queue of
+    // thirty items as a narrow ribbon down the middle.
+    //
+    // Screens that genuinely want a reading-width column now say so
+    // themselves, through `WebPage(maxContentWidth: ...)` — a form should be
+    // narrow, a table should not, and only the screen knows which it is. The
+    // shell's job is to hand over the space, not to decide in advance that
+    // nobody wants it.
+    //
+    // Below the desktop breakpoint nothing changes: tablets and narrow browser
+    // windows keep the letterbox they had.
+    Widget content = OfflineBanner(
+      child: isDesktop ? child : AdaptiveContentWidth(child: child),
+    );
 
     // Ctrl/Cmd+K anywhere in the authenticated shell.
     //
@@ -168,8 +188,19 @@ class _ShellBody extends StatelessWidget {
         },
         child: Scaffold(
           backgroundColor: AppColors.surfaceOf(context),
+          // WebSidebar, not SlideMenu(permanent: true).
+          //
+          // The rail was the phone drawer stood on its end: every capability
+          // in one flat list, which for a super_admin is twenty-five identical
+          // rows. Finding "Manage Exam Seats" meant reading twenty-five labels
+          // in order. The sidebar groups them (You / Academics / Campus /
+          // Operations / Oversight) from the same capability model the menu
+          // now reads, so the two cannot disagree.
+          //
+          // 264 rather than 248: the group headings need the room, and a
+          // sidebar that ellipsises "Course Offerings" is not navigation.
           body: LiquidBackdrop(child: Row(children: [
-            const SizedBox(width: 248, child: SlideMenu(permanent: true)),
+            const SizedBox(width: 264, child: WebSidebar()),
             Expanded(child: Stack(children: [
               content,
               const SosGate(),
