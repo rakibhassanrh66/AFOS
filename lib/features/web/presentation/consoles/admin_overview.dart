@@ -11,6 +11,9 @@ import '../../../../core/auth/permission_session.dart';
 import '../../../../core/auth/role_session.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/role_labels.dart';
+import '../../../../config/theme/chart_palette.dart';
+import '../widgets/chart_primitives.dart';
+import '../widgets/console_grid.dart';
 import '../widgets/web_layout.dart';
 
 /// The desktop console's data half — figures, a population breakdown, and the
@@ -76,6 +79,12 @@ class AdminOverviewData {
   final int beds;
   final int occupied;
 
+  /// Everything `campus_activity_facets()` returns — the routine density grid,
+  /// room and teacher counts, load per batch, and the campus-wide totals. One
+  /// RPC, roughly sixty numbers, instead of the 1854 schedule rows a browser
+  /// would otherwise have to download to count them itself.
+  final Map<String, dynamic> campus;
+
   /// Set when the fetch threw. The overview then renders a single explanatory
   /// panel instead of figures, and the rest of the console is unaffected.
   final String? error;
@@ -87,6 +96,7 @@ class AdminOverviewData {
     required this.exams,
     required this.beds,
     required this.occupied,
+    this.campus = const {},
     this.error,
   });
 
@@ -96,7 +106,70 @@ class AdminOverviewData {
         stuck = 0,
         exams = const [],
         beds = 0,
-        occupied = 0;
+        occupied = 0,
+        campus = const {};
+
+  int _c(String k) => (campus[k] as num?)?.toInt() ?? 0;
+
+  int get liveSlots => _c('liveSlots');
+  int get labSlots => _c('labSlots');
+  int get theorySlots => (liveSlots - labSlots).clamp(0, 1 << 30);
+  int get rooms => _c('rooms');
+  int get routineTeachers => _c('teachers');
+  int get clubs => _c('clubs');
+  int get stops => _c('stops');
+  int get routes => _c('routes');
+  int get books => _c('books');
+
+  /// `[{k, n}]` pairs from the campus payload, already sorted by the database.
+  List<BarDatum> _pairs(String key) => ((campus[key] as List?) ?? const [])
+      .cast<Map<String, dynamic>>()
+      .map((m) => BarDatum('${m['k']}', (m['n'] as num?)?.toInt() ?? 0))
+      .toList();
+
+  List<BarDatum> get loadByBatch => _pairs('byBatch');
+  List<BarDatum> get busiestRooms => _pairs('topRooms');
+
+  /// The density grid as `[day][hourIndex]`, over the hours that actually have
+  /// classes. Built here rather than in the widget so the panel stays a pure
+  /// render of a prepared matrix.
+  ({List<List<num>> grid, List<String> days, List<String> hours})
+      get densityGrid {
+    final cells = ((campus['density'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    if (cells.isEmpty) {
+      return (grid: const [], days: const [], hours: const []);
+    }
+
+    final hourSet = <int>{};
+    var maxDay = 0;
+    for (final c in cells) {
+      hourSet.add((c['h'] as num).toInt());
+      final d = (c['d'] as num).toInt();
+      if (d > maxDay) maxDay = d;
+    }
+    final hours = hourSet.toList()..sort();
+
+    // DIU's week starts Saturday, and day_of_week is stored 0-based from it.
+    const names = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final dayCount = maxDay + 1;
+
+    final grid = List.generate(
+        dayCount, (_) => List<num>.filled(hours.length, 0), growable: false);
+    for (final c in cells) {
+      final d = (c['d'] as num).toInt();
+      final hi = hours.indexOf((c['h'] as num).toInt());
+      if (d >= 0 && d < dayCount && hi >= 0) {
+        grid[d][hi] = (c['n'] as num?)?.toInt() ?? 0;
+      }
+    }
+
+    return (
+      grid: grid,
+      days: [for (var i = 0; i < dayCount; i++) names[i % names.length]],
+      hours: [for (final h in hours) '$h'],
+    );
+  }
 
   int get total => (facets['total'] as num?)?.toInt() ?? 0;
   int get pending => (facets['pending'] as num?)?.toInt() ?? 0;
@@ -144,6 +217,9 @@ class AdminOverviewData {
             .from('hall_applications')
             .select('id')
             .eq('status', 'approved'),
+        // The campus panels. Joins the same wave rather than adding an eighth
+        // round trip after it.
+        SupabaseConfig.client.rpc('campus_activity_facets'),
       ]);
 
       final facets = results[0];
@@ -156,6 +232,9 @@ class AdminOverviewData {
         beds: halls.fold<int>(
             0, (sum, h) => sum + ((h['capacity'] as num?)?.toInt() ?? 0)),
         occupied: (results[5] as List).length,
+        campus: results[6] is Map
+            ? Map<String, dynamic>.from(results[6] as Map)
+            : const {},
       );
     } catch (e) {
       return AdminOverviewData.failed(e.toString());
@@ -196,187 +275,294 @@ class AdminOverview extends StatelessWidget {
       );
     }
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      WebStatStrip(stats: [
-        WebStat(
-          label: 'People in AFOS',
-          value: '${d.total}',
-          icon: Icons.groups_rounded,
-          accent: AppColors.holoBlue,
-          note: 'across every role',
-          onTap: () => context.push('/admin/users'),
+    final density = d.densityGrid;
+
+    // EVERY PANEL DECLARES A SPAN, and the rows total twelve. That is the whole
+    // difference from the version this replaces, where two hand-rolled
+    // LayoutBuilders each guessed a flex and every panel's height was whatever
+    // its content came to. Reading down the spans below tells you the page
+    // layout without running it — which is what "designed" means here.
+    //
+    //   3+3+3+3   figures
+    //   12        routine density
+    //   4+4+4     population · lab split · halls
+    //   6+6       load by batch · exam schedule
+    //   6+6       busiest rooms · recently joined
+    //   3+3+3+3   campus figures
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.xl),
+      child: ConsoleGrid(panels: [
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'People in AFOS',
+            value: '${d.total}',
+            note: 'across every role',
+            icon: Icons.groups_rounded,
+            accent: ChartPalette.series(context, 0),
+            onTap: () => context.push('/admin/users'),
+          ),
         ),
-        WebStat(
-          label: 'Awaiting approval',
-          value: '${d.pending}',
-          icon: Icons.how_to_reg_rounded,
-          accent: d.pending > 0 ? AppColors.amber : AppColors.holoTeal,
-          // The note carries the meaning, not the colour — an amber tile with
-          // no words is a puzzle to anyone who cannot see the difference.
-          note: d.pending == 0 ? 'nothing waiting' : 'needs a decision',
-          onTap: () => context.push('/admin/users'),
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Awaiting approval',
+            value: '${d.pending}',
+            // The note carries the meaning, not the colour — a warning-tinted
+            // tile with no words is a puzzle to anyone who cannot see the tint.
+            note: d.pending == 0 ? 'nothing waiting' : 'needs a decision',
+            icon: Icons.how_to_reg_rounded,
+            accent: d.pending > 0
+                ? ChartPalette.warning(context)
+                : ChartPalette.good(context),
+            onTap: () => context.push('/admin/users'),
+          ),
         ),
-        WebStat(
-          label: 'Code failed',
-          value: '${d.stuck}',
-          icon: Icons.mark_email_unread_rounded,
-          accent: d.stuck > 0 ? AppColors.red : AppColors.holoTeal,
-          note: d.stuck == 0 ? 'none stuck' : 'verification did not settle',
-          onTap: () => context.push('/admin/users'),
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Code failed',
+            value: '${d.stuck}',
+            note: d.stuck == 0 ? 'none stuck' : 'verification did not settle',
+            icon: Icons.mark_email_unread_rounded,
+            accent: d.stuck > 0
+                ? ChartPalette.critical(context)
+                : ChartPalette.good(context),
+            onTap: () => context.push('/admin/users'),
+          ),
         ),
-      ]),
-      const SizedBox(height: AppSpace.xl),
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Classes running',
+            value: _grouped(d.liveSlots),
+            note: 'this week, across ${d.rooms} rooms',
+            icon: Icons.calendar_view_week_rounded,
+            accent: ChartPalette.series(context, 2),
+            onTap: () => context.push('/routine'),
+          ),
+        ),
 
-      // Population breakdown and recent joiners, side by side on a wide
-      // window and stacked below it.
-      LayoutBuilder(builder: (ctx, box) {
-        final wide = box.maxWidth >= 900;
-        final left = _RoleBreakdown(roles: d.roles, total: d.total);
-        final right = _RecentJoiners(rows: d.recent);
-        if (!wide) {
-          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            left,
-            const SizedBox(height: AppSpace.lg),
-            right,
-          ]);
-        }
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(flex: 2, child: left),
-          const SizedBox(width: AppSpace.lg),
-          Expanded(flex: 3, child: right),
-        ]);
-      }),
-      const SizedBox(height: AppSpace.lg),
+        // The single biggest dataset in the project — 1854 slots — and until
+        // now it appeared on no panel anywhere.
+        ConsolePanel(
+          span: PanelSpan.wide,
+          child: GridPanel(
+            title: 'When the campus is busy',
+            child: density.grid.isEmpty
+                ? _Empty('No routine has been uploaded yet.')
+                : HeatGrid(
+                    values: density.grid,
+                    rowLabels: density.days,
+                    colLabels: density.hours,
+                  ),
+          ),
+        ),
 
-      // Exam schedule and hall occupancy — the two reference panels the first
-      // pass dropped without checking whether the data existed. It did.
-      LayoutBuilder(builder: (ctx, box) {
-        final wide = box.maxWidth >= 900;
-        final left = _ExamSchedule(rows: d.exams);
-        final right = _HallOccupancy(beds: d.beds, occupied: d.occupied);
-        if (!wide) {
-          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            left,
-            const SizedBox(height: AppSpace.lg),
-            right,
-          ]);
-        }
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(flex: 3, child: left),
-          const SizedBox(width: AppSpace.lg),
-          Expanded(flex: 2, child: right),
-        ]);
-      }),
-      const SizedBox(height: AppSpace.xl),
-    ]);
-  }
-}
+        ConsolePanel(
+          span: PanelSpan.tall,
+          child: GridPanel(
+            title: 'Who is in AFOS',
+            child: d.roles.isEmpty
+                ? _Empty('No accounts yet.')
+                : BarList(
+                    total: d.total,
+                    data: [
+                      for (final r in d.roles)
+                        BarDatum(roleLabel('${r['value']}'),
+                            (r['count'] as num?)?.toInt() ?? 0),
+                    ],
+                  ),
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.tall,
+          child: _RingPanel(
+            title: 'Labs and theory',
+            centerValue: _grouped(d.liveSlots),
+            centerLabel: 'timetabled',
+            slices: [
+              RingSlice(
+                  label: 'Lab',
+                  value: d.labSlots,
+                  color: ChartPalette.series(context, 0)),
+              RingSlice(
+                  label: 'Theory',
+                  value: d.theorySlots,
+                  color: ChartPalette.series(context, 1)),
+            ],
+            empty: d.liveSlots == 0 ? 'No classes are timetabled.' : null,
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.tall,
+          child: _RingPanel(
+            title: 'Hall occupancy',
+            centerValue: _grouped(d.beds),
+            centerLabel: 'total beds',
+            slices: [
+              RingSlice(
+                  label: 'Occupied',
+                  value: d.occupied,
+                  color: ChartPalette.series(context, 0)),
+              RingSlice(
+                  label: 'Available',
+                  value: (d.beds - d.occupied).clamp(0, d.beds),
+                  color: ChartPalette.series(context, 1)),
+            ],
+            empty: d.beds == 0 ? 'No halls are configured.' : null,
+          ),
+        ),
 
-/// Who is actually in the system, as labelled bars.
-///
-/// A donut was the obvious import from the reference, and was rejected: with
-/// four categories where one holds most of the mass, a ring makes the small
-/// slices unreadable and forces a colour-to-legend lookup for every value.
-/// Bars put the label, the count and the share on the same line, so the chart
-/// is legible in greyscale and to a screen reader — colour is decoration here,
-/// never the carrier of meaning.
-class _RoleBreakdown extends StatelessWidget {
-  final List<Map<String, dynamic>> roles;
-  final int total;
-  const _RoleBreakdown({required this.roles, required this.total});
+        ConsolePanel(
+          span: PanelSpan.large,
+          child: GridPanel(
+            title: 'Teaching load by batch',
+            child: d.loadByBatch.isEmpty
+                ? _Empty('No routine has been uploaded yet.')
+                : BarList(data: d.loadByBatch),
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.large,
+          child: GridPanel(
+            title: 'Exam schedule',
+            actions: [_SeeAll(to: '/manage-exam-seats')],
+            child: _ExamSchedule(rows: d.exams),
+          ),
+        ),
 
-  static const _accents = [
-    AppColors.holoBlue,
-    AppColors.holoTeal,
-    AppColors.holoviolet,
-    AppColors.amber,
-  ];
+        ConsolePanel(
+          span: PanelSpan.large,
+          child: GridPanel(
+            title: 'Busiest rooms',
+            child: d.busiestRooms.isEmpty
+                ? _Empty('No rooms are timetabled.')
+                : BarList(data: d.busiestRooms, maxRows: 6),
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.large,
+          child: GridPanel(
+            title: 'Recently joined',
+            actions: [_SeeAll(to: '/admin/users')],
+            child: _RecentJoiners(rows: d.recent),
+          ),
+        ),
 
-  @override
-  Widget build(BuildContext context) {
-    final sorted = [...roles]..sort((a, b) =>
-        ((b['count'] as num?) ?? 0).compareTo((a['count'] as num?) ?? 0));
-    final max = sorted.isEmpty
-        ? 1
-        : ((sorted.first['count'] as num?) ?? 1).toInt().clamp(1, 1 << 30);
-
-    return WebPanel(
-      title: 'Who is in AFOS',
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (sorted.isEmpty)
-          Text('No accounts yet.',
-              style: AppTextStyles.bodyMedium
-                  .copyWith(color: AppColors.textSecondaryOf(context)))
-        else
-          for (var i = 0; i < sorted.length; i++) ...[
-            _Bar(
-              label: roleLabel('${sorted[i]['value']}'),
-              count: ((sorted[i]['count'] as num?) ?? 0).toInt(),
-              max: max,
-              total: total,
-              accent: _accents[i % _accents.length],
-            ),
-            if (i != sorted.length - 1) const SizedBox(height: AppSpace.md),
-          ],
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Teachers timetabled',
+            value: '${d.routineTeachers}',
+            note: 'named on the routine',
+            icon: Icons.school_rounded,
+            accent: ChartPalette.series(context, 1),
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Clubs',
+            value: '${d.clubs}',
+            note: 'student societies',
+            icon: Icons.groups_2_rounded,
+            accent: ChartPalette.series(context, 2),
+            onTap: () => context.push('/clubs'),
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Transport',
+            value: '${d.routes}',
+            note: '${_grouped(d.stops)} stops served',
+            icon: Icons.directions_bus_rounded,
+            accent: ChartPalette.series(context, 3),
+            onTap: () => context.push('/transport'),
+          ),
+        ),
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Library',
+            value: '${d.books}',
+            note: 'titles catalogued',
+            icon: Icons.menu_book_rounded,
+            accent: ChartPalette.series(context, 0),
+            onTap: () => context.push('/library'),
+          ),
+        ),
       ]),
     );
   }
 }
 
-class _Bar extends StatelessWidget {
-  final String label;
-  final int count;
-  final int max;
-  final int total;
-  final Color accent;
-  const _Bar({
-    required this.label,
-    required this.count,
-    required this.max,
-    required this.total,
-    required this.accent,
+/// A ring with its legend underneath, sized for a grid cell.
+class _RingPanel extends StatelessWidget {
+  final String title;
+  final String centerValue;
+  final String centerLabel;
+  final List<RingSlice> slices;
+  final String? empty;
+
+  const _RingPanel({
+    required this.title,
+    required this.centerValue,
+    required this.centerLabel,
+    required this.slices,
+    this.empty,
   });
 
   @override
   Widget build(BuildContext context) {
-    final share = total == 0 ? 0 : (count * 100 / total).round();
-    return Semantics(
-      label: '$label: $count of $total, $share percent',
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          Expanded(
-            child: Text(label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyMedium
-                    .copyWith(color: AppColors.textPrimaryOf(context))),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          Text('$count',
-              style: AppTextStyles.numericMedium
-                  .copyWith(color: AppColors.textPrimaryOf(context))),
-          const SizedBox(width: AppSpace.xs),
-          SizedBox(
-            width: 44,
-            child: Text('$share%',
-                textAlign: TextAlign.end,
-                style: AppTextStyles.labelSmall
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
-          ),
-        ]),
-        const SizedBox(height: AppSpace.xs),
-        ClipRRect(
-          borderRadius: AppDepth.radius(0),
-          child: LinearProgressIndicator(
-            value: count / max,
-            minHeight: 6,
-            backgroundColor: AppColors.textSecondaryOf(context).withValues(alpha: 0.12),
-            valueColor: AlwaysStoppedAnimation(accent),
-          ),
-        ),
-      ]),
+    return GridPanel(
+      title: title,
+      child: empty != null
+          ? _Empty(empty!)
+          : Column(children: [
+              Expanded(
+                child: RingChart(
+                  slices: slices,
+                  centerValue: centerValue,
+                  centerLabel: centerLabel,
+                ),
+              ),
+              const SizedBox(height: AppSpace.sm),
+              ChartLegend(slices: slices, format: (n) => _grouped(n.toInt())),
+            ]),
     );
   }
+}
+
+class _SeeAll extends StatelessWidget {
+  final String to;
+  const _SeeAll({required this.to});
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: () => context.push(to),
+        child: Text('See all',
+            style: TextStyle(color: ChartPalette.series(context, 0))),
+      );
+}
+
+/// The honest state for a panel whose table is empty.
+///
+/// A panel keeps its box on the grid rather than disappearing, so the layout is
+/// final on the first frame and stays final the day the data arrives. What it
+/// must never do is draw a chart over nothing.
+class _Empty extends StatelessWidget {
+  final String message;
+  const _Empty(this.message);
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Text(message,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: AppColors.textSecondaryOf(context))),
+      );
 }
 
 /// Thousands separator. Uses intl directly rather than adding a second number
@@ -399,28 +585,22 @@ class _ExamSchedule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final secondary = AppColors.textSecondaryOf(context);
-    return WebPanel(
-      title: 'Exam schedule',
-      actions: [
-        TextButton(
-          // NOT /exam-seat — that is the student's own seat, and the router
-          // blocks teachers from it outright (teacherHiddenRoutes). The
-          // console's reader is an administrator, so this goes to the
-          // management screen they can actually act on.
-          onPressed: () => context.push('/manage-exam-seats'),
-          child: const Text('See all', style: TextStyle(color: AppColors.holoBlue)),
-        ),
-      ],
-      child: rows.isEmpty
-          ? Text('No exams have been scheduled yet.',
-              style: AppTextStyles.bodyMedium.copyWith(color: secondary))
-          : Column(children: [
-              for (var i = 0; i < rows.length; i++) ...[
-                _ExamRow(row: rows[i]),
-                if (i != rows.length - 1)
-                  Divider(height: AppSpace.lg, color: AppColors.borderOf(context)),
-              ],
-            ]),
+    // NO PANEL OF ITS OWN ANY MORE — GridPanel supplies the chrome and the
+    // "See all" now points at /manage-exam-seats from the caller. This returns
+    // only the content, and it SCROLLS: the grid gives the panel a fixed box,
+    // so a sixth row must scroll inside it rather than overflow out of it.
+    if (rows.isEmpty) {
+      return Center(
+        child: Text('No exams have been scheduled yet.',
+            style: AppTextStyles.bodyMedium.copyWith(color: secondary)),
+      );
+    }
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: rows.length,
+      separatorBuilder: (_, __) =>
+          Divider(height: AppSpace.lg, color: AppColors.borderOf(context)),
+      itemBuilder: (_, i) => _ExamRow(row: rows[i]),
     );
   }
 }
@@ -489,157 +669,6 @@ class _ExamRow extends StatelessWidget {
   }
 }
 
-/// Hall occupancy, as the reference's ring with the total in the middle.
-///
-/// A DONUT IS DEFENSIBLE HERE and was not for the role split. This is two
-/// mutually exclusive parts of one known whole, which is the one shape a ring
-/// reads well; the role breakdown was four uneven categories, where a ring
-/// forces a colour-to-legend lookup per value. Same reference, different
-/// question, different mark.
-///
-/// It currently renders as very nearly a full "available" ring — 3 of 2800
-/// beds. That is not a bug and is not padded to look busier: an almost-empty
-/// hall system is the true state, and a chart that hid it would be worth less
-/// than no chart.
-class _HallOccupancy extends StatelessWidget {
-  final int beds;
-  final int occupied;
-  const _HallOccupancy({required this.beds, required this.occupied});
-
-  @override
-  Widget build(BuildContext context) {
-    final secondary = AppColors.textSecondaryOf(context);
-    final available = (beds - occupied).clamp(0, beds);
-    final pct = beds == 0 ? 0.0 : occupied / beds;
-
-    return WebPanel(
-      title: 'Hall occupancy',
-      child: beds == 0
-          ? Text('No halls are configured.',
-              style: AppTextStyles.bodyMedium.copyWith(color: secondary))
-          : Column(children: [
-              SizedBox(
-                height: 168,
-                child: Center(
-                  child: SizedBox(
-                    width: 168,
-                    height: 168,
-                    child: CustomPaint(
-                      painter: RingPainter(
-                        fraction: pct,
-                        filled: AppColors.holoBlue,
-                        rest: AppColors.holoTeal,
-                        track: AppColors.borderOf(context),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('Total beds',
-                                style: AppTextStyles.labelSmall
-                                    .copyWith(color: secondary)),
-                            const SizedBox(height: 2),
-                            Text(_grouped(beds),
-                                style: AppTextStyles.numericLarge.copyWith(
-                                    color: AppColors.textPrimaryOf(context))),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpace.md),
-              // The legend carries the NUMBERS, not just the colours, so the
-              // panel is still readable when one slice is too thin to see —
-              // which at 3/2800 it is.
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                _LegendDot(color: AppColors.holoBlue, label: 'Occupied', value: occupied),
-                const SizedBox(width: AppSpace.lg),
-                _LegendDot(color: AppColors.holoTeal, label: 'Available', value: available),
-              ]),
-            ]),
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  final int value;
-  const _LegendDot({required this.color, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 8, height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-      const SizedBox(width: AppSpace.xs),
-      Text('$label  ',
-          style: AppTextStyles.labelSmall
-              .copyWith(color: AppColors.textSecondaryOf(context))),
-      Text(_grouped(value),
-          style: AppTextStyles.numericSmall
-              .copyWith(color: AppColors.textPrimaryOf(context))),
-    ]);
-  }
-}
-
-/// Two-part ring. Deliberately not a package: one arc pair does not justify a
-/// charting dependency against a 2 MB budget, and the depth tokens already say
-/// how thick and how rounded a stroke here should be.
-class RingPainter extends CustomPainter {
-  final double fraction;
-  final Color filled;
-  final Color rest;
-  final Color track;
-  const RingPainter({
-    required this.fraction,
-    required this.filled,
-    required this.rest,
-    required this.track,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const stroke = 18.0;
-    final rect = Offset.zero & size;
-    final inner = rect.deflate(stroke / 2);
-
-    Paint pen(Color c) => Paint()
-      ..color = c
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.butt;
-
-    // Track first so a zero-width slice still leaves a complete ring rather
-    // than a gap that reads as missing data.
-    canvas.drawArc(inner, 0, 6.28318, false, pen(track.withValues(alpha: 0.35)));
-    // Available fills the remainder; occupied is drawn last so even a sliver
-    // sits on top and stays visible.
-    canvas.drawArc(inner, -1.5708 + 6.28318 * fraction,
-        6.28318 * (1 - fraction), false, pen(rest));
-    if (fraction > 0) {
-      canvas.drawArc(inner, -1.5708, 6.28318 * fraction, false, pen(filled));
-    }
-  }
-
-  // `track` IS COMPARED, and it is the one that actually changes.
-  //
-  // The first version compared fraction, filled and rest — but filled and rest
-  // are the two compile-time constants here (holoBlue, holoTeal), while track
-  // is AppColors.borderOf(context), which is theme-dependent. So the check was
-  // exactly inverted: switching light/dark rebuilt the widget, made a new
-  // painter, got `false` back, and left the ring wearing the previous theme's
-  // track ring until something else forced a repaint.
-  @override
-  bool shouldRepaint(covariant RingPainter old) =>
-      old.fraction != fraction ||
-      old.filled != filled ||
-      old.rest != rest ||
-      old.track != track;
-}
-
 class _Pill extends StatelessWidget {
   final String text;
   final Color color;
@@ -673,24 +702,20 @@ class _RecentJoiners extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final secondary = AppColors.textSecondaryOf(context);
-    return WebPanel(
-      title: 'Recently joined',
-      actions: [
-        TextButton(
-          onPressed: () => context.push('/admin/users'),
-          child: const Text('See all', style: TextStyle(color: AppColors.holoBlue)),
-        ),
-      ],
-      child: rows.isEmpty
-          ? Text('Nobody has registered yet.',
-              style: AppTextStyles.bodyMedium.copyWith(color: secondary))
-          : Column(children: [
-              for (var i = 0; i < rows.length; i++) ...[
-                _JoinerRow(row: rows[i]),
-                if (i != rows.length - 1)
-                  Divider(height: AppSpace.lg, color: AppColors.borderOf(context)),
-              ],
-            ]),
+    // Content only; GridPanel owns the title and the "See all". Scrolls inside
+    // its fixed box for the same reason the exam list does.
+    if (rows.isEmpty) {
+      return Center(
+        child: Text('Nobody has registered yet.',
+            style: AppTextStyles.bodyMedium.copyWith(color: secondary)),
+      );
+    }
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: rows.length,
+      separatorBuilder: (_, __) =>
+          Divider(height: AppSpace.lg, color: AppColors.borderOf(context)),
+      itemBuilder: (_, i) => _JoinerRow(row: rows[i]),
     );
   }
 }

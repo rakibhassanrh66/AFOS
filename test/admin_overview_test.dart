@@ -1,5 +1,6 @@
 import 'package:afos_v7/features/web/presentation/consoles/admin_overview.dart';
-import 'package:afos_v7/features/web/presentation/widgets/web_layout.dart';
+import 'package:afos_v7/features/web/presentation/widgets/chart_primitives.dart';
+import 'package:afos_v7/features/web/presentation/widgets/console_grid.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -158,13 +159,13 @@ void main() {
       expect(ring(), findsOneWidget);
       // Grouped, or the eye has to count digits.
       expect(find.text('2,800'), findsOneWidget);
-      expect(find.text('Total beds'), findsOneWidget);
+      expect(find.text('total beds'), findsOneWidget);
       // The legend carries the values because at 3/2800 the slice is invisible.
       // Scoped to the hall panel: a bare find.text('3') also matches the
       // teacher bar's count, which is a different 3 entirely.
       final hallPanel =
-          find.ancestor(of: ring(), matching: find.byType(WebPanel)).first;
-      expect(find.descendant(of: hallPanel, matching: find.text('Occupied  ')),
+          find.ancestor(of: ring(), matching: find.byType(GridPanel)).first;
+      expect(find.descendant(of: hallPanel, matching: find.text('Occupied ')),
           findsOneWidget);
       expect(
           find.descendant(of: hallPanel, matching: find.text('3')), findsOneWidget);
@@ -174,8 +175,10 @@ void main() {
 
     testWidgets('the arc matches the occupancy it claims', (t) async {
       await pumpAt(t, desktop, AdminOverview(data: data()));
-      final painter = t.widget<CustomPaint>(ring()).painter as RingPainter;
-      expect(painter.fraction, closeTo(3 / 2800, 1e-9));
+      final chart = t
+          .widgetList<RingChart>(find.byType(RingChart))
+          .firstWhere((c) => c.centerLabel == 'total beds');
+      expect(chart.slices.map((s) => s.value).toList(), [3, 2797]);
     });
 
     testWidgets('no halls configured draws no ring at all', (t) async {
@@ -195,39 +198,48 @@ void main() {
   });
 
   group('RingPainter repaint', () {
-    const a = RingPainter(
-      fraction: 0.25,
-      filled: Color(0xFF0A84FF),
-      rest: Color(0xFF30D158),
-      track: Color(0xFF111111),
-    );
+    RingPainter painter({
+      double occupied = 3,
+      Color track = const Color(0xFF111111),
+      Color gap = const Color(0xFF000000),
+    }) =>
+        RingPainter(
+          slices: [
+            RingSlice(label: 'Occupied', value: occupied, color: const Color(0xFF1B78C2)),
+            RingSlice(label: 'Available', value: 2797, color: const Color(0xFF10855A)),
+          ],
+          total: occupied + 2797,
+          stroke: 16,
+          track: track,
+          gap: gap,
+        );
 
-    test('repaints when only the track colour changed', () {
-      // THE REGRESSION. track is AppColors.borderOf(context) — the one colour
-      // here that is theme-dependent — and the original shouldRepaint compared
-      // everything EXCEPT it. Switching light/dark rebuilt the widget, made a
-      // new painter, got false back, and left the ring wearing the old theme.
-      const b = RingPainter(
-        fraction: 0.25,
-        filled: Color(0xFF0A84FF),
-        rest: Color(0xFF30D158),
-        track: Color(0xFFEEEEEE),
+    test('repaints when only the theme-dependent track colour changed', () {
+      // THE REGRESSION. track is the one colour here that follows the theme,
+      // and the first version of shouldRepaint compared everything EXCEPT it,
+      // so a light/dark switch left the ring wearing the previous theme.
+      expect(
+        painter(track: const Color(0xFFEEEEEE)).shouldRepaint(painter()),
+        isTrue,
       );
-      expect(b.shouldRepaint(a), isTrue);
+    });
+
+    test('repaints when the surface behind the slice gaps changed', () {
+      // Same class of bug: the 2px separators are painted in the SURFACE
+      // colour, so they go stale across a theme switch too.
+      expect(
+        painter(gap: const Color(0xFFFFFFFF)).shouldRepaint(painter()),
+        isTrue,
+      );
     });
 
     test('repaints when the occupancy changed', () {
-      const b = RingPainter(
-        fraction: 0.9,
-        filled: Color(0xFF0A84FF),
-        rest: Color(0xFF30D158),
-        track: Color(0xFF111111),
-      );
-      expect(b.shouldRepaint(a), isTrue);
+      expect(painter(occupied: 900).shouldRepaint(painter()), isTrue);
     });
 
     test('does not repaint when nothing changed', () {
-      expect(a.shouldRepaint(a), isFalse);
+      final p = painter();
+      expect(p.shouldRepaint(painter()), isFalse);
     });
   });
 
