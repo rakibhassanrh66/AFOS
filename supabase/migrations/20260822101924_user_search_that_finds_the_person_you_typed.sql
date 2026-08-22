@@ -1,3 +1,8 @@
+-- Required by profiles_search_trgm_idx below. It was already installed on the
+-- live project, which is exactly why it was easy to leave out -- a fresh
+-- replay (a Supabase preview branch, a local `db reset`) has no such luck.
+create extension if not exists pg_trgm;
+
 -- Admin user search matched only: university_id PREFIX, email PREFIX, and
 -- full_name substring. Measured against live data, every one of these
 -- returned nothing:
