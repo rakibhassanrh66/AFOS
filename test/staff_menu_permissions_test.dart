@@ -106,9 +106,23 @@ void main() {
       expect(r.where((x) => x == '/admin/upload').length, 1);
     });
 
-    test('exam_seat:upload also reveals the exam seat screen, routine:upload does not', () {
-      expect(staffMenuRoutes(const {'exam_seat:upload'}), contains('/manage-exam-seats'));
-      expect(staffMenuRoutes(const {'routine:upload'}), isNot(contains('/manage-exam-seats')));
+    // CHANGED 2026-08-22, deliberately. This used to assert that
+    // exam_seat:upload ALSO revealed a separate '/manage-exam-seats' entry.
+    // That is what put the same job in the menu twice under two names --
+    // "Manage Exam Seats" beside an "Uploads" section whose Exam Seat Plan
+    // card opened the very same screen. The owner asked for one, not two.
+    //
+    // What must still hold is the reason the old test existed: a grant that
+    // opens a screen has to come with a way to REACH it. It does -- through
+    // the Uploads hub, asserted just above.
+    test('exam_seat:upload reaches seat plans through Uploads, not a second entry', () {
+      final seatOnly = staffMenuRoutes(const {'exam_seat:upload'});
+      expect(seatOnly, contains('/admin/upload'),
+          reason: 'the hub is the way in, so it must be listed');
+      expect(seatOnly, isNot(contains('/manage-exam-seats')),
+          reason: 'the same screen must not appear a second time under its own name');
+      expect(staffMenuRoutes(const {'routine:upload'}),
+          isNot(contains('/manage-exam-seats')));
     });
   });
 

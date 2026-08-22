@@ -3212,3 +3212,61 @@ opened, and that a failed fetch shows an error rather than an empty group) ·
 release web build · seen in a browser as super_admin: Summer 2023 → Batch 68
 expanding to exactly its one student, CSE → Join year not set (4), and "MSK"
 finding Masuk.
+
+---
+
+## v2.9.5 — three things the browser showed and no test could · 2026-08-22
+
+Reported by the owner after using the live web build. All three are layout or
+navigation facts that `analyze` and 534 tests were blind to.
+
+### The notification tray hung 360px from the bell
+
+`showNotificationPopover` positioned itself with a hardcoded
+`Alignment.topRight` plus `top: 64, end: 12` — the top-right of the SCREEN.
+That is correct on a phone. On web the bell sits at the right edge of the page
+header, inside a content area that begins after the 248px sidebar. Measured at
+1440px: bell right edge 1085, panel right edge 1428. The bell appeared at the
+panel's far top-left corner instead of above it.
+
+Now anchored to the bell's own `RenderBox`, which needs no new parameter — the
+`context` passed in IS the IconButton's.
+
+**The first fix was wrong and the browser caught that too.** Measuring with
+`localToGlobal(ancestor: overlayBox)` returned the rect in the enclosing
+Overlay's space, which on web starts after the sidebar, while `MediaQuery.size`
+is the whole window. Two coordinate spaces, one subtraction, and the panel
+moved ~260px the OTHER way (711–1089 became 447–825). Global coordinates are
+the correct space because `showGeneralDialog` uses the root navigator.
+
+### Uploads rendered as a phone column with two thirds of the screen empty
+
+`AdaptiveList(itemCount: 1)` with the whole page as that one item. AdaptiveList
+lays its ITEMS out in columns: at 1440px it computed three, put the page in the
+first and left two blank. A plain `ListView` now. Checked the rest of the
+codebase — this was the only screen doing it.
+
+### The same job appeared twice: "Manage Exam Seats" and Uploads' "Exam Seat Plan"
+
+Both opened `/manage-exam-seats`. The standalone capability is gone; seat plans
+live inside Uploads only.
+
+Deleting the tile ALONE would have stranded exam controllers. The
+`/admin/upload` guard admitted only the `routine`/`transport`/`exam_seat`
+grants — never the `exam_controller` ROLE — even though `uploadKindsFor()`
+hands that role three kinds inside the hub. They reached seat plans solely
+through the duplicate tile. The guard now admits the role, so the one
+remaining door opens.
+
+`staff_menu_permissions_test.dart` asserted the OLD duplicate as intended
+behaviour. Rewritten to pin the new contract while keeping the reason the test
+existed: a grant that opens a screen must come with a way to reach it.
+
+`Notices & Rules` deliberately stays separate — teachers author course notices,
+cannot reach the Uploads hub, and would not look for it there.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **534 passing** · release web and
+release APK build · seen in a browser at 1440px and at 390px, before and after
+each fix.

@@ -241,7 +241,7 @@ class _RoleBody extends StatelessWidget {
       'admin' || 'dept_admin' => [
           Caps.courseOfferingsAdmin, Caps.notices, Caps.hallAdmin, Caps.uploadRoutine,
         ],
-      'exam_controller' => [Caps.examSeatsAdmin, Caps.notices],
+      'exam_controller' => [Caps.uploadRoutine, Caps.notices],
       'staff' => const <AppCapability>[],
       _ => [
           Caps.schedule, Caps.results, Caps.assignments,
