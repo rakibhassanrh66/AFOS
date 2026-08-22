@@ -350,7 +350,7 @@ class AdminOverview extends StatelessWidget {
           child: GridPanel(
             title: 'When the campus is busy',
             child: density.grid.isEmpty
-                ? _Empty('No routine has been uploaded yet.')
+                ? const _Empty('No routine has been uploaded yet.')
                 : HeatGrid(
                     values: density.grid,
                     rowLabels: density.days,
@@ -364,7 +364,7 @@ class AdminOverview extends StatelessWidget {
           child: GridPanel(
             title: 'Who is in AFOS',
             child: d.roles.isEmpty
-                ? _Empty('No accounts yet.')
+                ? const _Empty('No accounts yet.')
                 : BarList(
                     total: d.total,
                     data: [
@@ -419,7 +419,7 @@ class AdminOverview extends StatelessWidget {
           child: GridPanel(
             title: 'Teaching load by batch',
             child: d.loadByBatch.isEmpty
-                ? _Empty('No routine has been uploaded yet.')
+                ? const _Empty('No routine has been uploaded yet.')
                 : BarList(data: d.loadByBatch),
           ),
         ),
@@ -427,7 +427,7 @@ class AdminOverview extends StatelessWidget {
           span: PanelSpan.large,
           child: GridPanel(
             title: 'Exam schedule',
-            actions: [_SeeAll(to: '/manage-exam-seats')],
+            actions: const [_SeeAll(to: '/manage-exam-seats')],
             child: _ExamSchedule(rows: d.exams),
           ),
         ),
@@ -437,7 +437,7 @@ class AdminOverview extends StatelessWidget {
           child: GridPanel(
             title: 'Busiest rooms',
             child: d.busiestRooms.isEmpty
-                ? _Empty('No rooms are timetabled.')
+                ? const _Empty('No rooms are timetabled.')
                 : BarList(data: d.busiestRooms, maxRows: 6),
           ),
         ),
@@ -445,7 +445,7 @@ class AdminOverview extends StatelessWidget {
           span: PanelSpan.large,
           child: GridPanel(
             title: 'Recently joined',
-            actions: [_SeeAll(to: '/admin/users')],
+            actions: const [_SeeAll(to: '/admin/users')],
             child: _RecentJoiners(rows: d.recent),
           ),
         ),
