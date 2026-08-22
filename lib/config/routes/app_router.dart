@@ -19,6 +19,8 @@ import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
+import '../../features/auth/presentation/reset_with_code_screen.dart';
+import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/auth/presentation/unlock_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
 import '../../features/conference_room/presentation/conference_room_screen.dart';
@@ -252,6 +254,32 @@ class AppRouter {
         pageBuilder: (c, s) => slideUpPage(const RegisterScreen(), s)),
       GoRoute(path: '/auth/forgot-password',
         pageBuilder: (c, s) => slideUpPage(const ForgotPasswordScreen(), s)),
+      // Mailbox proof. Reached from the signup wizard (email in `extra`) or
+      // from the emailed button (`?token=`). Both redeem the same server-side
+      // row; see verify_email_screen.dart.
+      GoRoute(path: '/auth/verify',
+        pageBuilder: (c, s) {
+          final extra = s.extra is Map ? Map<String, dynamic>.from(s.extra as Map) : null;
+          return slideUpPage(VerifyEmailScreen(
+            email: extra?['email'] as String?,
+            token: s.uri.queryParameters['token'],
+            resendAfterSeconds: (extra?['resendAfterSeconds'] as num?)?.toInt() ?? 60,
+            lane: extra?['lane'] as String? ?? 'inline',
+            manualFallback: extra?['manualFallback'] as bool? ?? true,
+            mailFailed: extra?['mailFailed'] as bool? ?? false,
+          ), s);
+        }),
+      // Code-first password reset. Distinct from /reset-password below, which
+      // is the legacy Supabase recovery-session screen kept for links already
+      // in people's inboxes.
+      GoRoute(path: '/auth/reset',
+        pageBuilder: (c, s) {
+          final extra = s.extra is Map ? Map<String, dynamic>.from(s.extra as Map) : null;
+          return slideUpPage(ResetWithCodeScreen(
+            email: extra?['email'] as String?,
+            token: s.uri.queryParameters['token'],
+          ), s);
+        }),
       GoRoute(path: '/reset-password',
         pageBuilder: (c, s) => slideUpPage(const ResetPasswordScreen(), s)),
       GoRoute(path: '/complete-profile',

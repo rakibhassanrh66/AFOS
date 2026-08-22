@@ -1,0 +1,238 @@
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  appOrigin,
+  clientIp,
+  consumeRateLimit,
+  corsHeaders,
+  encryptSecret,
+  generateCode,
+  generateToken,
+  hmac,
+  isEligibleAddress,
+  json,
+  normaliseEmail,
+} from "../_shared/identity.ts";
+import { dispatch } from "../_shared/mailer.ts";
+
+// Step 1 of proving a DIU mailbox.
+//
+// Replaces the client's direct auth.signUp() call. Nothing is written to
+// auth.users, profiles, students, teachers or staff here — the signup is held
+// in pending_registrations until the emailed code or link comes back, and only
+// register-verify creates the real account.
+//
+// WHY THE FLOW HAD TO INVERT. enforce_email_domain proved an address ENDS IN
+// @diu.edu.bd; auto_confirm_email then stamped email_confirmed_at on every
+// insert. Measured on the live project 2026-08-16, all 12 auth.users rows had
+// conf_mail_sent=false. So the system proved the format of a string and never
+// proved control of the mailbox, and anyone who knew DIU's address pattern
+// could register as a student they had never met.
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
+
+const EXPIRES_MINUTES = 10;
+const ACCOUNT_TYPES = ["student", "teacher", "staff"];
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const body = await req.json().catch(() => ({}));
+
+    const email = normaliseEmail(body.email);
+    const password = String(body.password ?? "");
+    const fullName = String(body.fullName ?? "").trim();
+
+    if (!email || !password || !fullName) {
+      return json({ error: "Name, email and password are all required." }, 400);
+    }
+    if (password.length < 8) {
+      return json({ error: "Password must be at least 8 characters." }, 400);
+    }
+
+    const accountType = ACCOUNT_TYPES.includes(body.accountType) ? body.accountType : "student";
+
+    // Registration can be closed centrally (semester rollover, incident
+    // response) without a redeploy.
+    //
+    // select("*") rather than naming columns: manual_approval_fallback does
+    // not exist until 20260817120000 is applied, and PostgREST errors on a
+    // named column that is missing — which would take registration itself
+    // down rather than just hiding a button. Reads as ON when absent.
+    const { data: cfg } = await supabase
+      .from("app_config").select("*").eq("id", 1).maybeSingle();
+    if (cfg && cfg.registration_open === false) {
+      return json({ error: "Registration is closed right now. Please try again later." }, 503);
+    }
+    // Whether to offer the applicant the "I never got the email" escape hatch.
+    // Sent on BOTH return paths below — an answer that appeared on only one of
+    // them would reintroduce the enumeration oracle the identical shapes exist
+    // to close.
+    const manualFallback = cfg?.manual_approval_fallback !== false;
+
+    if (!await isEligibleAddress(supabase, email)) {
+      return json({ error: "Only DIU (@diu.edu.bd) email addresses can register." }, 400);
+    }
+
+    // Both limits are checked BEFORE any mail work. Without them the mail
+    // budget is the denial-of-service surface: a loop on one address would
+    // both exhaust the provider quota and mail-bomb a real student.
+    const ip = clientIp(req);
+    if (!await consumeRateLimit(supabase, "email_verify_addr", email)) {
+      return json({
+        error: "A code was just sent to that address. Check your inbox, or wait a few minutes before asking for another.",
+      }, 429);
+    }
+    if (!await consumeRateLimit(supabase, "email_verify_ip", await hmac(ip))) {
+      return json({ error: "Too many registration attempts from this device. Try again later." }, 429);
+    }
+
+    const expiresAt = new Date(Date.now() + EXPIRES_MINUTES * 60_000);
+
+    // ANTI-ENUMERATION. If the address already has an account we tell the real
+    // owner (so a genuine mistake is recoverable) but return the IDENTICAL
+    // response shape to the caller. A probe therefore cannot learn which DIU
+    // addresses are registered — which matters, because a list of confirmed
+    // student accounts is itself worth stealing.
+    const { data: existing } = await supabase
+      .from("profiles").select("id, full_name").eq("email", email).maybeSingle();
+
+    if (existing) {
+      // The lane is REPORTED, not discarded. It used to be swallowed here
+      // while the real path returned it, so under mail-queue pressure the two
+      // responses could be told apart by the presence of that one field —
+      // which is the enumeration oracle these identical shapes exist to close.
+      // Mirrors the real path's shape EXACTLY, mailFailed included. Reporting
+      // it on only one branch would reintroduce the enumeration oracle these
+      // identical responses exist to close — and it leaks nothing, because
+      // whether the provider accepts an address does not depend on whether we
+      // hold an account for it.
+      let lane = "inline";
+      let mailFailed = false;
+      try {
+        lane = await dispatch(supabase, {
+          to: email,
+          template: "account_exists",
+          payload: { fullName: existing.full_name, loginUrl: `${appOrigin()}/#/auth/login` },
+          dedupeKey: `exists:${email}:${Math.floor(Date.now() / 900_000)}`,
+          priority: 4,
+        });
+      } catch (e) {
+        console.error("[register-request] account_exists dispatch failed:", e);
+        mailFailed = true;
+        lane = "failed";
+      }
+
+      return json({
+        ok: true,
+        lane,
+        mailFailed,
+        manualFallback,
+        expiresInSeconds: EXPIRES_MINUTES * 60,
+        resendAfterSeconds: 60,
+      });
+    }
+
+    const code = generateCode();
+    // A 32-byte token for the link, never the 6-digit code: a six-digit value
+    // in a URL is trivially enumerated by anything that can walk query strings.
+    const token = generateToken();
+
+    // One live registration per address. Clearing first rather than upserting
+    // because the uniqueness is enforced by a PARTIAL index
+    // (WHERE consumed_at IS NULL), which ON CONFLICT cannot infer.
+    await supabase.from("pending_registrations")
+      .delete().eq("email_norm", email).is("consumed_at", null);
+
+    const { error: insErr } = await supabase.from("pending_registrations").insert({
+      email,
+      // The password is encrypted, never stored plainly — see encryptSecret().
+      // Everything else here is exactly the metadata auth.signUp used to send,
+      // so handle_new_user() builds the profile identically and that trigger
+      // needs no change.
+      payload: {
+        full_name: fullName,
+        university_id: body.universityId ?? null,
+        department: body.department ?? null,
+        semester: body.semester ?? 1,
+        account_type: accountType,
+        gender: body.gender ?? null,
+        program_id: body.programId ?? null,
+        batch: body.batch ?? null,
+        section: body.section ?? null,
+        designation: body.designation ?? null,
+        staff_category: body.staffCategory ?? null,
+        office: body.office ?? null,
+        enc_password: await encryptSecret(password),
+      },
+      code_hash: await hmac(code),
+      token_hash: await hmac(token),
+      expires_at: expiresAt.toISOString(),
+      last_sent_at: new Date().toISOString(),
+      ip_hash: await hmac(ip),
+    });
+    if (insErr) {
+      console.error("[register-request] staging insert failed:", insErr.message);
+      return json({ error: "Could not start registration. Please try again." }, 500);
+    }
+
+    // The link is deliberately SAFE TO PREFETCH. It opens the app at a route
+    // that renders a confirm screen; the token is only spent when the app
+    // POSTs to register-verify. This is the specific defect that breaks
+    // password reset today: university mail runs link scanners which fetch
+    // every URL in a message, and a GET that consumes a single-use token is
+    // burned before the student ever clicks it.
+    const confirmUrl = `${appOrigin()}/#/auth/verify?token=${encodeURIComponent(token)}`;
+
+    // A MAIL FAILURE MUST NOT DESTROY THE SIGNUP.
+    //
+    // dispatch() throws on a permanent provider rejection, which is correct in
+    // isolation — queueing an address the provider will never accept just
+    // burns six attempts. But letting that throw escape HERE was severe:
+    // the staged row above already exists, so the applicant's signup is
+    // genuinely saved, and yet they got a 500 and never reached /auth/verify.
+    // That is the one screen carrying the manual-approval escape hatch, so a
+    // mail outage locked people out of the very route built for a mail outage.
+    //
+    // Measured 2026-08-17 against the live project: register-request returned
+    // HTTP 500 with Resend's "You can only send testing emails to your own
+    // email address" for every address but the account owner's. While
+    // MAIL_FROM is the sandbox sender that is EVERY applicant, so this is the
+    // normal path today, not an edge case.
+    //
+    // Now the response says the registration is staged and the mail is not
+    // coming, and the client leads with the fallback instead of telling
+    // someone to check an inbox nothing was sent to.
+    let lane = "inline";
+    let mailFailed = false;
+    try {
+      lane = await dispatch(supabase, {
+        to: email,
+        template: "verify_account",
+        payload: { fullName, code, actionUrl: confirmUrl, expiresMinutes: EXPIRES_MINUTES },
+        // Collapses rage-taps inside the same 10-minute window into one send.
+        dedupeKey: `verify:${email}:${Math.floor(Date.now() / 600_000)}`,
+        priority: 1,
+      });
+    } catch (e) {
+      console.error("[register-request] verification mail failed permanently:", e);
+      mailFailed = true;
+      lane = "failed";
+    }
+
+    return json({
+      ok: true,
+      lane,
+      mailFailed,
+      manualFallback,
+      expiresInSeconds: EXPIRES_MINUTES * 60,
+      resendAfterSeconds: 60,
+    });
+  } catch (err) {
+    console.error("[register-request]", err);
+    return json({ error: (err as Error).message ?? "Registration failed." }, 500);
+  }
+});

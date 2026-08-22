@@ -8,6 +8,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/info_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../../core/utils/responsive.dart';
 
 /// One entry point for the DIU student-portal pages, instead of scattering nine
 /// links through the slide menu.
@@ -60,7 +61,10 @@ class DiuPortalHubScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'DIU Portal'),
-      body: ListView(
+      // A stacked list of link cards, so it reads as a column and should be
+      // measured like one. Full-width at 1440px turned each card into a
+      // 1400px band holding one title and a chevron.
+      body: AdaptiveContentWidth(maxWidth: 760, child: ListView(
         padding: NavInsets.content(context, top: 12),
         children: [
           const FeatureHeader(
@@ -93,7 +97,7 @@ class DiuPortalHubScreen extends StatelessWidget {
               ),
             ),
         ],
-      ),
+      )),
     );
   }
 }

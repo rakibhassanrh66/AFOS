@@ -1,7 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 2.9.0+5004
+version: 2.9.1+5005
 environment:
   sdk: '>=3.3.0 <4.0.0'
 

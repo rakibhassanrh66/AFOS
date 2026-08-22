@@ -44,7 +44,13 @@ class _ForgotBodyState extends State<_ForgotBody> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return BlocListener<AuthBloc,AuthState>(
       listener:(ctx,state) {
-        if(state is AuthPasswordResetSent) setState(()=>_sent=true);
+        // Straight to code entry rather than a "check your email" dead end.
+        // The old screen ended here and left the rest to a link that
+        // institutional mail scanners routinely burned before it was clicked.
+        if(state is AuthPasswordResetSent) {
+          setState(()=>_sent=true);
+          ctx.go('/auth/reset', extra: {'email': _ctrl.text.trim()});
+        }
         if(state is AuthError) ctx.showSnack(state.message,isError:true);
       },
       child: Scaffold(
