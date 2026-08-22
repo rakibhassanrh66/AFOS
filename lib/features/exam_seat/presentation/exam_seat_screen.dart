@@ -15,6 +15,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../data/exam_seat_view.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
@@ -29,7 +30,7 @@ class ExamSeatScreen extends StatefulWidget {
 }
 
 class _ExamSeatState extends State<ExamSeatScreen> {
-  List<Map<String, dynamic>> _allocations = [];
+  ExamSeatView _view = const ExamSeatView();
   bool _loading = true;
   String? _error;
 
@@ -41,37 +42,59 @@ class _ExamSeatState extends State<ExamSeatScreen> {
     if (uid == null) { setState(() => _loading = false); return; }
     setState(() => _error = null);
     try {
-      // Both calls were plain, uncached fetches — offline meant an outright
-      // failure (the error state below), not the last-known seat plan. High
-      // stakes to get wrong for something students specifically check right
-      // before walking into an exam, often on patchy exam-hall wifi. Same
-      // cachedMapFetch/cachedListFetch pattern schedule_repository.dart
-      // already uses for exams/routine data.
-      final student = await cachedMapFetch(
-        cacheKey: 'exam_seat_student_$uid',
+      // This screen used to select exam_room_allocations by batch+section
+      // alone — no date bound and no term. That was correct while the table
+      // held one exam period and became wrong the moment it held two:
+      // verified live on 2026-08-22, mid-finals, a batch-67 student was
+      // shown three JUNE mid-term sessions under the heading "upcoming",
+      // two of them titled only "Exam" because those rows carry no course
+      // code, and nothing at all about the exam they sat the next morning.
+      //
+      // The list therefore comes from my_exam_schedule(), which already
+      // picks the live published term, applies the batch -> all-sections
+      // fan-out and narrows by the caller's own section. The allocation
+      // rows are read only to decorate it with seat counts, and are bounded
+      // by that same term's window.
+      //
+      // cachedListFetch (not cachedMapFetch) for a single object on purpose:
+      // the lenient variant returns null on a failed fetch, which here would
+      // render a network blip as "no exam routine published" — the exact
+      // silent-empty class of bug this project has already paid for once.
+      final wrapped = await cachedListFetch(
+        cacheKey: 'exam_schedule_$uid',
         liveFetch: () async {
-          final row = await SupabaseConfig.client.from('students')
-              .select('batch_label, section').eq('profile_id', uid).maybeSingle();
-          if (row == null) throw StateError('no student row yet');
-          return row;
+          final res = await SupabaseConfig.client.rpc('my_exam_schedule');
+          return [(res as Map).cast<String, dynamic>()];
         },
       );
-      final batch = student?['batch_label'] as String?;
-      final section = student?['section'] as String?;
-      if (batch == null || section == null) {
-        if (mounted) setState(() => _loading = false);
-        return;
+      final sched = wrapped.isEmpty ? const <String, dynamic>{} : wrapped.first;
+      final term = (sched['term'] as Map?)?.cast<String, dynamic>();
+      final batch = sched['batch'] as String?;
+      final section = sched['section'] as String?;
+
+      // Seats and the course teacher's initial are not in the RPC payload
+      // (it returns room numbers only), so they come from the allocation
+      // rows. A student with a batch and no section deliberately gets every
+      // room the batch uses rather than none — same fan-out rule the RPC
+      // applies, so the two agree.
+      var seatRows = const <Map<String, dynamic>>[];
+      if (term != null && (batch ?? '').isNotEmpty) {
+        seatRows = await cachedListFetch(
+          cacheKey: 'exam_seat_alloc_${term['id']}_${batch}_${section ?? 'all'}',
+          liveFetch: () async {
+            var q = SupabaseConfig.client.from('exam_room_allocations')
+                .select().eq('batch', batch!);
+            if ((section ?? '').isNotEmpty) q = q.eq('section', section!);
+            if (term['startsOn'] != null) q = q.gte('exam_date', term['startsOn']);
+            if (term['endsOn'] != null) q = q.lte('exam_date', term['endsOn']);
+            final rows = await q.order('exam_date').order('room_no') as List;
+            return rows.cast<Map<String, dynamic>>();
+          },
+        );
       }
-      final res = await cachedListFetch(
-        cacheKey: 'exam_seat_allocations_${batch}_$section',
-        liveFetch: () async {
-          final rows = await SupabaseConfig.client.from('exam_room_allocations')
-              .select().eq('batch', batch).eq('section', section)
-              .order('exam_date').order('room_no') as List;
-          return rows.cast<Map<String, dynamic>>();
-        },
-      );
-      if (mounted) setState(() => _allocations = res);
+
+      final view = ExamSeatView.from(sched, seatRows);
+      if (mounted) setState(() => _view = view);
     } catch (e) {
       // Previously swallowed silently, so a real load failure (network
       // blip, expired session) rendered identically to "seat plan not
@@ -82,33 +105,26 @@ class _ExamSeatState extends State<ExamSeatScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  /// Groups the flat room-allocation rows into one card per exam session
-  /// (same date+slot+course), each listing every room assigned to it.
-  List<_ExamSession> get _sessions {
-    final byKey = <String, _ExamSession>{};
-    for (final a in _allocations) {
-      final key = '${a['exam_date']}_${a['slot_label']}_${a['course_code']}';
-      byKey.putIfAbsent(key, () => _ExamSession(
-          examDate: DateTime.tryParse(a['exam_date'] ?? ''),
-          slotLabel: a['slot_label'], slotStart: a['slot_start'], slotEnd: a['slot_end'],
-          courseCode: a['course_code'], courseTitle: a['course_title'], teacherInitial: a['teacher_initial']));
-      byKey[key]!.rooms.add(_RoomSeats(a['room_no'] ?? '-', a['seats'] as int? ?? 0));
-    }
-    final sessions = byKey.values.toList()
-      ..sort((a, b) => (a.examDate ?? DateTime(0)).compareTo(b.examDate ?? DateTime(0)));
-    return sessions;
+  /// The subtitle used to read "N upcoming sessions" for a list that was not
+  /// filtered to upcoming anything. It now names the term and counts only
+  /// what has genuinely not happened yet.
+  String _subtitle() {
+    if (_loading) return 'Loading…';
+    if (_view.term == null) return 'No exam routine published';
+    if (_view.isOver) return '${_view.termLabel} · finished';
+    return '${_view.termLabel} · ${_view.upcomingCount()} upcoming';
   }
 
   @override
   Widget build(BuildContext context) {
-    final sessions = _sessions;
+    final sessions = _view.sessions;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Exam Seat Plan'),
       body: Column(children: [
         FeatureHeader(
           title: 'Exam Seat Plan',
-          subtitle: _loading ? 'Loading…' : '${sessions.length} upcoming session${sessions.length == 1 ? '' : 's'}',
+          subtitle: _subtitle(),
           icon: AppIcons.examSeat,
           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [AppColors.orange, AppColors.amber]),
@@ -120,8 +136,17 @@ class _ExamSeatState extends State<ExamSeatScreen> {
             : _error != null
                 ? ErrorView(message: _error!, onRetry: _load)
                 : sessions.isEmpty
-                ? const EmptyState(icon: AppIcons.examSeat,
-                    title: 'No seat plan yet', subtitle: 'Room allocations will appear here once published')
+                // Three different nothings, which the old single "No seat
+                // plan yet" ran together: no routine has been published at
+                // all, one has but this batch does not sit in it, and the
+                // caller has no batch on their profile to match against.
+                ? EmptyState(icon: AppIcons.examSeat,
+                    title: _view.term == null
+                        ? 'No exam routine published'
+                        : 'No exams for your batch',
+                    subtitle: _view.term == null
+                        ? 'Your rooms appear here once the exam routine is published'
+                        : '${_view.termLabel} is published but lists nothing for your batch and section')
                 : RefreshIndicator(
                     onRefresh: _load, color: AppColors.blue,
                     child: AdaptiveList(
@@ -133,18 +158,8 @@ class _ExamSeatState extends State<ExamSeatScreen> {
   }
 }
 
-class _RoomSeats { final String room; final int seats; _RoomSeats(this.room, this.seats); }
-
-class _ExamSession {
-  final DateTime? examDate;
-  final String? slotLabel, slotStart, slotEnd, courseCode, courseTitle, teacherInitial;
-  final List<_RoomSeats> rooms = [];
-  _ExamSession({this.examDate, this.slotLabel, this.slotStart, this.slotEnd,
-      this.courseCode, this.courseTitle, this.teacherInitial});
-}
-
 class _SessionCard extends StatelessWidget {
-  final _ExamSession session; final int index;
+  final ExamSessionView session; final int index;
   const _SessionCard({required this.session, required this.index});
 
   @override
@@ -180,10 +195,20 @@ class _SessionCard extends StatelessWidget {
             ])),
           ]),
           const SizedBox(height: 12),
-          if (session.examDate != null) Row(children: [
+          if (session.date != null) Row(children: [
             Icon(Icons.calendar_today_rounded, size: 14, color: textSecondary),
             const SizedBox(width: 6),
-            Text(AppFormatters.fullDate(session.examDate!), style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+            Text(AppFormatters.fullDate(session.date!), style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+            // A term runs for a week or more, so by the middle of it the list
+            // holds exams already sat. They stay — a student checking which
+            // room they were in is a real thing — but they must not read as
+            // still to come.
+            if (session.isPast()) ...[
+              const SizedBox(width: 8),
+              Text('Completed',
+                  style: AppTextStyles.labelSmall.copyWith(
+                      color: textSecondary, fontWeight: FontWeight.w700)),
+            ],
           ]),
           if (session.slotStart != null) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
             Icon(Icons.access_time_rounded, size: 14, color: textSecondary),
@@ -194,6 +219,14 @@ class _SessionCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text('Your section\'s room(s)', style: AppTextStyles.labelSmall.copyWith(color: textSecondary, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
+          // An empty Wrap rendered as nothing at all under that heading, so a
+          // routine with no seat plan yet looked identical to a rendering
+          // fault. The room is the one thing this screen exists to answer:
+          // when it is genuinely not known, say so.
+          if (session.rooms.isEmpty)
+            Text('Room not published yet',
+                style: AppTextStyles.bodyMedium.copyWith(color: textSecondary))
+          else
           Wrap(spacing: 8, runSpacing: 8, children: session.rooms.map((r) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.1), borderRadius: AppDepth.radius(1),

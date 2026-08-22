@@ -397,7 +397,7 @@ class _DashboardState extends State<DashboardScreen> {
     _Module('Exam Seats',  AppIcons.examSeat,    AppColors.orange, '/exam-seat', 'View seat plan'),
     _Module('Dept Chat',   AppIcons.deptChat,    AppColors.indigo, '/dept-chat', 'Department channel'),
     _Module('VR-ID',       AppIcons.vrId,        AppColors.green,  '/vr-id',     'Active'),
-    _Module('Notices',     AppIcons.notices,     AppColors.red,    '/notifications','Latest notices'),
+    _Module('Notices',     AppIcons.notices,     AppColors.red,    '/notices',   'From the university'),
   ];
 
   // Hall/Payment/Exam Seats/Library are personal student records — matches

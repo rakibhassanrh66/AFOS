@@ -316,7 +316,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                             });
                         }))
             else ...[
-            if (_user != null) _RoutineHeaderBanner(department: _user!.department, header: _classHeader),
+            if (_user != null) _RoutineHeaderBanner(kind: 'Class Routine', department: _user!.department, header: _classHeader),
             _DaySelector(selected:_day, onTap:(i)=>setState(()=>_day=i)),
             Expanded(child: _loading
               ? const Padding(padding:EdgeInsets.all(16),child:ShimmerList())
@@ -434,20 +434,34 @@ class _ExamRoutineTabState extends State<_ExamRoutineTab> {
       return const EmptyState(icon: Icons.assignment_outlined,
         title: 'No exam routine yet', subtitle: 'Mid/final term exams will appear here once published');
     }
+    // The banner and the validity note are page furniture, not list items.
+    // They used to be items 0 and 1 of the AdaptiveList, which on web turns
+    // every item into a GRID CELL — so at desktop width the banner rendered
+    // one column wide with the note sitting beside it like a card. They scroll
+    // with the list (as they always did on phones) but span the full width,
+    // by putting the adaptive grid inside the scroll view instead of the
+    // furniture inside the grid.
     return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
-        child: AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _exams.length + 2,
-            itemBuilder: (ctx, i) {
-              if (i == 0) return _RoutineHeaderBanner(department: widget.department, header: _header);
-              if (i == 1) {
-                return Padding(padding: const EdgeInsets.only(top: 12, bottom: 12), child: Row(children: [
-                Icon(Icons.info_outline_rounded, size: 14, color: AppColors.textSecondaryOf(context)),
-                const SizedBox(width: 6),
-                Expanded(child: Text('This exam routine stays valid until the next one is uploaded by admin.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondaryOf(context)))),
-              ]));
-              }
-              return _ExamCard(exam: _exams[i - 2], index: i - 2);
-            }));
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsetsDirectional.fromSTEB(0, 16, 0, 16 + NavInsets.of(context)),
+          children: [
+            _RoutineHeaderBanner(kind: 'Exam Routine', department: widget.department, header: _header),
+            Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12), child: Row(children: [
+              Icon(Icons.info_outline_rounded, size: 14, color: AppColors.textSecondaryOf(context)),
+              const SizedBox(width: 6),
+              Expanded(child: Text('This exam routine stays valid until the next one is uploaded by admin.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondaryOf(context)))),
+            ])),
+            AdaptiveList(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0),
+              itemCount: _exams.length,
+              itemBuilder: (ctx, i) => _ExamCard(exam: _exams[i], index: i),
+            ),
+          ],
+        ));
   }
 }
 
@@ -507,7 +521,14 @@ class _ExamCard extends StatelessWidget {
 class _RoutineHeaderBanner extends StatelessWidget {
   final String department;
   final Map<String, dynamic>? header;
-  const _RoutineHeaderBanner({required this.department, required this.header});
+
+  /// What this banner is the header FOR — "Class Routine" or "Exam Routine".
+  /// It used to be the hardcoded word "Class", while the exam tab rendered the
+  /// same banner off `fetchRoutineHeader(dept, 'exam_routine')`. The data was
+  /// already the exam routine's; only the label lied, so the exam tab read
+  /// "Class Routine for CSE Program" above a list of exams.
+  final String kind;
+  const _RoutineHeaderBanner({required this.department, required this.header, required this.kind});
 
   @override
   Widget build(BuildContext context) {
@@ -531,7 +552,7 @@ class _RoutineHeaderBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Text(
-              'Class Routine for $department Program${version != null ? '\nVersion $version' : ''}',
+              '$kind for $department Program${version != null ? '\nVersion $version' : ''}',
               textAlign: TextAlign.center,
               style: AppTextStyles.headlineLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.3),
             ),

@@ -119,4 +119,122 @@ void main() {
       expect(rows.first.date.day, 19);
     });
   });
+
+  /// The two bugs that cost the Summer 2026 final routine eight of its
+  /// thirty-eight exams — found on 2026-08-22 by parsing the real file and
+  /// comparing it against the seat-plan documents, which list the same exams
+  /// independently. Neither produced a warning: a course that is never
+  /// detected cannot be reported missing.
+  group('a slot cell holding several courses', () {
+    /// Page 2 of the real document, 23/08, slot A. Four electives share one
+    /// cell, run together with slashes, and the credit markers ([520], [160])
+    /// are glued to the codes exactly as Syncfusion emits them.
+    List<(String, double, double)> crowdedCell() => [
+          ('Slot', 141, 119), ('A:', 161, 119),
+          ('Slot', 348, 119), ('B:', 369, 119),
+          ('Batch', 241, 125), ('Batch', 469, 125),
+          ('09:00', 111, 131), ('am', 139, 131), ('–', 156, 131),
+          ('11.00', 164, 131), ('am', 190, 131),
+          ('12:00', 317, 131), ('pm', 345, 131), ('–', 363, 131),
+          ('02:00', 371, 131), ('pm', 399, 131),
+
+          // Four codes, only the first at the start of its own token.
+          ('CSE431:Machine', 100, 200), ('Learning', 179, 200),
+          ('[520]', 99, 212), ('/CSE441:UI', 125, 212), ('and', 181, 212),
+          ('UX', 199, 212),
+          ('Design', 109, 224), ('[160]/CSE453:', 142, 224),
+          ('Wireless', 93, 237), ('Sensor', 133, 237), ('Network', 165, 237),
+          ('[50]', 205, 237),
+          ('/CSE471:Introduction', 104, 249), ('to', 201, 249),
+          ('Batch-64', 235, 230),
+
+          ('AOL101:', 315, 224), ('Art', 358, 224), ('of', 375, 224),
+          ('Living', 387, 224),
+          ('Batch-68', 462, 212),
+
+          // The date label sits BELOW its own first courses and above its
+          // last — it is centred in the row, which is the second bug.
+          ('23/08/2026', 26, 251),
+          ('CSE121:', 98, 293), ('Electrical', 140, 293), ('Circuits', 190, 293),
+          ('Batch-70', 235, 285),
+          ('CSE313:', 308, 293), ('Compiler', 350, 293), ('Design', 400, 293),
+          ('Batch-67', 462, 286),
+        ];
+
+    test('every course in the cell is recovered, not just the first', () {
+      // Requiring the code to START its token accepted "CSE431:Machine" and
+      // silently dropped "/CSE441:UI", "[160]/CSE453:" and
+      // "/CSE471:Introduction".
+      final rows = ExamRoutinePdfParser.parsePositionedWords(crowdedCell());
+      final codes = rows.map((r) => r.courseCode).toSet();
+      expect(codes, containsAll(['CSE431', 'CSE441', 'CSE453', 'CSE471']));
+    });
+
+    test('each one takes the batch of its own cell, not of its neighbour', () {
+      final rows = ExamRoutinePdfParser.parsePositionedWords(crowdedCell());
+      final byCode = {for (final r in rows) r.courseCode: r};
+      for (final c in ['CSE431', 'CSE441', 'CSE453', 'CSE471']) {
+        expect(byCode[c]!.batch, '64', reason: '$c took the wrong batch');
+      }
+      // The neighbouring column is untouched by the split.
+      expect(byCode['AOL101']!.batch, '68');
+      expect(byCode['AOL101']!.slotLabel, 'B');
+    });
+
+    test('a credit marker glued to the code is not read as the title', () {
+      final rows = ExamRoutinePdfParser.parsePositionedWords(crowdedCell());
+      final byCode = {for (final r in rows) r.courseCode: r};
+      expect(byCode['CSE453']!.courseTitle, 'Wireless Sensor Network');
+      expect(byCode['CSE441']!.courseTitle, isNot(contains('520')));
+      expect(byCode['CSE441']!.courseTitle, isNot(contains('CSE453')));
+    });
+  });
+
+  group('the date label is centred in its row, not at the top of it', () {
+    /// Two consecutive days. Each label sits between its own courses: 23/08 at
+    /// y=251 owns courses at y=200 AND y=293; 24/08 at y=392 owns y=350 and
+    /// y=420. Slicing at the label would give 23/08 only the courses beneath
+    /// it and hand the ones above to the previous day.
+    List<(String, double, double)> twoDays() => [
+          ('Slot', 141, 119), ('A:', 161, 119),
+          ('Batch', 241, 125),
+          ('09:00', 111, 131), ('am', 139, 131), ('–', 156, 131),
+          ('11.00', 164, 131), ('am', 190, 131),
+
+          ('CSE431:Machine', 100, 200), ('Learning', 179, 200),
+          ('Batch-64', 235, 200),
+          ('23/08/2026', 26, 251),
+          ('CSE121:', 98, 293), ('Electrical', 140, 293),
+          ('Batch-70', 235, 293),
+
+          ('CSE411:Computer', 95, 350), ('Graphics', 180, 350),
+          ('Batch-65', 235, 350),
+          ('24/08/2026', 26, 392),
+          ('ENG101:Basic', 98, 420), ('English', 160, 420),
+          ('Batch-72', 235, 420),
+        ];
+
+    test('a day owns the courses above its label as well as below', () {
+      final rows = ExamRoutinePdfParser.parsePositionedWords(twoDays());
+      final on23 = rows.where((r) => r.date == DateTime(2026, 8, 23));
+      expect(on23.map((r) => r.courseCode).toSet(), {'CSE431', 'CSE121'});
+    });
+
+    test('the next day does not steal them', () {
+      final rows = ExamRoutinePdfParser.parsePositionedWords(twoDays());
+      final on24 = rows.where((r) => r.date == DateTime(2026, 8, 24));
+      expect(on24.map((r) => r.courseCode).toSet(), {'CSE411', 'ENG101'});
+      // The batch travels with the course, not with the block boundary.
+      final byCode = {for (final r in rows) r.courseCode: r};
+      expect(byCode['CSE431']!.batch, '64');
+      expect(byCode['CSE121']!.batch, '70');
+      expect(byCode['CSE411']!.batch, '65');
+      expect(byCode['ENG101']!.batch, '72');
+    });
+
+    test('nothing is lost or duplicated across the boundary', () {
+      final rows = ExamRoutinePdfParser.parsePositionedWords(twoDays());
+      expect(rows.length, 4);
+    });
+  });
 }
