@@ -62,7 +62,13 @@ class RoleSession {
           .eq('id', uid)
           .maybeSingle();
       _role = row?['role'] as String?;
-      _profileCompleted = row?['profile_completed'] as bool? ?? true;
+      // Fails CLOSED. This was `?? true`, which was defensible while the flag
+      // was cosmetic -- but it is now the enforcement point for mandatory
+      // profile details, and an unreadable or missing row must not walk past
+      // the gate. Worst case is one extra trip through a form they can fill.
+      // `_isVerified` below deliberately keeps `?? true`: that one grandfathers
+      // accounts which predate the approval gate.
+      _profileCompleted = row?['profile_completed'] as bool? ?? false;
       _isVerified = row?['is_verified'] as bool? ?? true;
     } catch (_) {
       _role = null;
