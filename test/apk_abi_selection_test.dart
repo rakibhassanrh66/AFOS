@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// These pin the selection rule, because the ordering below is the one part
 /// that is easy to get silently wrong.
 void main() {
+  _downloadFallbackTests();
   group('picking the ABI slice', () {
     test('arm64 wins over arm — the substring trap', () {
       // 'android_arm64'.contains('android_arm') is TRUE. If the narrower test
@@ -75,6 +76,59 @@ void main() {
         // breaks a test rather than every user's update button.
         expect('${base}AFOS-v2.9.2-$abi.apk', contains(abi));
       }
+    });
+  });
+}
+
+/// A stand-in for a dio error, duck-typed the same way the service reads it.
+class _FakeResponse {
+  final int? statusCode;
+  const _FakeResponse(this.statusCode);
+}
+
+class _FakeDioError {
+  final _FakeResponse? response;
+  const _FakeDioError(this.response);
+}
+
+void _downloadFallbackTests() {
+  group('when to fall back to the universal APK', () {
+    // The fallback exists for releases published before CI split per ABI:
+    // their arm64 asset genuinely is not there.
+    test('a missing asset (404/403) means try the next candidate', () {
+      expect(AppUpdateService.isMissingAssetStatus(404), isTrue);
+      expect(AppUpdateService.isMissingAssetStatus(403), isTrue);
+    });
+
+    // THE BUG THIS GUARDS. A dropped connection used to fall through to the
+    // 96 MB universal APK, restarting from zero over the same connection that
+    // had just failed to carry 34.5 MB.
+    test('a broken connection does NOT mean try the bigger file', () {
+      expect(AppUpdateService.isMissingAssetStatus(null), isFalse);
+      expect(AppUpdateService.isMissingAssetStatus(500), isFalse);
+      expect(AppUpdateService.isMissingAssetStatus(503), isFalse);
+    });
+
+    test('a status is read off a dio-shaped error', () {
+      expect(
+          AppUpdateService.statusCodeOf(const _FakeDioError(_FakeResponse(404))),
+          404);
+    });
+
+    test('a timeout has no response, and reads as null not as missing', () {
+      expect(AppUpdateService.statusCodeOf(const _FakeDioError(null)), isNull);
+      expect(
+          AppUpdateService.isMissingAssetStatus(
+              AppUpdateService.statusCodeOf(const _FakeDioError(null))),
+          isFalse);
+    });
+
+    test('a plain exception is not mistaken for a missing asset', () {
+      expect(AppUpdateService.statusCodeOf(Exception('socket closed')), isNull);
+      expect(
+          AppUpdateService.isMissingAssetStatus(
+              AppUpdateService.statusCodeOf(Exception('socket closed'))),
+          isFalse);
     });
   });
 }
