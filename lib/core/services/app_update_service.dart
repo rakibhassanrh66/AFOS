@@ -14,11 +14,17 @@ class AppUpdateInfo {
   final String title;
   final List<String> highlights;
   final String downloadUrl;
+
+  /// The universal APK, tried only if [downloadUrl] (the small per-ABI slice)
+  /// turns out not to exist for this release. Null when they are the same URL.
+  final String? fallbackUrl;
+
   const AppUpdateInfo({
     required this.version,
     required this.title,
     required this.highlights,
     required this.downloadUrl,
+    this.fallbackUrl,
   });
 }
 
@@ -101,10 +107,61 @@ class AppUpdateService {
     return int.tryParse(version.substring(i + 1).trim());
   }
 
+  /// The Android ABI slice this device can install, or null when unknown.
+  ///
+  /// WHY THIS EXISTS. CI publishes four assets per release: three per-ABI
+  /// slices and one universal APK carrying all of them. This method asked for
+  /// the universal one every time — **96 MB**, against 35 MB for the arm64
+  /// slice the overwhelming majority of phones actually need.
+  ///
+  /// That is what the reported failure was. Dio surfaced it as
+  /// `HttpConnection closed while receiving data`, which reads like a server
+  /// fault and is not one: a 96 MB transfer over campus mobile data simply does
+  /// not survive, and because the download has no resume, every retry started
+  /// the whole 96 MB again from zero.
+  ///
+  /// Read out of `Platform.version` — which ends with `on "android_arm64"` —
+  /// rather than by adding device_info_plus. A new native dependency would
+  /// need a real Android build to verify and would buy exactly one string that
+  /// the process already knows.
+  static String? androidAbiSlice() {
+    if (kIsWeb || !Platform.isAndroid) return null;
+    return abiSliceFrom(Platform.version);
+  }
+
+  /// The pure half of [androidAbiSlice], split out so it can be tested.
+  ///
+  /// `Platform.version` is a process-wide value a widget test cannot set, so
+  /// leaving the string matching inside the platform check would have made the
+  /// ordering rule below unpinnable — and the ordering rule is the entire
+  /// subtlety here.
+  @visibleForTesting
+  static String? abiSliceFrom(String platformVersion) {
+    // arm64 IS TESTED FIRST, and must be: 'android_arm64' CONTAINS
+    // 'android_arm', so the narrower test has to lose the race. Reversed, every
+    // 64-bit phone in the university would be handed the 32-bit slice, which
+    // installs and then behaves like a different app.
+    if (platformVersion.contains('android_arm64')) return 'arm64-v8a';
+    if (platformVersion.contains('android_x64')) return 'x86_64';
+    if (platformVersion.contains('android_arm')) return 'armeabi-v7a';
+    return null; // ia32 and anything unrecognised fall back to universal
+  }
+
+  static String _assetUrl(String v, String file) =>
+      'https://github.com/$_owner/$_repo/releases/download/v$v/$file';
+
+  /// The asset to try FIRST — the small one, when the ABI is known.
   static String _apkUrlFor(String version) {
     final v = releasePart(version);
-    return 'https://github.com/$_owner/$_repo/releases/download/v$v/AFOS-v$v.apk';
+    final abi = androidAbiSlice();
+    return _assetUrl(v, abi == null ? 'AFOS-v$v.apk' : 'AFOS-v$v-$abi.apk');
   }
+
+  /// The universal APK. Every device can install it, so it is the fallback
+  /// when the per-ABI asset is missing — a release published before CI started
+  /// splitting per ABI has only this one.
+  static String universalApkUrlFor(String version) =>
+      _assetUrl(releasePart(version), 'AFOS-v${releasePart(version)}.apk');
 
   /// Returns the newest available update, or null if the installed version is
   /// already current (or the check failed — best-effort, never blocks
@@ -125,6 +182,9 @@ class AppUpdateService {
         title: row?['title'] as String? ?? 'AFOS $latest',
         highlights: (row?['highlights'] as List?)?.cast<String>() ?? const [],
         downloadUrl: _apkUrlFor(latest),
+        fallbackUrl: _apkUrlFor(latest) == universalApkUrlFor(latest)
+            ? null
+            : universalApkUrlFor(latest),
       );
     } catch (_) {
       return null;
@@ -246,20 +306,50 @@ class AppUpdateService {
       // would break the install that was already working.
       if (await part.exists()) await part.delete();
 
-      final res = await Dio().download(
+      // The small per-ABI slice first, the universal APK second.
+      //
+      // A 404 on the first is entirely expected for any release published
+      // before CI began splitting per ABI, and must not reach the user as a
+      // failed update. The part file is cleared between attempts so a partial
+      // first download cannot be mistaken for the second one's bytes.
+      //
+      // The response type is deliberately never named: dio and
+      // supabase_flutter both export `Headers`, and the same collision risk
+      // applies to `Response`. Only the one header value is lifted out.
+      final candidates = <String>[
         update.downloadUrl,
-        part.path,
-        onReceiveProgress: (received, total) {
-          if (total > 0 && onProgress != null) onProgress(received / total);
-        },
-      );
+        if (update.fallbackUrl != null) update.fallbackUrl!,
+      ];
 
-      // Length first: this is the check that catches a truncated transfer,
+      int? expected;
+      var fetched = false;
+      Object? lastError;
+      for (final url in candidates) {
+        try {
+          final r = await Dio().download(
+            url,
+            part.path,
+            onReceiveProgress: (received, total) {
+              if (total > 0 && onProgress != null) onProgress(received / total);
+            },
+          );
+          // Dio lower-cases response header names.
+          expected = int.tryParse(r.headers.value('content-length') ?? '');
+          fetched = true;
+          break;
+        } catch (e) {
+          lastError = e;
+          if (await part.exists()) await part.delete();
+        }
+      }
+      if (!fetched) {
+        throw Exception(
+            'The update could not be downloaded. Check your connection and '
+            'try again. ($lastError)');
+      }
+
+      // Length next: this is the check that catches a truncated transfer,
       // which is otherwise indistinguishable from success.
-      // Literal name rather than dio's `Headers.contentLengthHeader`: dio and
-      // supabase_flutter both export a `Headers` type, so referring to it here
-      // is an ambiguous import. Dio lower-cases response header names.
-      final expected = int.tryParse(res.headers.value('content-length') ?? '');
       final actual = await part.length();
       if (expected != null && expected > 0 && actual != expected) {
         throw Exception(

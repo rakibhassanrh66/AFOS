@@ -94,7 +94,7 @@ void main() {
       expect(a.top, c.top, reason: 'three 4-spans are one row');
       // The run ends flush with the grid, within a rounding pixel.
       expect(c.right, closeTo(1280, 1.0));
-      expect(tester_noOverflow(t), isTrue);
+      expect(noOverflow(t), isTrue);
     });
   });
 
@@ -119,7 +119,7 @@ void main() {
       );
       // Clamped to six columns, not overflowing by half a screen.
       expect(t.getSize(find.byKey(const Key('w'))).width, closeTo(800, 1.0));
-      expect(tester_noOverflow(t), isTrue);
+      expect(noOverflow(t), isTrue);
     });
   });
 
@@ -256,4 +256,4 @@ void main() {
 }
 
 /// True when no RenderFlex/RenderBox overflow was recorded this frame.
-bool tester_noOverflow(WidgetTester t) => t.takeException() == null;
+bool noOverflow(WidgetTester t) => t.takeException() == null;

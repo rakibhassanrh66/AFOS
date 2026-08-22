@@ -205,8 +205,14 @@ void main() {
     }) =>
         RingPainter(
           slices: [
-            RingSlice(label: 'Occupied', value: occupied, color: const Color(0xFF1B78C2)),
-            RingSlice(label: 'Available', value: 2797, color: const Color(0xFF10855A)),
+            RingSlice(
+                label: 'Occupied',
+                value: occupied,
+                color: const Color(0xFF1B78C2)),
+            const RingSlice(
+                label: 'Available',
+                value: 2797,
+                color: Color(0xFF10855A)),
           ],
           total: occupied + 2797,
           stroke: 16,
