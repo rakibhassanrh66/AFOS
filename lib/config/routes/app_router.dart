@@ -137,8 +137,17 @@ class AppRouter {
         // cannot use.
         if (!allowed) {
           allowed = switch (loc) {
+            // exam_controller is admitted BY ROLE, not only by grant.
+            // uploadKindsFor() already hands that role the exam routine, seat
+            // plan and notice kinds — but this guard only ever checked the
+            // three grants, so an exam_controller was bounced from the hub
+            // that was built to contain their work. They reached seat plans
+            // solely through a separate "Manage Exam Seats" tile, which is why
+            // the same job appeared twice in the app. The tile is gone now, so
+            // this is the way in and it has to open.
             _ when loc == '/admin/upload' || loc.startsWith('/admin/upload/') =>
-              await PermissionSession.ensureHas('transport', 'upload')
+              role == 'exam_controller'
+                || await PermissionSession.ensureHas('transport', 'upload')
                 || await PermissionSession.ensureHas('routine', 'upload')
                 || await PermissionSession.ensureHas('exam_seat', 'upload'),
             '/admin/hall' => await PermissionSession.ensureHas('hall', 'manage'),
