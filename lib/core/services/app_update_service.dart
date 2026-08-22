@@ -252,6 +252,39 @@ class AppUpdateService {
   /// is not an APK. The real artifact is ~95-200 MB.
   static const _minPlausibleApkBytes = 2 * 1024 * 1024;
 
+  /// Attempts per URL before giving up on it. Three, because the failure this
+  /// guards against is a mobile connection dropping mid-transfer on campus,
+  /// which is usually transient.
+  static const _downloadAttempts = 3;
+
+  /// Multiplied by the attempt number, so waits are 2s then 4s. Long enough to
+  /// outlast a handover between cells, short enough not to read as a hang.
+  static const _retryBackoff = Duration(seconds: 2);
+
+  /// Whether a failed download means "this asset is not there" (so the next
+  /// candidate URL is worth trying) as opposed to "the connection broke" (so
+  /// it is not).
+  @visibleForTesting
+  static bool isMissingAssetStatus(int? statusCode) =>
+      statusCode == 404 || statusCode == 403;
+
+  /// The HTTP status behind a download failure, or null when the request never
+  /// got one — a timeout, a reset, DNS.
+  ///
+  /// Read dynamically on purpose. `dio` and `supabase_flutter` both export
+  /// `Response`, and this file already avoids naming that type for exactly
+  /// that reason; duck-typing the one field keeps the collision out.
+  @visibleForTesting
+  static int? statusCodeOf(Object error) {
+    try {
+      final dynamic e = error;
+      final code = e.response?.statusCode;
+      return code is int ? code : null;
+    } catch (_) {
+      return null; // not a Dio error, or no response attached
+    }
+  }
+
   /// Every APK is a ZIP, and every ZIP starts with these four bytes.
   static const _zipMagic = [0x50, 0x4B, 0x03, 0x04]; // "PK\x03\x04"
 
@@ -324,22 +357,50 @@ class AppUpdateService {
       int? expected;
       var fetched = false;
       Object? lastError;
+
+      // WHY THIS IS NOT `catch (e) { try the next url }`.
+      //
+      // The fallback exists for ONE reason: a release published before CI
+      // split per ABI has no arm64 asset, so the small URL 404s and the
+      // universal APK is the only thing to fetch. It was written as a blanket
+      // catch, which meant a dropped CONNECTION on the 34.5 MB slice also
+      // "fell back" -- restarting from zero on the 96 MB universal file, over
+      // the same connection that had just failed to hold the smaller one.
+      // That turns one recoverable stall into a much longer wait and a much
+      // more likely failure, which is what "it shows an error after some
+      // time" looks like from the outside.
+      //
+      // A missing asset and a broken connection are different problems:
+      //   * asset missing (404/403) -> the next candidate is the answer.
+      //   * connection failed       -> retry the SAME, SMALLER file, and if it
+      //                                still will not come, stop. Escalating
+      //                                to a bigger download is never the fix
+      //                                for a connection that cannot hold one.
+      // There is still no RESUME -- a retry restarts this file from zero. That
+      // needs range requests and is not what this change is.
+      outer:
       for (final url in candidates) {
-        try {
-          final r = await Dio().download(
-            url,
-            part.path,
-            onReceiveProgress: (received, total) {
-              if (total > 0 && onProgress != null) onProgress(received / total);
-            },
-          );
-          // Dio lower-cases response header names.
-          expected = int.tryParse(r.headers.value('content-length') ?? '');
-          fetched = true;
-          break;
-        } catch (e) {
-          lastError = e;
-          if (await part.exists()) await part.delete();
+        for (var attempt = 1; attempt <= _downloadAttempts; attempt++) {
+          try {
+            final r = await Dio().download(
+              url,
+              part.path,
+              onReceiveProgress: (received, total) {
+                if (total > 0 && onProgress != null) onProgress(received / total);
+              },
+            );
+            // Dio lower-cases response header names.
+            expected = int.tryParse(r.headers.value('content-length') ?? '');
+            fetched = true;
+            break outer;
+          } catch (e) {
+            lastError = e;
+            if (await part.exists()) await part.delete();
+
+            if (isMissingAssetStatus(statusCodeOf(e))) break; // next candidate
+            if (attempt == _downloadAttempts) break outer;    // do NOT escalate
+            await Future.delayed(_retryBackoff * attempt);
+          }
         }
       }
       if (!fetched) {
