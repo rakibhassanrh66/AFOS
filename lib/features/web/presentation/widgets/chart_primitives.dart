@@ -396,7 +396,13 @@ class HeatGrid extends StatelessWidget {
             child: Column(children: [
               for (var r = 0; r < values.length; r++)
                 Expanded(
-                  child: Row(children: [
+                  // stretch, NOT the default center. `Expanded` only makes the
+                  // MAIN axis tight; on the cross axis a centered child gets
+                  // LOOSE constraints, and a DecoratedBox with no child takes
+                  // the minimum it is allowed — zero height. Every cell then
+                  // painted at 0px: no overflow, no error, no cells, and the
+                  // row and column labels still drew perfectly around the void.
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     for (var c = 0; c < values[r].length; c++)
                       Expanded(
                         child: Padding(
