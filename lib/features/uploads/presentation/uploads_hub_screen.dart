@@ -21,7 +21,6 @@ import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
-import '../../web/presentation/widgets/adaptive_list.dart';
 import '../data/upload_backup_pdf.dart';
 import '../data/upload_batch.dart';
 
@@ -134,13 +133,22 @@ class _UploadsHubState extends State<UploadsHubScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.blue,
-        child: AdaptiveList(
+        // A plain ListView, NOT AdaptiveList.
+        //
+        // AdaptiveList lays its ITEMS out in columns on a wide screen. This
+        // page is one composed column passed as a single item, so at 1440px it
+        // computed three columns, put the whole page in the first one and left
+        // the other two blank -- the page rendered at a third of the width with
+        // two thirds of the screen empty beside it. It looked like the phone
+        // layout had been dropped into a desktop window, which is exactly what
+        // it was. AdaptiveList is for MANY items; one item is not a list.
+        child: ListView(
           padding: EdgeInsetsDirectional.fromSTEB(
               16, 16, 16, 16 + NavInsets.of(context)),
-          itemCount: 1,
-          itemBuilder: (ctx, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               const FeatureHeader(
                 title: 'Uploads',
                 subtitle: 'Everything the university loads into AFOS',
@@ -186,8 +194,9 @@ class _UploadsHubState extends State<UploadsHubScreen> {
               else
                 for (final b in _history)
                   _HistoryRow(batch: b, onTap: () => _openDetail(b)),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );
