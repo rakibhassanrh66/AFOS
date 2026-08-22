@@ -29,6 +29,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import 'widgets/user_group_tree.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -75,6 +76,24 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   String? _fDepartmentId;
   int? _fSemester;
 
+  /// The grouped directory: a place per kind of person, each grouped the way
+  /// that kind is actually organised (students by intake term then batch,
+  /// teachers by department then join year, staff by sector then join year).
+  ///
+  /// Counts come from `admin_user_groups()` and the rows for an opened group
+  /// come from `admin_search_users()` with the SAME keys, so a header can
+  /// never claim a number the rows below it disagree with.
+  ///
+  /// Grouping is for BROWSING. While a search is active the flat, paged result
+  /// list is shown instead — someone typing an ID wants the person, not the
+  /// section of the university they happen to sit in.
+  List<UserGroup> _groups = [];
+  bool _groupsLoading = false;
+  String? _groupsError;
+
+  bool get _grouped =>
+      _search.trim().isEmpty && _roleFilter != 'all' && _roleFilter != 'management';
+
   // Keyset cursor. OFFSET re-walks every skipped row, so page 40 costs forty
   // times page 1; (created_at, id) costs the same on every page.
   String? _cursorCreatedAt;
@@ -94,6 +113,20 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   List<Map<String, dynamic>> _stuck = [];
 
   Timer? _searchDebounce;
+
+  /// The search box needs a controller of its own. Without one it kept its
+  /// text in its own element state, and the debounced reload below sets
+  /// `_loading = true`, which replaces the WHOLE TabBarView -- search box
+  /// included -- with a shimmer. The field was therefore destroyed and rebuilt
+  /// on every keystroke, so the list filtered correctly while the box you
+  /// typed into rendered empty. Seen in a browser; no test caught it because
+  /// nothing throws and the query itself was always right.
+  final _searchCtrl = TextEditingController();
+
+  /// True until the first page has landed. The full-screen skeleton belongs to
+  /// that first load only -- flashing it on every keystroke is what tore the
+  /// search box out of the tree.
+  bool _firstLoad = true;
   final _listScroll = ScrollController();
 
   RealtimeChannel? _sub;
@@ -244,6 +277,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
     });
     _load();
     _loadFacets();
+    _loadGroups();
     _loadGrants();
     _loadCrRequests();
     // Next page when the list nears its end. AdaptiveList is bounded now, so
@@ -274,6 +308,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   void dispose() {
     _tab.dispose();
     _searchDebounce?.cancel();
+    _searchCtrl.dispose();
     _listScroll.dispose();
     _sub?.unsubscribe();
     _crSub?.unsubscribe();
@@ -295,6 +330,72 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
         'p_semester': _fSemester,
         'p_q': _search.trim().isEmpty ? null : _search.trim(),
       };
+
+  /// The group headings and their counts for the current role and filters.
+  /// Cheap enough to reload with the facets: one grouped aggregate, no rows.
+  Future<void> _loadGroups() async {
+    if (!_grouped) {
+      if (mounted) setState(() { _groups = []; _groupsError = null; });
+      return;
+    }
+    if (mounted) setState(() { _groupsLoading = true; _groupsError = null; });
+    try {
+      final res = await SupabaseConfig.client.rpc('admin_user_groups', params: {
+        'p_role': _roleFilter,
+        'p_q': _search.trim().isEmpty ? null : _search.trim(),
+        'p_verified': null,
+        'p_department_id': _fDepartmentId,
+      });
+      if (!mounted) return;
+      setState(() {
+        _groups = ((res as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(UserGroup.fromJson)
+            .toList();
+        _groupsLoading = false;
+      });
+    } catch (e) {
+      // Same rule as the row list: a failed fetch must not render as "no
+      // groups", which reads as "nobody works here".
+      if (mounted) {
+        setState(() { _groupsError = friendlyError(e); _groupsLoading = false; });
+      }
+    }
+  }
+
+  /// The rows inside one opened group. Uses the same keys the group was
+  /// counted with, so the count and the rows describe one population.
+  Future<List<Map<String, dynamic>>> _rowsForGroup(UserGroup g) async {
+    final params = <String, dynamic>{
+      'p_role': _roleFilter,
+      'p_department_id': _fDepartmentId,
+      'p_q': _search.trim().isEmpty ? null : _search.trim(),
+      'p_limit': 200,
+    };
+    if (_roleFilter == 'student') {
+      // l1key is "<year>|<season>", or the literal 'unset' for the people who
+      // have not given an intake term yet -- a real group somebody has to work
+      // through, not an absence of filter.
+      if (g.l1Key == 'unset') {
+        params['p_admission_year'] = 'unset';
+        params['p_admission_season'] = 'unset';
+      } else {
+        final parts = g.l1Key.split('|');
+        params['p_admission_year'] = parts.first;
+        params['p_admission_season'] = parts.length > 1 ? parts[1] : null;
+      }
+      if (g.l2Key != 'unset') params['p_batch'] = g.l2Key;
+    } else {
+      params['p_joined_year'] = g.l2Key;
+      if (_roleFilter == 'staff') params['p_staff_category'] = g.l1Key;
+      if (_roleFilter == 'teacher' && g.l1Key != 'unset') {
+        params['p_department_id'] = g.l1Key;
+      }
+    }
+    final res = await SupabaseConfig.client
+        .rpc('admin_search_users', params: params) as List;
+    return res.cast<Map<String, dynamic>>();
+  }
 
   /// One page of the directory. [reset] restarts from the newest row and
   /// clears the accumulated list; otherwise this appends the next page.
@@ -327,12 +428,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
         _error = null;
         _loading = false;
         _loadingMore = false;
+        _firstLoad = false;
       });
     } catch (e) {
       // A silent failure here rendered as "No pending approvals"/"No users
       // found" — the approval queue looking empty is exactly the wrong
       // thing to fake when the load actually failed.
-      if (mounted) setState(() { _error = friendlyError(e); _loading = false; _loadingMore = false; });
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; _loadingMore = false; _firstLoad = false; });
     }
   }
 
@@ -468,6 +570,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   void _onFilterChanged() {
     _load();
     _loadFacets();
+    _loadGroups();
   }
 
   /// Reads one facet array out of the server's counts. Returns
@@ -605,6 +708,25 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   // query (_loadPending) and the directory is one keyset page at a time
   // (_load), so `_users` IS the filtered result rather than a superset to sift.
   List<Map<String, dynamic>> get _filtered => _users;
+
+  /// The approval queue, grouped by role, in the order the roles are listed on
+  /// this screen so the queue and the directory agree about what comes first.
+  /// A LinkedHashMap — insertion order is the display order.
+  Map<String, List<Map<String, dynamic>>> get _pendingByRole {
+    final out = <String, List<Map<String, dynamic>>>{};
+    for (final r in _roles) {
+      if (r == 'all' || r == 'management') continue;
+      final people = _pending.where((u) => '${u['role']}' == r).toList();
+      if (people.isNotEmpty) out[r] = people;
+    }
+    // Anyone whose role is not in the chip list still has to be approvable —
+    // a signup nobody can see is the failure mode this screen exists to
+    // prevent.
+    final seen = out.values.expand((l) => l).map((u) => u['id']).toSet();
+    final rest = _pending.where((u) => !seen.contains(u['id'])).toList();
+    if (rest.isNotEmpty) out['other'] = rest;
+    return out;
+  }
 
   Future<void> _approve(Map<String, dynamic> user) async {
     try {
@@ -1165,7 +1287,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
               ],
             ),
           ),
-        Expanded(child: _loading
+        Expanded(child: _loading && _firstLoad
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : TabBarView(controller: _tab, children: [
                 if (_canApproveUsers) ...[
@@ -1174,17 +1296,32 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                     : _pending.isEmpty
                     ? const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No pending approvals',
                         subtitle: 'New signups will show up here')
-                    : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _pending.length,
-                        itemBuilder: (ctx, i) => _UserCard(key: ValueKey(_pending[i]['id']), user: _pending[i], pending: true,
-                            onApprove: () => _approve(_pending[i]),
-                            // Reject DELETES the account outright (auth row,
-                            // storage, every owned row, via the delete-user
-                            // edge function). That is not "approve, but no" —
-                            // it is the most destructive action in the app
-                            // wearing a mild label, so it stays super_admin's
-                            // even though approving does not.
-                            onReject: _isSuperAdmin ? () => _rejectAndDelete(_pending[i]) : null,
-                            onDelete: _isSuperAdmin ? () => _confirmDelete(_pending[i]) : null)),
+                    // Grouped by role, same headings as the directory. The
+                    // queue is already loaded in full (it is a queue, and it
+                    // is meant to stay short), so this groups in memory rather
+                    // than asking the server -- unlike the directory, where
+                    // the whole point is NOT to download everyone.
+                    //
+                    // Approve / Reject / Delete are untouched: each still
+                    // follows its own grant, and Reject still deletes the
+                    // account outright (auth row, storage, every owned row,
+                    // via the delete-user edge function) which is why it stays
+                    // super_admin's even though approving does not.
+                    : ListView(
+                        padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
+                        children: [
+                          for (final entry in _pendingByRole.entries) ...[
+                            GroupSectionHeader(
+                                label: roleLabel(entry.key), total: entry.value.length),
+                            for (final u in entry.value)
+                              _UserCard(key: ValueKey(u['id']), user: u, pending: true,
+                                  onApprove: () => _approve(u),
+                                  onReject: _isSuperAdmin ? () => _rejectAndDelete(u) : null,
+                                  onDelete: _isSuperAdmin ? () => _confirmDelete(u) : null),
+                            const SizedBox(height: 24),
+                          ],
+                        ],
+                      ),
                 ],
                 // Order here MUST match _visibleTabs exactly.
                 if (_canApproveUsers && _stuck.isNotEmpty) ...[
@@ -1289,6 +1426,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                   // trigram on name), so it finds people who were never
                   // downloaded; the old one could only search the local list.
                   Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8), child: TextField(
+                      controller: _searchCtrl,
                       onChanged: _onSearchChanged,
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                       decoration: InputDecoration(
@@ -1395,6 +1533,33 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                   const SizedBox(height: 8),
                   Expanded(child: _error != null
                       ? ErrorView(message: _error!, onRetry: _load)
+                      : _grouped
+                      // BROWSING: sections, in the shape the people are
+                      // actually organised in. Rows load per group, so opening
+                      // one intake never downloads the rest of the university.
+                      ? (_groupsError != null
+                          ? ErrorView(message: _groupsError!, onRetry: _loadGroups)
+                          : _groupsLoading
+                          ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+                          : _groups.isEmpty
+                          ? const EmptyState(
+                              icon: Icons.people_outline,
+                              title: 'No one in this group',
+                              subtitle: 'Try a different role or clear the filters')
+                          : UserGroupTree(
+                              groups: _groups,
+                              rowsFor: _rowsForGroup,
+                              padding: EdgeInsetsDirectional.fromSTEB(
+                                  16, 16, 16, 16 + NavInsets.of(context)),
+                              itemBuilder: (u) => _UserCard(
+                                  key: ValueKey(u['id']), user: u, pending: false,
+                                  isManager: _isManager(u),
+                                  areaCount: _areaCount(u),
+                                  onDelete: _isSuperAdmin ? () => _confirmDelete(u) : null,
+                                  onChangeRole: _canAssignRoles ? () => _setRole(u) : null,
+                                  onToggleManager: _isSuperAdmin ? () => _toggleManager(u) : null,
+                                  onManagePermissions: _canDelegate ? () => _managePermissions(u) : null),
+                            ))
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
                       : AdaptiveList(
