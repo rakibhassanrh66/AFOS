@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../config/supabase_config.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_text_styles.dart';
@@ -9,6 +11,7 @@ import '../../../../core/auth/permission_session.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../../../shared/widgets/shimmer_card.dart';
 import '../widgets/web_layout.dart';
+import 'admin_overview.dart';
 import 'work_queue.dart';
 
 /// The web home screen: what needs doing, for whoever is looking.
@@ -42,6 +45,11 @@ class _RoleConsoleState extends State<RoleConsole> {
   bool _isCr = false;
   Set<String> _grants = const {};
   List<WorkQueue> _queues = const [];
+
+  /// Null for anyone who does not get an overview, and for the whole of the
+  /// loading window — the widget is not built until [_loading] is false, so it
+  /// never has to represent "still fetching".
+  AdminOverviewData? _overview;
   bool _loading = true;
 
   @override
@@ -57,6 +65,21 @@ class _RoleConsoleState extends State<RoleConsole> {
       return;
     }
     try {
+      // STARTED HERE, not in the overview's own initState.
+      //
+      // It depends on none of the three awaits below, so kicking it off now
+      // folds its six queries into the wait this console is already doing.
+      // The point is not only speed: while the overview fetched for itself, it
+      // could not begin until this console had finished AND painted, so ~900px
+      // of panels dropped in above the work areas a beat later and shoved them
+      // down the page. Loading both halves before the single shimmer lifts is
+      // what makes that shift impossible rather than merely disguised.
+      //
+      // Web only — on Android the overview renders nothing regardless, and
+      // firing six admin queries a phone will never display is pure cost.
+      final Future<AdminOverviewData?> overview =
+          kIsWeb ? AdminOverviewData.load() : Future.value(null);
+
       final p = await SupabaseConfig.client
           .from('profiles')
           .select('*, teachers(designation), staff(designation, office), students(is_cr)')
@@ -65,12 +88,14 @@ class _RoleConsoleState extends State<RoleConsole> {
       // Counted only after the grants are known — asking for queues before
       // knowing the areas would either fetch everything or fetch nothing.
       final queues = await loadWorkQueues(grants);
+      final overviewData = await overview;
       if (!mounted) return;
       setState(() {
         _user = UserModel.fromJson(p);
         _isCr = (p['students'] as Map?)?['is_cr'] as bool? ?? false;
         _grants = grants;
         _queues = queues;
+        _overview = overviewData;
         _loading = false;
       });
     } catch (_) {
@@ -103,6 +128,14 @@ class _RoleConsoleState extends State<RoleConsole> {
       title: first.isEmpty ? _greeting : '$_greeting, $first',
       subtitle: _subtitleFor(role),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // Figures, population, and recent joiners — for viewers who can act on
+        // them. Renders nothing at all for everyone else, and nothing on a
+        // phone: the mobile dashboard is a launcher by design.
+        // The gate that used to sit inside AdminOverview. It belongs here:
+        // this is the widget that knows the console is the desktop home, and
+        // keeping it out of the child is what lets the child be tested at all.
+        if (kIsWeb && Responsive.isExpanded(context))
+          AdminOverview(data: _overview),
         // The granted areas come FIRST, above everything else, for everyone
         // who has any. Whatever your role is, the thing somebody specifically
         // asked you to look after outranks the general-purpose app.
@@ -127,14 +160,28 @@ class _RoleConsoleState extends State<RoleConsole> {
 
         _RoleBody(role: role, isCr: _isCr, caps: caps),
 
-        const SizedBox(height: AppSpace.xl),
-        _SectionLabel('Everything you can reach',
-            note: '${caps.length} in total'),
-        const SizedBox(height: AppSpace.md),
-        WebGrid(
-          minItemWidth: 210,
-          children: [for (final c in caps) _CapabilityTile(cap: c)],
-        ),
+        // NOT RENDERED BESIDE THE SIDEBAR — it was the same list twice.
+        //
+        // web_sidebar.dart:93 and this file called capabilitiesFor() with
+        // identical arguments, so on a desktop browser the rail and this grid
+        // showed the same ten destinations on the same screen: the rail
+        // grouped (You / Campus / Operations / Oversight), the grid flat and
+        // unsorted. Every tile here was already one click away on the left,
+        // which is most of what made the page read as filler.
+        //
+        // Below 1024px, and on Android, there IS no permanent rail — the
+        // drawer is behind a tap — so the grid stays as the only way to see
+        // the whole set at once.
+        if (!(kIsWeb && Responsive.isExpanded(context))) ...[
+          const SizedBox(height: AppSpace.xl),
+          _SectionLabel('Everything you can reach',
+              note: '${caps.length} in total'),
+          const SizedBox(height: AppSpace.md),
+          WebGrid(
+            minItemWidth: 210,
+            children: [for (final c in caps) _CapabilityTile(cap: c)],
+          ),
+        ],
       ]),
     );
   }

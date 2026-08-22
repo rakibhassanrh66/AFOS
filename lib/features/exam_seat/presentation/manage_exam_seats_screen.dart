@@ -15,6 +15,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../data/exam_room_pdf_parser.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../core/utils/responsive.dart';
 /// admin/dept_admin/super_admin/exam_controller: upload one or more real
 /// exam seat-plan PDFs. Confirmed against an actual DIU sample document —
 /// these publish room *capacity* per batch+section (a section spans
@@ -121,7 +122,12 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Exam Seat Plan Upload'),
-      body: ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+      // Same reason as settings_screen: a bare ListView stretches a column of
+      // label/control pairs across the whole 1440px window, putting each
+      // control an arm's length from the thing it belongs to. 760 is the form
+      // measure, not AdaptiveContentWidth's 1100 dashboard default.
+      body: AdaptiveContentWidth(maxWidth: 760, child:
+        ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
         const FeatureHeader(
           title: 'Exam Seat Plan Upload',
           subtitle: 'Publish room allocations from the official PDF',
@@ -159,7 +165,7 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
           const SizedBox(height: 16),
           Text(_error!, style: const TextStyle(color: AppColors.red)),
         ],
-      ]),
+      ])),
     );
   }
 }

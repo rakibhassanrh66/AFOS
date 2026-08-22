@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -50,6 +52,50 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   String? _crError;
   String _search = '';
   String _roleFilter = 'all';
+
+  // ---------------------------------------------------------------------
+  // SERVER-SIDE SEGMENTATION.
+  //
+  // This screen used to `select(...)` every profile with no .limit() and then
+  // filter and search CLIENT-SIDE in Dart. At 12 users that is invisible; at
+  // 25,000 it downloads the whole user table on every open and again on every
+  // realtime profiles change, and the search box can only find people already
+  // downloaded. Both jobs now happen in Postgres (admin_search_users /
+  // admin_user_facets, db/proposed/004) and this screen holds one page.
+  // ---------------------------------------------------------------------
+
+  /// Counts per facet value at the current drill level, straight from the
+  /// database. Drives the chips AND the header tiles, so the numbers describe
+  /// the whole university rather than whatever happened to be downloaded.
+  Map<String, dynamic> _facets = {};
+
+  /// Drill-down state. null means "not filtered by this".
+  String? _fBatch;
+  String? _fSection;
+  String? _fDepartmentId;
+  int? _fSemester;
+
+  // Keyset cursor. OFFSET re-walks every skipped row, so page 40 costs forty
+  // times page 1; (created_at, id) costs the same on every page.
+  String? _cursorCreatedAt;
+  String? _cursorId;
+  bool _hasMore = true;
+  bool _loadingMore = false;
+
+  /// The approval queue, loaded by its own filtered query rather than by
+  /// scanning a full download for is_verified == false.
+  List<Map<String, dynamic>> _pending = [];
+
+  /// Signups where the emailed code did NOT settle it — expired, or all
+  /// attempts burned. The code is the primary gate; this is the second path,
+  /// for the person it failed. Before this existed those signups sat in a
+  /// service-role-only table where no admin could see them and the applicant
+  /// had no way forward at all.
+  List<Map<String, dynamic>> _stuck = [];
+
+  Timer? _searchDebounce;
+  final _listScroll = ScrollController();
+
   RealtimeChannel? _sub;
   RealtimeChannel? _crSub;
   final _refresh = RealtimeRefresh();
@@ -145,6 +191,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   /// between controller length and child count is a crash, not a glitch.
   List<String> get _visibleTabs => [
         if (_canApproveUsers) 'pending',
+        // Shown only when there is something in it. The code settles almost
+        // every signup, so an always-present "Verification issues" tab that is
+        // empty 99% of the time trains people to ignore it.
+        if (_canApproveUsers && _stuck.isNotEmpty) 'stuck',
         if (_canApproveCr) 'cr',
         'users', // everyone who can open this screen at all gets the directory
       ];
@@ -188,10 +238,23 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
     // the viewer proves to be super_admin. Same reasoning as _isSuperAdmin
     // defaulting false: never flash controls that may not be theirs.
     _tab = TabController(length: 1, vsync: this);
-    _loadViewerRole();
+    _loadViewerRole().then((_) {
+      _loadPending();
+      _loadStuck();
+    });
     _load();
+    _loadFacets();
     _loadGrants();
     _loadCrRequests();
+    // Next page when the list nears its end. AdaptiveList is bounded now, so
+    // "everyone in the university" is never a single scroll view.
+    _listScroll.addListener(() {
+      if (!_hasMore || _loadingMore || _loading) return;
+      if (_listScroll.position.pixels >= _listScroll.position.maxScrollExtent - 400) {
+        _loadingMore = true;
+        _load(reset: false);
+      }
+    });
     // Debounced: `profiles` changes on every login and every profile edit
     // anywhere in the app, and each event used to trigger a full re-download of
     // all profiles (15 columns). Approving several signups, or any bulk write,
@@ -199,7 +262,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
     // connection. The burst now collapses into one.
     _sub = SupabaseConfig.client.channel(screenChannel('manage_users', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'profiles',
-            callback: (_) => _refresh.schedule(_load))
+            callback: (_) => _refresh.schedule(_refreshAll))
         .subscribe();
     _crSub = SupabaseConfig.client.channel(screenChannel('manage_cr_requests', this))
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'cr_requests',
@@ -210,6 +273,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   @override
   void dispose() {
     _tab.dispose();
+    _searchDebounce?.cancel();
+    _listScroll.dispose();
     _sub?.unsubscribe();
     _crSub?.unsubscribe();
     // Cancel any queued refetch, or it fires against an unmounted widget.
@@ -218,19 +283,240 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
     super.dispose();
   }
 
-  Future<void> _load() async {
+  /// The filter set the RPCs take. One place, so the facet counts and the row
+  /// query can never describe different populations.
+  Map<String, dynamic> get _filterArgs => {
+        // 'management' is a GRANT, not a profiles.role, so it cannot be a
+        // server-side role filter — it is handled by _loadManagement().
+        'p_role': (_roleFilter == 'all' || _roleFilter == 'management') ? null : _roleFilter,
+        'p_batch': _fBatch,
+        'p_section': _fSection,
+        'p_department_id': _fDepartmentId,
+        'p_semester': _fSemester,
+        'p_q': _search.trim().isEmpty ? null : _search.trim(),
+      };
+
+  /// One page of the directory. [reset] restarts from the newest row and
+  /// clears the accumulated list; otherwise this appends the next page.
+  Future<void> _load({bool reset = true}) async {
+    if (reset) {
+      _cursorCreatedAt = null;
+      _cursorId = null;
+      _hasMore = true;
+      if (mounted) setState(() => _loading = true);
+    }
+    if (_roleFilter == 'management') return _loadManagement();
+
     try {
-      final res = await SupabaseConfig.client.from('profiles')
-          .select('id, full_name, email, phone, role, university_id, department, batch, section, '
-              'teacher_initial, gender, emergency_contact, avatar_url, is_verified, created_at')
-          .order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _users = res.cast(); _error = null; _loading = false; });
+      final res = await SupabaseConfig.client.rpc('admin_search_users', params: {
+        ..._filterArgs,
+        'p_verified': null,
+        'p_limit': 50,
+        'p_cursor_created_at': _cursorCreatedAt,
+        'p_cursor_id': _cursorId,
+      }) as List;
+      final page = res.cast<Map<String, dynamic>>();
+      if (!mounted) return;
+      setState(() {
+        _users = reset ? page : [..._users, ...page];
+        _hasMore = page.length == 50;
+        if (page.isNotEmpty) {
+          _cursorCreatedAt = page.last['created_at'] as String?;
+          _cursorId = page.last['id'] as String?;
+        }
+        _error = null;
+        _loading = false;
+        _loadingMore = false;
+      });
     } catch (e) {
       // A silent failure here rendered as "No pending approvals"/"No users
       // found" — the approval queue looking empty is exactly the wrong
       // thing to fake when the load actually failed.
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; _loadingMore = false; });
+    }
+  }
+
+  /// The Management tier cuts across roles and lives in user_permissions, not
+  /// profiles.role, so it is resolved from the grants map already loaded for
+  /// the badges. Bounded by the number of grant holders (tens), never by the
+  /// size of the university.
+  Future<void> _loadManagement() async {
+    try {
+      final ids = _grantsByUser.entries
+          .where((e) => _delegatePermId != null && e.value.contains(_delegatePermId))
+          .map((e) => e.key).toList();
+      if (ids.isEmpty) {
+        if (mounted) setState(() { _users = []; _hasMore = false; _error = null; _loading = false; });
+        return;
+      }
+      final res = await SupabaseConfig.client.from('profiles')
+          .select('id, full_name, email, phone, role, university_id, department, batch, section, '
+              'teacher_initial, gender, emergency_contact, avatar_url, is_verified, created_at')
+          .inFilter('id', ids)
+          .order('created_at', ascending: false) as List;
+      if (mounted) {
+        setState(() {
+          _users = res.cast();
+          _hasMore = false;
+          _error = null;
+          _loading = false;
+        });
+      }
+    } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
+  }
+
+  /// Facet counts for the current drill level.
+  Future<void> _loadFacets() async {
+    try {
+      final res = await SupabaseConfig.client.rpc('admin_user_facets', params: {
+        ..._filterArgs,
+        'p_verified': null,
+      });
+      if (mounted && res is Map) setState(() => _facets = Map<String, dynamic>.from(res));
+    } catch (_) {
+      // Facets decorate the screen; losing them must not replace a working
+      // list with an error state.
+    }
+  }
+
+  /// The approval queue. Its own query, so it stays correct no matter how far
+  /// the directory has been paged or filtered.
+  Future<void> _loadPending() async {
+    if (!_canApproveUsers) return;
+    try {
+      final res = await SupabaseConfig.client.rpc('admin_search_users', params: {
+        'p_verified': false,
+        'p_limit': 100,
+      }) as List;
+      if (mounted) setState(() => _pending = res.cast<Map<String, dynamic>>());
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    }
+  }
+
+  Future<void> _loadStuck() async {
+    if (!_canApproveUsers) return;
+    try {
+      final res = await SupabaseConfig.client.rpc('admin_list_stuck_registrations') as List;
+      if (mounted) {
+        setState(() {
+          _stuck = res.cast<Map<String, dynamic>>();
+          // The tab only exists while the queue is non-empty, so the controller
+          // has to be resized with it — a controller length that disagrees with
+          // the child count is a crash, not a glitch.
+          _setTabCount(_visibleTabs.length);
+        });
+      }
+    } catch (_) {
+      // A fallback queue that fails to load must not blank the screens that
+      // did load. Surfaced by its own empty/error state instead.
+    }
+  }
+
+  /// Completes a signup the code could not. Goes through the edge function
+  /// because creating the auth user needs the admin API, and because the
+  /// staged password is encrypted with a key only the function holds.
+  Future<void> _approveStuck(Map<String, dynamic> row) async {
+    final ok = await _confirmAction(
+      'Approve ${row['full_name'] ?? row['email']}?',
+      'This creates the account WITHOUT the email code being matched, on your '
+          'judgement that ${row['email']} really belongs to them. It is recorded '
+          'against your name.',
+      'Approve manually',
+    );
+    if (!ok) return;
+    try {
+      final res = await SupabaseConfig.client.functions
+          .invoke('register-admin-approve', body: {'registrationId': row['id']});
+      final data = res.data;
+      if (data is Map && data['error'] is String) throw Exception(data['error']);
+      AppHaptics.success();
+      await Future.wait([_loadStuck(), _refreshAll()]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+  }
+
+  Future<void> _rejectStuck(Map<String, dynamic> row) async {
+    final ok = await _confirmAction(
+      'Decline ${row['full_name'] ?? row['email']}?',
+      'No account is created. The applicant can register again from scratch.',
+      'Decline',
+    );
+    if (!ok) return;
+    try {
+      await SupabaseConfig.client.rpc('admin_reject_stuck_registration',
+          params: {'p_id': row['id'], 'p_reason': null});
+      await _loadStuck();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait([_load(), _loadFacets(), _loadPending()]);
+  }
+
+  void _onFilterChanged() {
+    _load();
+    _loadFacets();
+  }
+
+  /// Reads one facet array out of the server's counts. Returns
+  /// `[{value, count, label?}, …]` — the shape admin_user_facets emits.
+  List<Map<String, dynamic>> _facetList(String key) =>
+      ((_facets[key] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+  int get _totalUsers => (_facets['total'] as num?)?.toInt() ?? _users.length;
+
+  /// One drill level: a labelled row of chips with live counts. Renders
+  /// nothing at all when the level has no values, so the bar only ever shows
+  /// levels that can actually narrow the set.
+  Widget _drillLevel({
+    required String title,
+    required List<Map<String, dynamic>> values,
+    required String? selected,
+    required void Function(String?) onPick,
+    String Function(Map<String, dynamic>)? labelOf,
+  }) {
+    if (values.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title.toUpperCase(),
+            style: AppTextStyles.labelSmall.copyWith(
+                color: AppColors.textSecondaryOf(context), letterSpacing: 1.1)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final v in values)
+            GlassChip(
+              label: '${labelOf?.call(v) ?? v['value']} (${v['count']})',
+              selected: selected == '${v['value']}',
+              color: AppColors.holoBlue,
+              // Tapping the selected chip clears that level — the way back up
+              // the tree without hunting for a separate "clear" affordance.
+              onTap: () => onPick(selected == '${v['value']}' ? null : '${v['value']}'),
+            ),
+        ]),
+      ]),
+    );
+  }
+
+  void _onSearchChanged(String v) {
+    _search = v;
+    _searchDebounce?.cancel();
+    // Debounced because every keystroke is now a round trip, not a filter over
+    // a local list. 300ms is below the threshold where typing feels laggy and
+    // well above per-character chatter.
+    _searchDebounce = Timer(const Duration(milliseconds: 300), _onFilterChanged);
   }
 
   Future<void> _loadCrRequests() async {
@@ -314,27 +600,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
             ])));
   }
 
-  List<Map<String, dynamic>> get _pending => _users.where((u) => u['is_verified'] == false).toList();
-
-  List<Map<String, dynamic>> get _filtered {
-    var list = _users;
-    // "Management" is a capability, not a role — that is the whole point of
-    // the tier. It cuts across student/teacher/staff, so it filters on the
-    // grant rather than on profiles.role.
-    if (_roleFilter == 'management') {
-      list = list.where(_isManager).toList();
-    } else if (_roleFilter != 'all') {
-      list = list.where((u) => u['role'] == _roleFilter).toList();
-    }
-    if (_search.trim().isNotEmpty) {
-      final q = _search.trim().toLowerCase();
-      list = list.where((u) =>
-          (u['full_name'] as String? ?? '').toLowerCase().contains(q) ||
-          (u['email'] as String? ?? '').toLowerCase().contains(q) ||
-          (u['university_id'] as String? ?? '').toLowerCase().contains(q)).toList();
-    }
-    return list;
-  }
+  // _pending and _filtered used to be getters computed over a full download of
+  // every profile. Both are now server-side: _pending is its own filtered
+  // query (_loadPending) and the directory is one keyset page at a time
+  // (_load), so `_users` IS the filtered result rather than a superset to sift.
+  List<Map<String, dynamic>> get _filtered => _users;
 
   Future<void> _approve(Map<String, dynamic> user) async {
     try {
@@ -355,6 +625,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
         setState(() {
           final idx = _users.indexWhere((u) => u['id'] == user['id']);
           if (idx >= 0) _users[idx] = {..._users[idx], 'is_verified': true};
+          // The queue is its own server-side query now, so the approved row
+          // has to leave it here too — otherwise it sits in Pending until the
+          // refetch lands, which is the exact lag this head start exists to
+          // avoid.
+          _pending.removeWhere((u) => u['id'] == user['id']);
         });
       }
       // pending_approval_screen.dart only reflects this live via realtime
@@ -371,7 +646,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
       // confirmation needs to land in the hand, not just in a list that
       // re-sorts.
       AppHaptics.success();
-      await _load();
+      await _refreshAll();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -850,7 +1125,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                       _StatDivider(),
                       Expanded(child: _StatTile(label: 'CR Requests', value: _crRequests.length)),
                       _StatDivider(),
-                      Expanded(child: _StatTile(label: 'Total Users', value: _users.length)),
+                      // The DATABASE's count, not `_users.length`. Those were
+                      // the same number only while the screen downloaded every
+                      // profile; now the list holds one page, so counting it
+                      // would report "50 users" for a university of 25,000.
+                      Expanded(child: _StatTile(label: 'Total Users', value: _totalUsers)),
                     ]
                   : [
                       // No "Managers" count here. A manager cannot READ who
@@ -879,6 +1158,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                 for (final t in _visibleTabs)
                   switch (t) {
                     'pending' => GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
+                    'stuck' => GlassTab('Code Failed (${_stuck.length})', icon: Icons.mark_email_unread_rounded),
                     'cr' => GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
                     _ => const GlassTab('All Users', icon: Icons.people_alt_rounded),
                   },
@@ -905,6 +1185,70 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                             // even though approving does not.
                             onReject: _isSuperAdmin ? () => _rejectAndDelete(_pending[i]) : null,
                             onDelete: _isSuperAdmin ? () => _confirmDelete(_pending[i]) : null)),
+                ],
+                // Order here MUST match _visibleTabs exactly.
+                if (_canApproveUsers && _stuck.isNotEmpty) ...[
+                AdaptiveList(
+                    padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
+                    itemCount: _stuck.length + 1,
+                    itemBuilder: (ctx, i) {
+                      if (i == 0) {
+                        return SurfaceCard(
+                          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Icon(Icons.info_outline, color: AppColors.amber, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'These people asked for an account but the emailed code never '
+                                'settled it — it expired, or they used up every attempt. Nobody '
+                                'here has proved they own the address, so approving one is your '
+                                'judgement, recorded against your name.',
+                                style: AppTextStyles.bodyMedium
+                                    .copyWith(color: AppColors.textSecondaryOf(ctx)),
+                              ),
+                            ),
+                          ]),
+                        );
+                      }
+                      final r = _stuck[i - 1];
+                      return SurfaceCard(
+                        key: ValueKey(r['id']),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${r['full_name'] ?? 'Unnamed'}',
+                              style: AppTextStyles.titleMedium
+                                  .copyWith(color: AppColors.textPrimaryOf(ctx))),
+                          const SizedBox(height: 4),
+                          Text('${r['email']}',
+                              style: AppTextStyles.bodyMedium
+                                  .copyWith(color: AppColors.textSecondaryOf(ctx))),
+                          const SizedBox(height: 8),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
+                            GlassChip(label: roleLabel('${r['account_type']}'), selected: false,
+                                color: AppColors.holoviolet, onTap: () {}),
+                            if (r['university_id'] != null)
+                              GlassChip(label: 'ID ${r['university_id']}', selected: false,
+                                  color: AppColors.holoBlue, onTap: () {}),
+                            GlassChip(
+                                label: '${r['attempts']}/${r['max_attempts']} attempts',
+                                selected: false, color: AppColors.amber, onTap: () {}),
+                          ]),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${r['review_reason'] ?? 'Code not matched'} · asked ${AppFormatters.relativeTime(DateTime.parse('${r['created_at']}'))}',
+                            style: AppTextStyles.labelSmall
+                                .copyWith(color: AppColors.textSecondaryOf(ctx)),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(child: AfosButton(
+                                label: 'Approve manually', onTap: () => _approveStuck(r))),
+                            const SizedBox(width: 10),
+                            Expanded(child: AfosButton(
+                                label: 'Decline', outlined: true, onTap: () => _rejectStuck(r))),
+                          ]),
+                        ]),
+                      );
+                    }),
                 ],
                 if (_canApproveCr) ...[
                 _crError != null
@@ -938,48 +1282,128 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                         }),
                 ],
                 Column(children: [
+                  // THE EXPRESS LANE, kept first and always visible. An admin
+                  // who knows the ID types it and lands on the record without
+                  // touching a single facet — the 90% case. It is now a
+                  // SERVER-side search (indexed, prefix-matched on ID/email,
+                  // trigram on name), so it finds people who were never
+                  // downloaded; the old one could only search the local list.
                   Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8), child: TextField(
-                      onChanged: (v) => setState(() => _search = v),
+                      onChanged: _onSearchChanged,
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
-                      decoration: InputDecoration(hintText: 'Search name, email, ID', prefixIcon: const Icon(Icons.search),
+                      decoration: InputDecoration(
+                          hintText: 'Search by ID, email or name — fastest way in',
+                          prefixIcon: const Icon(Icons.search),
                           filled: true, fillColor: AppColors.glassFill(context),
                           border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none)))),
-                  // Was a horizontal ListView — always left-anchored, and with
-                  // 7+ roles this also hid chips off-screen with no visual cue
-                  // to scroll. Wrap centers what fits per line and flows the
-                  // rest to another line instead of hiding it.
+
+                  // DRILL-DOWN, not one flat list of everybody.
+                  //
+                  // Each level shows only the values that exist beneath the
+                  // level above it, with counts from the database rather than
+                  // from whatever happened to be downloaded. Role first,
+                  // because it decides which levels below even apply:
+                  // students segment by batch/section/semester, teachers and
+                  // staff by department and designation.
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8,
-                      // The Management filter is super_admin's: a manager
-                      // cannot read who else holds permissions:delegate, so
-                      // for them the filter would always come back empty.
-                      children: _roles
-                          .where((r) => r != 'management' || _isSuperAdmin)
-                          .map((r) {
-                        final sel = r == _roleFilter;
-                        // 'management' is not in the roles table, so roleLabel
-                        // would render the raw key. It is a grant, shown here
-                        // because "who can hand out work" is a question this
-                        // list previously could not answer at all.
-                        final label = switch (r) {
-                          'all' => 'All',
-                          'management' => 'Management (${_users.where(_isManager).length})',
-                          _ => roleLabel(r),
-                        };
-                        return GlassChip(
-                          label: label,
-                          selected: sel,
-                          color: AppColors.holoviolet,
-                          onTap: () => setState(() => _roleFilter = r));
-                      }).toList()),
+                    padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('ROLE', style: AppTextStyles.labelSmall.copyWith(
+                          color: AppColors.textSecondaryOf(context), letterSpacing: 1.1)),
+                      const SizedBox(height: 6),
+                      Wrap(spacing: 8, runSpacing: 8,
+                        // The Management filter is super_admin's: a manager
+                        // cannot read who else holds permissions:delegate, so
+                        // for them the filter would always come back empty.
+                        children: _roles
+                            .where((r) => r != 'management' || _isSuperAdmin)
+                            .map((r) {
+                          final counts = {
+                            for (final e in _facetList('roles')) '${e['value']}': e['count'],
+                          };
+                          // 'management' is not in the roles table, so roleLabel
+                          // would render the raw key. It is a grant, shown here
+                          // because "who can hand out work" is a question this
+                          // list previously could not answer at all.
+                          final label = switch (r) {
+                            'all' => 'All ($_totalUsers)',
+                            'management' => 'Management (${_grantsByUser.values.where((g) => _delegatePermId != null && g.contains(_delegatePermId)).length})',
+                            _ => '${roleLabel(r)} (${counts[r] ?? 0})',
+                          };
+                          return GlassChip(
+                            label: label,
+                            selected: r == _roleFilter,
+                            color: AppColors.holoviolet,
+                            onTap: () {
+                              setState(() {
+                                _roleFilter = r;
+                                // Levels below role are meaningless once role
+                                // changes — a section of teachers is not a
+                                // thing — so the whole path resets.
+                                _fBatch = null; _fSection = null;
+                                _fSemester = null; _fDepartmentId = null;
+                              });
+                              _onFilterChanged();
+                            });
+                        }).toList()),
+                    ]),
                   ),
+
+                  if (_roleFilter == 'student') ...[
+                    _drillLevel(
+                      title: 'Batch',
+                      values: _facetList('batches'),
+                      selected: _fBatch,
+                      onPick: (v) {
+                        setState(() { _fBatch = v; _fSection = null; });
+                        _onFilterChanged();
+                      },
+                    ),
+                    // Section only once a batch is chosen: "section A" across
+                    // every batch in the university is not a group anyone
+                    // manages.
+                    if (_fBatch != null)
+                      _drillLevel(
+                        title: 'Section',
+                        values: _facetList('sections'),
+                        selected: _fSection,
+                        onPick: (v) { setState(() => _fSection = v); _onFilterChanged(); },
+                      ),
+                    _drillLevel(
+                      title: 'Semester',
+                      values: _facetList('semesters'),
+                      selected: _fSemester?.toString(),
+                      onPick: (v) {
+                        setState(() => _fSemester = v == null ? null : int.tryParse(v));
+                        _onFilterChanged();
+                      },
+                    ),
+                  ],
+
+                  if (_roleFilter != 'all' && _roleFilter != 'management')
+                    _drillLevel(
+                      title: 'Department',
+                      values: _facetList('departments'),
+                      selected: _fDepartmentId,
+                      labelOf: (m) => '${m['label'] ?? m['value']}',
+                      onPick: (v) {
+                        setState(() => _fDepartmentId = v);
+                        _onFilterChanged();
+                      },
+                    ),
+
                   const SizedBox(height: 8),
                   Expanded(child: _error != null
                       ? ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
                       ? const EmptyState(icon: Icons.people_outline, title: 'No users found', subtitle: 'Try a different search or filter')
-                      : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
+                      : AdaptiveList(
+                          // Paging is driven off this controller (see
+                          // initState): the list is now one 50-row page that
+                          // extends as you reach the end, instead of every
+                          // profile in the university held in memory at once.
+                          controller: _listScroll,
+                          padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _filtered.length,
                           // This tab's _UserCard is always pending:false (no
                           // conditional Approve/Reject row like the Pending
                           // tab above), so every row shares one fixed

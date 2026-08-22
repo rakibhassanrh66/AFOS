@@ -431,7 +431,16 @@ class _FormPane extends StatelessWidget {
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                         .slideY(begin:0.08, curve: AppMotion.standard),
                       const SizedBox(height:28),
-                      Row(mainAxisAlignment:MainAxisAlignment.center, children:[
+                      // Wrap, not Row. As a Row these two children have a
+                      // combined intrinsic width that exceeds the card below
+                      // ~350px, and a release build CLIPS rather than showing
+                      // the debug overflow stripes: at 320px — the responsive
+                      // floor this project commits to — "Create account →"
+                      // rendered as "Create acco", and at 340px the arrow was
+                      // cut off. Measured in Chromium at 320/340/360.
+                      // Wrap flows the link onto its own line instead.
+                      Wrap(alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center, children:[
                         Text("Don't have an account?", style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                         TextButton(
                           onPressed:()=>context.push('/auth/register'),

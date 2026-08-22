@@ -5,6 +5,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
@@ -71,7 +72,10 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Review Request'),
-      body: ListView(
+      // A single request being read and decided on — the most column-shaped
+      // thing in the app. Full-width stretched the decision buttons to the
+      // far edge of a 1440px window, away from the request they act on.
+      body: AdaptiveContentWidth(maxWidth: 760, child: ListView(
         padding: NavInsets.content(context),
         children: [
           Row(children: [
@@ -151,7 +155,7 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
                 widget.onReconsider == null ? null : () => _run(widget.onReconsider!),
           ),
         ],
-      ),
+      )),
     );
   }
 }

@@ -1772,3 +1772,767 @@ password, which this process does not do, so the primitives behind every swept
 screen are pinned by widget tests at desktop and narrow widths instead.
 
 ---
+
+## 2026-08-16 — Prove the mailbox, not the string
+
+Registration security, transactional mail, the missing approver notification,
+and manage-users segmentation. Owner asked for the work first and review after,
+so this went in without the usual plan-approval gate.
+
+### The defect
+
+`enforce_email_domain` proved an address *ends in* `@diu.edu.bd`.
+`auto_confirm_email` then stamped `email_confirmed_at` on every insert.
+Measured live: **all 12 `auth.users` rows carry `conf_mail_sent = false,
+confirmed = true`** — not one verification mail has ever been sent. The system
+proved the FORMAT of a string and never proved CONTROL of the mailbox, so
+anyone who knows DIU's address pattern could register as a student they have
+never met, and management adjudicated identity with no evidence.
+
+Three more, all confirmed against the live project:
+
+- **No approver notification has ever existed.** `on_auth_user_created` →
+  `handle_new_user` writes the profile and stops. There is no
+  `notify_admins_new_user` function and no trigger calling one. The
+  approve/reject direction *does* notify (`manage_users_screen.dart:363`),
+  which is why only this direction looked broken.
+- **`manage_users_screen.dart:223` selected every profile with no `LIMIT`**,
+  then filtered and searched client-side in Dart (`_filtered`, line 319) — and
+  re-ran on every realtime `profiles` change. Invisible at 12 users; tens of MB
+  per admin per session at 25,000, with a search box that could only find
+  people already downloaded.
+- **Password reset was link-only and GET-consumed.** Institutional mail runs
+  link scanners that fetch every URL in a message, which spends a single-use
+  recovery token before the student clicks. They see "link expired" on the
+  first attempt with nothing explaining why.
+
+### Design
+
+**Flow inverted.** The client no longer calls `auth.signUp`. A signup stages in
+`pending_registrations`; the auth user is created by `register-verify` (service
+role, admin API) only once the code or link comes back. `auth.users` therefore
+contains only mailbox-proven accounts and junk never reaches
+profiles/students/teachers/staff. `handle_new_user` is **unmodified** — the
+staged payload is replayed into `user_metadata` so it builds the profile
+exactly as before.
+
+**Both redemption paths, one row.** 6-digit code (typed) and 32-byte token
+(link). Code and token are stored only as HMACs peppered from the function env.
+The chosen password is held AES-GCM-encrypted for the ≤10 minutes it is staged,
+because inverting the flow means Supabase cannot hold it yet.
+
+**The link is safe to prefetch.** It opens a screen; the token is spent only by
+an explicit POST. That is the specific fix for the scanner defect above.
+
+**Mail load.** Cut volume first (dedupe collapses rage-taps; everything
+non-critical stays on OneSignal push), then two-lane dispatch: inline send on
+the hot path (~1s), diverting to `email_outbox` only when the per-minute
+provider budget is spent, drained by a worker with backoff. A plain queue would
+tax every user to survive a burst that happens twice a year. Rate limits reuse
+the existing `consume_rate_limit` token bucket — no second limiter.
+
+**Approval policy is data.** `app_config.auto_approve_roles`, owner-set to all
+three roles. Caveat recorded in the SQL: a proven `@diu.edu.bd` mailbox shows
+the person controls a DIU address, not that they are faculty.
+
+### Files
+
+- `db/proposed/003_identity_verification_core.sql` — staging, outbox, reset
+  challenges, rate-limit policies, purge, atomic batch claim. **UNAPPLIED.**
+- `db/proposed/004_manage_users_segmentation.sql` — `admin_user_facets`,
+  `admin_search_users`, indexes. **UNAPPLIED.**
+- `supabase/functions/_shared/{identity,mailer,email_templates}.ts`
+- `supabase/functions/{register-request,register-verify,password-reset,email-dispatch}/`
+- `lib/features/auth/` — repository methods (added, no existing signature
+  changed), bloc, register/forgot rewiring, `verify_email_screen.dart`,
+  `reset_with_code_screen.dart`, two new routes
+- `lib/features/admin/presentation/manage_users_screen.dart` — server-side
+  facets + keyset pagination + drill-down
+- `lib/features/auth/presentation/login_screen.dart` — 320px clip
+- `lib/features/web/presentation/consoles/role_console.dart` — duplication
+
+### Verification
+
+`flutter analyze` **0 issues** · `flutter build web --release` succeeds ·
+**320px login clip fixed and confirmed in Chromium** (was "Create acco" at
+320px and a cut arrow at 340px; renders in full at 320/340/360 after) ·
+**desktop dashboard duplication removed and confirmed** against a live
+signed-in session.
+
+**NOT verified — and cannot be until the migrations are applied.** Applying
+them was blocked by the permission classifier, so 003 and 004 sit unapplied in
+`db/proposed/`. Until they are, every new auth screen and the whole
+manage-users screen will fail at runtime: they call tables and RPCs that do not
+exist yet. Nothing here has been exercised end-to-end against the database.
+
+Also outstanding, owner-only: set `RESEND_API_KEY`, `IDENTITY_PEPPER`,
+`PUBLIC_APP_URL`, `MAIL_FROM` as function secrets; turn ON "Confirm email" in
+Auth settings; and only THEN drop `auto_confirm_email_trigger` — doing it in
+any other order leaves a window with both gates down.
+
+Open, not started: the desktop console is now mostly empty space. Removing the
+duplicate grid was correct but exposed that the page has little real content;
+filling it with actual queue contents rather than navigation tiles is a design
+decision, not a cleanup.
+
+---
+
+### Follow-up same session — code is primary, admin is the fallback
+
+Owner refined the model: **the emailed code settles it; admin approval is the
+SECOND path, for the person the code failed.** That exposed a gap in what had
+just been built — a signup whose code expired or whose five attempts were burnt
+sat in `pending_registrations`, which is service-role only with zero policies,
+so **no admin could see it and the applicant had no route forward at all.**
+
+Added:
+
+- `pending_registrations.review_state / review_reason / reviewed_by /
+  reviewed_at`, plus a partial index on `needs_review`.
+- `register-verify` now flags a row `needs_review` when the code expires or the
+  last attempt is spent, and tells the applicant an admin can approve manually
+  instead of dead-ending them.
+- `admin_list_stuck_registrations()` — exposes ONLY safe fields. `code_hash`,
+  `token_hash` and the encrypted password are never returned; an admin
+  reviewing an identity claim has no business holding its credential material.
+- `admin_reject_stuck_registration()`.
+- `register-admin-approve` edge function — creating an auth user needs the
+  admin API, so approval cannot be an RPC. Writes
+  `identity_source = 'admin_override'`, which is the audit trail that says this
+  mailbox was never proven and a named person vouched instead.
+- Manage Users: a "Code Failed" tab, shown only when the queue is non-empty so
+  an always-empty tab does not train people to ignore it.
+
+Authorization on `register-admin-approve` is asked **as the caller**, not as
+service_role: `can_browse_users()` reads `auth.uid()`, which is NULL under a
+service-role client, so asking on that client would always answer false and
+silently reduce this to an admin-roles-only check — locking out exactly the
+delegates holding `users:approve` that the permission tier exists to empower.
+
+### Deployment status
+
+`flutter analyze` **0 issues**. All five edge functions deployed and **ACTIVE**
+on `dtsptjallznnvattadlu` via `supabase functions deploy` (which uploads from
+disk, so deployed == repo):
+register-request, register-verify, password-reset, email-dispatch,
+register-admin-approve.
+
+**Migrations remain UNAPPLIED.** `apply_migration` is blocked by the permission
+classifier, and `supabase db push` needs the database password, which is a
+credential I do not handle. Both files are staged and ready:
+`supabase/migrations/20260816190000_prove_the_mailbox_not_the_string.sql` and
+`20260816190500_manage_users_segmentation.sql`. Until they are pushed, every
+new auth screen and the whole Manage Users screen will fail at runtime — they
+call tables and RPCs that do not exist yet. Nothing has been exercised
+end-to-end against the database.
+
+The Resend key was NOT accepted into the repo or into any command. This repo is
+public and the key was pasted into a chat transcript, so it must be rotated and
+set as a function secret by the owner.
+
+---
+
+### VERIFIED END-TO-END — 2026-08-16
+
+Migrations applied (`20260816190000`, `20260816190500`), five edge functions
+ACTIVE, secrets set. Run against the live project, not a mock:
+
+| Step | Evidence |
+|---|---|
+| Non-DIU address | rejected server-side |
+| Password at rest | `pw_encrypted: true` — AES-GCM, never plaintext |
+| Code/token at rest | 64-char HMACs only |
+| Rate limits | addr 3→2, IP 10→9, provider 100→99 |
+| Wrong code ×5 | counts 4→0, 6th refused outright |
+| Exhausted attempts | flagged `needs_review`, "All code attempts used" |
+| Anti-enumeration | unknown address returns the IDENTICAL message as a wrong code |
+| Mail dispatch | `lane: "inline"` (~1s), outbox stayed empty |
+| Code redeemed | `autoApproved: true` |
+| Account created | auth.users confirmed; profiles `is_verified`, `identity_source='diu_email'` |
+| Student row | `batch_label 63`, `section A`, `status active` |
+| **Approver notification** | **fired** → super_admin, deep link `/admin/users` |
+
+`handle_new_user` needed no changes: the staged payload replayed through
+`admin.createUser` produced an identical profile AND the students row with
+batch/section intact — the main risk in inverting the flow, now disproven.
+
+### Blockers found while testing, and their real causes
+
+- **"API key is invalid" was never a bad key.** The setup commands were pasted
+  with their placeholders intact, so `RESEND_API_KEY` was literally the string
+  `<new-key>` and `PUBLIC_APP_URL` was literally `https://<your-vercel-domain>`.
+  The second would have broken every emailed link even after mail worked.
+- **`db push` had never run.** The project was not linked (no `config.toml`), so
+  the command exited with "Cannot find project ref" before touching Postgres.
+- **Schema changes are blocked for the agent by design** — the owner's
+  `autoMode.environment` policy protects migrations/RLS/auth per HARD RULE 1,
+  which denied MCP, CLI, and the settings edit alike. Correct behaviour.
+
+### PRODUCTION BLOCKER — not optional
+
+`MAIL_FROM` is `onboarding@resend.dev`, Resend's sandbox sender, which delivers
+**only to the Resend account owner** (`user66chatgpt@gmail.com`). With it, zero
+students would ever receive a code. A domain must be verified at
+resend.com/domains and `MAIL_FROM` changed before any rollout.
+
+### Test residue to clear before launch
+
+- `auth_email_domain_allowlist` gained `user66chatgpt@gmail.com` so the sandbox
+  sender's only deliverable address could register. **Remove before launch** —
+  it is a bypass of the @diu.edu.bd rule.
+- Test account `user66chatgpt@gmail.com` (student, batch 63) exists in profiles.
+- A stale `qa_student@afos.test` row sits in the Code Failed queue.
+
+---
+
+### Follow-up — link path, reset, cron, and the first real UI fix
+
+**Negative tests, all passing:** a redeemed token reused is rejected (single-use
+holds); a garbage token is rejected; a reset request for a non-existent account
+returns the IDENTICAL success shape (no membership oracle); a short password is
+refused before any row lookup.
+
+**Token path proven up to the compare.** A 12-minute-old reset token returned
+"That code has expired" — NOT the generic "invalid or expired". Those are
+different branches, so reaching the expiry check proves hmac(token) computed
+correctly and the token_hash lookup FOUND the row. The remaining step, the
+safeEqual + password write, is still unverified.
+
+**Cron was missing entirely.** email_outbox had no worker, so anything that
+overflowed would have sat there forever. Scheduled:
+  drain-email-outbox      * * * * *    guarded by `where exists (state='queued')`
+  purge-identity-ephemera */15 * * * *
+Doing this exposed a mistake of mine: email-dispatch demanded the SERVICE-ROLE
+key, which would have forced a plaintext superuser credential into
+cron.job.command. The established pattern here (announce-pending-release) posts
+with the PUBLISHABLE key for exactly that reason. Relaxed to any valid project
+JWT — safe because the endpoint grants no capability: it drains rows already
+queued, to addresses already fixed, and claim_email_batch takes each row FOR
+UPDATE SKIP LOCKED so concurrent callers cannot double-send.
+
+**Greeting bug.** "Md. Rakib Hassan" greeted as "Hi Md." — naive first-token
+logic against names that usually lead with an honorific. Now skips honorifics
+and bare initials: "Md. Rakib Hassan"→Rakib, "A. K. M. Rahman"→Rahman,
+"Md."→there. Unit-tested and deployed.
+
+**Manage Users verified against live data** (JWT claims simulated for the
+super_admin): facets return 13 users with correct role/department breakdowns;
+drill-down returns batches 68/67/65/63/62 and sections A/D/F; keyset pagination
+returns two pages of 5 with ZERO overlap and 10 distinct rows.
+
+**Facet bug found by that test** — `lecturer (1)` and `Lecturer (2)` rendered as
+two chips for one designation, so filtering by either would silently miss part
+of the group. Fixed in 20260816200000: grouping is case-insensitive, labelled
+with mode() (the commonest real spelling) rather than initcap(), which would
+turn 'CSE Exam Controler' into 'Cse Exam Controler'. Search normalised to match,
+or a chip would return nothing for rows differing only in case. NOT YET APPLIED.
+
+**First real UI fix, measured.** settings_screen was a bare ListView, so at
+1440px the "Location Sharing" switch sat ~1100px from its own label, and the
+screen had four different radii and a ragged right edge (cards to 1420, sound
+group to 600, chat background to 527) — nothing shared a measure, which is most
+of what reads as unconsidered. Now AdaptiveContentWidth(760): a form measure,
+not the 1100 dashboard default. Verified in Chromium.
+
+`flutter analyze` 0 issues · web rebuilt.
+
+---
+
+### Width pass + facet fix applied
+
+Migration 20260816200000 applied. Verified live: the teacher designation facet
+now returns `Lecturer (3)` where it previously returned `lecturer (1)` and
+`Lecturer (2)` as two chips, with `professor` correctly still separate.
+
+Only 2 of 67 screens used AdaptiveContentWidth. Three more had a bare
+full-width ListView at the body root, the same defect settings_screen had —
+each now wrapped at a 760px form measure (not the 1100 dashboard default):
+
+  manage_exam_seats_screen   was a 1400px band holding one "Pick PDF(s)" button
+  diu_portal_hub_screen      link cards stretched to 1400px for a title + chevron
+  join_request_detail_screen decision buttons sat at the far edge of the request
+
+Verified in Chromium against a live signed-in session (manage_exam_seats, the
+one this account can reach). `flutter analyze` 0 issues, web rebuilt.
+
+### STILL UNVERIFIED — the reset write
+
+The reset row for user66chatgpt@gmail.com remains unconsumed, 0 attempts. The
+code/token has never been supplied, so `admin.updateUserById` — the one step
+unique to password reset — has still never executed. Everything around it is
+proven; that single line is not.
+
+### The new auth screens had never been rendered — two bugs found
+
+verify_email_screen and reset_with_code_screen were built and their backends
+exercised, but neither had ever been loaded in a browser. Rendered all five
+states across 1440 / 390 / 320 in a clean session (they redirect to /home for a
+signed-in user, so this needed its own browser with no session).
+
+Both reset states render correctly. The verify screen had two defects, both on
+the path someone reaches by RELOADING or bookmarking /auth/verify — `extra`
+does not survive a reload, so the screen legitimately exists with no arguments:
+
+  1. COPY: "We sent a 6-digit code to . Enter it below" — a dangling period
+     where the address should be.
+  2. CRASH: _verifyWithCode called `widget.email!` on that same path, so typing
+     six digits was a null-check crash rather than an error message.
+
+Now three states, not two: link / code / lost. The lost state says what
+happened and offers the only route forward instead of a code field that cannot
+succeed. Verified at 320px.
+
+Also fixed a copy contradiction on the link path: the heading read "That link
+didn't work" above a body reading "That code is invalid". The server keeps ONE
+generic rejection for both paths on purpose (so it cannot be used to tell them
+apart), but the client knows which path it is on and now says so.
+
+`flutter analyze` 0 issues, web rebuilt, screens re-verified.
+
+### Desktop console: the data half, and a bug the build found
+
+Reference: a university admin console (4 screenshots) — KPI cards with icon
+tile + delta badge, progress strips, line/area trends, donut and gauge, and
+tables with status pills. Built the parts the data supports, in AFOS's dark
+tokens rather than the reference's light theme.
+
+DELIBERATELY NOT BUILT, and why:
+  * The twelve-month trend charts. There is no time-series in this schema; the
+    only date to aggregate is profiles.created_at, which yields two or three
+    monthly points over the project's life. Chart guidance is explicit — under
+    four points, use a stat card. A smooth curve through three real values is
+    an invented trend.
+  * The gauge. It answers "one measure against one target"; approvals have no
+    target, and for several figures at once the guidance says use a row of
+    compact indicators — which WebStatStrip already is.
+  * A donut for the role split. Four categories with one holding most of the
+    mass makes the small slices unreadable and forces a colour→legend lookup
+    per value. Labelled bars put name, count and share on one line, so it reads
+    in greyscale and to a screen reader; colour stays decoration.
+
+BUILT: lib/features/web/presentation/consoles/admin_overview.dart —
+figures (people / awaiting approval / code failed), a labelled population
+breakdown, and recent joiners with a status pill that surfaces
+identity_source: 'Email proven' vs 'Approved by admin' vs 'Awaiting approval'.
+That column is the point of the whole verification effort and had no reader
+anywhere in the app. Reuses the existing WebStatStrip/WebStat/WebPanel
+primitives — which already existed and were unused on this screen — rather
+than adding a second set. Web-only (kIsWeb + isExpanded); the phone dashboard
+is a launcher by design and is untouched. Renders nothing for viewers who
+cannot act on it.
+
+### THE BUG THIS FOUND — can_browse_users() locked out every delegate
+
+has_permission() reads ONLY role_permissions. AFOS's delegation tier lives in
+user_permissions. So can_browse_users(), which gates admin_user_facets,
+admin_search_users, admin_list_stuck_registrations and
+admin_reject_stuck_registration, refused anyone whose only route was a direct
+grant: they saw Manage Users and got 42501 from every query on it.
+
+Fourth instance of this exact shape in this log. My own RPC tests missed it
+because I ran them as super_admin, which satisfies the role branch and never
+exercises the grant branch — the bug only exists for someone who has no other
+route. Rendering the console as a real delegate is what exposed it.
+
+Fixed in 20260816210000 by adding the user_permissions branch.
+has_permission() itself deliberately untouched — redefining it would silently
+change authorisation for every other caller.
+
+`flutter analyze` 0 issues.
+
+---
+
+## 2026-08-17 — A missing mail must not be a dead end
+
+### What the owner hit
+
+Registered with a real DIU address on the LIVE app and got a "confirm" mail
+that, once clicked, still parked them on the approval screen. Both halves of
+that are bugs, and neither is the one I would have guessed.
+
+### Diagnosis, from the row rather than the report
+
+    hassan22205101554@diu.edu.bd
+      identity_source   'self'          <- register-verify NEVER RAN
+      is_verified       false
+      created_at        17:01:34
+      email_confirmed_at 17:02:10       <- 36s LATER, not the same instant
+
+register-verify creates accounts with `email_confirm: true`, so its rows have
+those two timestamps ~100ms apart (compare user66chatgpt: 13:29:12.39 /
+13:29:12.49). A 36-second gap is a human clicking a link. So this account came
+from the OLD path — a raw `auth.signUp` — which 20260816190000 correctly
+stopped auto-confirming, so GoTrue sent its own built-in confirmation mail.
+That path confirms the mailbox in auth.users and writes NOTHING to
+profiles.is_verified, which is the gate the app actually reads.
+
+**The cause is that none of this identity work is deployed.** The edge
+functions are live and the migrations are applied, but the Flutter client that
+calls them has been uncommitted since 6de3669. The live web build and the
+v2.9.0 APK still call auth.signUp. Every real signup today lands in that
+stranded state.
+
+Incidentally proven: Supabase's built-in mailer DOES reach @diu.edu.bd. That
+is the only reason a confirmation mail arrived at all.
+
+### The defect underneath, which the report did not mention
+
+The manual-approval fallback existed but **could only be entered by failing at
+the code.** register-verify flags a row 'needs_review' on expiry or on five
+wrong attempts. Someone who never received a mail can do neither — you cannot
+exhaust attempts on a code you do not have. They waited out ten minutes and
+had no queue entry, no button, and no administrator aware they existed.
+
+Worse, and measured live during this session:
+
+    POST register-request  ->  HTTP 500
+    "You can only send testing emails to your own email address"
+
+dispatch() throws on a permanent provider rejection (correct in isolation —
+queueing an address Resend will never accept just burns six attempts), but
+that throw escaped register-request AFTER the row was staged. So the signup
+really was saved, the applicant got an error, and they never reached
+/auth/verify — the one screen carrying the escape hatch. A mail outage locked
+people out of the route built for a mail outage. While MAIL_FROM is the
+sandbox sender, that is EVERY applicant, not an edge case.
+
+### What shipped
+
+**The applicant can now raise their own hand.** New edge function
+`register-review-request` flips the staged row to 'needs_review' with reason
+"Applicant reported the email never arrived". It creates nothing and grants
+nothing — approval stays in register-admin-approve behind can_browse_users().
+Returns an identical `{ok:true}` whether or not a signup exists for the
+address, matching register-request and password-reset, because it is reachable
+without a session and would otherwise be an oracle for which DIU addresses have
+a signup pending. Idempotent via `.eq('review_state','none')` on the UPDATE
+rather than a read, so concurrent presses cannot double-queue.
+
+**A mail failure no longer destroys the signup.** register-request now returns
+`{ok:true, mailFailed:true}` instead of 500, so the client reaches the verify
+screen and leads with the fallback.
+
+**Four screen states became five.** link / lost / code / **mail-failed** /
+**submitted**. The mail-failed state does not render a code field, because no
+code was sent and a field that cannot succeed is furniture; manual approval is
+its primary button. The submitted state keeps a way back to the code field —
+register-verify does not care that a review is pending, so proof still beats
+the queue if the mail turns up late.
+
+**Recipient resolution extracted** to `_shared/approvers.ts` rather than
+copied. The set is "admin roles PLUS anyone holding a direct users:approve
+grant", and the direct-grant half is exactly what has now been the bug four
+times in this log.
+
+### Files
+
+    supabase/functions/_shared/approvers.ts             new
+    supabase/functions/register-review-request/         new
+    supabase/functions/register-verify/index.ts         uses shared approvers
+    supabase/functions/register-request/index.ts        mailFailed, manualFallback
+    supabase/migrations/20260817120000_...sql           NOT APPLIED
+    lib/features/auth/data/repositories/auth_repository.dart
+    lib/features/auth/bloc/auth_state.dart, auth_bloc.dart
+    lib/features/auth/presentation/register_screen.dart, verify_email_screen.dart
+    lib/config/routes/app_router.dart
+
+### Verified live
+
+Three functions deployed. Against the real project:
+
+    no pending row        -> {"ok":true}      (anti-enumeration holds)
+    missing email         -> 400
+    no auth header        -> 401
+    register-request      -> 200 mailFailed:true  (was 500)
+    raise hand            -> row 'needs_review', reason recorded
+    press again           -> still one row, one notification (idempotent)
+    admin queue           -> appears with ATTEMPTS 0, which is the whole point:
+                             it got there without failing at a code first
+    notified              -> 2 recipients, roles super_admin AND staff — the
+                             staff account is a delegate with no admin role,
+                             so the user_permissions branch is live
+    register-admin-approve with anon key -> 401 (privileged half fails closed)
+
+Test rows, notifications and rate-limit buckets deleted afterwards.
+`flutter analyze` 0 issues · `flutter build web` succeeded.
+
+### The owner's own account, unblocked
+
+hassan22205101554@diu.edu.bd set is_verified = true, identity_source =
+'diu_email'. Justified rather than waived: GoTrue had genuinely confirmed that
+mailbox via a clicked link, so 'diu_email' is the honest provenance. It was the
+ONLY account in the project sitting in that state.
+
+### Migration applied — 20260817180858
+
+The owner opened the schema-change policy, so this was applied directly rather
+than handed over. Ledger version 20260817180858 (NOT the 20260817120000 wall
+clock the file was first written with — renamed to match, per the gotcha).
+
+Verified by BEHAVIOUR, not by reading the function back. Three rows, all long
+past expiry, then `purge_identity_ephemera()`:
+
+    needs_review,  3 days old   -> SURVIVED   (would have died at 24h before)
+    none,          3 days old   -> deleted    (abandoned, unchanged)
+    needs_review, 40 days old   -> deleted    (30-day cap holds)
+
+Only the row that must survive survived. `manual_approval_fallback` = true,
+`registration_review_request` bucket = 2 / 0.02. Test rows deleted;
+pending_registrations back to 0.
+
+HARD RULE 1 in CLAUDE.md amended the same day so the constitution and the
+harness policy agree — applying is allowed during feature work, still frozen
+during a redesign phase, and now carries three obligations instead of a
+handoff: mirror with the ledger version, verify behaviourally, report what ran.
+
+---
+
+## 2026-08-17 (same day) — Backend sweep
+
+Asked to confirm the backend is healthy. It is, with one latent bug found and
+fixed. Everything below is measured, not inspected.
+
+### Healthy
+
+    cron              10/10 jobs active, ZERO failures in 24h
+                      drain-email-outbox 1440/1440 (once a minute, exactly)
+                      purge-identity-ephemera 96/96
+    email_outbox      0 rows — no backlog, nothing stuck, nothing retrying
+    pending_registrations  0 rows
+    profiles          0 unverified accounts
+    edge functions    13 ACTIVE, all verify_jwt: true
+    privilege gates   set_user_role and set_user_verified BOTH gate internally
+                      and raise — no repeat of the NULL role_id escalation
+    service-role-only tables  pending_registrations, pending_password_resets,
+                      email_outbox, rate_limit_buckets, app_secrets,
+                      definer_acl_allowlist all correctly invisible to
+                      authenticated
+
+Advisors: 61 lints, none ERROR. 48 are `security_definer_function_executable`,
+which is this app's architecture — those RPCs each gate internally and were
+audited in 20260725121510. Two are `extension_in_public` (pg_net, pg_trgm),
+standard Supabase noise. One remains real and needs the dashboard:
+**`auth_leaked_password_protection` is still off** — the long-standing SEC-6.
+
+### The kill switch works in both directions
+
+Not assumed — toggled live. With `manual_approval_fallback = false`:
+
+    register-request        -> manualFallback: false   (client hides the button)
+    register-review-request -> 503, refuses            (server refuses a stale client)
+
+Defence in depth: an old cached client cannot queue reviews after the fallback
+is retired. Restored to true.
+
+### FOUND AND FIXED — grading_scale was invisible to the trigger that reads it
+
+`grading_scale` had RLS enabled with NO policy, which denies every row.
+`calculate_grade()` — the trigger on `marks` — is INVOKER, not DEFINER, so it
+reads that table as the teacher doing the write:
+
+    select count(*) from grading_scale   as authenticated -> 0
+    select letter_grade for 85           as owner         -> 'A+'
+
+and it does not check its own lookup:
+
+    SELECT * INTO scale FROM grading_scale WHERE ... LIMIT 1;
+    NEW.letter_grade := scale.letter_grade;   -- NULL when nothing matched
+
+`SELECT INTO` with no match leaves the record NULL and raises nothing, so a
+mark written by a plain authenticated user would be stored UNGRADED, silently.
+Same shape as the blank-department bug and the view-drift gotcha: nothing
+breaks, it just quietly answers nothing.
+
+Not currently biting — `marks` is empty and the only SQL writer is
+`approve_grade_change()`, which IS definer and bypasses RLS. A landmine, not a
+fire; the first direct PostgREST insert into `marks` arms it.
+
+Fixed in 20260817182441 by opening the TABLE, not by elevating the trigger —
+making a write trigger SECURITY DEFINER to solve a read problem trades far
+more privilege than the problem is worth. grading_scale is the published DIU
+boundary table (80->A+ … 0->F), in every student handbook.
+
+Verified as authenticated after applying: 10 rows visible, 85->'A+', 38->'F',
+72->3.50, and INSERT still rejected with 42501. Read opened, writes untouched.
+
+---
+
+## 2026-08-17 — The console measured against the reference, properly this time
+
+The owner re-shared the four reference screenshots (Smart University theme) and
+asked whether the console had actually been built from them. It had not, and
+the earlier log entry overstated the case for the omissions.
+
+### What I got wrong
+
+The reference has ten panels. The first pass built two and dropped the rest on
+my own judgement — and I never checked the row counts before deciding. Two of
+those panels ARE supported by this schema. The reasoning in the previous entry
+was written as though every omission had been measured; only the trend charts
+actually had been.
+
+### Measured, all of it, before writing any widget
+
+    exam_room_allocations  1632      exams              38  (all past-dated)
+    halls                  5 active  total capacity   2800
+    hall_applications      3 approved
+    books                  18        enrollments         7
+    payment_records         0        semester_results    0
+    marks                   0        notices             0
+    attendance_sessions     2        attendance_records  4
+
+So: fee collection, salary, scholarships and the result gauge are genuinely
+unbuildable — those tables are empty or do not exist. The attendance and
+admission trends remain invented curves at 2 sessions and 12 profiles. But
+exams and halls had real data all along.
+
+### Built
+
+**Exam schedule** — subject / batch·section·room / date / status pill, the
+reference's table shape, over the real 38 rows. Titled "Exam schedule", NOT
+"Upcoming exams" as the reference has it: every exam in this project is
+past-dated, so the literal label would render an empty panel while real data
+sat one query away. The pill says which side of today each row falls on, and
+`is_retake` outranks the date — a retake sitting is a different population from
+the cohort's main exam, which is exactly the distinction that once made
+`batch='RE'` rows invisible to every student.
+
+**Hall occupancy** — the reference's ring with the total in the middle.
+A donut is defensible HERE and was not for the role split: two mutually
+exclusive parts of one known whole is the shape a ring reads well, where four
+uneven categories forces a colour-to-legend lookup per value. Same reference,
+different question, different mark. It renders as very nearly a full
+"available" ring — 3 of 2800 beds — and that is left alone rather than padded:
+an almost-empty hall system is the true state. The legend carries the numbers
+so the panel still reads when a slice is too thin to see, which at 0.1% it is.
+
+Hand-painted arc rather than a charting package: one arc pair does not justify
+a dependency against the 2 MB budget.
+
+### A routing bug found while wiring it
+
+The exam panel's "See all" first pointed at `/exam-seat`. That is the STUDENT's
+own seat view, and the router blocks teachers from it outright
+(`teacherHiddenRoutes`). The console's reader is an administrator, so it now
+goes to `/manage-exam-seats`, which their role actually reaches.
+
+### Verification
+
+Both queries proven against live RLS as a super_admin BEFORE any widget was
+written — halls 5, beds 2800, approved 3, exams 38 all readable.
+`flutter analyze` 0 issues · `flutter build web` succeeded.
+NOT yet rendered in a browser — that needs a signed-in admin session.
+
+### STILL OPEN
+
+1. **Nothing changes for real users until the client is committed and
+   deployed.** This is the actual cause of the reported bug, and the only item
+   here that a user would notice.
+2. **MAIL_FROM is still the sandbox sender.** Unchanged, and still the reason
+   all of this is load-bearing.
+3. **Leaked-password protection is still off** (dashboard-only toggle).
+4. **The console has not been seen rendered** — analyze and build pass, but no
+   browser check yet.
+
+---
+
+## 2026-08-22 — Making the console actually work, not just compile
+
+**Files:** `lib/features/web/presentation/consoles/admin_overview.dart`,
+`lib/features/web/presentation/consoles/role_console.dart`,
+`test/admin_overview_test.dart` (new)
+
+Asked to make sure the whole thing works together rather than merely analyzes
+clean. It did analyze clean, and it did have four defects — three of which
+`flutter analyze` is structurally incapable of seeing, because they are all
+about *when* things happen rather than what is written.
+
+### First, what was already true
+
+Re-verified rather than assumed. `flutter analyze` 0 issues, `flutter test`
+407 passing. All three console RPCs proven against live RLS as the real
+super_admin (not as `postgres`, which bypasses RLS and proves nothing):
+
+    can_browse_users()               true
+    admin_user_facets()              total 14, pending 0, 4 role buckets
+    admin_search_users(p_limit=>6)   6 rows
+    admin_list_stuck_registrations() 0 rows
+
+Row counts re-measured the same day, five days after the panel inventory was
+written: unchanged except profiles 12 -> 14. `marks`, `semester_results`,
+`payment_records` are all still 0, so the four omitted reference panels stay
+omitted for exactly the reason recorded on 2026-08-17.
+
+### FOUND — the overview fetched in the wrong place, and it showed
+
+`AdminOverview` was a StatefulWidget fetching in its own `initState`. It is the
+first child of RoleConsole's column, and RoleConsole holds a `ShimmerList`
+until its own three awaits finish. So the overview could not *begin* loading
+until the console had finished loading AND painted.
+
+The result was two loading stages and a shove: the shimmer lifted, the page
+painted with the overview at zero height, and then roughly 900px of panels
+dropped in ABOVE the work areas and pushed them down the screen. That is the
+layout shift the constitution bans, and `skeleton_layout_shift_test.dart`
+already polices it everywhere else.
+
+Fixed by moving the fetch, not by adding a skeleton. A placeholder would have
+disguised a shift that was caused by fetching in the wrong place — the console
+now starts `AdminOverviewData.load()` alongside its own profile read and holds
+its single shimmer until both are in. `AdminOverview` became a StatelessWidget
+taking the data. One loading state, final height on the first frame.
+
+### FOUND — four sequential round trips inside that fetch
+
+The same method awaited `admin_user_facets`, then `admin_search_users`, then
+`admin_list_stuck_registrations`, and only then `Future.wait`ed the three table
+reads — while carrying a comment explaining why the last three were parallel.
+Six independent reads of six different tables, none depending on another's
+answer. Now one wave of six. Combined with the move above, the console's total
+wait no longer grows at all for having an overview on it.
+
+### FOUND — the ring would not repaint on a theme change
+
+`RingPainter.shouldRepaint` compared `fraction`, `filled` and `rest`. But
+`filled` and `rest` are the two compile-time constants here (holoBlue,
+holoTeal); `track` is `AppColors.borderOf(context)`, the only theme-dependent
+colour of the four — and it was the one left out. The check was exactly
+inverted: switching light/dark rebuilt the widget, constructed a new painter,
+got `false` back, and left the ring wearing the previous theme's track.
+
+### FOUND — the joiner pill was a byte-for-byte copy of `_Pill`
+
+Sixty lines below the widget it duplicated. Replaced with the real one.
+
+### Two changes made to allow testing at all
+
+`_RingPainter` is now `RingPainter`, so its repaint contract can be pinned
+directly rather than inferred.
+
+The `kIsWeb && isExpanded` gate moved from inside `AdminOverview` to
+RoleConsole, which is where its own doc comment always claimed it lived.
+This matters more than it looks: `kIsWeb` is a **const false** under the Dart
+VM, so every widget test of this file would have rendered an empty `SizedBox`,
+asserted against nothing, and passed. The file had zero tests, and with the
+gate where it was it could not have had any that meant anything.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **430 passing** (23 new, 407
+unchanged) · release web build succeeded.
+
+The 23 new tests render the real widget at 1600x1000 with the live data
+shapes — 14 profiles over 4 role buckets, 2800 beds, 3 occupied — and cover:
+null vs failed vs loaded, the raw exception never reaching the reader, bar
+ordering and rounding (9/14 -> 64%), the ring's arc matching its legend, zero
+beds drawing no ring, occupancy exceeding capacity not rendering a negative,
+retake outranking the date, undated exams, and all four identity-source pills.
+
+**STILL NOT DONE — the console has never been seen rendered in a browser.**
+That needs a signed-in admin session, and signing in means typing a password.
+Everything above is proven by analyze, by tests against the real widget, and
+by live SQL under real RLS — none of it is proven by looking.
+
+**STILL UNCOMMITTED.** This console and the entire identity/verification client
+remain untracked. Nothing here reaches a real user until that is committed and
+deployed.

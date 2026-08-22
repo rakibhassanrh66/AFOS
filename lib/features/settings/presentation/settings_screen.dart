@@ -31,6 +31,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import 'update_sheet.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../core/utils/responsive.dart';
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
   @override State<SettingsScreen> createState() => _SettingsState();
@@ -387,9 +388,22 @@ class _SettingsState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Settings'),
+      // A SETTINGS ROW IS NOT A DESKTOP-WIDTH OBJECT.
+      //
+      // This was a bare ListView, so at 1440px every row stretched the full
+      // window: the "Location Sharing" switch sat about 1100px from the label
+      // it belongs to, and the eye had to travel the whole screen to pair a
+      // control with its meaning. It also left a ragged right edge, because
+      // the full-width cards ended at 1420 while the sound and chat-background
+      // groups stopped at 600 and 527 — nothing on the screen shared a measure,
+      // which is most of what reads as unconsidered.
+      //
+      // 760 rather than AdaptiveContentWidth's 1100 default: 1100 is right for
+      // a dashboard of cards, too wide for a column of label/control pairs.
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 5))
-          : ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+          : AdaptiveContentWidth(maxWidth: 760, child:
+              ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
 
               // Profile identity now lives on its own /profile screen (bottom
               // nav) so it isn't shown in two places — Settings keeps only
@@ -629,7 +643,7 @@ class _SettingsState extends State<SettingsScreen> {
               // Builder so the tile has its OWN context for the burst origin.
               Builder(builder: (tileCtx) => LogoutTile(onTap: () => _logout(tileCtx))),
               const SizedBox(height: 40),
-            ]),
+            ])),
     );
   }
 

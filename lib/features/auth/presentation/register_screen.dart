@@ -134,10 +134,18 @@ class _RegisterBodyState extends State<_RegisterBody> {
     final textPrimary = AppColors.textPrimaryOf(context);
     return BlocListener<AuthBloc, AuthState>(
       listener:(ctx,state) {
-        if(state is AuthRegistrationSuccess) {
+        if(state is AuthRegistrationCodeSent) {
           AppHaptics.success();
-          ctx.showSnack('Account created. Sign in to continue.');
-          ctx.go('/auth/login');
+          // No account exists yet — this only means the code is on its way.
+          // Saying "account created" here is what made the old flow feel like
+          // it had verified something when it had verified nothing.
+          ctx.go('/auth/verify', extra: {
+            'email': state.email,
+            'resendAfterSeconds': state.resendAfterSeconds,
+            'lane': state.lane,
+            'manualFallback': state.manualFallback,
+            'mailFailed': state.mailFailed,
+          });
         }
         if(state is AuthError) ctx.showSnack(state.message, isError:true);
       },
