@@ -214,10 +214,18 @@ class Caps {
       group: CapabilityGroup.campus, hint: 'Book a room');
 
   // -- operations ----------------------------------------------------------
+  /// The whole Uploads section, not one importer.
+  ///
+  /// It was called "Upload Routine/Transport" while it was exactly that. The
+  /// route is unchanged on purpose: it is the path three delegated grants and
+  /// several tests already point at, and the hub behind it now covers class
+  /// routine, exam routine, transport, seat plans and notices — showing each
+  /// person only the kinds their grant actually covers.
   static const uploadRoutine = AppCapability(
-      label: 'Upload Routine/Transport', route: '/admin/upload',
+      label: 'Uploads', route: '/admin/upload',
       icon: AppIcons.uploadRoutine, accent: AppColors.holoBlue,
-      group: CapabilityGroup.operations, hint: 'Import a PDF');
+      group: CapabilityGroup.operations,
+      hint: 'Routines, transport, seat plans, notices');
   static const courseOfferingsAdmin = AppCapability(
       label: 'Course Offerings', route: '/admin/course-offerings',
       icon: AppIcons.schedule, accent: AppColors.blue,

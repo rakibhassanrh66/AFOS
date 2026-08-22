@@ -282,12 +282,21 @@ class ExamRoutinePdfParser {
 
   // ------------------------------------------------------------------ page
 
-  /// Blocks are delimited by the SLOT HEADER ROW, not by the date.
+  /// A day's courses are banded by the MIDPOINT between date labels.
   ///
-  /// The header (`Slot A: | Batch | Slot B: | ...`) repeats above every date,
-  /// and the date label sits *inside* the block it heads, roughly 70pt below
-  /// it. Slicing on the date instead put each date's own courses in the
-  /// previous date's block.
+  /// The date label is vertically CENTRED in its table row, not placed at its
+  /// top. Measured on the real document, 23/08 sits at y=63 with its own
+  /// courses at y=12 AND at y=105 -- above and below the label. So slicing a
+  /// day at its own label, or at the repeated slot header above it, mixes the
+  /// bottom half of one exam day with the top half of the next. That is what
+  /// cost 23/08 four of its seven courses and gave a fifth the wrong batch
+  /// (CSE471 filed under batch 70 instead of 64), silently, because a course
+  /// that is never detected cannot be reported missing.
+  ///
+  /// The boundary between two days is therefore halfway between their labels.
+  /// Verified against all three pages of the Summer 2026 final routine: 5, 4,
+  /// 5, 7, 5, 7 and 5 courses per day, 38 in total, every batch matching the
+  /// seat-plan documents.
   static List<ExamRoutineEntry> _parsePage(
       List<_W> words, List<String> warnings, int pageNo, List<_SlotColumn> carried) {
     final lines = _groupLines(words);
@@ -299,11 +308,11 @@ class ExamRoutinePdfParser {
 
     // A CONTINUATION PAGE HAS NO HEADER, AND STILL HAS EXAMS ON IT.
     //
-    // Page 3 of the real document carries 27/08 with two batches and no slot
-    // header at all — the table simply runs on. Refusing the page lost a whole
-    // exam day. When the header is absent the columns from the previous page
-    // are reused (the table cannot change shape mid-run) and the DATE rows
-    // become the block boundaries instead.
+    // The last page of the real document carries 27/08 with two batches and
+    // no slot header at all -- the table simply runs on. Refusing the page
+    // lost a whole exam day, so the columns from the previous page are reused;
+    // the table cannot change shape mid-run.
+    List<_SlotColumn> slots;
     if (headerIdx.isEmpty) {
       if (carried.isEmpty) {
         warnings.add('Page $pageNo: no "Slot A/B/C" header row was found and '
@@ -311,104 +320,75 @@ class ExamRoutinePdfParser {
             'placed in a time slot.');
         return const [];
       }
-      return _parseHeaderlessPage(lines, carried);
+      slots = carried;
+    } else {
+      slots = _slotColumns(lines, headerIdx);
+      if (slots.isEmpty) {
+        warnings.add('Page $pageNo: the slot header row had no readable columns.');
+        return const [];
+      }
+      // Hand the derived columns back for any continuation page that follows.
+      carried
+        ..clear()
+        ..addAll(slots);
     }
 
-    final slots = _slotColumns(lines, headerIdx);
-    if (slots.isEmpty) {
-      warnings.add('Page $pageNo: the slot header row had no readable columns.');
-      return const [];
-    }
-    // Hand the derived columns back for any continuation page that follows.
-    carried
-      ..clear()
-      ..addAll(slots);
-
-    final out = <ExamRoutineEntry>[];
-
-    // A PAGE CAN OPEN MID-BLOCK, AND THAT BLOCK IS STILL AN EXAM DAY.
+    // THE HEADER ROWS ARE EXCLUDED FROM EVERY BLOCK'S CONTENT.
     //
-    // Page 2 of the real document begins with 23/08 whose slot header sat at
-    // the foot of page 1. Building blocks only from header rows downwards
-    // dropped it silently — a whole exam day, five courses, gone, with no
-    // warning. Anything above the first header row is parsed here first, using
-    // the columns the previous page established.
-    if (headerIdx.first > 0) {
-      final lead = lines.sublist(0, headerIdx.first);
-      if (lead.any((l) => l.any((w) => _dateOf(w.text) != null))) {
-        out.addAll(_parseHeaderlessPage(lead, carried.isEmpty ? slots : carried));
+    // 'Slot', 'A:', '09:00', 'am' and 'Batch' all sit inside slot A's OWN
+    // course column, and the times line is only ~12pt above the first course
+    // line. Left in, they merged into the first course cell, which is why one
+    // title once came out as "Slot B: 12:00 pm - 02:00 pm : Object Oriented
+    // Programming CSE226: Numerical Methods" -- a slot label, a time range and
+    // TWO courses in a single row.
+    final isHeaderLine = List<bool>.filled(lines.length, false);
+    for (final i in headerIdx) {
+      final top = lines[i].first.y;
+      for (var j = i; j < lines.length && (lines[j].first.y - top) <= 24; j++) {
+        isHeaderLine[j] = true;
       }
     }
 
-    for (var b = 0; b < headerIdx.length; b++) {
-      final from = headerIdx[b];
-      final to = b + 1 < headerIdx.length ? headerIdx[b + 1] : lines.length;
-      // THE HEADER ROW IS EXCLUDED FROM THE BLOCK'S CONTENT.
-      //
-      // 'Slot', 'A:', '09:00', 'am' all sit inside slot A's OWN course column,
-      // and the times line is only ~12pt above the first course line — well
-      // inside _cellGap. Left in, they merged into the first course cell,
-      // which is why one title came out as
-      // "Slot B: 12:00 pm – 02:00 pm : Object Oriented Programming
-      //  CSE226: Numerical Methods" — a slot label, a time range and TWO
-      // courses in a single row.
-      final headTop = lines[from].first.y;
-      final blockWords = <_W>[
-        for (final l in lines.sublist(from, to))
-          if ((l.first.y - headTop) > 24) ...l
-      ];
-
-      DateTime? date;
-      for (final w in blockWords) {
+    final dates = <(DateTime, double)>[];
+    for (var i = 0; i < lines.length; i++) {
+      if (isHeaderLine[i]) continue;
+      for (final w in lines[i]) {
         final d = _dateOf(w.text);
         if (d != null) {
-          date = d;
+          dates.add((d, w.y));
           break;
         }
       }
-      if (date == null) continue; // a trailing header with no block under it
-
-      final owned = _batchesBySlot(slots, blockWords);
-      for (final slot in slots) {
-        out.addAll(_entriesForSlot(
-            date, slot, blockWords, owned[slot.label] ?? const [], warnings, pageNo));
-      }
     }
-    return out;
-  }
+    if (dates.isEmpty) return const [];
 
-  /// A page whose table runs on from the previous one, with no header.
-  ///
-  /// Blocks are delimited by the DATE rows instead, and the column geometry is
-  /// the one the last headed page established.
-  static List<ExamRoutineEntry> _parseHeaderlessPage(
-      List<List<_W>> lines, List<_SlotColumn> slots) {
-    final dateIdx = <int>[];
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].any((w) => _dateOf(w.text) != null)) dateIdx.add(i);
-    }
-    if (dateIdx.isEmpty) return const [];
+    final body = <_W>[
+      for (var i = 0; i < lines.length; i++)
+        if (!isHeaderLine[i]) ...lines[i]
+    ];
 
     final out = <ExamRoutineEntry>[];
-    final sink = <String>[];
-    for (var b = 0; b < dateIdx.length; b++) {
-      final from = dateIdx[b];
-      final to = b + 1 < dateIdx.length ? dateIdx[b + 1] : lines.length;
-      final blockWords = <_W>[for (final l in lines.sublist(from, to)) ...l];
+    for (var i = 0; i < dates.length; i++) {
+      // Open-ended at the page edges on purpose: a day's row routinely starts
+      // on one page and finishes on the next, and each page contributes its
+      // own part under the same date.
+      final lo = i == 0
+          ? double.negativeInfinity
+          : (dates[i - 1].$2 + dates[i].$2) / 2;
+      final hi = i + 1 < dates.length
+          ? (dates[i].$2 + dates[i + 1].$2) / 2
+          : double.infinity;
 
-      DateTime? date;
-      for (final w in blockWords) {
-        final d = _dateOf(w.text);
-        if (d != null) {
-          date = d;
-          break;
-        }
-      }
-      if (date == null) continue;
+      final blockWords = [
+        for (final w in body)
+          if (w.y >= lo && w.y < hi) w
+      ];
+      if (blockWords.isEmpty) continue;
+
       final owned = _batchesBySlot(slots, blockWords);
       for (final slot in slots) {
-        out.addAll(_entriesForSlot(
-            date, slot, blockWords, owned[slot.label] ?? const [], sink, 0));
+        out.addAll(_entriesForSlot(dates[i].$1, slot, blockWords,
+            owned[slot.label] ?? const [], warnings, pageNo));
       }
     }
     return out;
@@ -557,10 +537,18 @@ class ExamRoutinePdfParser {
     // Methods" carrying one batch for two different exams. A course code is an
     // unambiguous start-of-record marker, so the column is split on those
     // instead, and each code takes the batch nearest its OWN line.
+    // The code need NOT start its token. Where several courses share one
+    // slot cell the document runs them together with slashes, so the tokens
+    // read "CSE431:Machine", "/CSE441:UI", "[160]/CSE453:" — and requiring
+    // m.start == 0 accepted the first and silently dropped every one after
+    // it. That cost eight exams out of thirty-eight on the Summer 2026 final
+    // routine (23/08 and 25/08, the batch-64 electives and AOL101), with no
+    // warning, because a course that is never detected cannot be reported
+    // missing. _codeRe is already \b-anchored, so a match inside a token
+    // still begins at a word boundary and cannot fire mid-word.
     final codeIdx = <int>[];
     for (var i = 0; i < courseWords.length; i++) {
-      final m = _codeRe.firstMatch(courseWords[i].text.toUpperCase());
-      if (m != null && m.start == 0) codeIdx.add(i);
+      if (_codeRe.hasMatch(courseWords[i].text.toUpperCase())) codeIdx.add(i);
     }
     if (codeIdx.isEmpty) return const [];
 

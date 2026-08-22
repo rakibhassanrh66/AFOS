@@ -8,6 +8,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../uploads/data/upload_batch.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -137,11 +138,26 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                     setSheetState(() => saving = true);
                     try {
                       if (existing == null) {
+                        // Recorded in the Uploads ledger like every other
+                        // thing the university publishes, so a notice can be
+                        // traced to a person and removed with a backup rather
+                        // than deleted outright. `author_id` was never set
+                        // here at all, which is why every notice in the table
+                        // reads as authored by nobody.
+                        final batchId = await UploadBatchService.open(
+                          kind: 'notice',
+                          sourceFile: titleCtrl.text.trim(),
+                          note: category,
+                        );
                         await SupabaseConfig.client.from('notices').insert({
                           'title': titleCtrl.text.trim(),
                           'body': bodyCtrl.text.trim(),
                           'category': category,
+                          'author_id': SupabaseConfig.uid,
+                          'upload_batch_id': batchId,
                         });
+                        await UploadBatchService.finalize(batchId,
+                            summary: {'category': category});
                         await NotificationService.broadcast(
                           roleFilter: notifyRole,
                           title: category == 'RULE' ? 'New rule published' : 'New notice',

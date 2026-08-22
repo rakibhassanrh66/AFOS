@@ -2795,3 +2795,361 @@ real user, each mirrored under the version the ledger assigned.
 - No teacher account has an initial yet, so duty cards are empty until
   `set_teacher_initial` is used or a real teacher signs up.
 - Still nothing has been seen rendered in a browser.
+
+---
+
+## 2026-08-22 (later still) — The exam week that had no rooms
+
+**Files:** `lib/features/exam_seat/data/exam_room_pdf_parser.dart`,
+`exam_routine_pdf_parser.dart`, `exam_seat_view.dart` (new),
+`presentation/exam_seat_screen.dart`, `manage_exam_seats_screen.dart`,
+`test/exam_seat_view_test.dart` (new), `test/exam_room_parser_test.dart` (new),
+`test/exam_routine_parser_test.dart`, four `tool/*_test.dart` harnesses
+
+Picked up the three items the previous entry left open. The first of them —
+"the 23/08 final seat plan has not been imported" — turned out to understate
+the problem by a wide margin.
+
+### What was actually live
+
+The final term (19–27 Aug, published) was running. It had 30 routine rows and
+**zero room allocations**; all 1632 allocations in the table belonged to the
+JUNE mid-term. Verified as a real authenticated student, not as postgres:
+batch 67 sitting CSE313 the next morning got `"rooms": []`.
+
+Worse, `ExamSeatScreen` selected allocations by **batch+section alone** — no
+date bound, no term. Correct while the table held one exam period; wrong the
+moment it held two. That student's Exam Seat Plan listed **three June
+sessions under the heading "3 upcoming sessions"**, two of them titled only
+"Exam" because those rows carry no course code, and said nothing about the
+exam they were about to sit. Confidently wrong beats blank, and this was
+confidently wrong.
+
+### The screen
+
+The exam list now comes from `my_exam_schedule()`, which already picks the
+live published term, applies the batch → all-sections fan-out and narrows by
+the caller's own section. Allocation rows are read only to decorate it with
+seat counts, bounded by that same term's window. Three separate "nothings"
+that the old single empty state ran together are now distinct: no routine
+published, a routine that lists nothing for your batch, and a term with no
+seat plan yet — the last of which says **"Room not published yet"** against
+the exam rather than rendering an empty box under a heading.
+
+Extracted `ExamSeatView` to make that testable at all: a widget that fetches
+its own data cannot be asked which exams it will show. Past exams stay in the
+list (a student checking which room they were in is a real thing) but are
+marked Completed and excluded from the "upcoming" count, compared date-to-date
+so a 09:00 exam is still today's exam at 14:00.
+
+`cachedListFetch`, not `cachedMapFetch`, for a single object on purpose — the
+lenient variant returns null on a failed fetch, which here would render a
+network blip as "no exam routine published". That silent-empty class of bug
+has been paid for once already in this project.
+
+### Five parser bugs, all found by running the parsers on the real files
+
+**Seat plan** (seven PDFs, one per exam date):
+
+1. **The course context did not survive a page break.** It was local to one
+   page, and every one of these documents continues a table across pages —
+   batch 70 alone spans sections A..R. Those rows were stored with
+   `course_code = null`, and a null course code joins to no exam, so **57% of
+   every file was invisible to the screen it exists for**. This is also why
+   the June rows rendered as cards titled "Exam".
+2. **Continuation rows at the top of a page were dropped outright**, having no
+   section context to attach to. Fixing 1 and 2 took the seven files from
+   1444 rows to 1497.
+3. **The date is five tokens in one of the two templates** — `19`, `-`, `08`,
+   `-`, `2026`. Matching the token after `Date:` got `"19"`, the date came out
+   null, and a null date drops every row on the page. **The 19 Aug file parsed
+   to zero rows.** Rejoin the column before matching — the same lesson the
+   routine parser learned about `Slot A:`.
+4. **The room is three tokens in that template** — `G1`, `-`, `001` — so
+   `int.tryParse` landed on `"-"` and the row was dropped. Rejoined around a
+   lone hyphen; a numeric room (`218`) is still one token and is left alone.
+5. The header row reads `Dept.` in one template and `Faculty` in the other.
+
+After the fix all seven files parse: **1767 rows, every date, zero null course
+codes.**
+
+**Routine** (one PDF):
+
+6. **A course code need not start its token.** Where several courses share one
+   slot cell the document runs them together with slashes — `CSE431:Machine`,
+   `/CSE441:UI`, `[160]/CSE453:` — and requiring the match at offset 0 took
+   the first and silently dropped the rest.
+7. **The date label is vertically CENTRED in its row, not at its top.** 23/08
+   sits at y=63 with its own courses at y=12 *and* y=105. Blocks sliced at the
+   date (or at the repeated slot header above it) therefore mixed the bottom
+   half of one exam day with the top half of the next. Boundaries are now the
+   **midpoint between consecutive date labels**.
+
+Together these cost **eight of the routine's thirty-eight exams** — 23/08 and
+25/08, the batch-64 electives and AOL101 — with **no warning at all**, because
+a course that is never detected cannot be reported missing. Bug 6 alone
+recovered four; bug 7 recovered the rest and corrected CSE471, which bug 6 had
+recovered under **batch 70 instead of 64**. A wrong batch is worse than a
+missing one, which is why this was chased rather than worked around.
+
+### Cross-validation
+
+The two documents are independent and now agree exactly. Courses per date —
+routine and seat plan both: **5, 4, 5, 7, 5, 7, 5 = 38**. Every batch matches.
+That agreement is the evidence the parsers are right; neither one alone would
+have been.
+
+### Imported
+
+1767 allocations across all seven dates, each stamped with the final term,
+verified row-for-row against what the parser read (rows, courses, sections and
+seat totals all match; zero null course codes, zero orphan terms). The 8
+missing exams were then filled in from the allocations, taking `exams` to 38 —
+the same count as the mid-term.
+
+Verified as real authenticated students afterwards: batch 67 gets CSE313 on
+23/08 in G1-011…G1-016, which is exactly what section D reads in the source
+PDF; batch 68 gets AOL101 on 23/08, an exam that did not exist in the database
+an hour earlier.
+
+### Also
+
+`ManageExamSeatsScreen` now resolves and stamps `term_id` on upload. Without
+it every future upload filed rows against no term — precisely the state the
+table was found in. When no published term covers the parsed dates it says so
+in the toast instead of reporting a clean success.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **491 passing** (25 new; 466
+unchanged) · release web build. No migrations: this was data and client code.
+
+### STILL OPEN
+
+- **The routine parser has no UI.** `/admin/upload` exists and offers an "Exam
+  Routine" mode, but that path posts text lines to the `parse-routine` edge
+  function — the older line-based parser — not to `ExamRoutinePdfParser`,
+  which is why the coordinate parser is still reachable only from tests. The
+  routine and seat plans in the database were both imported by hand.
+- The owner has asked for the upload screens to become one **Uploads** section
+  (class routine · exam routine · transport · exam seat plans · university
+  notices), each recording who uploaded what and when, with a history view and
+  a "download a backup PDF before deleting" step. **Not built.**
+- University notices: `manage_notices_screen.dart` exists under
+  `features/registry/` and has not been assessed against that request.
+- Still nothing seen rendered in a browser.
+
+---
+
+## 2026-08-22 (later still) — Uploads becomes a section, and a ledger
+
+**Files:** `lib/features/uploads/` (new: `upload_batch.dart`,
+`upload_backup_pdf.dart`, `uploads_hub_screen.dart`,
+`exam_routine_upload_screen.dart`), `registry/presentation/notices_screen.dart`
+(new), `manage_notices_screen.dart`, `manage_exam_seats_screen.dart`,
+`admin_upload_routine_screen.dart`, `schedule_repository.dart`,
+`app_router.dart`, `capabilities.dart`,
+`supabase/functions/parse-routine/index.ts`, four migrations, two test files
+
+Asked for one "Uploads" section covering class routine, exam routine,
+transport, seat plans and university notices, each recording who uploaded what
+and when, with a history and a backup-before-delete step.
+
+### What was already there, and what was not
+
+Worth checking before building: the seat-plan uploader exists (Manage Exam
+Seats), `/admin/upload` exists and already offered class routine / exam
+routine / transport, and `ManageNoticesScreen` is a complete authoring tool.
+So most of the "build it" was really "join it up and give it a memory".
+
+Three things genuinely were not there:
+
+1. **The exam routine had no working importer.** `/admin/upload` offers an
+   "Exam Routine" mode, but it posts extracted text LINES to the
+   `parse-routine` edge function — the older line-based reader. The
+   coordinate parser written the same day, the only one that can read this
+   document, was wired to nothing. Both the routine and the seat plans in the
+   database had been put there by hand.
+2. **No upload recorded itself.** `routine_uploads` held one row, described
+   routines only, and named nothing it had written.
+3. **Notices could be written but not read.** The table has sat at zero rows
+   since it was created; the dashboard showed the newest three and the module
+   tile labelled "Notices" opened the notification CENTRE, which lists
+   notifications, not notices. Authoring with no reader is what a write-only
+   feature looks like from the outside.
+
+### The ledger
+
+`upload_batches` — one row per import, of any kind — plus an
+`upload_batch_id` on every table an import writes (`exam_room_allocations`,
+`exams`, `schedule_slots`, `notices`, `transport_routes`, `transport_stops`).
+Stamping the rows is what makes a revert delete EXACTLY what one upload added,
+rather than re-deriving it from a date range and hoping.
+
+Two-phase on purpose: the batch is opened BEFORE the import so rows can carry
+its id, and closed after, at which point the server COUNTS the stamped rows
+rather than believing the client's tally. A batch opened and never closed
+stays `pending` and shows in the history as an import that did not finish.
+
+`upload_batches` has a read policy and deliberately NO write policy — every
+write goes through a SECURITY DEFINER function. That is the opposite of the
+`exams` mistake found earlier today, where a write policy was missing by
+accident and RLS filtered every insert in silence; here the absence is the
+design and the client has a function to call.
+
+### Backup before delete
+
+`revert_upload_batch()` refuses until a backup exists. The interlock is a
+SAFETY one, not a security one, and is named that way in the code: the server
+can know a backup was generated and stored, never that a person downloaded it.
+It exists to stop the ordinary accident — freeing storage and discovering
+afterwards that the term's seat plan is gone.
+
+The PDF lists every row the batch wrote (not a summary), goes to a private
+`upload-backups` bucket, and opens through a signed URL — the one delivery
+route that works on both web and Android, which the VR-ID generator settled
+the same way.
+
+### The exam routine importer
+
+New screen at `/admin/upload/exam-routine`, wired to `ExamRoutinePdfParser`.
+It shows every date and course it recovered BEFORE writing anything, because
+the way this document fails is by losing a day quietly: a total of "30
+entries" looks perfectly healthy when it should read 38. Creates or reuses the
+term, replaces that term's exams rather than appending, and defaults to
+UNPUBLISHED so an import can be checked before students see it.
+
+### Notices, both halves
+
+`NoticesScreen` at `/notices` — the reading half that never existed, with
+category filters and the offline cache the dashboard preview already used. The
+dashboard tile now points at it instead of the notification centre.
+Publishing a notice also records an upload batch and finally sets `author_id`,
+which was never set at all, which is why every notice would have read as
+authored by nobody.
+
+### Two more term-scoping bugs, same family as this morning's
+
+- `set_teacher_initial()` wrote `teachers.teacher_initial`; the routine
+  directory reads `profiles.teacher_initial`. Measured: profiles held 2,
+  teachers held 0. So two teachers who already had an initial got no
+  invigilation duties, and setting one through the RPC would never have
+  reached the directory. One writer now, writing both, plus a reconciliation
+  in both directions. **A teacher immediately gained 10 real duties.**
+- `getMyExams()` had no term filter, so the schedule screen listed June and
+  August exams together with nothing to tell them apart. Now scoped to the
+  same term `my_exam_schedule()` picks. Signature and row shape unchanged.
+
+### Scope kept, deliberately
+
+`/admin/upload` remains the hub's path rather than moving to `/admin/uploads`:
+it is what three delegated grants, the capability list and 29 pinned menu
+tests already point at. The label changed, the route did not. `uploadKindsFor`
+mirrors the RLS rather than holding a second opinion about it — a screen that
+offers an importer the database will refuse is worse than one that hides it.
+
+`deep_link_routes_test.dart` now also guards capability routes, Uploads hub
+routes and dashboard tile routes: a tile naming a route the router lacks is
+dead exactly the way a bad deep link is.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **506 passing** (15 new) · release
+web build · release APK build. Four migrations applied, each verified
+behaviourally inside a transaction that rolled back — including that a student
+cannot open a batch, that revert refuses without a backup, that a second
+revert refuses, and that the exam-routine insert path is admitted by RLS as a
+real authenticated admin rather than as postgres. `parse-routine` redeployed
+from disk (not retyped) so the batch id reaches server-side inserts.
+
+### STILL OPEN
+
+- **Nothing has been seen rendered in a browser.** Everything above is proven
+  by analyze, by tests, and by live SQL under real RLS. None of it is proven
+  by looking, and that needs a login.
+- Reverting a `class_routine` or `transport` upload only removes rows the NEW
+  edge function stamped; imports made before this deploy have no batch id and
+  are not removable as a unit.
+- `marks` / `semester_results` / `payment_records` remain 0 rows.
+
+---
+
+## Session 2026-08-22 (afternoon) — seen in a browser at last
+
+The previous entry's first STILL OPEN line was "nothing has been seen rendered
+in a browser". That is now closed, and closing it is what found everything
+below. Chrome is not on this machine's PATH, but Playwright's own Chromium
+was already in the cache, so the release web build was served locally and
+driven with a real login as super_admin, as a student, and as a teacher.
+
+### Four defects, none of which a test could have caught
+
+Every one renders without an error, an overflow, or a failing assertion.
+
+1. **The campus-busy heatmap drew ZERO cells.** `HeatGrid`'s inner cell `Row`
+   had no `crossAxisAlignment`, so it defaulted to `center`. `Expanded` makes
+   only the MAIN axis tight; on the cross axis a centred child gets LOOSE
+   constraints, and a `DecoratedBox` with no child takes the minimum it is
+   allowed — zero height. 34 cells of real data (values 13-69) painted at 0px
+   while the row and column labels drew perfectly around the void. Fixed with
+   `CrossAxisAlignment.stretch`.
+2. **The Exam Routine tab was titled "Class Routine for CSE Program".** The
+   banner is shared with the class tab and hardcoded the word "Class", while
+   being fed `fetchRoutineHeader(dept, 'exam_routine')`. The data was right;
+   only the label lied. Now takes a `kind`.
+3. **That same banner was one grid column wide.** It sat inside an
+   `AdaptiveList`, which on web turns every item into a grid CELL — so the
+   banner rendered beside the validity note like a card. The furniture now
+   scrolls above the adaptive grid instead of inside it.
+4. **The 404 "Go Home" button spanned 1376px.** The theme sets a button
+   `minimumSize` of `Size(double.infinity, 52)`; a previous fix added 32px of
+   padding, which is a PHONE-shaped fix. Capped at 320px.
+
+### Admin user search found almost nobody
+
+Reported as "searching id, section, teacher initial — nothing works". Measured
+against live data before touching anything:
+
+| searched | found | existed |
+|---|---:|---:|
+| teacher initial `MSK` | 0 | 1 |
+| mid-fragment of a student ID | 0 | 1 |
+| a phone number | 0 | 1 |
+| batch `68` | 0 | 2 |
+| email fragment `diu.edu.bd` | 1 | 12 |
+
+`admin_search_users` matched `university_id` and `email` by **PREFIX ONLY**,
+`full_name` by substring, and teacher initial, phone, batch and section not at
+all. An admin typing the ID printed on a student's card got "No users found".
+
+Fixed with one `profile_search_text()` haystack used by the row query, the
+facet counts and the index — three copies of a concatenation would drift and
+silently stop using the index. A typed `%` is escaped, so it is a character
+somebody is searching for and not a wildcard meaning everyone. A pg_trgm GIN
+index went in with it: 14 profiles today, thousands expected.
+
+### Verified, not changed
+
+The uploads ledger end to end under real RLS inside a rolled-back
+transaction: a student is refused (`42501`), revert refuses without a backup,
+`finalize` **counted 2 rows when the client claimed 999**, revert deleted
+exactly the batch's 2 rows and left the term's other 38 untouched, and a
+second revert refuses. Term scoping resolves to the live FINAL term; a batch
+68 / section D student's seat plan matches the database row for row, including
+CSE215 having 5 rooms where the others have 6.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **506 passing** · release web build ·
+release APK builds after `flutter clean` (the earlier failure was a corrupt
+`output-metadata.json` intermediate, not code).
+
+### STILL OPEN
+
+- **APK is over budget**: 31.4 / 34.4 / 36.9 MB per ABI against the 28 MB
+  hard-fail limit in CLAUDE.md.
+- **`my_campus_facets()` computes a teacher's week from batch/section**, which
+  teachers do not have — Masuk's 8 class slots and 20 exam rows read as zeros.
+  Owner has parked this deliberately; the teacher accounts are test accounts.
+- Student intake term and ID-card join date have no columns yet; plan written
+  at `docs/superpowers/plans/2026-08-22-mandatory-profile-completion.md`.

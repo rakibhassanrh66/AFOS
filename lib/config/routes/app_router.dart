@@ -43,9 +43,12 @@ import '../../features/payment/presentation/payment_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/search/presentation/global_search_screen.dart';
 import '../../features/registry/presentation/manage_notices_screen.dart';
+import '../../features/registry/presentation/notices_screen.dart';
 import '../../features/registry/presentation/registry_list_screen.dart';
 import '../../features/schedule/presentation/schedule_screen.dart';
 import '../../features/schedule/presentation/admin_upload_routine_screen.dart';
+import '../../features/uploads/presentation/exam_routine_upload_screen.dart';
+import '../../features/uploads/presentation/uploads_hub_screen.dart';
 import '../../features/schedule/presentation/browse_courses_screen.dart';
 import '../../features/schedule/presentation/manage_course_offerings_screen.dart';
 import '../../features/schedule/presentation/join_requests_screen.dart';
@@ -126,12 +129,16 @@ class AppRouter {
         // tables already honours the same grant via caller_can(resource,
         // action) — this is the router-side half, so a delegated user
         // actually REACHES the screen instead of being bounced here first.
-        // /admin/upload handles transport, class-routine AND exam-routine
-        // uploads from one screen (parse-routine guesses the mode from the
-        // filename), so any one of those three permissions unlocks it.
+        // /admin/upload is the Uploads hub and everything under it — class
+        // routine, exam routine, transport, and the ledger of what was
+        // loaded. Any one of the three upload grants opens the section; the
+        // hub itself then shows only the kinds that grant actually covers, so
+        // a transport-only delegate does not see a routine importer they
+        // cannot use.
         if (!allowed) {
           allowed = switch (loc) {
-            '/admin/upload' => await PermissionSession.ensureHas('transport', 'upload')
+            _ when loc == '/admin/upload' || loc.startsWith('/admin/upload/') =>
+              await PermissionSession.ensureHas('transport', 'upload')
                 || await PermissionSession.ensureHas('routine', 'upload')
                 || await PermissionSession.ensureHas('exam_seat', 'upload'),
             '/admin/hall' => await PermissionSession.ensureHas('hall', 'manage'),
@@ -313,7 +320,13 @@ class AppRouter {
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
           GoRoute(path: '/releases',      pageBuilder: (c,s) => slideRightPage(const ReleasesScreen(), s)),
           GoRoute(path: '/feedback',      pageBuilder: (c,s) => slideRightPage(const FeedbackScreen(), s)),
-          GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
+          // The hub keeps the historical path so every delegated grant, menu
+          // entry and deep link that already pointed at "the upload screen"
+          // still lands somewhere correct. The file-based importer it used to
+          // be now sits one level down.
+          GoRoute(path: '/admin/upload',  pageBuilder: (c,s) => slideRightPage(const UploadsHubScreen(), s)),
+          GoRoute(path: '/admin/upload/files', pageBuilder: (c,s) => slideRightPage(const AdminUploadRoutineScreen(), s)),
+          GoRoute(path: '/admin/upload/exam-routine', pageBuilder: (c,s) => slideRightPage(const ExamRoutineUploadScreen(), s)),
           GoRoute(path: '/room-availability', pageBuilder: (c,s) => slideRightPage(const RoomAvailabilityScreen(), s)),
           GoRoute(path: '/schedule/my-offerings', pageBuilder: (c,s) => slideRightPage(const ManageCourseOfferingsScreen(), s)),
           GoRoute(path: '/schedule/teaching-load', pageBuilder: (c,s) => slideRightPage(const ModuleLeaderScreen(), s)),
@@ -334,6 +347,9 @@ class AppRouter {
           GoRoute(path: '/sos/:id', pageBuilder: (c,s) => slideRightPage(
               SosAlertDetailScreen(alertId: s.pathParameters['id']!), s)),
           GoRoute(path: '/manage-notices', pageBuilder: (c,s) => slideRightPage(const ManageNoticesScreen(), s)),
+          // The reading half. Authoring has existed since the notices
+          // table did; there was never a screen that listed them.
+          GoRoute(path: '/notices', pageBuilder: (c,s) => slideRightPage(const NoticesScreen(), s)),
           GoRoute(path: '/manage-exam-seats', pageBuilder: (c,s) => slideRightPage(const ManageExamSeatsScreen(), s)),
           // Single entry point for all the DIU portal links — one slide-menu
           // item opens this hub, rather than nine entries cluttering the menu.
@@ -385,10 +401,19 @@ class AppRouter {
         // `Size(double.infinity, 52)` — so an unconstrained ElevatedButton here
         // ran the full width of the screen and touched both bezels. Seen on
         // device, not in a test: nothing overflows, it just looks broken.
+        //
+        // The padding alone was a PHONE-shaped fix. On web at 1440px it still
+        // left a 1376px-wide button spanning the whole viewport — seen in the
+        // browser, again not in a test, because nothing overflows there either.
+        // The cap is what makes it a button at any width; the padding is what
+        // keeps it off the bezels below 384px.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: ElevatedButton(
-              onPressed:()=>GoRouter.of(c).go('/home'), child:const Text('Go Home')),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: ElevatedButton(
+                onPressed:()=>GoRouter.of(c).go('/home'), child:const Text('Go Home')),
+          ),
         ),
       ])),
     ),

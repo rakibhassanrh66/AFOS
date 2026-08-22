@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 /// Parses a real DIU exam seat-plan PDF into per-room allocation rows.
@@ -42,6 +43,31 @@ class ExamRoomAllocationRow {
 
 class _Word { final String text; final double left, top; _Word(this.text, this.left, this.top); }
 
+/// The "which course/section are we inside" context, carried ACROSS pages.
+///
+/// It used to be local to one page, so a table continuing over a page break —
+/// which every one of these documents does, batch 70 alone spans sections
+/// A..M — restarted with no course. Those rows were stored with
+/// `course_code = null`, and a null course code joins to no exam, so 57% of
+/// the seat plan was invisible to the very screen it exists for.
+///
+/// Reset deliberately when a page turns out to belong to a different
+/// date+slot, so one exam's course can never bleed into the next one's table.
+class _BlockContext {
+  String? courseCode, courseTitle, teacherInitial, batch, section;
+  String? slotKey;
+
+  void clear() {
+    courseCode = courseTitle = teacherInitial = batch = section = null;
+  }
+
+  /// Returns after clearing if [key] names a different exam block.
+  void enter(String key) {
+    if (slotKey != null && slotKey != key) clear();
+    slotKey = key;
+  }
+}
+
 class ExamRoomPdfParser {
   /// Column boundaries (x-position, pt) observed in the real sample —
   /// generous ranges since exact PDF margins can vary slightly. Three row
@@ -62,6 +88,7 @@ class ExamRoomPdfParser {
     final doc = PdfDocument(inputBytes: bytes);
     try {
       final rows = <ExamRoomAllocationRow>[];
+      final ctx = _BlockContext();
       for (var page = 0; page < doc.pages.count; page++) {
         final lines = PdfTextExtractor(doc).extractTextLines(startPageIndex: page, endPageIndex: page);
         final words = <_Word>[];
@@ -79,7 +106,7 @@ class ExamRoomPdfParser {
           }
         }
         if (words.isEmpty) continue;
-        rows.addAll(_parsePage(words));
+        rows.addAll(_parsePage(words, ctx));
       }
       return rows;
     } finally {
@@ -87,7 +114,26 @@ class ExamRoomPdfParser {
     }
   }
 
-  static List<ExamRoomAllocationRow> _parsePage(List<_Word> words) {
+  /// Runs the page algorithm over positioned words, page by page.
+  ///
+  /// EXISTS SO THE GEOMETRY CAN BE TESTED WITHOUT THE PDF — the same reason
+  /// the routine parser has one. These documents are real university records
+  /// and do not belong in a public repository, but the layout IS the parser:
+  /// every bug it has had was a coordinate bug. Takes a LIST of pages because
+  /// the defect worth pinning hardest only appears across a page break.
+  @visibleForTesting
+  static List<ExamRoomAllocationRow> parsePositionedPages(
+      List<List<(String, double, double)>> pages) {
+    final ctx = _BlockContext();
+    final out = <ExamRoomAllocationRow>[];
+    for (final page in pages) {
+      out.addAll(_parsePage(
+          [for (final (t, x, y) in page) _Word(t, x, y)], ctx));
+    }
+    return out;
+  }
+
+  static List<ExamRoomAllocationRow> _parsePage(List<_Word> words, _BlockContext ctx) {
     // Group words into visual rows by rounded top-coordinate, sort each
     // row left-to-right — this reconstructs reading order regardless of
     // the underlying PDF content stream's internal ordering.
@@ -116,12 +162,13 @@ class ExamRoomPdfParser {
       for (final t in tops) (rowsByTop[t]!..sort((a, b) => a.left.compareTo(b.left)))
     ];
 
+    // These stay page-local on purpose: every page of these documents
+    // repeats its own "Date: … Slot: …" header, and the guards below take
+    // only the FIRST one on a page. Carrying them forward would make a
+    // second page's header unreadable and file a slot-B exam under slot A.
     String? examTitle, slotLabel, slotStart, slotEnd;
     DateTime? examDate;
     final out = <ExamRoomAllocationRow>[];
-
-    // Current "section context" carried across continuation rows.
-    String? curCourseCode, curCourseTitle, curTeacherInitial, curBatch, curSection;
 
     for (final row in textRows) {
       final texts = row.map((w) => w.text).toList();
@@ -131,7 +178,14 @@ class ExamRoomPdfParser {
         final dateIdx = texts.indexOf('Date:');
         final slotIdx = texts.indexOf('Slot:');
         if (dateIdx >= 0 && dateIdx + 1 < texts.length) {
-          examDate = _parseDate(texts[dateIdx + 1]);
+          // "19-08-2026" is ONE word in some of these documents and FIVE in
+          // others ("19", "-", "08", "-", "2026"), because the hyphens are
+          // drawn as their own text runs. Matching the first token alone
+          // returned null, and a null date drops every row on the page
+          // silently — the 19 Aug file parsed to zero rows for exactly this.
+          // Rejoin the column before matching.
+          final end = slotIdx > dateIdx ? slotIdx : texts.length;
+          examDate = _parseDate(texts.sublist(dateIdx + 1, end).join());
         }
         if (slotIdx >= 0 && slotIdx + 1 < texts.length) {
           slotLabel = texts[slotIdx + 1];
@@ -139,9 +193,17 @@ class ExamRoomPdfParser {
           final m = RegExp(r'\(?([\d:]+\s*[AP]M)\s*-\s*([\d:]+\s*[AP]M)\)?').firstMatch(rest);
           if (m != null) { slotStart = m.group(1); slotEnd = m.group(2); }
         }
+        // A page that continues the previous page's table keeps its course;
+        // a page that starts a different exam drops it.
+        ctx.enter('${examDate?.toIso8601String()}|$slotLabel');
         continue;
       }
-      if (texts.contains('Faculty') && texts.contains('Room')) continue; // header row
+      // Header row. Two templates in circulation: one heads the first column
+      // "Faculty", the other "Dept.".
+      if ((texts.contains('Faculty') || texts.contains('Dept.')) &&
+          texts.contains('Room')) {
+        continue;
+      }
       if (joined.startsWith('Total') && joined.contains('Seat')) continue; // "Total Seat(s): N" summary line
       if (row.isEmpty) continue;
 
@@ -152,28 +214,28 @@ class ExamRoomPdfParser {
         if (sectionIdx < 2) continue; // can't find a parseable "68_A"-style section token
         final batchSection = texts[sectionIdx].split('_');
         if (batchSection.length != 2) continue;
-        curBatch = batchSection[0];
-        curSection = batchSection[1];
-        curTeacherInitial = texts[sectionIdx - 1];
-        curCourseCode = texts[1];
-        curCourseTitle = texts.sublist(2, sectionIdx - 1).join(' ');
+        ctx.batch = batchSection[0];
+        ctx.section = batchSection[1];
+        ctx.teacherInitial = texts[sectionIdx - 1];
+        ctx.courseCode = texts[1];
+        ctx.courseTitle = texts.sublist(2, sectionIdx - 1).join(' ');
         _addRoomRow(out, texts.sublist(sectionIdx + 1), examTitle, examDate, slotLabel, slotStart, slotEnd,
-            curCourseCode, curCourseTitle, curTeacherInitial, curBatch, curSection);
+            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.batch, ctx.section);
       } else if (leftmost < _roomColMin) {
         // Tier 2: new section within the same course — TeacherInitial | Section | Room | Seats | Total
         final sectionIdx = texts.indexWhere((t) => _sectionToken.hasMatch(t));
         if (sectionIdx < 1) continue;
         final batchSection = texts[sectionIdx].split('_');
         if (batchSection.length != 2) continue;
-        curBatch = batchSection[0];
-        curSection = batchSection[1];
-        curTeacherInitial = texts[sectionIdx - 1];
+        ctx.batch = batchSection[0];
+        ctx.section = batchSection[1];
+        ctx.teacherInitial = texts[sectionIdx - 1];
         _addRoomRow(out, texts.sublist(sectionIdx + 1), examTitle, examDate, slotLabel, slotStart, slotEnd,
-            curCourseCode, curCourseTitle, curTeacherInitial, curBatch, curSection);
-      } else if (curBatch != null && curSection != null) {
+            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.batch, ctx.section);
+      } else if (ctx.batch != null && ctx.section != null) {
         // Tier 3: continuation — just another Room+Seats pair for the current section.
         _addRoomRow(out, texts, examTitle, examDate, slotLabel, slotStart, slotEnd,
-            curCourseCode, curCourseTitle, curTeacherInitial, curBatch, curSection);
+            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.batch, ctx.section);
       }
     }
     return out;
@@ -186,13 +248,26 @@ class ExamRoomPdfParser {
       String? examTitle, DateTime? examDate, String? slotLabel, String? slotStart, String? slotEnd,
       String? courseCode, String? courseTitle, String? teacherInitial, String? batch, String? section) {
     if (roomTokens.length < 2 || examDate == null || batch == null || section == null) return;
-    final seats = int.tryParse(roomTokens[1]);
+
+    // Same split-token hazard as the date: a room is "G1-001" in one
+    // template and "G1", "-", "001" in the other, while a numeric room
+    // ("218") is always a single token. Rejoin around a lone hyphen before
+    // reading the seat count — otherwise int.tryParse lands on "-", returns
+    // null, and the row is dropped without a word.
+    var i = 0;
+    final room = StringBuffer(roomTokens[i]);
+    while (i + 2 < roomTokens.length && roomTokens[i + 1] == '-') {
+      room..write('-')..write(roomTokens[i + 2]);
+      i += 2;
+    }
+    if (i + 1 >= roomTokens.length) return;
+    final seats = int.tryParse(roomTokens[i + 1]);
     if (seats == null) return;
     out.add(ExamRoomAllocationRow(
       examTitle: examTitle, examDate: examDate, slotLabel: slotLabel,
       slotStart: slotStart, slotEnd: slotEnd,
       courseCode: courseCode, courseTitle: courseTitle, teacherInitial: teacherInitial,
-      batch: batch, section: section, roomNo: roomTokens[0], seats: seats,
+      batch: batch, section: section, roomNo: room.toString(), seats: seats,
     ));
   }
 
