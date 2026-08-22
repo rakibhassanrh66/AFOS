@@ -151,3 +151,10 @@ audit/
 .opencode/
 .roo/
 CLAUDE.local.md
+
+# docs/superpowers/  implementation plans and specs -- same category as audit/
+#                    above: they describe how the work is done and enumerate
+#                    this project's unfinished edges. Kept on the maintainer's
+#                    machine, not published. Added 2026-08-22 after a plan was
+#                    pushed here by accident.
+docs/superpowers/
