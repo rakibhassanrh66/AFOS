@@ -99,8 +99,29 @@ class ScheduleRepository {
   Future<List<Map<String,dynamic>>> getMyExams({required String dept, String? batch}) => cachedListFetch(
     cacheKey: 'exams_my_${dept}_${batch ?? 'all'}',
     liveFetch: () async {
+      // SCOPED TO ONE EXAM PERIOD. `exams` has held more than one since the
+      // final routine landed beside the mid-term, and filtering by department
+      // and batch alone listed June and August together with nothing on the
+      // card to tell them apart — a student's finished mid-term exam reading
+      // exactly like the final they had not sat yet.
+      //
+      // The period chosen is the same one my_exam_schedule() picks: a
+      // published term that has not finished (live, or the soonest upcoming),
+      // otherwise the most recent published one.
+      final today = DateTime.now().toIso8601String().split('T').first;
+      var term = await _client.from('exam_terms')
+          .select('id').eq('published', true).gte('ends_on', today)
+          .order('starts_on', ascending: true).limit(1).maybeSingle();
+      term ??= await _client.from('exam_terms')
+          .select('id').eq('published', true)
+          .order('starts_on', ascending: false).limit(1).maybeSingle();
+
       var q = _client.from('exams').select().eq('department', dept);
       if (batch != null && batch.isNotEmpty) q = q.eq('batch', batch);
+      // No published term at all: fall back to the whole department rather
+      // than showing an empty screen, which is what this did before terms
+      // existed and is still the honest answer when none is published.
+      if (term != null) q = q.eq('term_id', term['id']);
       final res = await q.order('exam_date', ascending: true) as List;
       return res.cast<Map<String, dynamic>>();
     },

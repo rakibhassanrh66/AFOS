@@ -12,6 +12,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../uploads/data/upload_batch.dart';
 import '../data/exam_room_pdf_parser.dart';
 
 import '../../../core/layout/nav_insets.dart';
@@ -68,15 +69,54 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
 
   Future<void> _upload() async {
     setState(() { _uploading = true; _error = null; });
+    String? batchId;
     try {
+      // Opened before anything is written so every row can carry it, which is
+      // what makes this upload removable later as a unit instead of by
+      // guessing at a date range.
+      batchId = await UploadBatchService.open(
+        kind: 'exam_seat_plan',
+        sourceFile: _files.map((f) => f.name).join(', '),
+      );
+
       // Replace, not append — re-uploading the same exam date(s) (e.g. a
       // corrected PDF) shouldn't leave stale duplicate rows behind.
       final dates = _parsedRows.map((r) => r.examDate.toIso8601String().split('T').first).toSet();
       for (final d in dates) {
         await SupabaseConfig.client.from('exam_room_allocations').delete().eq('exam_date', d);
       }
+
+      // Stamp the term these dates fall in. Without this every upload files
+      // rows with term_id null — which is precisely the state the table was
+      // found in: 1632 allocations that nothing joined to any exam period,
+      // sitting beside a routine that could not see them.
+      final ordered = dates.toList()..sort();
+      String? termId;
+      try {
+        final terms = await SupabaseConfig.client.from('exam_terms')
+            .select('id').lte('starts_on', ordered.first)
+            .gte('ends_on', ordered.last).limit(1) as List;
+        if (terms.isNotEmpty) termId = terms.first['id'] as String?;
+      } catch (_) {
+        // A failed lookup must not cost the upload — the rows are still
+        // usable, they are just not linked. Reported below rather than hidden.
+      }
+
       await SupabaseConfig.client.from('exam_room_allocations').insert(
-          _parsedRows.map((r) => r.toRow()).toList());
+          _parsedRows.map((r) => {
+                ...r.toRow(),
+                if (termId != null) 'term_id': termId,
+                'upload_batch_id': batchId,
+              }).toList());
+
+      // Closed with the server's own count of stamped rows, so the history
+      // reports what landed rather than what was sent.
+      await UploadBatchService.finalize(batchId, summary: {
+        'dates': dates.length,
+        'sections': _parsedRows.map((r) => '${r.batch}_${r.section}').toSet().length,
+        'seats': _parsedRows.fold<int>(0, (a, r) => a + r.seats),
+        if (termId == null) 'unlinked': true,
+      });
 
       // Notify every affected student — exam_controller has no direct
       // `students` read access (see list_students_by_batch_section), and
@@ -105,8 +145,11 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('${_parsedRows.length} room allocations uploaded across ${dates.length} exam date(s)'),
-            backgroundColor: AppColors.green));
+            content: Text('${_parsedRows.length} room allocations uploaded across ${dates.length} exam date(s)'
+                // Say it plainly rather than reporting a clean success for
+                // rows that belong to no exam period.
+                '${termId == null ? ' — no published exam term covers these dates, so they are not linked to one' : ''}'),
+            backgroundColor: termId == null ? AppColors.amber : AppColors.green));
         setState(() { _files = []; _parsedRows = []; });
       }
     } catch (e) {

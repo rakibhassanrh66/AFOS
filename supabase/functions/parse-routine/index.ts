@@ -56,6 +56,12 @@ serve(async (req) => {
     // Escape hatch for the destructive-replace guard on transport uploads
     // (see the transport branch below). Off unless explicitly requested.
     let force = false
+    // The Uploads ledger's batch, opened by the client BEFORE this call. Every
+    // row written below carries it, which is what lets one import be removed
+    // later as a unit -- and what lets the history say who loaded what.
+    // Optional: an older client that does not send one still works, its rows
+    // simply are not attributable.
+    let uploadBatchId: string | null = null
 
     if (contentType.includes("application/json")) {
       const body = await req.json()
@@ -67,6 +73,8 @@ serve(async (req) => {
       rows = lines.map((l) => [l])
       requestedDepartment = typeof body.department === "string" && body.department.trim() ? body.department.trim() : null
       force = body.force === true
+      uploadBatchId = typeof body.upload_batch_id === "string" && body.upload_batch_id.trim()
+        ? body.upload_batch_id.trim() : null
     } else {
       const formData = await req.formData()
       const file = formData.get("file") as File
@@ -83,6 +91,8 @@ serve(async (req) => {
       const formDept = formData.get("department")
       requestedDepartment = typeof formDept === "string" && formDept.trim() ? formDept.trim() : null
       force = String(formData.get("force") ?? "") === "true"
+      const formBatch = formData.get("upload_batch_id")
+      uploadBatchId = typeof formBatch === "string" && formBatch.trim() ? formBatch.trim() : null
     }
 
     // ---------------------- Authorization ----------------------
@@ -187,7 +197,10 @@ serve(async (req) => {
 
     const batchErrors: string[] = []
     async function batchUpsert(table: string, records: any[], onConflict: string, batchSize = 200): Promise<number> {
+      // Stamped here rather than at each of the five call sites, so a new
+      // branch cannot forget it and quietly write unattributable rows.
       const deduped = dedupeByKey(records, onConflict)
+        .map((r) => uploadBatchId ? { ...r, upload_batch_id: uploadBatchId } : r)
       let inserted = 0
       for (let i = 0; i < deduped.length; i += batchSize) {
         const batch = deduped.slice(i, i + batchSize)
