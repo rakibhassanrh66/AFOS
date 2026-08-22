@@ -59,6 +59,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   String? _upazila;
   String? _thana;
 
+  /// The intake term a student was admitted in, and the date printed on their
+  /// ID card (for a teacher or officer, the date they joined). There was no
+  /// column for either until 2026-08-22, and no way to derive them: the
+  /// student IDs in the table are inconsistent, so no term code can be parsed
+  /// out of them. They have to be asked for.
+  String? _admissionSeason;
+  final _admissionYearCtrl = TextEditingController();
+  DateTime? _joinedOn;
+  String? _joinedOnError;
+
   // Mandatory live-GPS capture -- separate from (and in addition to) the
   // registered permanent address above. A student's registered home
   // district might be far from where they actually are day to day; this is
@@ -83,6 +93,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   void dispose() {
     _nameCtrl.dispose(); _phoneCtrl.dispose(); _emergencyCtrl.dispose();
     _batchCtrl.dispose(); _sectionCtrl.dispose(); _designationCtrl.dispose();
+    _admissionYearCtrl.dispose();
     super.dispose();
   }
 
@@ -174,6 +185,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             _thana = p['permanent_thana'] as String?;
           } catch (_) {}
           try {
+            // Pre-fill, so somebody sent back here for ONE missing field does
+            // not have to retype what they already gave us.
+            _admissionSeason = p['admission_season'] as String?;
+            final y = p['admission_year'] as int?;
+            if (y != null) _admissionYearCtrl.text = '$y';
+            final j = p['joined_on'] as String?;
+            if (j != null && j.isNotEmpty) _joinedOn = DateTime.tryParse(j);
+          } catch (_) {}
+          try {
             if (_isTeacher) {
               final teacherRow = await SupabaseConfig.client.from('teachers')
                   .select('designation').eq('profile_id', uid).maybeSingle();
@@ -230,6 +250,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    // _JoinDateField is an InputDecorator, not a FormField, so validate()
+    // above does not cover it. Checked here or it is not checked at all.
+    if (!_isAdminTier && _joinedOn == null) {
+      setState(() => _joinedOnError = 'Join date is required');
+      return;
+    }
     if (!_isStaff && _selectedDept == null) return;
     if (_isStaff && _selectedStaffDesignation == null) return;
     if (_division == null || _district == null || _upazila == null) return;
@@ -268,7 +294,19 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         if (_selectedDept != null) 'department': _selectedDept!.code,
         if (_selectedDept != null) 'department_id': _selectedDept!.id,
         'semester': _sem.toInt(),
+        // Still sent, and now DISCARDED: a BEFORE trigger on profiles
+        // overwrites this with profile_is_complete(new). Left in place
+        // deliberately -- the trigger overrules it, and a generated column
+        // would have made this write throw instead.
         'profile_completed': true,
+        if (!_isTeacher && !_isStaff && !_isAdminTier)
+          'admission_season': _admissionSeason,
+        if (!_isTeacher && !_isStaff && !_isAdminTier)
+          'admission_year': int.tryParse(_admissionYearCtrl.text.trim()),
+        // ONE source of truth. The trigger mirrors this into
+        // teachers.joining_date / staff.joining_date -- never write those.
+        if (!_isAdminTier && _joinedOn != null)
+          'joined_on': _joinedOn!.toIso8601String().split('T').first,
         'permanent_division': _division,
         'permanent_district': _district,
         'permanent_upazila': _upazila,
@@ -356,11 +394,41 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     AfosTextField(hint: 'Full name', controller: _nameCtrl,
                         validator: (v) => AppValidators.required(v, f: 'Full name')),
                     const SizedBox(height: 16),
+                    // The check is NOT built. This is written in the FUTURE
+                    // tense on purpose: a mock that pretended to verify would
+                    // be a false claim shown to a real person, and the
+                    // deterrent comes from believing it will be checked, not
+                    // from a fake tick appearing now.
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceOf(context),
+                        borderRadius: AppDepth.radius(1),
+                        border: Border.all(color: AppColors.borderOf(context)),
+                      ),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Icon(Icons.verified_user_outlined, size: 16,
+                            color: AppColors.textSecondaryOf(context)),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(
+                          'These details will be checked later — by a code sent to '
+                          'your number, and by a direct call from the university. '
+                          'Please enter the number and address you actually use.',
+                          style: AppTextStyles.labelSmall.copyWith(
+                              color: AppColors.textSecondaryOf(context)))),
+                      ]),
+                    ),
+                    const SizedBox(height: 16),
                     AfosTextField(hint: 'Phone number', controller: _phoneCtrl,
                         keyboardType: TextInputType.phone,
                         validator: (v) => AppValidators.required(v, f: 'Phone')),
                     const SizedBox(height: 16),
-                    AfosTextField(hint: 'Emergency contact (name + phone)', controller: _emergencyCtrl),
+                    // Required now. It was optional, and 3 of 14 people had
+                    // one -- an emergency contact nobody filled in is not an
+                    // emergency contact.
+                    AfosTextField(hint: 'Emergency contact (name + phone)',
+                        controller: _emergencyCtrl,
+                        validator: (v) => AppValidators.required(v, f: 'Emergency contact')),
                     const SizedBox(height: 16),
                     Text('Permanent address', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                     const SizedBox(height: 4),
@@ -472,6 +540,50 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       Slider(value: _sem, min: 1, max: 12, divisions: 11,
                           activeColor: AppColors.holoBlue, label: '${_sem.toInt()}',
                           onChanged: (v) => setState(() => _sem = v)),
+                      const SizedBox(height: 16),
+                      // The term admitted in. There is no column this can be
+                      // derived from -- the university IDs on file are not
+                      // consistently formatted, so no term code can be parsed
+                      // out of them. It has to be asked.
+                      Row(children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _admissionSeason,
+                            isExpanded: true,
+                            decoration: InputDecoration(hintText: 'Admission season',
+                                filled: true,
+                                border: OutlineInputBorder(borderRadius: AppDepth.radius(1))),
+                            items: const [
+                              DropdownMenuItem(value: 'spring', child: Text('Spring')),
+                              DropdownMenuItem(value: 'summer', child: Text('Summer')),
+                              DropdownMenuItem(value: 'fall', child: Text('Fall')),
+                            ],
+                            onChanged: (v) => setState(() => _admissionSeason = v),
+                            validator: (v) => v == null ? 'Admission season is required' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: AfosTextField(hint: 'Admission year',
+                              controller: _admissionYearCtrl,
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                final y = int.tryParse((v ?? '').trim());
+                                if (y == null) return 'Admission year is required';
+                                if (y < 2000 || y > 2100) return 'Enter a 4-digit year';
+                                return null;
+                              }),
+                        ),
+                      ]),
+                    ],
+                    if (!_isAdminTier) ...[
+                      const SizedBox(height: 16),
+                      _JoinDateField(
+                        value: _joinedOn,
+                        errorText: _joinedOnError,
+                        isStudent: !_isTeacher && !_isStaff && !_isAdminTier,
+                        onPicked: (d) => setState(() { _joinedOn = d; _joinedOnError = null; }),
+                      ),
                     ],
                     const SizedBox(height: 20),
                     Text('Current location', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
@@ -537,6 +649,76 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               child: Text(o.title, overflow: TextOverflow.ellipsis))));
     }
     return items;
+  }
+}
+
+/// The join date, taken from the ID card. A picker rather than a text field:
+/// a typed date is the most reliable way there is to get garbage into a date
+/// column, and this one is about to become a grouping axis in the admin
+/// directory, where a garbage year becomes a garbage section header.
+class _JoinDateField extends StatelessWidget {
+  final DateTime? value;
+  final String? errorText;
+  final bool isStudent;
+  final ValueChanged<DateTime> onPicked;
+
+  const _JoinDateField({
+    required this.value,
+    required this.errorText,
+    required this.isStudent,
+    required this.onPicked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isStudent ? 'Join date (from your ID card)' : 'Joining date';
+    return InkWell(
+      borderRadius: AppDepth.radius(1),
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: value ?? DateTime(now.year - 1, now.month, now.day),
+          firstDate: DateTime(2000),
+          lastDate: now,
+          helpText: isStudent
+              ? 'Date printed on your ID card'
+              : 'Date you joined the university',
+        );
+        if (picked != null) onPicked(picked);
+      },
+      // 48dp floor: a tap target has to be reachable, and an InputDecorator
+      // sizes to its text.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            filled: true,
+            errorText: errorText,
+            border: OutlineInputBorder(borderRadius: AppDepth.radius(1)),
+          ),
+          child: Row(children: [
+            Icon(Icons.badge_outlined, size: 18,
+                color: AppColors.textSecondaryOf(context)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value == null
+                    ? label
+                    : '$label: ${value!.day.toString().padLeft(2, '0')}'
+                        '/${value!.month.toString().padLeft(2, '0')}/${value!.year}',
+                style: AppTextStyles.bodyMedium.copyWith(
+                    color: value == null
+                        ? AppColors.textSecondaryOf(context)
+                        : AppColors.textPrimaryOf(context)),
+              ),
+            ),
+            Icon(Icons.calendar_today_outlined, size: 16,
+                color: AppColors.textSecondaryOf(context)),
+          ]),
+        ),
+      ),
+    );
   }
 }
 
