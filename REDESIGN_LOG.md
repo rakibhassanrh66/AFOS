@@ -2670,3 +2670,128 @@ under the versions the remote ledger assigned.
 - **marks / semester_results / payment_records remain 0 rows**, so the result
   gauge and fee panels are still unbuildable. They are the only panels from the
   reference still missing, and they need seeded data, not effort.
+
+---
+
+## 2026-08-22 (later) — The exam system, and a 96 MB download
+
+**Files:** `lib/core/services/app_update_service.dart`,
+`lib/features/exam_seat/data/exam_routine_pdf_parser.dart` (new),
+`lib/features/dashboard/presentation/widgets/exam_pulse_band.dart` (new),
+`dashboard_screen.dart`, four migrations, four new test files
+
+### The in-app update was downloading the wrong file
+
+Reported as `DioException [unknown]` / "HttpConnection closed while receiving
+data", which reads like a GitHub fault and is not one. The updater always asked
+for `AFOS-v<x>.apk` — the UNIVERSAL apk, 96 MB for 2.9.2. The arm64 slice of
+the same release is 35 MB. A 96 MB transfer over campus mobile data does not
+survive, and with no resume every retry restarted from zero.
+
+The ABI comes from `Platform.version` (which ends `on "android_arm64"`) rather
+than from adding device_info_plus — a native dependency would need a real
+Android build to verify and buys one string the process already knows. arm64 is
+tested before arm because `'android_arm64'.contains('android_arm')` is true.
+
+### The exam data was never modelled
+
+    exams                  38 rows, EVERY exam_type the string 'mid',
+                           no season, no year, no window, and NO ROOM on any row
+    exam_room_allocations  1632 rows WITH rooms
+    join between them      none
+    routine parser         did not exist
+
+`exam_terms` now models what the routine header states ("Final Examination
+Routine, Summer 2026"). Found while doing it: **`exams` had a SELECT policy and
+no write policy at all** — every insert from the app was refused silently,
+because RLS filters rather than errors. A routine upload screen could never
+have worked regardless of the parser.
+
+### The routine parser, and the five coordinate bugs
+
+Verified against the real Summer 2026 CSE document: **30 entries across seven
+dates, correct slots, times, batches and titles, zero warnings.** Every bug was
+found by running it on the real file, not by reasoning about it:
+
+1. Syncfusion tokenises `Slot A:` as TWO words, so matching one word against
+   `/^Slot ([A-Z]):?$/` found no header on any page.
+2. The `Batch` header sits 6pt below the `Slot` row — far enough to be its own
+   line — so the times were two rows below the label, not one, and no slot ever
+   got a start or end time.
+3. Slot A's batch window was x 236-286 while its own `Batch-65` token sat at
+   **x=235**. Outside by one point, so every slot A exam was dropped. Ownership
+   is now "nearest column to the left", which is a fact about the table rather
+   than a measurement.
+4. Header words fall inside slot A's own course column and merged into the
+   first cell: one title read `Slot B: 12:00 pm – 02:00 pm : Object Oriented
+   Programming CSE226: Numerical Methods` — a label, a time range and two exams
+   in one row. Entries split on course codes now, not on vertical gaps.
+5. **23/08 was missing entirely.** Page 2 opens mid-block, its slot header
+   having been at the foot of page 1, and blocks were only built from header
+   rows downwards. A whole exam day, silently. Content above the first header
+   row is now parsed with the previous page's columns.
+
+Also: the last page's footer sits inside the course columns and PHY101's title
+absorbed 300 characters of examination-hall rules; titles are bounded
+vertically. The weekday is DERIVED from the date and never read — the source
+prints "Thurseday".
+
+**Cross-validation worth recording:** the recovered 23/08 row is
+`CSE121 Electrical Circuits, Batch-70`, and the seat-plan PDF for 23-08-2026
+independently reads `FSIT CSE121 Electrical Circuits SMC 70_A G1-001`. Two
+parsers, two documents, same exam.
+
+### The join, and the fan-out
+
+A routine row carries a batch and no section; the seat plan is per section. So
+one routine row covers every section of that batch, and the student's own
+section narrows it. Confirmed by the owner and verified live: CSE123/Batch-70
+fans out to sections A–F, ~51 seats each, with rooms correctly shared between
+adjacent sections (G1-004 in both A and B, G1-008 in both B and C).
+
+`my_exam_schedule()` answers it per caller — student gets date/course/room,
+teacher gets duty rooms — reads `auth.uid()` and takes no parameter, so there
+is nothing to aim at anyone else. Unpublished terms return nothing: verified by
+importing the real routine unpublished (student saw `term: null`), then
+publishing.
+
+`teachers.teacher_initial` added, because the seat plan's "Tech. Int." (NNM,
+SMC) was the only teacher identifier in those documents and nothing could
+resolve it to a person. Backfilled by name from `schedule_slots`; it matched 0
+of 4, which is correct — every teacher account here is a test one.
+
+### The band
+
+Between the search field and the module tiles, exactly as asked, removing
+nothing. Exam-today pulse, days-left ring, a line of exams across the term, and
+a teacher's duty card. It renders nothing when there is no published term and
+nothing once `isOver` — a finished exam period that keeps advertising a passed
+date is worse than no banner.
+
+Loaded in parallel with the dashboard and awaited before the shimmer lifts, so
+the 148px row cannot drop in late and shove the modules down.
+
+### A note on how this was edited
+
+Two literal 0x08 backspace bytes ended up inside a RegExp in the parser, from a
+Python escaping mistake in my own editing script. The year silently never
+parsed and the source looked correct. Same class of hazard as the PowerShell
+rule in CLAUDE.md, and the file is now verified free of control characters.
+
+Also corrected: my "analyze 0 issues" claim for v2.9.2 was wrong. I had
+filtered the output to errors and warnings, so eight lint infos shipped
+unnoticed. Fixed.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **466 passing** (23 new) · release
+web and APK build. Four migrations applied, each verified against live RLS as a
+real user, each mirrored under the version the ledger assigned.
+
+### STILL OPEN
+
+- The 23/08 final seat plan has not been imported — it goes through the
+  existing upload screen, which now has a write policy that permits it.
+- No teacher account has an initial yet, so duty cards are empty until
+  `set_teacher_initial` is used or a real teacher signs up.
+- Still nothing has been seen rendered in a browser.

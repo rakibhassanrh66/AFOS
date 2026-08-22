@@ -7,6 +7,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import 'widgets/exam_pulse_band.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../config/theme/spacing.dart';
@@ -59,6 +60,14 @@ class _DashboardState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // STARTED HERE, RESOLVED INSIDE _load.
+    //
+    // The band sits above the module grid, so if it arrived after the page had
+    // painted it would drop a 148px row in and shove the modules down — the
+    // exact layout shift the web console had to be rebuilt to remove. Starting
+    // it in parallel and letting _load await it means one shimmer, one paint,
+    // and no growth in total wait beyond the slowest of the two.
+    _pulseFuture = ExamPulseData.load();
     _load();
     _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -95,6 +104,10 @@ class _DashboardState extends State<DashboardScreen> {
         if (mounted) setState(() { _notices = rows; _loading = false; });
       });
       unawaited(_loadQuickStats(profileRaw, uid));
+      // Resolved before anything below the fold settles, so the band never
+      // appears late and pushes the module grid down.
+      final pulse = await (_pulseFuture ?? Future<ExamPulseData?>.value(null));
+      if (mounted) setState(() => _pulse = pulse);
     } catch (_) {
       if (mounted) setState(() { _loading = false; _statsLoading = false; });
     }
@@ -398,6 +411,11 @@ class _DashboardState extends State<DashboardScreen> {
 
   String _search = '';
 
+  /// The examination band. Null until loaded, and null for anyone with no
+  /// published term -- the band then renders nothing at all.
+  ExamPulseData? _pulse;
+  Future<ExamPulseData?>? _pulseFuture;
+
   List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
       ? _allModules
       : _allModules.where((m) => !_studentOnlyModules.contains(m.title)).toList();
@@ -498,6 +516,16 @@ class _DashboardState extends State<DashboardScreen> {
                       filled: true, fillColor: AppColors.glassFill(context),
                       border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
               const SizedBox(height: 12),
+              // THE EXAMINATION BAND.
+              //
+              // Immediately after the search field and immediately before the
+              // module tiles, which is where the owner asked for it. Nothing
+              // above or below was removed or reordered; this adds a row.
+              //
+              // It renders nothing when there is no published exam term, and
+              // nothing once the term's end date has passed -- a finished exam
+              // period that keeps advertising a date is worse than no banner.
+              if (_search.trim().isEmpty) ExamPulseBand(data: _pulse),
             ]),
           )),
           SliverPadding(

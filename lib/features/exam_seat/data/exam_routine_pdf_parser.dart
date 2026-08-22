@@ -325,6 +325,21 @@ class ExamRoutinePdfParser {
       ..addAll(slots);
 
     final out = <ExamRoutineEntry>[];
+
+    // A PAGE CAN OPEN MID-BLOCK, AND THAT BLOCK IS STILL AN EXAM DAY.
+    //
+    // Page 2 of the real document begins with 23/08 whose slot header sat at
+    // the foot of page 1. Building blocks only from header rows downwards
+    // dropped it silently — a whole exam day, five courses, gone, with no
+    // warning. Anything above the first header row is parsed here first, using
+    // the columns the previous page established.
+    if (headerIdx.first > 0) {
+      final lead = lines.sublist(0, headerIdx.first);
+      if (lead.any((l) => l.any((w) => _dateOf(w.text) != null))) {
+        out.addAll(_parseHeaderlessPage(lead, carried.isEmpty ? slots : carried));
+      }
+    }
+
     for (var b = 0; b < headerIdx.length; b++) {
       final from = headerIdx[b];
       final to = b + 1 < headerIdx.length ? headerIdx[b + 1] : lines.length;
