@@ -308,7 +308,10 @@ List<AppCapability> _delegated(Set<String> grants) {
     if (can('conference', 'manage')) Caps.conferenceRoom,
     if (can('sos', 'manage')) Caps.sosAdmin,
     if (can('notice', 'publish')) Caps.notices,
-    if (can('exam_seat', 'upload')) Caps.examSeatsAdmin,
+    // NO separate seat-plan entry. `exam_seat:upload` already yields
+    // Caps.uploadRoutine three lines above, and the seat plan is one of the
+    // kinds inside it. Listing both put the same screen in the menu twice
+    // under two names.
     // Four different jobs, one screen. Manage Users is where work is
     // distributed, signups are approved, CR requests are decided and roles are
     // set; the router admits the same four, and the screen shows only the tabs
@@ -376,7 +379,7 @@ List<AppCapability> capabilitiesFor({
   const adminTools = [
     Caps.uploadRoutine, Caps.courseOfferingsAdmin, Caps.hallAdmin,
     Caps.libraryAdmin, Caps.deptChatAdmin, Caps.faculties, Caps.departments,
-    Caps.notices, Caps.examSeatsAdmin, Caps.sosAdmin,
+    Caps.notices, Caps.sosAdmin,
   ];
   const superAdminTools = [
     Caps.manageUsers, Caps.manageClubs, Caps.conferenceRoomsAdmin,
@@ -416,7 +419,7 @@ List<AppCapability> capabilitiesFor({
 
     case 'exam_controller':
       return withExtras([
-        ...common, Caps.examSeatsAdmin, Caps.notices, Caps.feedback,
+        ...common, Caps.uploadRoutine, Caps.notices, Caps.feedback,
       ]);
 
     default: // student, and anyone whose profile has not resolved yet

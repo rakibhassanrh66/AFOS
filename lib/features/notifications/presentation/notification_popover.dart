@@ -19,6 +19,32 @@ import '../../../core/layout/nav_insets.dart';
 /// "Notifications" entry in the slide menu remains the full-window view.
 Future<void> showNotificationPopover(BuildContext context) {
   final reduceMotion = MediaQuery.of(context).disableAnimations;
+
+  // WHERE THE BELL ACTUALLY IS, measured from the button's own box.
+  //
+  // This used to be a hardcoded `Alignment.topRight` with `top: 64, end: 12`,
+  // which is only correct when the bell is at the top-right of the SCREEN --
+  // true on a phone, false on the web. There the bell sits at the right edge
+  // of the page header inside a content area that starts after a 248px
+  // sidebar, so at 1440px the bell was at x=1065 while the tray was pinned to
+  // x=1428: the panel hung 360px to the right of the thing that opened it,
+  // with the bell at its far top-left corner rather than above it.
+  //
+  // `context` here is the IconButton's own context (see top_app_bar.dart), so
+  // the anchor needs no new parameter and no GlobalKey.
+  // GLOBAL coordinates, with no `ancestor:`. Measuring against the enclosing
+  // Overlay was wrong and moved the panel the other way by ~260px: on web that
+  // overlay begins after the 248px sidebar, so the rect came back in the
+  // content area's space while `MediaQuery.size` below is the whole window.
+  // Two coordinate spaces, one subtraction, panel in the wrong place again.
+  // showGeneralDialog uses the ROOT navigator, so the dialog is laid out in
+  // full-screen space and the anchor has to be measured the same way.
+  final box = context.findRenderObject() as RenderBox?;
+  Rect? anchor;
+  if (box != null && box.hasSize) {
+    anchor = box.localToGlobal(Offset.zero) & box.size;
+  }
+
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -31,20 +57,34 @@ Future<void> showNotificationPopover(BuildContext context) {
       final width = size.width < 420 ? size.width - 24.0 : 380.0;
       final maxHeight =
           (size.height * 0.66).clamp(280.0, 520.0).toDouble();
+
+      // Right edge of the panel lines up with the right edge of the bell, so
+      // the tray hangs directly beneath it. Falls back to the old constants
+      // when the anchor cannot be measured, which is what a test with no
+      // overlay sees.
+      var top = 64.0;
+      var right = 12.0;
+      if (anchor != null) {
+        top = anchor.bottom + 8;
+        // Never let it run off either edge: 12px minimum gutter on the right,
+        // and never so far right that the panel's left edge leaves the screen.
+        final maxRight = size.width - width - 12;
+        right = size.width - anchor.right;
+        right = maxRight < 12 ? 12.0 : right.clamp(12.0, maxRight).toDouble();
+      }
+
       return SafeArea(
-        child: Align(
-          alignment: Alignment.topRight,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.only(top: 64, end: 12),
-            child: SizedBox(
-              width: width,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxHeight),
-                child: const _NotificationPopover(),
-              ),
+        child: Stack(children: [
+          Positioned(
+            top: top,
+            right: right,
+            width: width,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              child: const _NotificationPopover(),
             ),
           ),
-        ),
+        ]),
       );
     },
     transitionBuilder: (ctx, anim, _, child) {
