@@ -25,6 +25,7 @@ import '../../transport/data/transport_excel_parser.dart';
 import '../../transport/data/transport_import_service.dart';
 import '../../transport/data/transport_pdf_parser.dart';
 import '../../transport/presentation/transport_import_preview_screen.dart';
+import '../../uploads/data/upload_batch.dart';
 
 import '../../../core/layout/nav_insets.dart';
 /// PDFs are parsed to text lines right here on-device (Syncfusion's PDF
@@ -175,11 +176,21 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       return;
     }
     setState(() { p.uploading = true; p.result = null; p.error = null; });
+    String? batchId;
     try {
       final jwt = SupabaseConfig.jwt;
       const url = '${SupabaseConfig.url}/functions/v1/parse-routine';
       final isPdf = p.file.extension?.toLowerCase() == 'pdf';
       final headers = {'Authorization': 'Bearer $jwt', 'apikey': SupabaseConfig.publishableKey};
+
+      // Opened before the call so the edge function can stamp every row it
+      // writes. The insert happens server-side here, which is exactly why the
+      // id has to travel with the request rather than be applied afterwards.
+      batchId = await UploadBatchService.open(
+        kind: p.mode == 'exam_routine' ? 'exam_routine' : 'class_routine',
+        sourceFile: p.file.name,
+        department: _selectedDept?.code,
+      );
 
       final bytes = await _fileBytes(p.file);
       final Response res;
@@ -189,11 +200,13 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
           throw 'Could not read any text from this PDF — it may be a scanned image rather than a text PDF.';
         }
         res = await Dio().post(url,
-            data: {'type': p.mode, 'lines': lines, if (_selectedDept != null) 'department': _selectedDept!.code},
+            data: {'type': p.mode, 'lines': lines, 'upload_batch_id': batchId,
+                   if (_selectedDept != null) 'department': _selectedDept!.code},
             options: Options(headers: {...headers, 'Content-Type': 'application/json'}));
       } else {
         final formData = FormData.fromMap({
           'type': p.mode,
+          'upload_batch_id': batchId,
           if (_selectedDept != null) 'department': _selectedDept!.code,
           'file': MultipartFile.fromBytes(bytes, filename: p.file.name),
         });
@@ -207,6 +220,12 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       };
       final removed = res.data["slotsRemoved"] ?? 0;
       final removedNote = removed > 0 ? ' $removed obsolete $noun cleared.' : '';
+      await UploadBatchService.finalize(batchId, summary: {
+        'inserted': res.data['slotsInserted'] ?? 0,
+        'removed': removed,
+        'parsed': res.data['totalParsed'] ?? 0,
+        'mode': p.mode,
+      });
       setState(() {
         p.result = '${res.data["slotsInserted"]} $noun loaded.$removedNote';
         p.resultWarning = false;
