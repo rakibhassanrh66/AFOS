@@ -3153,3 +3153,62 @@ release APK builds after `flutter clean` (the earlier failure was a corrupt
   Owner has parked this deliberately; the teacher accounts are test accounts.
 - Student intake term and ID-card join date have no columns yet; plan written
   at `docs/superpowers/plans/2026-08-22-mandatory-profile-completion.md`.
+
+---
+
+## Phase B — the directory becomes a place per kind of person · 2026-08-22
+
+The owner asked for grouped sections rather than one flat list, with a place
+per role, each grouped the way that kind of person is actually organised:
+students by intake term then batch, teachers by department then join year,
+staff by sector then join year.
+
+### The data had to exist first
+
+Phase A's columns (`admission_season`, `admission_year`, `joined_on`) are what
+this groups on, which is why it was correctly blocked until they existed.
+Measured before building: `staff.category` IS populated, `department_id` IS
+populated, and `joining_date` was NULL for all six teachers and staff. So the
+join-year level renders honestly as "Join year not set" rather than being
+dropped — hiding it would hide exactly the people who still need chasing.
+
+### Counts that cannot disagree with rows
+
+`admin_user_groups()` returns the headings and counts; `admin_search_users()`
+returns the rows for one opened group, taking the SAME group keys. A header
+claiming 40 above 50 rows is worse than no header. Verified per group: every
+claimed count equalled the rows returned, including the `unset` sentinel path
+that gathers people with no intake term.
+
+Rows load per group, on expand. Opening one intake never downloads the rest —
+which is the entire point of grouping a directory expected to hold thousands.
+
+### The search box that filtered but looked empty
+
+Found in the browser, and probably a large part of what "searching nothing
+works properly" felt like. The search `TextField` had no controller, and the
+debounced reload sets `_loading = true`, which replaced the WHOLE TabBarView —
+search box included — with a skeleton. The field was destroyed and rebuilt on
+every keystroke: the list filtered correctly on "MSK" while the box you typed
+into rendered its placeholder. You could not see, correct, or clear your own
+query.
+
+Two fixes: the field owns a `TextEditingController`, and the full-screen
+skeleton is now the FIRST load's alone rather than flashing on every keystroke.
+
+### Approval queue
+
+Grouped by role under the same section headings, sharing one
+`GroupSectionHeader` so the queue and the directory read as one system.
+Grouped in memory, not on the server — it is a queue and is meant to stay
+short, unlike the directory. Approve / Reject / Delete are untouched; each
+still follows its own grant and Reject still deletes the account outright.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **529 passing** (7 new, testing the
+real `UserGroupTree` — including that rows are NOT fetched until a group is
+opened, and that a failed fetch shows an error rather than an empty group) ·
+release web build · seen in a browser as super_admin: Summer 2023 → Batch 68
+expanding to exactly its one student, CSE → Join year not set (4), and "MSK"
+finding Masuk.
