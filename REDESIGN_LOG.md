@@ -2536,3 +2536,137 @@ by live SQL under real RLS — none of it is proven by looking.
 **STILL UNCOMMITTED.** This console and the entire identity/verification client
 remain untracked. Nothing here reaches a real user until that is committed and
 deployed.
+
+---
+
+## 2026-08-22 — The console becomes a dashboard
+
+**Files:** `lib/config/theme/chart_palette.dart` (new),
+`lib/features/web/presentation/widgets/console_grid.dart` (new),
+`lib/features/web/presentation/widgets/chart_primitives.dart` (new),
+`lib/features/web/presentation/consoles/personal_overview.dart` (new),
+`consoles/admin_overview.dart`, `consoles/role_console.dart`,
+`test/console_grid_test.dart` (new), `test/admin_overview_test.dart`,
+migrations 20260822003139 / 003949 / 004016
+
+Owner's report: "still sucks, too much scatter, some art here there";
+"there would need more graphs real data shows, patterns, circle rings";
+"all the shapes are very [random] size, no fix and proper thing";
+"need some ring type dashboard for ALL user ... animated".
+
+All four are fair, and three of them were measurable.
+
+### The scatter was real, and it had one cause
+
+Every panel sized itself. Two hand-rolled `LayoutBuilder`s each guessed an
+`Expanded(flex: 2)` / `Expanded(flex: 3)` pair, and every panel's HEIGHT was
+whatever its content came to — six exam rows made one column tall, a ring made
+its neighbour short, and the difference was dead space. Nothing aligned to
+anything because nothing had been asked to.
+
+`ConsoleGrid` replaces it: twelve columns, a 78dp row unit, spans declared per
+panel (`stat 3x1`, `small 4x2`, `medium 6x2`, `tall 4x3`, `large 6x3`,
+`wide 12x2`). Content fits the box; the box is never resized to fit content.
+Reading the spans down the build method now tells you the page layout without
+running it.
+
+Pinned by `console_grid_test.dart`, because "it looks scattered" is a geometric
+claim and deserves a geometric guarantee: four stats share one top edge and one
+height, three 4-spans end flush at 1280, a 12-span in an 800px window clamps
+instead of overflowing.
+
+### The palette had never been checked, and it failed
+
+Every chart drew itself with the UI accent colours. Run through the dataviz
+validator against the surfaces this app actually uses:
+
+    light, on #FFFFFF   3 of 4 fills below the 3:1 contrast floor
+                        (holoBlue 2.1, holoTeal 1.94, amber 2.08)
+    dark,  on #101A2D   3 of 4 outside the L 0.48-0.67 band (0.755+)
+
+An accent that reads as a 2px border is not a fill somebody compares areas of.
+`chart_palette.dart` re-steps the same four hue families per mode until the
+validator passes, and the sequential ramp took three attempts because the
+obvious pale first step sits at 1.22:1 on white — the lowest-density heatmap
+cell was invisible, so the grid looked like it had holes.
+
+    categorical light  #1B78C2 #10855A #6A56C8 #96660A   ALL CHECKS PASS
+    categorical dark   #3187C8 #1E9A69 #7460C6 #B37F1C   ALL CHECKS PASS
+    ramp light/dark    5 steps each                       ALL CHECKS PASS
+
+**Also found: the ring was tritan-fragile.** The blue and the green separate by
+ΔE ~3.4 under tritanopia — and those were exactly the Occupied/Available
+slices. They pass on deuteranopia at ~17, which is why nobody noticed. Handled
+the way the spec requires rather than by repainting: a 2px surface-coloured gap
+between fills, and the legend carries the numbers.
+
+The old `_accents[i % length]` also CYCLED, handing series 5 the same fill as
+series 1. `BarList` now folds the tail into a single "Other" instead.
+
+### "More graphs on real data" — the data was there all along
+
+Measured `pg_stat_user_tables` rather than guessing again. The biggest table in
+the project had never been on a dashboard:
+
+    schedule_slots        1854      <- the routine. Nothing read it.
+    exam_room_allocations 1632
+    transport_stops        351
+    user_notifications     279
+    clubs                   55
+
+The admin console went from 4 panels to 16, all on real counts: a day x hour
+routine-density heatmap (1854 slots), lab vs theory (844/1010), teaching load
+by batch (11 batches), busiest rooms, teachers timetabled (220), rooms in use
+(68), clubs, transport, library — beside the four that already existed.
+
+`campus_activity_facets()` does the arithmetic in Postgres and returns ~60
+numbers instead of 1854 rows, which is the same mistake nine dashboard queries
+made in this project once before.
+
+### Every role has a dashboard now
+
+Four of seven — student, teacher, staff, exam controller — had none at all.
+They landed on twelve launcher tiles and not one number. `my_campus_facets()`
+reads `auth.uid()` and takes no user id, so there is no parameter to point at
+someone else, and `PersonalOverview` renders the caller's own week as a ring.
+
+Verified as a real student, not as postgres: batch 68 section D, 10 classes,
+6 labs, 5 clubs, 3 enrolments, 3 unread, and the campus figures visible to them.
+
+**A bug the verification caught:** `my_campus_facets` v1 joined
+`club_members.profile_id`, which does not exist — the column is `member_id`.
+plpgsql does not resolve column names until the body runs, so it created
+cleanly and would have failed for every user on first load. Fixed in
+20260822004016. This is exactly why HARD RULE 1 says verify behaviourally
+rather than by reading the definition back.
+
+### Animation
+
+`ConsoleGrid` staggers its panels in on first mount through
+`AppMotion.staggerFor`, so reduced motion collapses it to zero. The reveal
+wraps the CONTENT and never the box — wrapping the box would make the grid
+reflow on every frame of its own entrance, which is the layout shift the fixed
+row unit exists to prevent. Pinned by a test.
+
+### Removed
+
+`_RoleBreakdown`, `_Bar`, `_HallOccupancy`, `_LegendDot` and the old
+`RingPainter` in `admin_overview.dart`, all superseded by
+`chart_primitives.dart`. Nothing else referenced them.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **443 passing** (36 new; 407
+unchanged) · release web build · release APK build.
+Three migrations applied, verified as a real authenticated user, and mirrored
+under the versions the remote ledger assigned.
+
+### STILL OPEN
+
+- **The console has still not been seen rendered in a browser.** Everything
+  above is proven by analyze, by tests against the real widgets at real desktop
+  sizes, by the palette validator, and by live SQL under real RLS. None of it
+  is proven by looking, and that gap needs an admin password.
+- **marks / semester_results / payment_records remain 0 rows**, so the result
+  gauge and fee panels are still unbuildable. They are the only panels from the
+  reference still missing, and they need seeded data, not effort.

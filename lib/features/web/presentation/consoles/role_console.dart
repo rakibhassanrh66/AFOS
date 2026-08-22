@@ -12,6 +12,7 @@ import '../../../../shared/models/user_model.dart';
 import '../../../../shared/widgets/shimmer_card.dart';
 import '../widgets/web_layout.dart';
 import 'admin_overview.dart';
+import 'personal_overview.dart';
 import 'work_queue.dart';
 
 /// The web home screen: what needs doing, for whoever is looking.
@@ -50,6 +51,10 @@ class _RoleConsoleState extends State<RoleConsole> {
   /// loading window — the widget is not built until [_loading] is false, so it
   /// never has to represent "still fetching".
   AdminOverviewData? _overview;
+
+  /// The dashboard everyone else gets. Null only off-web, or when nobody is
+  /// signed in.
+  PersonalOverviewData? _personal;
   bool _loading = true;
 
   @override
@@ -79,6 +84,12 @@ class _RoleConsoleState extends State<RoleConsole> {
       // firing six admin queries a phone will never display is pure cost.
       final Future<AdminOverviewData?> overview =
           kIsWeb ? AdminOverviewData.load() : Future.value(null);
+      // Fired for EVERYONE, in the same wave. An administrator's own request
+      // resolves to null inside AdminOverviewData.load() only when they lack
+      // the role; this one resolves for every signed-in person, which is the
+      // point — four of the seven roles previously got no dashboard at all.
+      final Future<PersonalOverviewData?> personal =
+          kIsWeb ? PersonalOverviewData.load() : Future.value(null);
 
       final p = await SupabaseConfig.client
           .from('profiles')
@@ -89,6 +100,7 @@ class _RoleConsoleState extends State<RoleConsole> {
       // knowing the areas would either fetch everything or fetch nothing.
       final queues = await loadWorkQueues(grants);
       final overviewData = await overview;
+      final personalData = await personal;
       if (!mounted) return;
       setState(() {
         _user = UserModel.fromJson(p);
@@ -96,6 +108,7 @@ class _RoleConsoleState extends State<RoleConsole> {
         _grants = grants;
         _queues = queues;
         _overview = overviewData;
+        _personal = personalData;
         _loading = false;
       });
     } catch (_) {
@@ -134,8 +147,14 @@ class _RoleConsoleState extends State<RoleConsole> {
         // The gate that used to sit inside AdminOverview. It belongs here:
         // this is the widget that knows the console is the desktop home, and
         // keeping it out of the child is what lets the child be tested at all.
+        // AN ADMINISTRATOR GETS THE CAMPUS CONSOLE; EVERYONE ELSE GETS THEIR
+        // OWN FIGURES. Not both: the admin set already opens with campus-wide
+        // panels, and stacking a personal grid on top of it would be two
+        // dashboards on one page rather than one designed page.
         if (kIsWeb && Responsive.isExpanded(context))
-          AdminOverview(data: _overview),
+          _overview != null
+              ? AdminOverview(data: _overview)
+              : PersonalOverview(data: _personal),
         // The granted areas come FIRST, above everything else, for everyone
         // who has any. Whatever your role is, the thing somebody specifically
         // asked you to look after outranks the general-purpose app.
