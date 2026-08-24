@@ -1971,16 +1971,16 @@ batch/section intact — the main risk in inverting the flow, now disproven.
 ### PRODUCTION BLOCKER — not optional
 
 `MAIL_FROM` is `onboarding@resend.dev`, Resend's sandbox sender, which delivers
-**only to the Resend account owner** (`user66chatgpt@gmail.com`). With it, zero
+**only to the Resend account owner** (`user66test@gmail.com`). With it, zero
 students would ever receive a code. A domain must be verified at
 resend.com/domains and `MAIL_FROM` changed before any rollout.
 
 ### Test residue to clear before launch
 
-- `auth_email_domain_allowlist` gained `user66chatgpt@gmail.com` so the sandbox
+- `auth_email_domain_allowlist` gained `user66test@gmail.com` so the sandbox
   sender's only deliverable address could register. **Remove before launch** —
   it is a bypass of the @diu.edu.bd rule.
-- Test account `user66chatgpt@gmail.com` (student, batch 63) exists in profiles.
+- Test account `user66test@gmail.com` (student, batch 63) exists in profiles.
 - A stale `qa_student@afos.test` row sits in the Code Failed queue.
 
 ---
@@ -2057,7 +2057,7 @@ one this account can reach). `flutter analyze` 0 issues, web rebuilt.
 
 ### STILL UNVERIFIED — the reset write
 
-The reset row for user66chatgpt@gmail.com remains unconsumed, 0 attempts. The
+The reset row for user66test@gmail.com remains unconsumed, 0 attempts. The
 code/token has never been supplied, so `admin.updateUserById` — the one step
 unique to password reset — has still never executed. Everything around it is
 proven; that single line is not.
