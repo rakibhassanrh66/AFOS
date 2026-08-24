@@ -290,7 +290,16 @@ void main() {
           continue;
         }
         final src = file.readAsStringSync();
-        for (final m in RegExp(r'offset:\s*(?:const\s+)?Offset\(\s*0\s*,\s*[0-9]')
+        // Scoped to an actual BoxShadow's own `offset:` -- an unqualified
+        // `offset:\s*Offset\(0,` also matches unrelated named `offset`
+        // parameters (e.g. CompositedTransformFollower's positioning
+        // offset, used to anchor a floating panel directly below a button,
+        // which has nothing to do with a light source). Widened to `[\s\S]`
+        // so a multi-line BoxShadow(...) still matches; 300 chars covers
+        // every BoxShadow in this codebase's style (color/blur/spread/offset
+        // each on their own line) with room to spare.
+        for (final m in RegExp(
+                r'BoxShadow\([\s\S]{0,300}?offset:\s*(?:const\s+)?Offset\(\s*0\s*,\s*[0-9]')
             .allMatches(src)) {
           final line = '\n'.allMatches(src.substring(0, m.start)).length + 1;
           offenders.add('${file.path}:$line');

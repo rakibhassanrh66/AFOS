@@ -213,7 +213,7 @@ class _ShellBody extends StatelessWidget {
           // 264 rather than 248: the group headings need the room, and a
           // sidebar that ellipsises "Course Offerings" is not navigation.
           body: LiquidBackdrop(child: Row(children: [
-            const SizedBox(width: 264, child: WebSidebar()),
+            const SizedBox(width: WebSidebar.railWidth, child: WebSidebar()),
             Expanded(child: Stack(children: [
               content,
               const SosGate(),
