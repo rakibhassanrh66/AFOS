@@ -14,7 +14,20 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/services/web_title.dart';
+import '../../../core/utils/responsive.dart';
 import '../../notifications/presentation/notification_popover.dart';
+import '../../web/presentation/web_sidebar.dart';
+
+/// The width `_WebPageHeader` should escape out to on desktop web: the true
+/// browser window width minus the sidebar, ignoring app_shell.dart's 1440px
+/// body-readability cap. Pure arithmetic, factored out of the widget so it's
+/// unit-testable without pumping anything -- `_WebPageHeader` never builds
+/// under a non-web `flutter test` run, since `kIsWeb` is a compile-time
+/// constant.
+double webHeaderOverflowWidth({required double windowWidth, required double railWidth}) {
+  final width = windowWidth - railWidth;
+  return width < 0 ? 0 : width;
+}
 
 class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -166,7 +179,7 @@ class _WebPageHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
-    return Container(
+    final header = Container(
       height: 84,
       padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 16, 0),
       decoration: BoxDecoration(
@@ -212,6 +225,29 @@ class _WebPageHeader extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 4),
       ]),
     );
+
+    // app_shell.dart caps and centers the ENTIRE routed screen -- this
+    // header included -- at 1440px on desktop web, for body-content
+    // readability (see the comment there). That's the right call for a
+    // scrollable list, but a page header/toolbar reads as web convention
+    // (Gmail, most SaaS apps) only when it's flush against the real browser
+    // edge, not centred with dead space beside it on a wide monitor.
+    // OverflowBox escapes just THIS header back out to the true available
+    // width -- window minus the sidebar -- without touching app_shell.dart's
+    // cap for anything else. Left-aligned so the title stays exactly where
+    // the 1440 column already put it; only the right side (actions/bell)
+    // extends outward. Same desktop test app_shell.dart uses, so the two
+    // never disagree about when this applies.
+    final isDesktop = kIsWeb && Responsive.isExpanded(context);
+    if (!isDesktop) return header;
+    return OverflowBox(
+      minWidth: 0,
+      maxWidth: webHeaderOverflowWidth(
+          windowWidth: MediaQuery.sizeOf(context).width,
+          railWidth: WebSidebar.railWidth),
+      alignment: Alignment.centerLeft,
+      child: header,
+    );
   }
 }
 
@@ -227,6 +263,12 @@ class _NotificationBell extends StatefulWidget {
 class _NotificationBellState extends State<_NotificationBell> {
   int _loadGen = 0;
   RealtimeChannel? _sub;
+  // Anchors the popover to this bell via the compositing layer tree, not
+  // BuildContext ancestry -- so it works regardless of which Navigator/Overlay
+  // the bell itself lives inside (the bell is inside the ShellRoute's nested
+  // navigator; the popover is inserted into the root Overlay). See
+  // notification_popover.dart for why this replaced manual localToGlobal math.
+  final LayerLink _bellLink = LayerLink();
 
   @override
   void initState() {
@@ -296,44 +338,47 @@ class _NotificationBellState extends State<_NotificationBell> {
 
   Widget _buildBell(BuildContext context, int unread) {
     final hasUnread = unread > 0;
-    return Stack(clipBehavior: Clip.none, children: [
-      IconButton(
-        icon: Container(width: 34, height: 34,
-            decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: (hasUnread ? AppColors.holoBlue : widget.color).withValues(alpha: 0.1)),
-            child: Icon(hasUnread ? AppIcons.notifications : Icons.notifications_none_rounded,
-                color: hasUnread ? AppColors.holoBlue : widget.color, size: 19)),
-        // The bell opens a compact floating tray on every platform; the
-        // full-window Notification Center stays reachable via the slide
-        // menu's Notifications entry (and the tray's "See all" footer).
-        onPressed: () => showNotificationPopover(context),
-      ),
-      if (hasUnread)
-        // alignment intentionally omitted -- a Positioned child that doesn't
-        // pin both opposite edges (only right+top here) sizes itself loosely
-        // rather than being stretched by the Stack, but that sizing still
-        // interacts with Container's own bounded-constraints-plus-alignment
-        // expand rule unpredictably; height:1.0 + textHeightBehavior below
-        // centers the count text without touching how this Container sizes.
-        Positioned(right: 6, top: 6, child: IgnorePointer(child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-            decoration: BoxDecoration(color: AppColors.red, shape: BoxShape.circle,
-                border: Border.all(color: AppColors.surfaceOf(context), width: 1.5)),
-            child: Text(unread > 9 ? '9+' : '$unread', textAlign: TextAlign.center,
-                textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-                style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w700)))
-            // The FIFTH perpetual animation found in this sweep, and the worst
-            // placed: the unread badge pulses forever in the app bar, so it ran
-            // on every screen in the app regardless of reduced motion. Under
-            // reduced motion the badge is simply drawn at rest — it still says
-            // the same thing, because the number is the information.
-            .animate(
-                onPlay: (c) { if (!AppMotion.isReduced(context)) c.repeat(reverse: true); })
-            .scaleXY(
-                end: AppMotion.isReduced(context) ? 1.0 : 1.15,
-                duration: AppMotion.durationOf(context, AppMotion.hero)))),
-    ]);
+    return CompositedTransformTarget(
+      link: _bellLink,
+      child: Stack(clipBehavior: Clip.none, children: [
+        IconButton(
+          icon: Container(width: 34, height: 34,
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (hasUnread ? AppColors.holoBlue : widget.color).withValues(alpha: 0.1)),
+              child: Icon(hasUnread ? AppIcons.notifications : Icons.notifications_none_rounded,
+                  color: hasUnread ? AppColors.holoBlue : widget.color, size: 19)),
+          // The bell opens a compact floating tray on every platform; the
+          // full-window Notification Center stays reachable via the slide
+          // menu's Notifications entry (and the tray's "See all" footer).
+          onPressed: () => showNotificationPopover(context, link: _bellLink),
+        ),
+        if (hasUnread)
+          // alignment intentionally omitted -- a Positioned child that doesn't
+          // pin both opposite edges (only right+top here) sizes itself loosely
+          // rather than being stretched by the Stack, but that sizing still
+          // interacts with Container's own bounded-constraints-plus-alignment
+          // expand rule unpredictably; height:1.0 + textHeightBehavior below
+          // centers the count text without touching how this Container sizes.
+          Positioned(right: 6, top: 6, child: IgnorePointer(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: BoxDecoration(color: AppColors.red, shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.surfaceOf(context), width: 1.5)),
+              child: Text(unread > 9 ? '9+' : '$unread', textAlign: TextAlign.center,
+                  textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                  style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.0, fontWeight: FontWeight.w700)))
+              // The FIFTH perpetual animation found in this sweep, and the worst
+              // placed: the unread badge pulses forever in the app bar, so it ran
+              // on every screen in the app regardless of reduced motion. Under
+              // reduced motion the badge is simply drawn at rest — it still says
+              // the same thing, because the number is the information.
+              .animate(
+                  onPlay: (c) { if (!AppMotion.isReduced(context)) c.repeat(reverse: true); })
+              .scaleXY(
+                  end: AppMotion.isReduced(context) ? 1.0 : 1.15,
+                  duration: AppMotion.durationOf(context, AppMotion.hero)))),
+      ]),
+    );
   }
 }
