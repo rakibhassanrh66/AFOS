@@ -87,6 +87,29 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+
+            // R8 code + resource shrinking. Every published APK variant was
+            // running ~3x over this project's own <28MB-per-ABI budget with
+            // this off entirely -- a bigger download means a longer install,
+            // which is a longer window for an interrupted/killed install to
+            // leave a phone in the stale-PackageInstaller-session state
+            // behind some "invalid package"/"already exists" reports.
+            //
+            // This is real risk, not a free win: R8 can silently strip a
+            // reflection-based plugin (this app ships several -- geolocator,
+            // local_auth, mobile_scanner, onesignal_flutter,
+            // flutter_background_service, record, audioplayers,
+            // webview_flutter) with zero signal from `flutter analyze` or the
+            // test suite. proguard-rules.pro keeps every one of them; a
+            // manual smoke test (login, QR scan, GPS, biometric unlock,
+            // background SOS, push) is still required before this is trusted
+            // in a tagged release -- see RELEASING.md.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
 
         // PROFILE BUILDS GET THE RELEASE KEY TOO — and this is not cosmetic.
@@ -121,6 +144,15 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Shares release's shrinking too, for the same "a profile build
+            // should behave like release" reasoning as the signing config
+            // above -- it is what actually gets installed on a real phone.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }

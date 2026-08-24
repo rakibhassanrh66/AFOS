@@ -37,6 +37,13 @@ import '../../../shared/widgets/radial_logout_menu.dart';
 class WebSidebar extends StatefulWidget {
   const WebSidebar({super.key});
 
+  /// The fixed width app_shell.dart lays this sidebar out at. Named here
+  /// (rather than left as a bare literal at each call site) so the header's
+  /// own full-bleed-width calculation in top_app_bar.dart can subtract the
+  /// same number the shell actually uses, instead of a second, driftable
+  /// copy of "264".
+  static const double railWidth = 264;
+
   @override
   State<WebSidebar> createState() => _WebSidebarState();
 }
