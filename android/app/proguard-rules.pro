@@ -21,6 +21,28 @@
 -keep class io.flutter.plugins.** { *; }
 -dontwarn io.flutter.embedding.**
 
+# --- flutter_secure_storage (Supabase session storage) ---
+#
+# THE ACTUAL FREEZE CAUSE, found live: bootstrap.dart awaits
+# Supabase.initialize() with NO try/catch -- the one unguarded await in the
+# whole startup sequence -- and that goes straight into
+# SecureSessionLocalStorage (secure_session_storage.dart), which uses this
+# plugin with `encryptedSharedPreferences: true`. Its Android build.gradle
+# depends directly on androidx.security:security-crypto AND
+# com.google.crypto.tink:tink-android -- Tink registers its crypto key
+# managers via reflection (Registry.registerKeyManager by class name), so R8
+# stripping those classes without explicit keeps is a well-documented cause
+# of EncryptedSharedPreferences hanging/throwing at init, not just failing
+# cleanly. This plugin ships no consumer proguard rules of its own (checked:
+# no proguard-rules.pro in its published package) -- these keeps are
+# required, not optional.
+-keep class com.it_nomads.fluttersecurestorage.** { *; }
+-keep class androidx.security.crypto.** { *; }
+-keep class com.google.crypto.tink.** { *; }
+-keepclassmembers class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+-dontwarn com.google.errorprone.annotations.**
+
 # --- geolocator (GPS capture: profile completion, transport, SOS) ---
 -keep class com.baseflow.geolocator.** { *; }
 
