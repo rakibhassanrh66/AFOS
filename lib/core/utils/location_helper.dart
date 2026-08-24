@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:geolocator/geolocator.dart';
 
 /// Shared location permission/capture boilerplate -- previously only
@@ -16,6 +18,10 @@ class LocationHelper {
     LocationAccuracy accuracy = LocationAccuracy.high,
   }) async {
     try {
+      // On web this always returns true regardless of the browser's actual
+      // location-services state (a documented geolocator_web limitation) --
+      // the real signal on web is the permission prompt below, not this
+      // check.
       if (!await Geolocator.isLocationServiceEnabled()) {
         onError?.call('Turn on location services to continue');
         return null;
@@ -28,8 +34,21 @@ class LocationHelper {
         onError?.call('Location permission denied');
         return null;
       }
-      return await Geolocator.getCurrentPosition(
-          locationSettings: LocationSettings(accuracy: accuracy));
+      // Browser geolocation prompts are less reliable than native: a prompt
+      // dismissed without an explicit allow/block can leave this Future
+      // pending forever on some browser/geolocator-web combinations, which
+      // otherwise left the caller's "Getting location..." button stuck
+      // permanently -- indistinguishable from the page being broken. Native
+      // platforms resolve well inside this window; the timeout only ever
+      // fires on a genuinely stuck request.
+      try {
+        return await Geolocator.getCurrentPosition(
+                locationSettings: LocationSettings(accuracy: accuracy))
+            .timeout(const Duration(seconds: 12));
+      } on TimeoutException {
+        onError?.call('Location request timed out — try again');
+        return null;
+      }
     } catch (_) {
       onError?.call('Could not get your location');
       return null;

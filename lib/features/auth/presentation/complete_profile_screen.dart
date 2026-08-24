@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -77,6 +78,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   // happens to open Transport or Settings later.
   Position? _capturedPosition;
   bool _capturingLocation = false;
+  // Web-only escape hatch: browser geolocation permission prompts are
+  // meaningfully less reliable than native (users reflexively click "Block",
+  // and some browser/geolocator-web combinations could leave the request
+  // hanging before the timeout above existed) -- and since profile_completed
+  // now fails closed, a denied/unavailable location on web used to mean
+  // permanently stuck on this screen with no way into the app at all. Native
+  // GPS stays mandatory: permission handling there is reliable, and the
+  // SOS/proximity guarantee should hold on phones. This flag is only ever
+  // settable when kIsWeb is true, so native behavior is unchanged.
+  bool _locationSkippedOnWeb = false;
   // True when this account already has a saved user_locations row from a
   // previous visit — the screen used to have no idea this had already
   // happened (only _capturedPosition, an in-memory Position object that's
@@ -260,7 +271,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (_isStaff && _selectedStaffDesignation == null) return;
     if (_division == null || _district == null || _upazila == null) return;
     if (BdGeography.isDhakaMahanagar(_division, _district, _upazila) && _thana == null) return;
-    if (_capturedPosition == null && !_hasExistingLocation) {
+    if (_capturedPosition == null &&
+        !_hasExistingLocation &&
+        !(kIsWeb && _locationSkippedOnWeb)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Confirm your current location to continue'), backgroundColor: AppColors.red));
       return;
@@ -611,15 +624,54 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           ),
                         ]),
                       )
+                    else if (kIsWeb && _locationSkippedOnWeb)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceOf(context),
+                          borderRadius: AppDepth.radius(1),
+                          border: Border.all(color: AppColors.borderOf(context)),
+                        ),
+                        child: Row(children: [
+                          Icon(Icons.info_outline_rounded, size: 18, color: textSecondary),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text('Location skipped — add it later from Transport.',
+                              style: AppTextStyles.bodyMedium.copyWith(color: textSecondary))),
+                          Flexible(
+                            child: TextButton(
+                                onPressed: _capturingLocation
+                                    ? null
+                                    : () {
+                                        setState(() => _locationSkippedOnWeb = false);
+                                        _confirmLocation();
+                                      },
+                                child: const Text('Add now', maxLines: 1)),
+                          ),
+                        ]),
+                      )
                     else
-                      OutlinedButton.icon(
-                        onPressed: _capturingLocation ? null : _confirmLocation,
-                        icon: _capturingLocation
-                            ? const SizedBox(width: 16, height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.my_location_rounded),
-                        label: Text(_capturingLocation ? 'Getting location…' : 'Confirm my location'),
-                      ),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        OutlinedButton.icon(
+                          onPressed: _capturingLocation ? null : _confirmLocation,
+                          icon: _capturingLocation
+                              ? const SizedBox(width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.my_location_rounded),
+                          label: Text(_capturingLocation ? 'Getting location…' : 'Confirm my location'),
+                        ),
+                        // Web only -- see the field's doc comment. Native GPS
+                        // permission handling is reliable enough to stay a
+                        // hard requirement; browser prompts are not.
+                        if (kIsWeb) ...[
+                          const SizedBox(height: 4),
+                          TextButton(
+                            onPressed: _capturingLocation
+                                ? null
+                                : () => setState(() => _locationSkippedOnWeb = true),
+                            child: const Text('Skip for now'),
+                          ),
+                        ],
+                      ]),
                     const SizedBox(height: 24),
                     AfosButton(label: 'Save & Continue', loading: _saving, onTap: _save),
                   ])),

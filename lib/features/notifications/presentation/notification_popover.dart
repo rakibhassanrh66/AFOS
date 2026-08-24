@@ -17,94 +17,134 @@ import '../../../core/layout/nav_insets.dart';
 /// more: tapping the bell should feel like peeking at a small scrollable
 /// tray (identical behavior on web, Android, and iOS), while the
 /// "Notifications" entry in the slide menu remains the full-window view.
-Future<void> showNotificationPopover(BuildContext context) {
-  final reduceMotion = MediaQuery.of(context).disableAnimations;
+///
+/// ANCHORING: this used to be a hardcoded `Alignment.topRight` with `top: 64,
+/// end: 12` (correct on a phone, wrong on web where the bell sits inside a
+/// sidebar-offset content column), then a manual `localToGlobal` measurement
+/// fed into `showGeneralDialog` (correct on web, but wrapped in a `SafeArea`
+/// that double-counted the phone status-bar inset against already-global
+/// coordinates, breaking the app). Both were hand-rolled coordinate math
+/// across two different Navigators (the bell lives inside the ShellRoute's
+/// nested navigator; the tray needs to render above everything, in the root
+/// one) -- exactly the kind of thing that keeps regressing.
+///
+/// `CompositedTransformTarget`/`Follower` is Flutter's purpose-built answer
+/// to "float this over that widget" (the same mechanism `PopupMenuButton`
+/// uses): the two communicate through the compositing layer tree, not
+/// BuildContext ancestry or manual global-coordinate math, so it does not
+/// matter that the target and the follower live under different Navigators.
+/// No SafeArea interaction, no ancestor mismatch -- structurally immune to
+/// the last two regressions.
+void showNotificationPopover(BuildContext context, {required LayerLink link}) {
+  final overlay = Navigator.of(context, rootNavigator: true).overlay!;
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _PopoverOverlay(
+      link: link,
+      onClose: () => entry.remove(),
+    ),
+  );
+  overlay.insert(entry);
+}
 
-  // WHERE THE BELL ACTUALLY IS, measured from the button's own box.
-  //
-  // This used to be a hardcoded `Alignment.topRight` with `top: 64, end: 12`,
-  // which is only correct when the bell is at the top-right of the SCREEN --
-  // true on a phone, false on the web. There the bell sits at the right edge
-  // of the page header inside a content area that starts after a 248px
-  // sidebar, so at 1440px the bell was at x=1065 while the tray was pinned to
-  // x=1428: the panel hung 360px to the right of the thing that opened it,
-  // with the bell at its far top-left corner rather than above it.
-  //
-  // `context` here is the IconButton's own context (see top_app_bar.dart), so
-  // the anchor needs no new parameter and no GlobalKey.
-  // GLOBAL coordinates, with no `ancestor:`. Measuring against the enclosing
-  // Overlay was wrong and moved the panel the other way by ~260px: on web that
-  // overlay begins after the 248px sidebar, so the rect came back in the
-  // content area's space while `MediaQuery.size` below is the whole window.
-  // Two coordinate spaces, one subtraction, panel in the wrong place again.
-  // showGeneralDialog uses the ROOT navigator, so the dialog is laid out in
-  // full-screen space and the anchor has to be measured the same way.
-  final box = context.findRenderObject() as RenderBox?;
-  Rect? anchor;
-  if (box != null && box.hasSize) {
-    anchor = box.localToGlobal(Offset.zero) & box.size;
+class _PopoverOverlay extends StatefulWidget {
+  final LayerLink link;
+  final VoidCallback onClose;
+  const _PopoverOverlay({required this.link, required this.onClose});
+
+  @override
+  State<_PopoverOverlay> createState() => _PopoverOverlayState();
+}
+
+class _PopoverOverlayState extends State<_PopoverOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final CurvedAnimation _curved;
+  bool _closing = false;
+
+  bool get _reduceMotion => MediaQuery.of(context).disableAnimations;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        vsync: this, duration: LiquidGlass.entranceDuration);
+    _curved = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    if (_reduceMotion) {
+      _controller.value = 1;
+    } else {
+      _controller.forward();
+    }
   }
 
-  return showGeneralDialog(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Dismiss notifications',
-    barrierColor: Colors.black.withValues(alpha: 0.25),
-    transitionDuration:
-        reduceMotion ? Duration.zero : LiquidGlass.entranceDuration,
-    pageBuilder: (dialogCtx, _, __) {
-      final size = MediaQuery.of(dialogCtx).size;
-      final width = size.width < 420 ? size.width - 24.0 : 380.0;
-      final maxHeight =
-          (size.height * 0.66).clamp(280.0, 520.0).toDouble();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
-      // Right edge of the panel lines up with the right edge of the bell, so
-      // the tray hangs directly beneath it. Falls back to the old constants
-      // when the anchor cannot be measured, which is what a test with no
-      // overlay sees.
-      var top = 64.0;
-      var right = 12.0;
-      if (anchor != null) {
-        top = anchor.bottom + 8;
-        // Never let it run off either edge: 12px minimum gutter on the right,
-        // and never so far right that the panel's left edge leaves the screen.
-        final maxRight = size.width - width - 12;
-        right = size.width - anchor.right;
-        right = maxRight < 12 ? 12.0 : right.clamp(12.0, maxRight).toDouble();
-      }
+  // Animates out, then actually removes the entry -- yanking it mid-fade
+  // would cut the exit transition off on the last frame.
+  Future<void> _close() async {
+    if (_closing) return;
+    _closing = true;
+    if (!_reduceMotion) {
+      await _controller.reverse();
+    }
+    widget.onClose();
+  }
 
-      return SafeArea(
-        child: Stack(children: [
-          Positioned(
-            top: top,
-            right: right,
-            width: width,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxHeight),
-              child: const _NotificationPopover(),
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = size.width < 420 ? size.width - 24.0 : 380.0;
+    final maxHeight = (size.height * 0.66).clamp(280.0, 520.0).toDouble();
+
+    return Stack(children: [
+      // Full-screen transparent barrier -- tap outside the panel to dismiss,
+      // same as showGeneralDialog's old barrierDismissible.
+      Positioned.fill(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _close,
+          child: const SizedBox.expand(),
+        ),
+      ),
+      CompositedTransformFollower(
+        link: widget.link,
+        targetAnchor: Alignment.bottomRight,
+        followerAnchor: Alignment.topRight,
+        offset: const Offset(0, 8),
+        // No SafeArea here: unlike the old global-coordinate Positioned, this
+        // panel's screen position is never computed by hand -- it's always
+        // anchored just below the bell, which already sits well clear of any
+        // status bar or notch as part of the app's own chrome. A SafeArea
+        // would only pad the panel's own content by the device's constant
+        // top/bottom insets regardless of where it actually renders, wasting
+        // list space for no positional benefit.
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
+          child: FadeTransition(
+            opacity: _curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1)
+                  .animate(_curved),
+              alignment: Alignment.topRight,
+              child: SizedBox(
+                width: width,
+                child: _NotificationPopover(onClose: _close),
+              ),
             ),
           ),
-        ]),
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      if (reduceMotion) return child;
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOut);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1)
-              .animate(curved),
-          alignment: Alignment.topRight,
-          child: child,
         ),
-      );
-    },
-  );
+      ),
+    ]);
+  }
 }
 
 class _NotificationPopover extends StatefulWidget {
-  const _NotificationPopover();
+  final VoidCallback onClose;
+  const _NotificationPopover({required this.onClose});
   @override
   State<_NotificationPopover> createState() => _NotificationPopoverState();
 }
@@ -175,7 +215,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
     } catch (_) {}
     if (!mounted) return;
     final route = n['deep_link_route'] as String?;
-    Navigator.of(context).pop();
+    widget.onClose();
     if (route != null && route.isNotEmpty) {
       // ignore: use_build_context_synchronously
       GoRouter.of(context).push(route);
@@ -377,7 +417,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
           Divider(height: 1, color: glass.glassBorder),
           InkWell(
             onTap: () {
-              Navigator.of(context).pop();
+              widget.onClose();
               GoRouter.of(context).push('/notifications');
             },
             child: Padding(
