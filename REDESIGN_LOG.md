@@ -3270,3 +3270,113 @@ cannot reach the Uploads hub, and would not look for it there.
 `flutter analyze` 0 issues · `flutter test` **534 passing** · release web and
 release APK build · seen in a browser at 1440px and at 390px, before and after
 each fix.
+
+---
+
+## Phase A — a real emergency contact, and a real face · 2026-08-30
+
+Two gaps found while auditing the auth/approval flow against what the owner
+had asked for months ago: `emergency_contact` was never checked against the
+user's own `phone` (a self-referential "emergency contact" was accepted as
+complete), and `AvatarPicker` was entirely optional — no deadline, no review,
+nothing stopping an empty or joke picture from standing in for a real one.
+
+### The design
+
+Both requirements were folded into the EXISTING `profile_is_complete()` gate
+(`20260822105453`) rather than building a second one — the router already
+redirects anyone with `profile_completed = false` to `/complete-profile`, so
+extending that one function reuses the enforcement for free.
+
+- **Emergency contact** must differ from the user's own phone, compared on
+  the **last 10 digits** (not the whole digit string) so a Bangladeshi
+  `+880` country code and a local leading-`0` number are recognised as the
+  same subscriber — found by the Dart mirror's own test, which caught that a
+  naive full-digit comparison does NOT treat `'+880 1712-345678'` and
+  `'01712345678'` as equal.
+- **A photo is required within 48 hours of `verified_at`** (a new column,
+  stamped the instant `is_verified` first becomes true — the true first
+  moment an account can do anything). Compliant while inside the grace
+  window, or already engaged (`avatar_review_status` = `pending` or
+  `approved`). Only "never uploaded" or "rejected and never resubmitted"
+  blocks once the deadline passes. `avatar_url` keeps its existing meaning
+  everywhere it is already read (~15 call sites) — a new submission lands in
+  `avatar_pending_url` and is only copied over on admin approval.
+- **A silent user still needs to be caught.** The trigger only re-fires on a
+  write; `reconcile_avatar_deadlines()` runs every 15 minutes via pg_cron
+  (same pattern as `expire-club-messages`/`expire-empty-room-requests`) and
+  does a no-op touch on anyone whose deadline passed with no compliant photo.
+
+### The bypass that had to be closed
+
+Routing the upload through a new `my_submit_avatar()` RPC does nothing if a
+client can still call `.update({'avatar_url': ...})` directly — RLS governs
+rows, not which columns a self-edit may touch, and this project already had
+one column-level hole exactly like this (`role`/`is_verified`, closed
+2026-07-04 by `protect_profile_privileged_columns()`). Extended that same
+trigger rather than adding a second one: a self-edit may now set
+`avatar_review_status` only to `none`/`pending`, may null out its own
+`avatar_url` (removing an already-approved photo stays self-service), and can
+never touch `avatar_reviewed_by`/`avatar_reviewed_at`/`verified_at` or set
+`avatar_url` to anything new directly. Verified behaviourally: a direct write
+attempt now raises `P0001`; the RPC path and the self-removal path both still
+work.
+
+### What else was found and fixed live
+
+Verifying the first migration surfaced a real account already exhibiting the
+exact bug being fixed — `emergency_contact = 'Own 01533996681'` against
+`phone = '01533996681'` — still reading `profile_completed = true` because
+nothing had re-triggered the check since it was written. A follow-up re-seat
+migration (a no-op `update profiles set updated_at = updated_at`, same
+technique the original completeness migration used) recomputed every row.
+Measured before/after: 5/19 profiles complete → 1/19. That is the real blast
+radius of finally enforcing both rules — everyone newly incomplete is
+redirected to `/complete-profile` on their next navigation, per the router
+gate that already exists.
+
+### Admin review queue
+
+New "Photos" tab in Manage Users, gated by the same `_canApproveUsers`
+population as Pending/Code-Failed (no new permission introduced) — Approve /
+Reject (with an optional reason, reusing the exact reject-sheet shape
+`_rejectCr` already used) via `admin_approve_avatar`/`admin_reject_avatar`,
+both notifying the applicant on decision.
+
+### Migrations applied (all verified behaviourally, in rolled-back
+transactions, against the live project)
+
+- `20260830164152_a_face_and_a_real_emergency_contact.sql` — new columns,
+  extended `profile_is_complete()`, `my_submit_avatar`/`admin_list_pending_
+  avatars`/`admin_approve_avatar`/`admin_reject_avatar`/
+  `reconcile_avatar_deadlines`, the cron schedule.
+- `20260830164338_reseat_profiles_for_the_new_completeness_rules.sql` — the
+  one-time re-seat (5/19 → 1/19 complete, recorded above).
+- `20260830165309_normalize_bd_country_code_in_contact_check.sql` — the
+  last-10-digits fix, found by the Dart test before it ever reached a user.
+- `20260830165726_self_edit_cannot_forge_its_own_avatar_approval.sql` — the
+  direct-write bypass close.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **549 passing** (10 new: 6 in
+`profile_completeness_test.dart`, 4 in the new
+`avatar_picker_review_state_test.dart`) · every migration's remote ledger
+version confirmed to match its filename exactly · CHECK constraint, backfill
+completeness, the emergency-contact flip, the photo-deadline flip, the cron
+sweep catching a silently-stale row, the full submit→approve and
+submit→reject RPC round-trips (as the real submitting user and the real
+super_admin, by JWT claim), a non-admin's `42501` on the admin RPCs, and the
+direct-write bypass's `P0001` — all run live against the project, not just
+read back from the function definition.
+
+### STILL OPEN
+
+- Not yet seen rendered in a browser — the SQL and the Dart unit/widget
+  tests are proven live; the actual complete-profile form and the new Photos
+  tab have not been clicked through by a human yet.
+- Phase B (Manage Users rebuilt into dedicated per-role pages) is planned
+  separately and not started by this phase.
+- The Resend sandbox-mode mail delivery problem (documented in
+  `register-request/index.ts`) is unrelated to this phase and remains an
+  owner action item outside the codebase.
