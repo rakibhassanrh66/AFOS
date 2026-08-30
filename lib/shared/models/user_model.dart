@@ -3,6 +3,18 @@ class UserModel {
   final String role;
   final String? avatarUrl, phone, emergencyContact;
   final bool profileCompleted;
+
+  /// A submitted photo awaiting admin review, if any.
+  final String? avatarPendingUrl;
+
+  /// 'none' | 'pending' | 'approved' | 'rejected'.
+  final String? avatarReviewStatus;
+  final String? avatarReviewReason;
+
+  /// Stamped the instant `is_verified` first became true — anchors the 48h
+  /// mandatory-photo grace period.
+  final DateTime? verifiedAt;
+
   final Map<String, dynamic>? studentData;
   final Map<String, dynamic>? teacherData;
   final Map<String, dynamic>? staffData;
@@ -15,6 +27,7 @@ class UserModel {
     required this.id, required this.email, required this.fullName,
     required this.role, this.avatarUrl, this.phone, this.emergencyContact,
     this.profileCompleted = true,
+    this.avatarPendingUrl, this.avatarReviewStatus, this.avatarReviewReason, this.verifiedAt,
     this.studentData, this.teacherData, this.staffData,
     String? rawStudentId, String? rawDepartment, int? rawSemester,
   })  : _rawStudentId = rawStudentId,
@@ -65,6 +78,10 @@ class UserModel {
       phone: j['phone'] as String?,
       emergencyContact: j['emergency_contact'] as String?,
       profileCompleted: j['profile_completed'] as bool? ?? true,
+      avatarPendingUrl: j['avatar_pending_url'] as String?,
+      avatarReviewStatus: j['avatar_review_status'] as String?,
+      avatarReviewReason: j['avatar_review_reason'] as String?,
+      verifiedAt: j['verified_at'] != null ? DateTime.tryParse(j['verified_at'] as String) : null,
       studentData: studentData,
       teacherData: teacherData,
       staffData: staffData,
