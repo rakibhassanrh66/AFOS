@@ -55,6 +55,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Center(child: AvatarPicker(
                         avatarUrl: _user?.avatarUrl,
                         initials: _user?.initials ?? '?',
+                        pendingUrl: _user?.avatarPendingUrl,
+                        reviewStatus: _user?.avatarReviewStatus,
+                        reviewReason: _user?.avatarReviewReason,
                         onChanged: (url) => _load())),
                     const SizedBox(height: 16),
                     LabelValueRow(label: 'Name', value: _user?.fullName ?? '', icon: Icons.person_outline_rounded),

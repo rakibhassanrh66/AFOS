@@ -125,4 +125,64 @@ void main() {
       expect(isProfileComplete(<String, dynamic>{}), isFalse);
     });
   });
+
+  group('emergency contact must differ from own phone', () {
+    test('same digits, different formatting is NOT complete', () {
+      final p = base('student')
+        ..['phone'] = '01712345678'
+        ..['emergency_contact'] = '+880 1712-345678';
+      expect(isProfileComplete(p), isFalse);
+    });
+
+    test('a genuinely different number is complete', () {
+      final p = base('student')
+        ..['phone'] = '01712345678'
+        ..['emergency_contact'] = 'Someone 01898765432';
+      expect(isProfileComplete(p), isTrue);
+    });
+  });
+
+  group('the photo deadline', () {
+    Map<String, dynamic> verifiedHoursAgo(int hours, {String status = 'none'}) =>
+        base('student')
+          ..['verified_at'] =
+              DateTime(2026, 1, 10, 12).subtract(Duration(hours: hours)).toIso8601String()
+          ..['avatar_review_status'] = status;
+
+    final clock = DateTime(2026, 1, 10, 12);
+
+    test('inside the 48h grace window, no photo is still complete', () {
+      expect(
+          isProfileComplete(verifiedHoursAgo(47), now: clock), isTrue);
+    });
+
+    test('past 48h with no photo is NOT complete', () {
+      expect(
+          isProfileComplete(verifiedHoursAgo(49), now: clock), isFalse);
+    });
+
+    test('past 48h but a photo is pending review is still complete', () {
+      expect(
+          isProfileComplete(verifiedHoursAgo(49, status: 'pending'), now: clock),
+          isTrue);
+    });
+
+    test('past 48h with a rejected, never-resubmitted photo is NOT complete',
+        () {
+      expect(
+          isProfileComplete(verifiedHoursAgo(49, status: 'rejected'), now: clock),
+          isFalse);
+    });
+
+    test('past 48h with an approved photo is complete', () {
+      expect(
+          isProfileComplete(verifiedHoursAgo(49, status: 'approved'), now: clock),
+          isTrue);
+    });
+
+    test('not yet verified: the photo clock has not started', () {
+      final p = base('student')..['verified_at'] = null;
+      expect(isProfileComplete(p, now: clock), isTrue);
+    });
+  });
 }

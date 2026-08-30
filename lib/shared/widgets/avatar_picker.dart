@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../config/supabase_config.dart';
 import '../../config/theme/app_colors.dart';
+import '../../config/theme/app_text_styles.dart';
 import '../../core/haptics/app_haptics.dart';
 import '../../core/network/storage_upload_service.dart';
 import '../../core/utils/error_formatter.dart';
 import 'glass_sheet.dart';
+import 'pill_badge.dart';
 import 'supernova_loader.dart';
 
 /// Shared avatar upload/display widget — pulled out of Settings so the
@@ -16,7 +18,20 @@ class AvatarPicker extends StatefulWidget {
   final String? avatarUrl;
   final String initials;
   final ValueChanged<String?> onChanged;
-  const AvatarPicker({super.key, required this.avatarUrl, required this.initials, required this.onChanged});
+
+  /// A submitted photo awaiting admin review, if any — `profiles.avatar_pending_url`.
+  final String? pendingUrl;
+
+  /// `profiles.avatar_review_status`: 'none' | 'pending' | 'approved' | 'rejected'.
+  final String? reviewStatus;
+
+  /// Why a photo was rejected — `profiles.avatar_review_reason`.
+  final String? reviewReason;
+
+  const AvatarPicker({
+    super.key, required this.avatarUrl, required this.initials, required this.onChanged,
+    this.pendingUrl, this.reviewStatus, this.reviewReason,
+  });
 
   @override State<AvatarPicker> createState() => _AvatarPickerState();
 }
@@ -34,13 +49,16 @@ class _AvatarPickerState extends State<AvatarPicker> {
     setState(() => _saving = true);
     try {
       final url = await StorageUploadService.uploadImage(bucket: 'avatars', image: img);
-      await SupabaseConfig.client.from('profiles')
-          .update({'avatar_url': url}).eq('id', SupabaseConfig.uid!);
+      // NOT a direct write to avatar_url. Every photo goes through admin
+      // review before it becomes the live picture shown elsewhere in the
+      // app — this RPC only stages it as pending.
+      await SupabaseConfig.client.rpc('my_submit_avatar', params: {'p_url': url});
       widget.onChanged(url);
       if (mounted) {
         AppHaptics.success();
+        // Never "updated" or "approved" here — no check has happened yet.
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo updated'), backgroundColor: AppColors.green));
+          const SnackBar(content: Text('Photo submitted for review'), backgroundColor: AppColors.green));
       }
     } catch (e) {
       if (mounted) {
@@ -107,6 +125,18 @@ class _AvatarPickerState extends State<AvatarPicker> {
       ]),
       if (_saving) const Padding(padding: EdgeInsets.only(top: 8),
           child: SupernovaLoader(size: 28, color: AppColors.blue)),
+      if (!_saving && widget.reviewStatus == 'pending')
+        const Padding(padding: EdgeInsets.only(top: 8),
+            child: PillBadge(label: 'PENDING REVIEW', color: AppColors.amber)),
+      if (!_saving && widget.reviewStatus == 'rejected') ...[
+        const SizedBox(height: 8),
+        GestureDetector(onTap: _showOptions,
+            child: const PillBadge(label: 'REJECTED — TAP TO RETRY', color: AppColors.red)),
+        if ((widget.reviewReason ?? '').trim().isNotEmpty)
+          Padding(padding: const EdgeInsets.only(top: 4),
+              child: Text(widget.reviewReason!, textAlign: TextAlign.center,
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)))),
+      ],
     ]);
   }
 

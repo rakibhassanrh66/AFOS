@@ -48,6 +48,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   List<DepartmentOption> _departments = [];
   DepartmentOption? _selectedDept;
   String? _avatarUrl;
+  String? _avatarPendingUrl;
+  String? _avatarReviewStatus;
+  String? _avatarReviewReason;
   String _studentId = '';
   String _email = '';
 
@@ -186,6 +189,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             _sectionCtrl.text = section ?? '';
           } catch (_) {}
           try { _avatarUrl = p['avatar_url'] as String?; } catch (_) {}
+          try {
+            _avatarPendingUrl = p['avatar_pending_url'] as String?;
+            _avatarReviewStatus = p['avatar_review_status'] as String?;
+            _avatarReviewReason = p['avatar_review_reason'] as String?;
+          } catch (_) {}
           try { _gender = p['gender'] as String?; } catch (_) {}
           try { _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? ''; } catch (_) {}
           try { _email = p['email'] as String? ?? ''; } catch (_) {}
@@ -399,7 +407,41 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     Center(child: AvatarPicker(
                         avatarUrl: _avatarUrl,
                         initials: UserModel(id: '', email: '', fullName: _nameCtrl.text, role: 'student').initials,
-                        onChanged: (url) => setState(() => _avatarUrl = url))),
+                        pendingUrl: _avatarPendingUrl,
+                        reviewStatus: _avatarReviewStatus,
+                        reviewReason: _avatarReviewReason,
+                        // my_submit_avatar() stages the photo as pending review --
+                        // it does not become the live avatar_url yet, so this
+                        // updates the pending state, never _avatarUrl directly.
+                        onChanged: (url) => setState(() {
+                          _avatarPendingUrl = url;
+                          _avatarReviewStatus = url == null ? 'none' : 'pending';
+                          _avatarReviewReason = null;
+                        }))),
+                    const SizedBox(height: 12),
+                    // Future tense, same doctrine as the phone/address notice
+                    // below: state the requirement, never fake a check that
+                    // has not happened. A real admin looks at every photo.
+                    if (_avatarReviewStatus != 'approved')
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceOf(context),
+                          borderRadius: AppDepth.radius(1),
+                          border: Border.all(color: AppColors.borderOf(context)),
+                        ),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Icon(Icons.photo_camera_outlined, size: 16,
+                              color: AppColors.textSecondaryOf(context)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(
+                            'Upload a real, formal photo of yourself within 48 hours of '
+                            'your account being approved — an administrator reviews it '
+                            'before it appears anywhere else in AFOS.',
+                            style: AppTextStyles.labelSmall.copyWith(
+                                color: AppColors.textSecondaryOf(context)))),
+                        ]),
+                      ),
                     const SizedBox(height: 16),
                     if (_studentId.isNotEmpty) _ReadOnlyRow(label: 'Student/University ID', value: _studentId),
                     if (_email.isNotEmpty) _ReadOnlyRow(label: 'Email', value: _email),
