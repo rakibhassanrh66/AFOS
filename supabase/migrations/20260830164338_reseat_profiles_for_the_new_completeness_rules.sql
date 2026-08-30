@@ -1,0 +1,17 @@
+-- trg_profile_completeness only fires on a WRITE to profiles. The stricter
+-- rules added by 20260830164152 (emergency contact must differ from own
+-- phone; a photo required within 48h of verification) do nothing for a row
+-- nobody touches -- confirmed live: profile 58815fad-0b41-4e85-bb68-
+-- cfbb52296321 already carries emergency_contact = 'Own 01533996681' against
+-- phone = '01533996681' and still read profile_completed = true after that
+-- migration applied, because its row was never rewritten.
+--
+-- A no-op write (updated_at = updated_at) re-fires the trigger without
+-- changing any actual data, exactly the technique the original mandatory-
+-- profile-completion migration used for the same reason (Task 2 Step 7).
+--
+-- BEFORE, measured 2026-08-30: staff 1/2 complete, student 3/12, super_admin
+-- 0/1, teacher 1/4 -- 5/19 total. This is the blast radius: everyone newly
+-- incomplete after this migration is redirected to /complete-profile on
+-- their next navigation, per the router gate that already exists.
+update profiles set updated_at = updated_at;

@@ -112,6 +112,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
   /// had no way forward at all.
   List<Map<String, dynamic>> _stuck = [];
 
+  /// Photos submitted via `my_submit_avatar()` and awaiting an admin's
+  /// approve/reject — the same population and grant as Pending/Code-Failed
+  /// (`can_browse_users()`), so no new permission was introduced for this.
+  List<Map<String, dynamic>> _pendingAvatars = [];
+
   Timer? _searchDebounce;
 
   /// The search box needs a controller of its own. Without one it kept its
@@ -228,6 +233,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
         // every signup, so an always-present "Verification issues" tab that is
         // empty 99% of the time trains people to ignore it.
         if (_canApproveUsers && _stuck.isNotEmpty) 'stuck',
+        if (_canApproveUsers && _pendingAvatars.isNotEmpty) 'avatars',
         if (_canApproveCr) 'cr',
         'users', // everyone who can open this screen at all gets the directory
       ];
@@ -274,6 +280,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
     _loadViewerRole().then((_) {
       _loadPending();
       _loadStuck();
+      _loadPendingAvatars();
     });
     _load();
     _loadFacets();
@@ -563,8 +570,78 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
     }
   }
 
+  Future<void> _loadPendingAvatars() async {
+    if (!_canApproveUsers) return;
+    try {
+      final res = await SupabaseConfig.client.rpc('admin_list_pending_avatars') as List;
+      if (mounted) {
+        setState(() {
+          _pendingAvatars = res.cast<Map<String, dynamic>>();
+          _setTabCount(_visibleTabs.length);
+        });
+      }
+    } catch (_) {
+      // Same reasoning as _loadStuck: a fallback queue failing to load must
+      // not blank the screens that did load.
+    }
+  }
+
+  Future<void> _approveAvatar(Map<String, dynamic> row) async {
+    try {
+      await SupabaseConfig.client.rpc('admin_approve_avatar', params: {'p_user_id': row['id']});
+      await NotificationService.sendToUsers(
+        userIds: [row['id']],
+        title: 'Photo approved',
+        message: 'Your profile photo is now live.',
+        category: 'general',
+      );
+      AppHaptics.success();
+      await _loadPendingAvatars();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+      }
+    }
+  }
+
+  Future<void> _rejectAvatar(Map<String, dynamic> row) async {
+    final reasonCtrl = TextEditingController();
+    await showGlassModal(context,
+        builder: (sheetCtx) => SingleChildScrollView(
+            padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Reject photo', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
+              const SizedBox(height: 16),
+              AfosTextField(hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
+              const SizedBox(height: 20),
+              AfosButton(label: 'Confirm Rejection', onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.pop(sheetCtx);
+                try {
+                  await SupabaseConfig.client.rpc('admin_reject_avatar', params: {
+                    'p_user_id': row['id'],
+                    'p_reason': reasonCtrl.text.trim(),
+                  });
+                  await NotificationService.sendToUsers(
+                    userIds: [row['id']],
+                    title: 'Photo rejected',
+                    message: reasonCtrl.text.trim().isNotEmpty
+                        ? 'Your photo was not approved: ${reasonCtrl.text.trim()}'
+                        : 'Your photo was not approved. Please upload another.',
+                    category: 'general',
+                  );
+                  await _loadPendingAvatars();
+                } catch (e) {
+                  messenger.showSnackBar(
+                      SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));
+                }
+              }),
+            ])));
+  }
+
   Future<void> _refreshAll() async {
-    await Future.wait([_load(), _loadFacets(), _loadPending()]);
+    await Future.wait([_load(), _loadFacets(), _loadPending(), _loadPendingAvatars()]);
   }
 
   void _onFilterChanged() {
@@ -1281,6 +1358,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                   switch (t) {
                     'pending' => GlassTab('Pending (${_pending.length})', icon: Icons.how_to_reg_rounded),
                     'stuck' => GlassTab('Code Failed (${_stuck.length})', icon: Icons.mark_email_unread_rounded),
+                    'avatars' => GlassTab('Photos (${_pendingAvatars.length})', icon: Icons.photo_camera_outlined),
                     'cr' => GlassTab('CR Requests (${_crRequests.length})', icon: Icons.badge_rounded),
                     _ => const GlassTab('All Users', icon: Icons.people_alt_rounded),
                   },
@@ -1382,6 +1460,66 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> with TickerProvid
                             const SizedBox(width: 10),
                             Expanded(child: AfosButton(
                                 label: 'Decline', outlined: true, onTap: () => _rejectStuck(r))),
+                          ]),
+                        ]),
+                      );
+                    }),
+                ],
+                if (_canApproveUsers && _pendingAvatars.isNotEmpty) ...[
+                AdaptiveList(
+                    padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
+                    itemCount: _pendingAvatars.length + 1,
+                    itemBuilder: (ctx, i) {
+                      if (i == 0) {
+                        return SurfaceCard(
+                          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Icon(Icons.info_outline, color: AppColors.amber, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Every profile photo is checked before it goes live. Reject '
+                                'anything that is not a real, formal picture of the person.',
+                                style: AppTextStyles.bodyMedium
+                                    .copyWith(color: AppColors.textSecondaryOf(ctx)),
+                              ),
+                            ),
+                          ]),
+                        );
+                      }
+                      final r = _pendingAvatars[i - 1];
+                      return SurfaceCard(
+                        key: ValueKey(r['id']),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            CircleAvatar(radius: 24, backgroundColor: AppColors.surfaceOf(ctx),
+                                backgroundImage: (r['avatar_pending_url'] as String?)?.isNotEmpty == true
+                                    ? CachedNetworkImageProvider(r['avatar_pending_url'], maxWidth: 256, maxHeight: 256)
+                                    : null),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('${r['full_name'] ?? 'Unnamed'}',
+                                  style: AppTextStyles.titleMedium
+                                      .copyWith(color: AppColors.textPrimaryOf(ctx))),
+                              Text(roleLabel('${r['role']}'),
+                                  style: AppTextStyles.bodyMedium
+                                      .copyWith(color: AppColors.textSecondaryOf(ctx))),
+                            ])),
+                          ]),
+                          const SizedBox(height: 6),
+                          Text(
+                            r['avatar_submitted_at'] != null
+                                ? 'submitted ${AppFormatters.relativeTime(DateTime.parse('${r['avatar_submitted_at']}'))}'
+                                : 'submitted time unknown',
+                            style: AppTextStyles.labelSmall
+                                .copyWith(color: AppColors.textSecondaryOf(ctx)),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(child: AfosButton(
+                                label: 'Approve', onTap: () => _approveAvatar(r))),
+                            const SizedBox(width: 10),
+                            Expanded(child: AfosButton(
+                                label: 'Reject', outlined: true, onTap: () => _rejectAvatar(r))),
                           ]),
                         ]),
                       );
