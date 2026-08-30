@@ -10,6 +10,7 @@ import '../../features/admin/presentation/manage_course_offerings_admin_screen.d
 import '../../features/admin/presentation/activity_log_screen.dart';
 import '../../features/admin/presentation/manage_feedback_screen.dart';
 import '../../features/admin/presentation/manage_users_screen.dart';
+import '../../features/admin/presentation/user_directory_screen.dart';
 import '../../features/assignments/presentation/assignments_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
 import '../../features/attendance/presentation/my_attendance_screen.dart';
@@ -196,7 +197,10 @@ class AppRouter {
       // the same screen, and the screen shows only the tabs and controls the
       // holder can use — so admitting any one of them is correct, and refusing
       // three of them at the door would hide a tool the database allows.
-      if (loc == '/admin/users') {
+      // Broadened to /admin/users/:role (Phase B) -- a per-role directory page
+      // is reached from this same screen and needs the identical grant set,
+      // not a narrower one.
+      if (loc == '/admin/users' || loc.startsWith('/admin/users/')) {
         final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin') {
           final grants = await PermissionSession.ensureLoaded();
@@ -345,6 +349,11 @@ class AppRouter {
           GoRoute(path: '/admin/hall',    pageBuilder: (c,s) => slideRightPage(const ManageHallScreen(), s)),
           GoRoute(path: '/admin/library', pageBuilder: (c,s) => slideRightPage(const ManageLibraryScreen(), s)),
           GoRoute(path: '/admin/users',   pageBuilder: (c,s) => slideRightPage(const ManageUsersScreen(), s)),
+          // One role's own page (Phase B) -- 'all' (the "Total Users" tile)
+          // and 'management' are the two synthetic values UserDirectoryScreen
+          // has always understood alongside every real profiles.role.
+          GoRoute(path: '/admin/users/:role', pageBuilder: (c,s) =>
+              slideRightPage(UserDirectoryScreen(role: s.pathParameters['role']!), s)),
           GoRoute(path: '/admin/feedback', pageBuilder: (c,s) => slideRightPage(const ManageFeedbackScreen(), s)),
           GoRoute(path: '/admin/activity', pageBuilder: (c,s) => slideRightPage(const ActivityLogScreen(), s)),
           GoRoute(path: '/admin/clubs',   pageBuilder: (c,s) => slideRightPage(const ManageClubsScreen(), s)),
