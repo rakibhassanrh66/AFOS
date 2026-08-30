@@ -3380,3 +3380,78 @@ read back from the function definition.
 - The Resend sandbox-mode mail delivery problem (documented in
   `register-request/index.ts`) is unrelated to this phase and remains an
   owner action item outside the codebase.
+
+---
+
+## Phase B — a real page per role · 2026-08-30
+
+Confirmed by reading the live code before touching it: the "Total Users" stat
+tile had no `onTap` at all (dead), and the "All Users" tab stacked a search
+box, role chips and drill-down chips all above the list in one scrolling
+`Column` — not a blocking modal, but crowded enough on a phone that only a
+sliver was left for actual people, which is what the owner's "search and role
+picker eat the whole screen" complaint was describing.
+
+### The rebuild
+
+Tapping a role now pushes a REAL route (`/admin/users/:role` →
+`UserDirectoryScreen`) instead of filtering a shared list in place. The
+landing screen (`ManageUsersScreen`) keeps Pending / Code-Failed / Photos / CR
+Requests exactly as they were and becomes, for its last tab, a role picker —
+one row per role plus the synthetic `management` destination, each showing a
+live count and pushing its own page. "Total Users" pushes the same screen
+with no role filter (`/admin/users/all`).
+
+`UserDirectoryScreen` puts the search box in its own fixed slot, above the
+list but never sharing scroll space with it — the literal fix for the
+crowding. Below it: the grouped `UserGroupTree` accordion while browsing
+(unchanged from Phase B's earlier session), swapping to the flat paged list
+while searching. Reuses `admin_user_groups`/`admin_search_users` exactly as
+they already existed — confirmed via `pg_get_function_identity_arguments`
+that neither signature changed, so this phase needed zero migrations.
+
+### What had to move, not duplicate
+
+The Pending queue's Delete/Reject/Role-change/Manager/Permissions actions
+(~450 lines: `_confirmDelete`, `_deleteUser`, `_setRole`, `_pickRole`,
+`_toggleManager`, `_managePermissions`, `_promptToAssignAreas`,
+`_confirmAction`) are needed by BOTH the landing screen's Pending tab and
+every per-role directory screen. Duplicating that much permission-sensitive
+logic across two files was the wrong call, so it moved into a shared mixin
+(`UserAdminActions`, `widgets/user_admin_actions_mixin.dart`) both screens
+apply — Dart's per-library privacy meant the methods had to lose their
+leading underscores to cross files, so callers now read `confirmDelete(...)`
+rather than `_confirmDelete(...)`. Methods that change which rows should be
+visible (delete, role change) take an `onDone` callback instead of assuming a
+specific screen's reload method, since the landing screen and a directory
+screen refresh differently.
+
+`_UserCard` was promoted the same way, unmodified, to
+`widgets/user_card.dart` as public `UserCard` — the detail sheet (role,
+change-role button, permissions, manager toggle) is identical in both places
+because it is now literally the same class.
+
+The "In your areas" stat tile for a delegate used to count `_users.where((u)
+=> _areaCount(u) > 0)` — the currently-loaded directory PAGE, which is gone
+from the landing screen now. Replaced with a count straight off
+`grantsByUser`, which RLS already scopes to exactly what that delegate may
+see, so the number describes their own remit rather than whatever page
+happened to be in memory.
+
+### Verification
+
+`flutter analyze` 0 issues · `flutter test` **549 passing** (unchanged count
+— this phase moved and rewired existing coverage, notably
+`user_group_tree_test.dart`, which already existed from the earlier grouped-
+directory session) · release web build. `admin_search_users`'s 14-argument
+signature confirmed unchanged against the live project.
+
+### STILL OPEN
+
+- Not seen in a browser. No widget test exists in this codebase for a screen
+  that makes live Supabase calls in `initState` (confirmed by grep — none
+  do), so this follows the same convention rather than inventing new test
+  infrastructure for one screen. Needs a real click-through: role card
+  navigation, the search box staying visible while the list scrolls, the
+  previously-dead "Total Users" tile now doing something, and the Pending
+  queue's approve/reject/delete still working unchanged.
