@@ -143,7 +143,10 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
     // way to read what was picked, and it's only populated if requested here.
     final res = await FilePicker.platform.pickFiles(
         type: FileType.custom, allowedExtensions: ['pdf', 'xlsx', 'xls'], allowMultiple: true, withData: true);
-    if (res == null) return;
+    // BUG_REGISTER P1-01: setState after an awaited platform round-trip with
+    // no mounted guard. The file picker is exactly the kind of await a user
+    // can navigate away from.
+    if (!mounted || res == null) return;
     setState(() => _pending.addAll(res.files.map((f) => _PendingUpload(f))));
   }
 
@@ -226,6 +229,10 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
         'parsed': res.data['totalParsed'] ?? 0,
         'mode': p.mode,
       });
+      // BUG_REGISTER P1-01: several awaits (batch open, file read, the
+      // upload request itself) sit above this — any of them can outlast the
+      // screen if the admin navigates away mid-upload.
+      if (!mounted) return;
       setState(() {
         p.result = '${res.data["slotsInserted"]} $noun loaded.$removedNote';
         p.resultWarning = false;
@@ -233,7 +240,9 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       AppHaptics.success();
     } catch (e) {
       final data = e is DioException ? e.response?.data : null;
-      setState(() => p.error = data is Map && data['error'] != null ? data['error'].toString() : friendlyError(e));
+      if (mounted) {
+        setState(() => p.error = data is Map && data['error'] != null ? data['error'].toString() : friendlyError(e));
+      }
     } finally {
       if (mounted) setState(() => p.uploading = false);
     }

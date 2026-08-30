@@ -41,6 +41,10 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
     // requested up front here.
     final res = await FilePicker.platform.pickFiles(
         type: FileType.custom, allowedExtensions: ['pdf'], allowMultiple: true, withData: true);
+    // BUG_REGISTER P1-01: setState after an awaited platform round-trip with
+    // no mounted guard. The file picker is exactly the kind of await a user
+    // can navigate away from.
+    if (!mounted) return;
     if (res != null) setState(() { _files = res.files; _parsedRows = []; _error = null; });
   }
 
