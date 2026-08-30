@@ -73,13 +73,39 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   Future<String> _resolveDestination() async {
     final session = Supabase.instance.client.auth.currentSession;
-    if (!kIsWeb && await BiometricTokenStore.isEnabled()) {
+
+    // TIMED, NEVER UNBOUNDED. This is exactly the shape that once froze the
+    // app permanently at splash (flutter_secure_storage stripped by R8) --
+    // and confirmed live on a device with no lock-screen PIN set: Android's
+    // Keystore-backed EncryptedSharedPreferences can hang indefinitely
+    // reading a value that was never even written, rather than returning
+    // null quickly, on at least one real OEM build. One slow secure-storage
+    // read must never be able to take the whole launch down with it again --
+    // if it doesn't answer promptly, treat quick-login as "not set up" and
+    // let the user sign in normally, which is a full recovery, not a failure.
+    bool biometricEnabled = false;
+    if (!kIsWeb) {
+      try {
+        biometricEnabled = await BiometricTokenStore.isEnabled()
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      } catch (_) {
+        biometricEnabled = false;
+      }
+    }
+    if (biometricEnabled) {
       // Biometric quick-login is set up on this device — gate behind the
       // Unlock screen (the session is usually already auto-restored; Unlock
       // recovers it from secure storage otherwise).
       return '/auth/unlock';
     }
-    return session == null ? '/auth/login' : (await loadLastRoute() ?? '/home');
+    if (session == null) return '/auth/login';
+    String? last;
+    try {
+      last = await loadLastRoute().timeout(const Duration(seconds: 3), onTimeout: () => null);
+    } catch (_) {
+      last = null;
+    }
+    return last ?? '/home';
   }
 
   Future<void> _run() async {
