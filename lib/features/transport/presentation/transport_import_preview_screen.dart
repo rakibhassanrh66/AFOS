@@ -65,7 +65,9 @@ class _TransportImportPreviewScreenState extends State<TransportImportPreviewScr
       context,
       builder: (_) => _RouteEditSheet(route: route),
     );
-    if (updated == null) return;
+    // BUG_REGISTER P1-01: setState after an awaited sheet with no mounted
+    // guard. An admin can navigate away while the edit sheet is open.
+    if (!mounted || updated == null) return;
     setState(() {
       final i = _routes.indexWhere((r) => _routeKey(r) == _routeKey(route));
       if (i != -1) _routes[i] = updated;

@@ -1531,7 +1531,7 @@ class _StopsTimeline extends StatelessWidget {
   Widget _row(String name, bool isFirst, bool isLast, Color textPrimary, Color textSecondary) {
     final endpoint = isFirst || isLast;
     final nodeColor = isLast ? AppColors.holoTeal : (isFirst ? AppColors.holoBlue : textSecondary);
-    const line = Color(0x593ECF8E); // teal @ ~0.35, connector
+    final line = AppColors.holoTeal.withValues(alpha: 0.35); // connector
     return IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(width: 24, child: Column(children: [
