@@ -3455,3 +3455,125 @@ signature confirmed unchanged against the live project.
   navigation, the search box staying visible while the list scrolls, the
   previously-dead "Total Users" tile now doing something, and the Pending
   queue's approve/reject/delete still working unchanged.
+
+---
+
+## Phase C — the app never actually ran, and neither had this bug · 2026-08-31
+
+Phase A and Phase B were both verified against the live DB and 549 passing
+tests, but neither had been clicked through in a running app — flagged as
+STILL OPEN on both. First real device connected to this machine this session
+(a Motorola Edge 60 Pro over wireless ADB). Installing and launching the debug
+build to finally do that click-through surfaced a genuine, universal,
+launch-blocking defect that no amount of reading or unit testing could have
+caught.
+
+### The app was not slow at splash. It was crashing at splash.
+
+`adb logcat` on first launch: `Unhandled Exception:
+dependOnInheritedWidgetOfExactType<MediaQuery>() ... was called before
+_SplashScreenState.initState() completed`, thrown from
+`AppMotion.isReduced(context)` (`config/theme/motion.dart:134`, itself calling
+`MediaQuery.maybeDisableAnimationsOf`) via `_SplashScreenState._run()`
+(`splash_screen.dart:129`), called directly and synchronously from
+`initState()` (`splash_screen.dart:66`). Flutter forbids any inherited-widget
+lookup before an Element has finished mounting — `initState()` is too early;
+`didChangeDependencies()` is the framework's designated place for exactly this.
+The exception aborted `_run()` before it ever reached `context.go(target)`, so
+every single launch died on the "All Facilities One System" tagline screen —
+this is almost certainly what "the app stuck on splash" was describing, and it
+predates this session; it was just never seen because nothing had run the app
+on a device.
+
+**Fix** (`lib/features/splash/presentation/splash_screen.dart`): removed the
+direct `_run()` call from `initState()`; added a guarded
+`didChangeDependencies()` override that calls `_run()` exactly once. The
+context-independent `_destination = _resolveDestination()` stays in
+`initState()` unchanged — only the MediaQuery-dependent half moved, and it
+still fires before the first frame, so nothing about the arc's timing changed.
+
+**Scanned for the same mistake elsewhere**: every other `AppMotion.isReduced`/
+`durationOf`/`staggerDelay` call site (13 found) and every direct
+`MediaQuery.of/maybeOf/sizeOf/paddingOf/disableAnimationsOf` call site (22
+files) — all in `build()` or `didChangeDependencies()`. One false positive
+(`glass_bottom_nav.dart:107`, actually inside `didUpdateWidget`, which is
+safe). Splash was the only offender.
+
+**Verified live, not just read**: rebuilt the debug APK, reinstalled over the
+broken one, cleared logcat, relaunched — the app now reaches the login screen
+in ~2.7s with no exception in the log. `flutter analyze`: 0 issues.
+`flutter test`: all 549 passing (unchanged — this was never something a
+widget test would have caught, since none of them run a real `initState` →
+first-frame cycle against a real BuildOwner the way a device does).
+
+### The self-verify welcome gap
+
+Confirmed by reading `register-admin-approve/index.ts` and the Pending-tab
+`_approve()` in `manage_users_screen.dart`: both existing approval paths
+insert a `user_notifications` row telling the new user they're in. The
+self-verify path (`register-verify/index.ts`, the code-in-the-app flow that
+settles the large majority of signups — students, by default
+`auto_approve_roles`) did not. Added the same insert, gated on
+`autoApproved`, right after the existing `pending_registrations` consume —
+mirrors the established pattern exactly rather than inventing a new one.
+Deployed via `supabase functions deploy register-verify`. Not yet fired live
+(would need an actual new self-verifying signup, which the Resend sandbox
+issue below currently blocks for any address but the account owner's own).
+
+### Confirmed live, while investigating the "solid bar" complaint (already fixed in Phase B)
+
+Using the connected device's own already-authenticated `super_admin` session
+(a session that predates this work): the Phase B per-role directory
+(`/admin/users/staff`) rendered exactly as designed — fixed search bar in its
+own slot above a grouped, live-counted user tree, not stacked into the scroll.
+This is the first real confirmation of Phase B outside a widget test.
+
+**A caution, disclosed as it happened**: an exploratory swipe on the real,
+already-signed-in account's `/complete-profile` screen landed on "Save &
+Continue" and briefly navigated away before this was noticed. Re-opened the
+form immediately and confirmed via the Edit Profile screen that every field
+(`phone`, the `Mum+01986785348` emergency contact, address, department)
+matched what was already stored — nothing was altered, and the form still
+reads `profile_completed = false`, meaning that account remains incomplete
+either way. No further writes attempted; backed out with the hardware Back
+button instead of touching the form again.
+
+### Resend still sandboxed — unchanged, and out of this codebase's reach
+
+Re-confirmed by reading `register-request`, `password-reset`, and
+`_shared/mailer.ts`: every mailed code (registration AND password reset) goes
+through the same Resend call, and Resend sandbox mode rejects delivery to
+every address but the account owner's own. This is an account-level Resend
+Dashboard action (verify a sending domain), not something fixable from this
+repo — flagged to the owner directly, not attempted here.
+
+### Migrations applied
+
+None. `register-verify`'s edge-function deploy is the only backend change;
+verified by the deploy command's own success response
+(`{"functions":["register-verify"], ...}`) plus the code-level pattern match
+against the two working approval paths.
+
+### Verification
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged. Splash
+fix confirmed on a real device (Motorola Edge 60 Pro, Android 16) via
+`adb logcat` before/after. Phase B's per-role directory confirmed rendering
+correctly on the same device, live, against the real backend.
+
+### STILL OPEN
+
+- Resend sandbox mode — owner action, not code.
+- `register-verify`'s new welcome notification has not fired live yet (no
+  eligible new signup occurred this session).
+- Not investigated: whether `/complete-profile` is meant to be a hard gate or
+  a dismissible nag — the account used for verification reached other admin
+  screens while still `profile_completed = false`. Not clear if that is by
+  design (admins exempted) or a gap; flagged, not touched.
+- `password-reset`'s session-revocation-on-change behaviour (flagged
+  "verified-open" in that file's own comments, predating this session) is
+  still genuinely untested.
+- No "welcome email" exists (by design — mail is deliberately reserved for
+  proving a mailbox and recovering a password; every other notification is
+  in-app/push, per `_shared/mailer.ts`'s own documented rationale). Confirmed
+  intentional, not a gap, once the reasoning was found.

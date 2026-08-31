@@ -63,13 +63,30 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     // animation should be covering real work, and if the work outlasts the
     // animation we should be waiting on the work, not on padding.
     _destination = _resolveDestination();
-    _run();
   }
 
   /// Where to go once the arc finishes. Started in [initState] and awaited at
   /// the end of [_run], so it costs nothing unless it is slower than the
   /// animation.
   late final Future<String> _destination;
+
+  bool _runStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // _run() reads MediaQuery (via AppMotion.isReduced), which throws if
+    // touched from initState — dependOnInheritedElement() is only legal once
+    // the element has actually mounted. didChangeDependencies is the
+    // framework's designated place for that; it still fires before the first
+    // frame, so nothing here is delayed relative to before. Guarded because
+    // didChangeDependencies can fire more than once (e.g. system theme
+    // change) and _run() must only ever start the arc a single time.
+    if (!_runStarted) {
+      _runStarted = true;
+      _run();
+    }
+  }
 
   Future<String> _resolveDestination() async {
     final session = Supabase.instance.client.auth.currentSession;
