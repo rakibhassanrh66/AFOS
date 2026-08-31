@@ -3844,3 +3844,97 @@ RPC/policy.
 - Only the highest-leverage 4 files were migrated to `accentOf`; the
   remaining ~33 files with hardcoded `holoBlue`/etc. were deliberately left
   for a dedicated pass rather than a single large, harder-to-verify diff.
+
+---
+
+## Phase F — the bug inside the fix, a stale ring, and live weather · 2026-08-31
+
+Live use of Phase E's own changes immediately found two real defects in them,
+plus the weather feature this session had left blocked until now.
+
+### `GlassChip`'s selected text was never reading its own fix
+
+`fg` was computed correctly (`foregroundOn(accent)` — dark ink on a light
+accent, white on a dark one) and then the actual `Text`'s `color:` used a flat
+`Colors.white` regardless, shadowing it completely. That is the precise
+"selected text goes faded/fancy" report: a light accent (amber, sky, several
+department/batch chip colours) filled behind flat white reads as washed out.
+`fg` was already right; it just never reached the widget. One-line fix.
+
+Found the same FAMILY of bug independently in the drawer: `_MenuTile` and
+`_QuickRailTile` both coloured their ACTIVE label in `item.accent` directly —
+a module colour (vr_id's teal-green and others) used as small text is
+lower-contrast than solid ink by construction, whatever a contrast checker
+says about it in isolation. The icon tile, the fill, and the left border
+already mark "active"; the label does not also need to change colour to
+prove it. Both switched to solid `textPrimary`.
+
+### The ring that would not update, and the ring that ate its own text
+
+Two more real, reported bugs, not follow-on polish:
+
+- `MyCompletenessRing` was a 64px ring carrying `RingChart`'s fixed 24px
+  centre-figure style (correct for the web console's much larger rings it
+  was written for). At 64px with a 10px stroke there was nowhere for "100%"
+  to go but across the stroke — the literal "percentage crosses the ring
+  border" report. Now 96px / 8px stroke, with room to spare.
+- The ring's tap target pushed to `/complete-profile` and never refreshed
+  afterward. `complete_profile_screen.dart`'s save does `context.go('/home')`,
+  not a pop — which can land back on an ALREADY-MOUNTED `DashboardScreen`
+  whose `_load()` never reruns on its own, so the ring kept showing a stale
+  "1 detail left" for an account that had actually just finished. This is
+  almost certainly the exact case reported ("verdict says nothing missing,
+  ring still says one left"). Fixed at the root: the ring's `onTap` is now
+  owned by `dashboard_screen.dart`, which `await`s the push and calls `_load()`
+  again the moment that page is popped off the Navigator (a `go()` elsewhere
+  still completes that Future — it does not need to be a literal `pop`).
+- Separately, "1 detail left" never said which one. The ring now also shows
+  `incompleteReasons()`'s actual field names, not just a count — reusing the
+  exact function built for the admin Inspection screen a phase ago, so the
+  two can never describe the same account differently.
+
+### Weather + dress suggestion, built
+
+Chose Open-Meteo specifically because it needs no signup and no API key at
+all — every alternative (OpenWeatherMap included) needs a secret this repo
+could never hold per its own HARD RULE on credentials, so it was never
+actually a close call. The URL the owner pasted mid-session was Open-Meteo's
+own "select everything" request-builder output (Berlin coordinates, ~80
+variables, "equivalent to 10.4 calls" by its own admission) — not something
+to wire in as-is. Built a properly scoped request instead: `current=
+temperature_2m,weather_code,is_day` only, for the device's OWN location (the
+owner's explicit call once "per-student GPS vs. one shared campus value" was
+put to them), via `LocationHelper.getCurrentPosition()` — already-existing
+shared infrastructure (built for SOS), not a new location layer. Cached
+locally for 25 minutes via the existing `LocalCacheService` (already carries
+a `cachedAt` timestamp) so a location fix and a network call do not repeat on
+every dashboard rebuild.
+
+Dress suggestion is a RULE TABLE (temperature band × condition × optional
+gender), not a generated one — small, fixed combination, instant, free,
+correct offline once fetched. `WeatherDressCard` follows the exact same
+motion contract as `MyCompletenessRing`: one mount-in animation, real
+`AppDepth` shadow, never a perpetual loop. The owner's original "moving heat
+haze, animating rain" idea was heard, not silently dropped — building it as
+continuous idle motion on every open dashboard is exactly what "animate on
+mount or explicit action, never on rebuild" exists to prevent; said so plainly
+rather than quietly building a smaller version of a different thing.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- Not yet seen live on the device this pass — verification stopped at
+  `flutter analyze` + `flutter test`.
+- The "1 detail left but nothing named" report was traced to a real, generic
+  root cause (stale Dashboard state after `go()`) and reasons are now shown —
+  but the SPECIFIC field that was flagged on the account in question was
+  never confirmed directly (no database read was available this session), so
+  this is a strong diagnosis, not a confirmed one.
+- The "3D shadow" time/date widget is still not built.

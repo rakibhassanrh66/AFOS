@@ -100,7 +100,14 @@ class _GlassChipState extends State<GlassChip> {
               textHeightBehavior: const TextHeightBehavior(
                   applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
               style: TextStyle(
-                color: selected ? Colors.white : (_hover ? accent : fg),
+                // `fg` (computed above by luminance) was being shadowed by a
+                // flat Colors.white right here -- exactly the "selected text
+                // goes faded/fancy" bug: a light accent (amber, sky, teal)
+                // filled behind flat white reads as washed out. `fg` already
+                // answers this correctly (dark ink on a light accent, white
+                // on a dark one); it just was never actually reaching the
+                // Text widget.
+                color: selected ? fg : (_hover ? accent : fg),
                 fontSize: 12.5,
                 height: 1.0,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
