@@ -89,3 +89,85 @@ bool isProfileComplete(Map<String, dynamic> p, {DateTime? now}) {
       return _has(p['role']);
   }
 }
+
+/// Which of [isProfileComplete]'s checks [p] is actually failing, in the same
+/// order that function tests them — for the admin Inspection screen, which
+/// needs to SHOW a reason, not just a pass/fail. Never used to gate anything;
+/// [isProfileComplete] (and the database behind it) remains the one verdict
+/// that matters.
+List<String> incompleteReasons(Map<String, dynamic> p, {DateTime? now}) {
+  final role = (p['role'] ?? '').toString().trim();
+  final at = now ?? DateTime.now();
+  final reasons = <String>[];
+
+  void need(bool ok, String label) { if (!ok) reasons.add(label); }
+
+  need(_has(p['full_name']), 'Full name');
+  need(_has(p['phone']), 'Phone number');
+  need(_has(p['gender']), 'Gender');
+  need(_has(p['emergency_contact']), 'Emergency contact');
+  need(_has(p['permanent_division']), 'Permanent division');
+  need(_has(p['permanent_district']), 'Permanent district');
+  need(_has(p['permanent_upazila']), 'Permanent upazila');
+
+  if (_has(p['emergency_contact']) && _has(p['phone']) &&
+      _digits(p['emergency_contact']) == _digits(p['phone'])) {
+    reasons.add('Emergency contact is the same as their own number');
+  }
+
+  final verifiedAt = DateTime.tryParse('${p['verified_at'] ?? ''}');
+  final avatarStatus = (p['avatar_review_status'] ?? 'none').toString();
+  final photoOk = verifiedAt == null ||
+      at.difference(verifiedAt) < const Duration(hours: 48) ||
+      avatarStatus == 'pending' ||
+      avatarStatus == 'approved';
+  if (!photoOk) {
+    reasons.add(avatarStatus == 'rejected'
+        ? 'Photo was rejected and never resubmitted'
+        : 'No photo uploaded past the 48h deadline');
+  }
+
+  switch (role) {
+    case 'student':
+      need(_has(p['department_id']), 'Department');
+      need(_has(p['batch']), 'Batch');
+      need(_has(p['section']), 'Section');
+      need(_has(p['semester']), 'Semester');
+      need(_has(p['admission_season']), 'Admission season');
+      need(_has(p['admission_year']), 'Admission year');
+      need(_has(p['joined_on']), 'Join date');
+      break;
+    case 'teacher':
+      need(_has(p['department_id']), 'Department');
+      need(_has(p['designation']), 'Designation');
+      need(_has(p['joined_on']), 'Join date');
+      break;
+    case 'staff':
+      need(_has(p['designation']), 'Designation');
+      need(_has(p['joined_on']), 'Join date');
+      break;
+    default:
+      need(_has(p['role']), 'Role');
+  }
+
+  return reasons;
+}
+
+/// (fields still missing, fields required in total) for [p] — the same
+/// checks [incompleteReasons] runs, counted rather than named. Exists to draw
+/// a completion ring; what to actually SAY about a gap still comes from
+/// [incompleteReasons], and whether the account may proceed at all is still
+/// [isProfileComplete]'s call alone.
+(int missing, int total) profileCompletionCounts(Map<String, dynamic> p, {DateTime? now}) {
+  final role = (p['role'] ?? '').toString().trim();
+  // The 7 everyone-fields, the emergency-contact-distinct check, the photo
+  // check — every "everyone" clause incompleteReasons can raise.
+  const everyoneChecks = 9;
+  final roleChecks = switch (role) {
+    'student' => 7,
+    'teacher' => 3,
+    'staff' => 2,
+    _ => 1,
+  };
+  return (incompleteReasons(p, now: now).length, everyoneChecks + roleChecks);
+}
