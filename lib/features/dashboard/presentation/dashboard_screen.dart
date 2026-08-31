@@ -8,6 +8,8 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import 'widgets/exam_pulse_band.dart';
+import 'widgets/admin_insights_panel.dart';
+import '../../web/presentation/consoles/admin_overview.dart' show AdminOverviewData;
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../config/theme/spacing.dart';
@@ -68,6 +70,7 @@ class _DashboardState extends State<DashboardScreen> {
     // it in parallel and letting _load await it means one shimmer, one paint,
     // and no growth in total wait beyond the slowest of the two.
     _pulseFuture = ExamPulseData.load();
+    _insightsFuture = AdminOverviewData.load();
     _load();
     _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -108,6 +111,8 @@ class _DashboardState extends State<DashboardScreen> {
       // appears late and pushes the module grid down.
       final pulse = await (_pulseFuture ?? Future<ExamPulseData?>.value(null));
       if (mounted) setState(() => _pulse = pulse);
+      final insights = await (_insightsFuture ?? Future<AdminOverviewData?>.value(null));
+      if (mounted) setState(() => _insights = insights);
     } catch (_) {
       if (mounted) setState(() { _loading = false; _statsLoading = false; });
     }
@@ -416,6 +421,13 @@ class _DashboardState extends State<DashboardScreen> {
   ExamPulseData? _pulse;
   Future<ExamPulseData?>? _pulseFuture;
 
+  /// The admin analytics panel -- rings and bars, ported from the web
+  /// console's AdminOverview. Null for anyone AdminOverviewData.load() does
+  /// not consider admin-tier (it checks role and grants itself), so this
+  /// renders nothing at all for a student or teacher.
+  AdminOverviewData? _insights;
+  Future<AdminOverviewData?>? _insightsFuture;
+
   List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
       ? _allModules
       : _allModules.where((m) => !_studentOnlyModules.contains(m.title)).toList();
@@ -491,6 +503,10 @@ class _DashboardState extends State<DashboardScreen> {
                 ] else if (_user?.role != 'super_admin' && _featured != null) ...[
                   const SizedBox(height: 16),
                   _FeaturedCard(module: _featured!.$1, reason: _featured!.$2),
+                ],
+                if (_adminTierRoles.contains(_user?.role) && _insights != null) ...[
+                  const SizedBox(height: 24),
+                  AdminInsightsPanel(data: _insights),
                 ],
               ],
               const SizedBox(height: 24),
