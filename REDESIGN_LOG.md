@@ -3938,3 +3938,57 @@ None.
   never confirmed directly (no database read was available this session), so
   this is a strong diagnosis, not a confirmed one.
 - The "3D shadow" time/date widget is still not built.
+
+---
+
+## Phase G — the popover had the splash screen's own bug · 2026-08-31
+
+The reported "red error in the notification list" turned out not to be in the
+list at all: tapping the bell threw `dependOnInheritedWidgetOfExactType
+<MediaQuery>() ... called before _PopoverOverlayState.initState() completed`
+— visible proof that Phase C's splash-screen fix was necessary but not
+sufficient. That fix covered every call site literally reading
+`AppMotion.isReduced`/`MediaQuery.*(context)` inside an `initState()` body,
+which is what a text search can find. This bug is a DIFFERENT shape of the
+same mistake: `_PopoverOverlayState._reduceMotion` is a getter that reads
+`MediaQuery.of(context).disableAnimations`, defined once outside
+`initState`, then CALLED from inside `initState` (`if (_reduceMotion) ...`)
+— so the offending `MediaQuery` text never appears anywhere near the
+`initState` text a scan would flag. Re-swept the whole `disableAnimations`/
+`MediaQuery` surface with this in mind (8 files); the only other real
+instance was the one already fixed. `glass_bottom_nav.dart`'s own
+`MediaQuery.of(context)` is inside `didUpdateWidget`, confirmed safe again.
+
+**Fix**: identical shape to the splash-screen one — `initState` only builds
+the `AnimationController`/`CurvedAnimation` now; the reduced-motion branch
+that decides whether to jump to value 1 or animate in moved to
+`didChangeDependencies`, guarded by a `_started` flag so it only fires once.
+
+### Weather still not appearing despite "profile complete, location on"
+
+Not diagnosable from code alone — `WeatherService.current()`'s own contract
+is "never surface a failure, just show no card," which is correct for a user
+but makes a real bug indistinguishable from an expected empty state without
+runtime visibility. Instrumented every branch with a `[weather]`-tagged
+`debugPrint` (cache hit/miss, location outcome, the raw HTTP response,
+whichever exception fires) and widened the try/catch to cover the cache read
+too, which was previously unguarded ahead of the network call's own try
+block. Not a fix yet — a way to actually see which branch is firing, since
+guessing further without that would risk "fixing" a branch that was never
+the problem.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The popover fix has not been confirmed live yet (tapping the bell to check
+  requires the device, which was in the owner's own active use this pass).
+- The weather non-appearance is instrumented, not yet root-caused — next
+  step is reading logcat for the `[weather]` tag after a reload, or the
+  owner relaying what it prints.
