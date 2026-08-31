@@ -118,7 +118,10 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
         firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
     if (date == null || !mounted) return;
     final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 23, minute: 59));
-    if (time == null) return;
+    // `!mounted` here too, not just after the date picker above: this is a
+    // SECOND dialog the user can sit in, and guarding only the first await of
+    // a two-dialog flow leaves exactly the same hole it was meant to close.
+    if (time == null || !mounted) return;
     setState(() => _deadline = DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 

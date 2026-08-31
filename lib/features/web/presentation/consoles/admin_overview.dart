@@ -75,6 +75,12 @@ class AdminOverviewData {
   final Map<String, dynamic> facets;
   final List<Map<String, dynamic>> recent;
   final int stuck;
+
+  /// Verified accounts still failing `profile_is_complete()` — the same
+  /// population the Profile Inspection screen lists, and the web counterpart
+  /// of the banner the phone's Manage Users screen carries. Without it the
+  /// console had no route to that tool at all on web.
+  final int incomplete;
   final List<Map<String, dynamic>> exams;
   final int beds;
   final int occupied;
@@ -93,6 +99,7 @@ class AdminOverviewData {
     required this.facets,
     required this.recent,
     required this.stuck,
+    required this.incomplete,
     required this.exams,
     required this.beds,
     required this.occupied,
@@ -104,6 +111,7 @@ class AdminOverviewData {
       : facets = const {},
         recent = const [],
         stuck = 0,
+        incomplete = 0,
         exams = const [],
         beds = 0,
         occupied = 0,
@@ -220,6 +228,15 @@ class AdminOverviewData {
         // The campus panels. Joins the same wave rather than adding an eighth
         // round trip after it.
         SupabaseConfig.client.rpc('campus_activity_facets'),
+        // Incomplete profiles, counted server-side off the trigger-maintained
+        // `profile_completed` flag — a HEAD request like the rest, and in the
+        // same wave for the same reason. Mirrors the count behind the phone's
+        // Profile Inspection banner so the two surfaces cannot disagree.
+        SupabaseConfig.client
+            .from('profiles')
+            .count()
+            .eq('is_verified', true)
+            .eq('profile_completed', false),
       ]);
 
       final facets = results[0];
@@ -228,6 +245,7 @@ class AdminOverviewData {
         facets: facets is Map ? Map<String, dynamic>.from(facets) : const {},
         recent: (results[1] as List).cast<Map<String, dynamic>>(),
         stuck: (results[2] as List).length,
+        incomplete: (results[7] as num?)?.toInt() ?? 0,
         exams: (results[3] as List).cast<Map<String, dynamic>>(),
         beds: halls.fold<int>(
             0, (sum, h) => sum + ((h['capacity'] as num?)?.toInt() ?? 0)),
@@ -284,6 +302,7 @@ class AdminOverview extends StatelessWidget {
     // layout without running it — which is what "designed" means here.
     //
     //   3+3+3+3   figures
+    //   3         incomplete profiles (wraps onto its own line)
     //   12        routine density
     //   4+4+4     population · lab split · halls
     //   6+6       load by batch · exam schedule
@@ -329,6 +348,34 @@ class AdminOverview extends StatelessWidget {
                 ? ChartPalette.critical(context)
                 : ChartPalette.good(context),
             onTap: () => context.push('/admin/users'),
+          ),
+        ),
+        // The web counterpart of the phone's Profile Inspection banner, and
+        // the ONLY route to /admin/inspection on this platform — the console
+        // is the web dashboard, so without this tile a super admin working on
+        // a desktop had no way to reach the tool at all.
+        //
+        // This is the NINTH stat figure, and `stat` is 3 columns — "four
+        // across a full-width row" — so it cannot join the row above without
+        // making it fifteen. It wraps onto its own line instead, which the
+        // span map at the top of this method now says out loud rather than
+        // leaving the next reader to discover it on a 1600px screen. Placed
+        // here rather than in the campus figures at the bottom because this
+        // one is WORK: it is the only figure on this console that asks the
+        // viewer to go and do something about it.
+        ConsolePanel(
+          span: PanelSpan.stat,
+          child: GridFigure(
+            label: 'Incomplete profiles',
+            value: '${d.incomplete}',
+            note: d.incomplete == 0
+                ? 'everyone passes'
+                : 'missing required details',
+            icon: Icons.fact_check_rounded,
+            accent: d.incomplete > 0
+                ? ChartPalette.warning(context)
+                : ChartPalette.good(context),
+            onTap: () => context.push('/admin/inspection'),
           ),
         ),
         ConsolePanel(

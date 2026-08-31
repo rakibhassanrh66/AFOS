@@ -112,6 +112,11 @@ class _LoginBodyState extends State<_LoginBody> {
       final account = await BiometricTokenStore.byEmail(_emailCtrl.text.trim());
       final stored = account?.sessionJson;
       if (stored == null) {
+        // The `ctx.mounted` check above sits BEFORE this await. A
+        // Keystore-backed secure-storage read is the one this app's own
+        // splash-screen history documents as occasionally slow on some OEM
+        // builds, so it is long enough to outlive the screen.
+        if (!mounted) return;
         setState(() => _biometricMsg = 'Saved session expired — please enter your password');
         return;
       }
