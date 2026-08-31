@@ -107,7 +107,7 @@ class _AfosTextFieldState extends State<AfosTextField> {
         : widget.suffix;
     if (widget.trailingIcon == null) return eye;
     final trailing = IconButton(
-      icon: Icon(widget.trailingIcon, color: AppColors.holoBlue, size: 22),
+      icon: Icon(widget.trailingIcon, color: AppColors.accentOf(context), size: 22),
       tooltip: widget.trailingTooltip,
       onPressed: widget.onTrailingIconTap,
     );
@@ -129,7 +129,7 @@ class _AfosTextFieldState extends State<AfosTextField> {
         decoration: BoxDecoration(
           borderRadius: AppDepth.radius(1),
           boxShadow: _focused ? [
-            BoxShadow(color: AppColors.holoBlue.withValues(alpha: 0.22), blurRadius: 16, spreadRadius: -2),
+            BoxShadow(color: AppColors.accentOf(context).withValues(alpha: 0.22), blurRadius: 16, spreadRadius: -2),
           ] : null,
         ),
         child: TextFormField(
@@ -156,7 +156,7 @@ class _AfosTextFieldState extends State<AfosTextField> {
                   curve: AppMotion.standard,
                   scale: active ? 1.1 : 1.0,
                   child: Icon(widget.prefixIcon,
-                      color: active ? AppColors.holoBlue : AppColors.textSecondaryOf(context), size: 20))
+                      color: active ? AppColors.accentOf(context) : AppColors.textSecondaryOf(context), size: 20))
               : null,
             // Fixed-width suffix slot so a second (fingerprint) icon can sit
             // beside the eye toggle with full ≥48dp targets and no overlap.

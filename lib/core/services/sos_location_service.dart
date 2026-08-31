@@ -42,6 +42,21 @@ class SosLocationService {
       androidConfiguration: AndroidConfiguration(
         onStart: _onStart,
         autoStart: false,
+        // `autoStart: false` is NOT enough on its own: autoStartOnBoot is a
+        // SEPARATE flag and defaults to TRUE, so the plugin's BootReceiver
+        // still fired on every device boot and called startForegroundService()
+        // for this location-typed service while the app was in the background.
+        // Android 12+ forbids exactly that, and the receiver does not catch
+        // it, so the process died at boot with
+        //   RuntimeException: Unable to start receiver ...BootReceiver:
+        //   ForegroundServiceStartNotAllowedException ... mAllowStartForeground false
+        // Caught live in this device's crash buffer (2026-08-31, twice).
+        //
+        // Independently of the crash, resurrecting SOS location sharing at
+        // boot is wrong on its own terms: this service shares the user's
+        // location, and it must run only after they deliberately start it —
+        // never because the phone rebooted. start() is the only entry point.
+        autoStartOnBoot: false,
         isForegroundMode: true,
         // No custom notificationChannelId here on purpose -- passing one
         // makes the plugin skip its own createNotificationChannel() call

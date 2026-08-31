@@ -169,6 +169,21 @@ serve(async (req) => {
     await supabase.from("pending_registrations")
       .update({ consumed_at: new Date().toISOString() }).eq("id", row.id);
 
+    // The auto-approved path (student, by default) never told the new user
+    // anything — register-admin-approve and the manual Pending-tab approval
+    // both insert a "you're in" row, but the far more common instant path did
+    // not. Mirrors that exact pattern rather than inventing a second one.
+    // Non-auto-approved accounts get their notification later, from whichever
+    // approval path actually admits them.
+    if (autoApproved) {
+      await supabase.from("user_notifications").insert({
+        user_id: userId,
+        title: "Welcome to AFOS",
+        body: "Your DIU email is verified and your account is ready. Sign in to get started.",
+        category: "general",
+      }).then(() => {}, () => {});
+    }
+
     const name = String(metadata.full_name ?? row.email);
     await notifyApprovers(supabase, await resolveApprovers(supabase, userId), {
       title: autoApproved ? "New verified account" : "Account awaiting approval",

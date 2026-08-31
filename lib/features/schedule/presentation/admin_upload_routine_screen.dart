@@ -50,10 +50,19 @@ List<String> _extractPdfLines(Uint8List bytes) {
   }
 }
 
-const _modes = ['class_routine', 'exam_routine', 'transport', 'schedule'];
+// Exam routines are deliberately NOT a mode here anymore. This screen used to
+// offer one, posting to the parse-routine edge function's older line-based
+// reader — the one that silently dropped 8 of 38 exams on the real Summer
+// 2026 finals routine before ExamRoutinePdfParser was built to replace it.
+// The Uploads Hub's own "Exam Routine" card already routes to that newer,
+// coordinate-based parser at /admin/upload/exam-routine; keeping the weaker
+// path alive here meant a file named "exam_routine.pdf" (or an admin manually
+// picking the mode) silently got the worse parser with no warning a better
+// one existed. Removed rather than kept-with-a-warning: the better path is
+// one tap away from the Hub, so there is no real case for using this one.
+const _modes = ['class_routine', 'transport', 'schedule'];
 String _modeLabel(String m) => switch (m) {
       'transport' => 'Transport Routes',
-      'exam_routine' => 'Exam Routine',
       'schedule' => 'Legacy Schedule',
       _ => 'Class Routine',
     };
@@ -63,7 +72,6 @@ String _modeLabel(String m) => switch (m) {
 /// since a real filename won't always be this predictable.
 String _guessMode(String filename) {
   final n = filename.toLowerCase();
-  if (n.contains('exam')) return 'exam_routine';
   if (n.contains('transport') || n.contains('bus')) return 'transport';
   return 'class_routine';
 }
@@ -190,7 +198,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       // writes. The insert happens server-side here, which is exactly why the
       // id has to travel with the request rather than be applied afterwards.
       batchId = await UploadBatchService.open(
-        kind: p.mode == 'exam_routine' ? 'exam_routine' : 'class_routine',
+        kind: 'class_routine',
         sourceFile: p.file.name,
         department: _selectedDept?.code,
       );
@@ -218,7 +226,6 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
 
       final noun = switch (p.mode) {
         'transport' => 'transport routes',
-        'exam_routine' => 'exam entries',
         _ => 'class slots',
       };
       final removed = res.data["slotsRemoved"] ?? 0;
@@ -277,7 +284,10 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
       final result = await Navigator.of(context).push<ImportReviewResult?>(appPageRoute(
           TransportImportPreviewScreen(parsed: parsed, validation: validation)));
       if (result == null) {
-        setState(() { p.uploading = false; p.result = null; });
+        // Guarded again after the push, not only before it: the await above
+        // is an entire preview SCREEN the admin can spend minutes in, which
+        // is the longest-lived await on this page.
+        if (mounted) setState(() { p.uploading = false; p.result = null; });
         return;
       }
       final edited = ParsedTransportSchedule(
@@ -374,9 +384,10 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const FeatureHeader(
             title: 'Upload Routines & Transport',
-            subtitle: 'Select one or more PDF/Excel files at once — a class routine, exam routine, and '
-                'transport sheet can all go up together. Each file gets its own type (guessed from the '
-                'filename, override if wrong) and is parsed independently.',
+            subtitle: 'Select one or more PDF/Excel files at once — a class routine and a transport '
+                'sheet can go up together. Each file gets its own type (guessed from the filename, '
+                'override if wrong) and is parsed independently. For an exam routine, use the '
+                'dedicated Exam Routine Upload screen from the Uploads hub instead.',
             icon: Icons.upload_file_rounded,
             accent: AppColors.holoBlue,
             margin: EdgeInsetsDirectional.fromSTEB(0, 16, 0, 12),
@@ -390,7 +401,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
           else if (_isSuperAdmin) ...[
             Text('Department', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
             const SizedBox(height: 4),
-            Text('Applies to class/exam routine and legacy schedule uploads — transport is university-wide. '
+            Text('Applies to class routine and legacy schedule uploads — transport is university-wide. '
                 'As super admin you can upload on behalf of any department.',
                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
             const SizedBox(height: 8),
