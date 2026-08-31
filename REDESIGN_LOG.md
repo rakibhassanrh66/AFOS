@@ -5362,3 +5362,60 @@ None.
 - `OfflineBanner` still cannot be probed (needs an open Hive box).
 - Per-screen private widgets remain unprobeable without being made public.
 - The avatar upload remains unreproduced.
+
+---
+
+## Phase W — the admin user row, 90px off the edge at the default text size · 2026-09-01
+
+Pushed the sweep from 11 widgets to 16, into the FEATURE widgets — the ones
+carrying the least controlled strings in the app. Names, emails, weather
+conditions and completeness reasons arrive from Postgres or an API, nobody
+reviews them, and they are exactly where a row starves a title. 384 render
+checks (16 widgets x 6 viewports x 4 text scales).
+
+### `UserCard` overflowed by 90px — at 1.0x, on the main admin list
+
+The badge strip was a plain `Row`: role, then "Manager", then "4 areas".
+Badges are non-flex, so a Row lays them out first at full width and hands the
+`Expanded` department whatever is left. With three of them — an ordinary
+super_admin row — the card ran **90 pixels past the right edge on a 320dp
+phone at the DEFAULT text size.** Not an accessibility-scale edge case: the
+normal rendering, on the list an admin spends the most time in.
+
+Fixed the way this repo's own `row_starve_guard_test` names FIRST — "move the
+badge onto its own line" — and the way `JoinRequestCard` and `OfferingCard`
+already do it. Badges are now a `Wrap` on their own line, so a fourth badge
+can never re-break it, and the department and join date get a row to
+themselves where nothing competes for their space.
+
+Worth noting the pending-user variant PASSED. Only the manager/super_admin
+combination has three badges, which is why the shape survived: the common
+case was fine, and the fault only appeared for the accounts with the most
+authority.
+
+### `WeatherDressCard`, and a fix that had to be redone
+
+The temperature and the condition were both non-flex in a Row, overflowing by
+11px at a 1.6x scale. The first fix made the condition `Flexible` with an
+ellipsis — which stopped the overflow and truncated "Cloudy" to half its
+width. That is trading a visible fault for a silent one, and the silent one
+is worse: an overflow stripe tells you something is wrong, a clipped word
+just looks like the word. Re-probed, saw `STARVED "Cloudy" showing 25px of
+50px`, and replaced it with a `Wrap` so the condition drops to its own line
+exactly when it stops fitting. Both strings stay whole.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: **576 passing** (571 + 5).
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- Same three as Phase V: `OfflineBanner` needs an open Hive box, private
+  per-screen widgets cannot be reached, and the avatar upload is still
+  unreproduced.
+- `AdminInsightsPanel`, `ExamPulseBand` and `AuthBrandPanel` take whole data
+  objects rather than simple values and were not probed this pass.
