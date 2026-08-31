@@ -1,0 +1,23 @@
+-- Take EXECUTE on admin_profile_nudge_status away from `anon`.
+--
+-- 20260831180000 created this function and did
+--   revoke all on function ... from public;
+--   grant execute on function ... to authenticated;
+-- which is NOT enough. Supabase's default privileges on the public schema
+-- grant EXECUTE on every new function to `anon` and `authenticated`
+-- explicitly, and revoking from PUBLIC does not remove an explicit role
+-- grant. The live ACL after that migration read:
+--   postgres=X ; anon=X ; authenticated=X ; service_role=X
+--
+-- Caught by this repo's own `db_security` CI job
+-- (.github/scripts/check_definer_acls.py), which exists for exactly this and
+-- failed the build with "SECURITY DEFINER functions are executable by anon".
+-- The guard rail did its job on the first migration that got it wrong.
+--
+-- Not exploitable as it stood — the function's first statement is a
+-- can_browse_users() check, which is false for an anonymous caller, so the
+-- call raises 42501 before touching a row. But a SECURITY DEFINER function
+-- runs with owner privileges and bypasses RLS, so "unreachable because the
+-- guard happens to be first" is not a property worth relying on: the grant
+-- itself is the thing to remove.
+revoke all on function public.admin_profile_nudge_status(uuid[]) from public, anon;
