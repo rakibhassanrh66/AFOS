@@ -127,6 +127,36 @@ List<String> uploadKindsFor({
   ];
 }
 
+/// Batches matching an optional kind and department, both AND'd together —
+/// the same predicate the Uploads Hub's bulk-select filter chips apply.
+/// Pulled out as a pure function, the same reason `uploadKindsFor` is one:
+/// so the filter can be pinned by a test without building the screen.
+List<UploadBatch> filterUploadBatches(
+  List<UploadBatch> history, {
+  String? kind,
+  String? department,
+}) =>
+    history.where((b) {
+      if (kind != null && b.kind != kind) return false;
+      if (department != null && (b.department ?? '') != department) return false;
+      return true;
+    }).toList();
+
+/// Distinct, non-blank departments actually present in the ledger, sorted —
+/// what the Hub offers as department filter chips. Blank/null departments
+/// (uploads made before a kind captured one, or ones that never do) are
+/// deliberately excluded from the chip list: an "All departments" chip
+/// already covers them, and a chip labelled with nothing is not a filter
+/// anyone can tap.
+List<String> departmentsInBatches(List<UploadBatch> history) => history
+    .map((b) => b.department)
+    .whereType<String>()
+    .map((d) => d.trim())
+    .where((d) => d.isNotEmpty)
+    .toSet()
+    .toList()
+  ..sort();
+
 /// The client half of the upload record. Every call is a SECURITY DEFINER
 /// function: `upload_batches` has a read policy and deliberately no write
 /// policy, so there is no way to write one except through these.

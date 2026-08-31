@@ -1179,7 +1179,12 @@ class _MyRouteTabState extends State<_MyRouteTab> {
                         label: '${r['route_number']} — ${_displayRouteName(r['route_name'] as String? ?? 'Route')}',
                         value: r['id'] as String)).toList(),
                     selected: _selectedRoute);
-                if (picked != null) setState(() { _selectedRoute = picked; _autoSuggested = false; });
+                // `mounted` as well as the null check: the picker is a modal
+                // the rider sits inside, and this screen can be disposed
+                // under it (tab switch, a deep link from a notification).
+                if (picked != null && mounted) {
+                  setState(() { _selectedRoute = picked; _autoSuggested = false; });
+                }
               },
               child: Row(children: [
                 Expanded(child: Text(
