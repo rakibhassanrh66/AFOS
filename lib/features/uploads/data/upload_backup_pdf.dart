@@ -32,6 +32,21 @@ class UploadBackupPdf {
   /// Builds the PDF, stores it, records it against the batch, and opens it.
   /// Returns the storage path so the caller can say where it went.
   static Future<String> generateStoreAndOpen(UploadBatch batch) async {
+    final path = await generateAndStore(batch);
+    final url = await SupabaseConfig.client.storage
+        .from('upload-backups')
+        .createSignedUrl(path, 3600);
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    return path;
+  }
+
+  /// Same as [generateStoreAndOpen] but never opens a viewer. For a single
+  /// upload, opening the backup is the confirmation a person watches for.
+  /// For a bulk purge across many batches, launching one browser tab/viewer
+  /// per item is not a UX, it's a stack of pop-ups — the stored PDF and the
+  /// same "Download backup again" affordance the per-batch sheet already has
+  /// is the point, not the auto-open.
+  static Future<String> generateAndStore(UploadBatch batch) async {
     final data = await UploadBatchService.contents(batch.id);
     final bytes = await _build(batch, data);
 
@@ -46,11 +61,6 @@ class UploadBackupPdf {
     // Recorded only after the bytes are actually stored, so the interlock can
     // never be satisfied by a backup that failed to upload.
     await UploadBatchService.markBackup(batch.id, path);
-
-    final url = await SupabaseConfig.client.storage
-        .from('upload-backups')
-        .createSignedUrl(path, 3600);
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     return path;
   }
 
@@ -76,7 +86,7 @@ class UploadBackupPdf {
   /// what was lost.
   static const _columns = <String, List<String>>{
     'exam_room_allocations': [
-      'exam_date', 'slot_label', 'course_code', 'course_title',
+      'exam_date', 'slot_label', 'department', 'course_code', 'course_title',
       'teacher_initial', 'batch', 'section', 'room_no', 'seats',
     ],
     'exams': [

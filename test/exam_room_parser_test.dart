@@ -83,6 +83,13 @@ void main() {
       ]);
       expect(rows.map((r) => r.courseCode), everyElement('CSE321'));
     });
+
+    test('the leading Dept./Faculty column is captured, not discarded', () {
+      final rows = ExamRoomPdfParser.parsePositionedPages([
+        [...pageHead(), ...courseRow(138)],
+      ]);
+      expect(rows.single.department, 'CSE');
+    });
   });
 
   group('a table continuing over a page break', () {
@@ -110,6 +117,9 @@ void main() {
             reason: 'the continuation page lost its course');
         expect(r.courseTitle, isNotNull);
         expect(r.batch, '66');
+        expect(r.department, 'CSE',
+            reason: 'a Tier-2 row has no Dept. column of its own — it must '
+                'inherit the carried context the same way courseCode does');
       }
     });
 

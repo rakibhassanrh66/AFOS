@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/auth/permission_session.dart';
@@ -17,6 +18,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
+import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
@@ -47,10 +49,109 @@ class _UploadsHubState extends State<UploadsHubScreen> {
   bool _loading = true;
   String? _error;
 
+  // -- bulk cleanup ("release storage pressure") -----------------------------
+  //
+  // The per-batch sheet below already does backup-then-remove safely, but one
+  // batch at a time doesn't scale to "clean out last term's old uploads" —
+  // that can be dozens of rows to open individually. This adds a filtered,
+  // multi-select layer on TOP of the same two proven server calls
+  // (UploadBackupPdf.generateAndStore, UploadBatchService.revert), never a
+  // new deletion path of its own.
+  bool _selectMode = false;
+  final Set<String> _selectedIds = {};
+  String? _filterKind;
+  String? _filterDept;
+  bool _bulkBusy = false;
+  String? _bulkError;
+  String? _bulkNote;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  List<UploadBatch> get _filteredHistory =>
+      filterUploadBatches(_history, kind: _filterKind, department: _filterDept);
+
+  /// Kinds actually present in the ledger, in the same order the hub already
+  /// lists them — not every kind the person is allowed to upload, since a
+  /// filter chip for a kind with zero history rows filters to an empty list.
+  List<String> get _kindsInHistory {
+    final present = _history.map((b) => b.kind).toSet();
+    return _kinds.map((k) => k.kind).where(present.contains).toList();
+  }
+
+  List<String> get _departmentsInHistory => departmentsInBatches(_history);
+
+  void _toggleSelectMode() => setState(() {
+        _selectMode = !_selectMode;
+        _selectedIds.clear();
+        _bulkError = null;
+        _bulkNote = null;
+      });
+
+  void _toggleSelected(String id) => setState(() {
+        _selectedIds.contains(id) ? _selectedIds.remove(id) : _selectedIds.add(id);
+      });
+
+  Future<void> _bulkRemove() async {
+    final targets = _history.where((b) => _selectedIds.contains(b.id) && b.canRevert).toList();
+    if (targets.isEmpty) return;
+    final totalRows = targets.fold<int>(0, (a, b) => a + b.rowCount);
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('Remove ${targets.length} uploads?'),
+        content: Text(
+            'This deletes $totalRows rows across ${targets.length} uploads. '
+            'A backup PDF is generated and stored for each one first — the '
+            'server refuses any that fails its own backup, and those are '
+            'reported below rather than left half-done.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('Remove all')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() {
+      _bulkBusy = true;
+      _bulkError = null;
+      _bulkNote = null;
+    });
+
+    // Sequential, not Future.wait — each iteration is a backup upload plus a
+    // delete RPC against the same account; running dozens at once is exactly
+    // the kind of self-inflicted burst load a "free up storage" tool should
+    // not itself cause. One failure must not stop the rest: an admin working
+    // through a term's worth of old batches should not lose progress on item
+    // 30 because item 12 hit a network blip.
+    var removed = 0, rowsRemoved = 0;
+    final failures = <String>[];
+    for (final b in targets) {
+      try {
+        await UploadBackupPdf.generateAndStore(b);
+        final res = await UploadBatchService.revert(b.id);
+        removed++;
+        rowsRemoved += (res.summary['rowsRemoved'] as num?)?.toInt() ?? b.rowCount;
+      } catch (e) {
+        failures.add('${b.kindLabel} (${b.sourceFile ?? b.id}): ${friendlyError(e)}');
+      }
+    }
+
+    setState(() {
+      _bulkBusy = false;
+      _selectedIds.clear();
+      _selectMode = false;
+      _bulkNote = removed > 0 ? 'Removed $rowsRemoved rows across $removed upload(s).' : null;
+      _bulkError = failures.isEmpty
+          ? null
+          : '${failures.length} could not be removed:\n${failures.join('\n')}';
+    });
+    await _load();
   }
 
   Future<void> _load() async {
@@ -126,10 +227,20 @@ class _UploadsHubState extends State<UploadsHubScreen> {
   Widget build(BuildContext context) {
     final textSecondary = AppColors.textSecondaryOf(context);
     final kinds = _kinds.where((k) => k.enabled).toList();
+    final filtered = _filteredHistory;
+    final anySelectable = filtered.any((b) => b.canRevert);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Uploads'),
+      bottomNavigationBar: _selectedIds.isEmpty
+          ? null
+          : _BulkBar(
+              count: _selectedIds.length,
+              busy: _bulkBusy,
+              onClear: () => setState(_selectedIds.clear),
+              onRemove: _bulkRemove,
+            ),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.blue,
@@ -170,16 +281,73 @@ class _UploadsHubState extends State<UploadsHubScreen> {
                 for (var i = 0; i < kinds.length; i++)
                   _KindCard(kind: kinds[i], index: i),
               const SizedBox(height: 24),
-              Text('Upload history',
-                  style: AppTextStyles.titleMedium
-                      .copyWith(color: AppColors.textPrimaryOf(context))),
-              const SizedBox(height: 4),
+              Row(children: [
+                Expanded(
+                  child: Text('Upload history',
+                      style: AppTextStyles.titleMedium
+                          .copyWith(color: AppColors.textPrimaryOf(context))),
+                ),
+                if (!_loading && _history.isNotEmpty && anySelectable)
+                  TextButton(
+                    style: rowAction(),
+                    onPressed: _toggleSelectMode,
+                    child: Text(_selectMode ? 'Cancel' : 'Select',
+                        style: AppTextStyles.bodyMedium
+                            .copyWith(color: AppColors.blue, fontWeight: FontWeight.w700)),
+                  ),
+              ]),
               Text(
-                  'Who loaded what, and when. Removing an upload takes its '
-                  'backup first.',
+                  _selectMode
+                      ? 'Pick uploads to back up and remove together — useful for '
+                          'clearing out old terms\' data at once.'
+                      : 'Who loaded what, and when. Removing an upload takes its '
+                          'backup first.',
                   style:
                       AppTextStyles.labelSmall.copyWith(color: textSecondary)),
               const SizedBox(height: 12),
+              if (!_loading && _history.length > 1 && (_kindsInHistory.length > 1 || _departmentsInHistory.length > 1)) ...[
+                if (_kindsInHistory.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Wrap(spacing: 8, runSpacing: 8, children: [
+                      GlassChip(
+                          label: 'All kinds',
+                          selected: _filterKind == null,
+                          onTap: () => setState(() => _filterKind = null)),
+                      for (final k in _kindsInHistory)
+                        GlassChip(
+                            label: UploadBatch.labelFor(k),
+                            selected: _filterKind == k,
+                            onTap: () => setState(() => _filterKind = k)),
+                    ]),
+                  ),
+                if (_departmentsInHistory.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Wrap(spacing: 8, runSpacing: 8, children: [
+                      GlassChip(
+                          label: 'All departments',
+                          selected: _filterDept == null,
+                          onTap: () => setState(() => _filterDept = null)),
+                      for (final d in _departmentsInHistory)
+                        GlassChip(
+                            label: d,
+                            selected: _filterDept == d,
+                            onTap: () => setState(() => _filterDept = d)),
+                    ]),
+                  ),
+                const SizedBox(height: 8),
+              ],
+              if (_bulkNote != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_bulkNote!, style: const TextStyle(color: AppColors.green)),
+                ),
+              if (_bulkError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_bulkError!, style: const TextStyle(color: AppColors.red)),
+                ),
               if (_loading)
                 const ShimmerList()
               else if (_error != null)
@@ -191,9 +359,20 @@ class _UploadsHubState extends State<UploadsHubScreen> {
                     subtitle:
                         'Imports made from here appear in this list, with the '
                         'file, the person and the row count.')
+              else if (filtered.isEmpty)
+                const EmptyState(
+                    icon: Icons.filter_alt_off_outlined,
+                    title: 'Nothing matches this filter',
+                    subtitle: 'Try a different kind or department, or clear the filter above.')
               else
-                for (final b in _history)
-                  _HistoryRow(batch: b, onTap: () => _openDetail(b)),
+                for (final b in filtered)
+                  _HistoryRow(
+                    batch: b,
+                    onTap: () => _openDetail(b),
+                    selectMode: _selectMode,
+                    selected: _selectedIds.contains(b.id),
+                    onToggleSelected: b.canRevert ? () => _toggleSelected(b.id) : null,
+                  ),
               ],
             ),
           ],
@@ -267,7 +446,15 @@ class _KindCard extends StatelessWidget {
 class _HistoryRow extends StatelessWidget {
   final UploadBatch batch;
   final VoidCallback onTap;
-  const _HistoryRow({required this.batch, required this.onTap});
+  final bool selectMode, selected;
+  final VoidCallback? onToggleSelected;
+  const _HistoryRow({
+    required this.batch,
+    required this.onTap,
+    this.selectMode = false,
+    this.selected = false,
+    this.onToggleSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -278,13 +465,28 @@ class _HistoryRow extends StatelessWidget {
       'pending' => ('Did not finish', AppColors.amber),
       _ => ('${batch.rowCount} rows', AppColors.green),
     };
+    // In select mode a non-revertible batch (already removed, or nothing to
+    // remove) has nothing this tool can do to it — dimmed and inert rather
+    // than offering a checkbox that would fail server-side anyway.
+    final dimmed = selectMode && onToggleSelected == null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: SurfaceCard(
-        onTap: onTap,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Opacity(
+        opacity: dimmed ? 0.5 : 1,
+        child: SurfaceCard(
+          onTap: selectMode ? onToggleSelected : onTap,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
+            if (selectMode) ...[
+              Icon(
+                  selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  size: 20,
+                  color: selected
+                      ? AppColors.blue
+                      : AppColors.textSecondaryOf(context).withValues(alpha: 0.5)),
+              const SizedBox(width: 10),
+            ],
             Expanded(
               child: Text(batch.kindLabel,
                   maxLines: 1,
@@ -314,7 +516,8 @@ class _HistoryRow extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-        ]),
+          ]),
+        ),
       ),
     );
   }
@@ -485,4 +688,50 @@ class _BatchSheetState extends State<_BatchSheet> {
                       AppTextStyles.bodyMedium.copyWith(color: primary))),
         ]),
       );
+}
+
+/// The bulk-select bottom bar. Pinned like [SelectionBar] in Join Requests —
+/// a selection made scrolled far down the history list must stay actionable
+/// without scrolling back up to find a floating button.
+class _BulkBar extends StatelessWidget {
+  final int count;
+  final bool busy;
+  final VoidCallback onClear;
+  final Future<void> Function() onRemove;
+  const _BulkBar({
+    required this.count,
+    required this.busy,
+    required this.onClear,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10 + NavInsets.of(context)),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AppColors.borderOf(context), width: 0.5)),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Text('$count selected',
+              style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
+        ),
+        TextButton(
+          style: rowAction(),
+          onPressed: busy ? null : onClear,
+          child: const Text('Clear'),
+        ),
+        const SizedBox(width: 8),
+        AfosButton(
+          label: 'Back up & remove',
+          icon: Icons.delete_sweep_outlined,
+          loading: busy,
+          onTap: onRemove,
+        ),
+      ]),
+    );
+  }
 }

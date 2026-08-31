@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
+import '../../../config/theme/button_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/spacing.dart';
 import '../../../core/auth/profile_completeness.dart';
+import '../../../core/auth/role_session.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/role_labels.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -18,6 +21,7 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import 'widgets/user_admin_actions_mixin.dart';
 
 /// The owner's ask, verbatim: a place for someone specifically tasked with
 /// checking whether a profile is okay, that can nudge the one person who
@@ -49,16 +53,38 @@ class ProfileInspectionScreen extends StatefulWidget {
   State<ProfileInspectionScreen> createState() => _ProfileInspectionScreenState();
 }
 
-class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
+class _ProfileInspectionScreenState extends State<ProfileInspectionScreen>
+    with UserAdminActions<ProfileInspectionScreen> {
   bool _loading = true;
   String? _error;
+
+  /// Reject & delete is offered to a super_admin only — the same gate the
+  /// per-role directory applies to the identical action. The `delete-user`
+  /// edge function decides for real, but a button the server will refuse is a
+  /// trap, so the UI does not offer one.
+  bool _isSuperAdmin = false;
   List<(Map<String, dynamic> user, List<String> reasons)> _incomplete = [];
   final _notifying = <String>{};
+
+  /// user id -> when this person was last nudged about their profile.
+  ///
+  /// Comes from `admin_profile_nudge_status()`, NOT from a direct read of
+  /// `user_notifications`: that table's only SELECT policy is
+  /// `auth.uid() = user_id`, so a client asking about anyone else gets zero
+  /// rows SILENTLY — which would have rendered as "nobody has ever been
+  /// notified" on every card rather than as an error.
+  Map<String, DateTime> _notifiedAt = const {};
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadViewerRole();
+  }
+
+  Future<void> _loadViewerRole() async {
+    final role = await RoleSession.ensureLoaded();
+    if (mounted) setState(() => _isSuperAdmin = role == 'super_admin');
   }
 
   Future<void> _load() async {
@@ -70,13 +96,23 @@ class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
               'department_id, batch, section, semester, gender, emergency_contact, '
               'permanent_division, permanent_district, permanent_upazila, '
               'verified_at, avatar_review_status, admission_season, admission_year, '
-              'joined_on, designation, is_verified, created_at, '
-              // Found live: profiles.designation is never written by the
-              // client for teacher/staff (it lives on the linked row, and
-              // profile_is_complete() in Postgres already checks it there) --
-              // without these two embeds every teacher/staff account would
-              // be flagged here even when the database itself considers them
-              // complete. See resolvedDesignation()'s own doc for the detail.
+              'joined_on, is_verified, created_at, '
+              // `designation` is NOT selected here, and must never be added
+              // back: there is no `profiles.designation` column. Verified
+              // against information_schema on 2026-08-31 — asking for it
+              // makes PostgREST reject the WHOLE select with 42703
+              // ("column profiles.designation does not exist"), so this
+              // screen rendered its error state on every single open rather
+              // than listing anyone. It was named here on the belief, written
+              // into this repo's own notes, that the column "exists but is
+              // never populated" for teacher/staff. It does not exist at all.
+              //
+              // The designation genuinely lives on the linked teachers/staff
+              // row (which is where profile_is_complete() checks it too), so
+              // these two embeds are the real source, and
+              // resolvedDesignation() below reads them. Note the dashboard's
+              // ring never hit this because it selects `*` plus the same
+              // embeds — `*` cannot name a column that is not there.
               'teachers(designation), staff(designation)')
           .eq('is_verified', true)
           .order('created_at', ascending: false)
@@ -90,8 +126,31 @@ class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
         if (reasons.isNotEmpty) flagged.add((row, reasons));
       }
       if (mounted) setState(() { _incomplete = flagged; _loading = false; });
+      await _loadNudgeStatus(flagged.map((f) => '${f.$1['id']}').toList());
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
+  }
+
+  /// Who on this list has already been chased, and when.
+  ///
+  /// Deliberately AFTER the list is on screen and in its own try/catch: this
+  /// decorates the cards, and losing it must not turn a working list into an
+  /// error page. A card with no timestamp simply shows "Not notified yet",
+  /// which is also what it shows when the answer is genuinely no.
+  Future<void> _loadNudgeStatus(List<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      final res = await SupabaseConfig.client
+          .rpc('admin_profile_nudge_status', params: {'p_user_ids': ids});
+      final map = <String, DateTime>{};
+      (res as Map?)?.forEach((k, v) {
+        final at = DateTime.tryParse('$v');
+        if (at != null) map['$k'] = at.toLocal();
+      });
+      if (mounted) setState(() => _notifiedAt = map);
+    } catch (_) {
+      // Left empty on purpose — see above.
     }
   }
 
@@ -112,6 +171,10 @@ class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
       );
       AppHaptics.success();
       if (mounted) {
+        // Recorded straight away rather than re-fetching: the row is already
+        // written, and the card should stop saying "Not notified yet" the
+        // instant the send succeeds.
+        setState(() => _notifiedAt = {..._notifiedAt, id: DateTime.now()});
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Notified ${user['full_name'] ?? 'this user'}')));
       }
@@ -189,17 +252,71 @@ class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
                           ),
                       ]),
                       const SizedBox(height: AppSpace.sm),
-                      Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: TextButton.icon(
+                      // Whether this person has already been chased. Without
+                      // it an admin working down the list cannot tell who has
+                      // been contacted and who has never heard anything, and
+                      // ends up notifying the same people repeatedly.
+                      Row(children: [
+                        Icon(
+                            _notifiedAt.containsKey(id)
+                                ? Icons.mark_email_read_outlined
+                                : Icons.mark_email_unread_outlined,
+                            size: 14,
+                            color: _notifiedAt.containsKey(id)
+                                ? AppColors.green
+                                : AppColors.textSecondaryOf(context)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                              _notifiedAt.containsKey(id)
+                                  ? 'Notified ${AppFormatters.relativeTime(_notifiedAt[id]!)}'
+                                  : 'Not notified yet',
+                              style: AppTextStyles.labelSmall.copyWith(
+                                  color: _notifiedAt.containsKey(id)
+                                      ? AppColors.green
+                                      : AppColors.textSecondaryOf(context))),
+                        ),
+                      ]),
+                      const SizedBox(height: AppSpace.xs),
+                      // Wrap, not Row: two buttons plus a long label do not sit
+                      // side by side on a 320dp phone at a large text scale,
+                      // and a Row answers that by clipping the last one off the
+                      // edge — the same reason SelectionBar uses one.
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: AppSpace.sm,
+                        children: [
+                        if (_isSuperAdmin)
+                          TextButton.icon(
+                            style: rowAction(TextButton.styleFrom(
+                                foregroundColor: AppColors.red)),
+                            // Reuses the shared mixin's action, so this screen
+                            // cannot drift into a second confirmation copy or
+                            // a second authorization story for the same verb.
+                            // Its dialog already explains the re-apply path:
+                            // the account is deleted so they can sign up again.
+                            onPressed: () => rejectAndDelete(user, onDone: _load),
+                            icon: const Icon(Icons.person_remove_outlined, size: 18),
+                            label: const Text('Reject & delete'),
+                          ),
+                        TextButton.icon(
+                          style: rowAction(),
                           onPressed: _notifying.contains(id) ? null : () => _notify(user, reasons),
                           icon: _notifying.contains(id)
                               ? const SizedBox(width: 14, height: 14,
                                   child: CircularProgressIndicator(strokeWidth: 2))
                               : const Icon(Icons.notifications_active_rounded, size: 18),
-                          label: Text(_notifying.contains(id) ? 'Notifying…' : 'Notify to finish profile'),
+                          label: Text(_notifying.contains(id)
+                              ? 'Notifying…'
+                              : _notifiedAt.containsKey(id)
+                                  // Says plainly that this is a REPEAT nudge,
+                                  // so sending one is a decision rather than
+                                  // something done by accident to someone who
+                                  // was already chased an hour ago.
+                                  ? 'Notify again'
+                                  : 'Notify to finish profile'),
                         ),
-                      ),
+                      ]),
                     ]),
                   );
                 },
