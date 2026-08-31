@@ -5148,6 +5148,27 @@ which is recorded here as a result rather than padded out.
   pure in-memory loop (the scanner's 14-line lookahead had caught the NEXT
   function's await), and the seat-plan notification loop is documented as
   required by a 20-recipient-per-call cap.
+- **Deep links**: all 24 `deepLink:` targets resolve against the router's 70
+  registered routes, including the dynamic `/sos/:id`. A notification that
+  opens nothing is invisible until someone taps it in production; none exist.
+- **Offline cache keys**: no duplicates, and no cross-account exposure. The
+  Hive box is cleared only on app-version change — NOT on sign-out or account
+  switch — so the statically-keyed entries were checked individually against
+  RLS: `course_offerings`, `notices`, `exam_terms` and `transport_routes` all
+  read `qual: true` for any authenticated user, so the cached rows are the
+  same for everyone and switching accounts cannot surface another person's
+  data. The `$uid`-keyed entries survive sign-out, but a different account
+  computes a different key and cannot read them. Retention, not exposure.
+- **Unbounded `ListView(children:)`**: 5 found, all bounded — two fixed
+  navigation menus, a facet picker limited to distinct facet values, and
+  global search, which is `.limit(6)` per source across 5 sources.
+- **Data integrity**: no orphaned FKs (`term_id`, `route_id`, `teacher_id`),
+  no blank-string departments, no null `subject` on a schedule slot. 932
+  `exam_room_allocations` carry a NULL `course_code` — the pre-fix parser's
+  residue that the log's own Phase entry describes — but every one falls in
+  2026-06-28..07-04, a finished exam period, and there are zero upcoming
+  allocations. Historical, not live; deleting production rows over it would
+  be reckless, so it is recorded rather than "cleaned".
 
 ### Found: the backup PDF was silently dropping the data it exists to preserve
 
