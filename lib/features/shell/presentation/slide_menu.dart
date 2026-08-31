@@ -399,14 +399,23 @@ class _SlideMenuState extends State<SlideMenu> {
               ]),
             ),
             child: Row(children:[
+              // Reported live as faded too: a 15px icon in full-strength
+              // gold (actually a light sky-blue, despite the name) sitting
+              // on only a 0.16-alpha tint of itself is a thin, light-on-
+              // light mark -- the same failure mode as the label, just on
+              // an icon instead of text. Solid ink here too; gold still
+              // reads as the row's identity via the tint and the border.
               Container(width: 28, height: 28, alignment: Alignment.center,
                   decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.16), shape: BoxShape.circle),
-                  child: const Icon(AppIcons.vrId,color:AppColors.gold,size:15)),
+                  child: Icon(AppIcons.vrId,color:textPrimary,size:15)),
               const SizedBox(width:10),
               // Same fix as _Chip above: gold stays on the icon, the tint and
               // the border; the label itself is solid ink, not the accent.
               Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:textPrimary, fontWeight: FontWeight.w700))),
-              Icon(Icons.chevron_right_rounded, color: AppColors.gold.withValues(alpha:0.6), size: 18),
+              // A pure navigation affordance, not an identity mark -- neutral
+              // secondary ink like every other chevron in the app, not a
+              // muted accent that reads as faded at this size.
+              Icon(Icons.chevron_right_rounded, color: textSecondary, size: 18),
             ]),
           ),
         ),

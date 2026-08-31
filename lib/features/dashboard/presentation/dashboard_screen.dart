@@ -39,6 +39,11 @@ class _DashboardState extends State<DashboardScreen> {
   UserModel? _user;
   List<Map<String,dynamic>> _notices = [];
   bool _loading = true;
+  // Separate from _loading on purpose -- see _load()'s comment at the
+  // notices subscription for why. Only the Latest Notices section's own
+  // shimmer (line ~678) reads this; _loading gates everything else and no
+  // longer waits on it.
+  bool _noticesLoading = true;
   StreamSubscription? _noticesSub;
 
   // Real per-user quick stats — replaces what used to be 4 hardcoded
@@ -87,24 +92,48 @@ class _DashboardState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
-    if (uid == null) { setState(() { _loading = false; _statsLoading = false; }); return; }
+    if (uid == null) { setState(() { _loading = false; _statsLoading = false; _noticesLoading = false; }); return; }
     try {
       // Cached so a cold open while offline shows the last-known profile
       // and notices instead of hanging on the loading shimmer forever (a
       // live .stream() never emits at all with no connection).
+      // teachers(designation)/staff(designation) added alongside the
+      // existing students(...) embed -- found live: a teacher/staff account
+      // profile_is_complete() itself already considers complete (it checks
+      // designation via EXISTS against teachers/staff, never against
+      // profiles.designation, which the client never writes for these roles)
+      // still showed "Designation" as missing on this screen's own ring,
+      // because profileCompletionCounts/incompleteReasons only ever saw the
+      // always-empty flat column. Purely additive to this screen's own
+      // inline query -- nothing else reads it -- so nothing else's shape
+      // changes.
       final profileRaw = await cachedMapFetch(
         cacheKey: 'dashboard_profile_$uid',
         liveFetch: () => SupabaseConfig.client
-            .from('profiles').select('*, students(batch_label,section)').eq('id', uid).single(),
+            .from('profiles')
+            .select('*, students(batch_label,section), teachers(designation), staff(designation)')
+            .eq('id', uid).single(),
       );
-      if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; }); return; }
+      if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; _noticesLoading = false; }); return; }
       // Off the same raw row already fetched for UserModel -- no second
       // query. Both mirror profile_is_complete() exactly (same file backing
       // /complete-profile's own form and the admin Inspection screen), so
       // this can never disagree with what actually gates the account, and
       // reasons names the field rather than leaving "1 detail left" unsaid.
+      profileRaw['designation'] = resolvedDesignation(profileRaw);
       final (missing, total) = profileCompletionCounts(profileRaw);
       final reasons = incompleteReasons(profileRaw);
+      // _loading flips false HERE, on the profile fetch's own deterministic
+      // success -- not inside the notices stream's callback below. It used
+      // to be the stream that flipped it, which meant the module grid, the
+      // ring and the weather card were all gated on a REALTIME SUBSCRIPTION
+      // emitting at least once. Found live: WeatherService.current() and the
+      // completeness counts were confirmed (via debugPrint) to succeed and
+      // get applied to state correctly, and the content still never
+      // appeared -- because `_loading` never flipped, most likely a slow or
+      // stuck notices channel on that session. Notices are a genuinely
+      // separate concern now (_noticesLoading, below) and no longer block
+      // anything else on the screen.
       if (mounted) {
         setState(() {
           _user = UserModel.fromJson(profileRaw);
@@ -112,6 +141,7 @@ class _DashboardState extends State<DashboardScreen> {
           _missingFields = missing;
           _totalFields = total;
           _missingReasons = reasons;
+          _loading = false;
         });
       }
       // A super_admin posting a notice should reach open dashboards
@@ -124,7 +154,7 @@ class _DashboardState extends State<DashboardScreen> {
             .order('created_at', ascending: false).limit(3)
             .map((rows) => rows.map((r) => Map<String, dynamic>.from(r)).toList()),
       ).listen((rows) {
-        if (mounted) setState(() { _notices = rows; _loading = false; });
+        if (mounted) setState(() { _notices = rows; _noticesLoading = false; });
       });
       unawaited(_loadQuickStats(profileRaw, uid));
       // Resolved before anything below the fold settles, so the band never
@@ -144,7 +174,7 @@ class _DashboardState extends State<DashboardScreen> {
       // A [weather] log showing WeatherService.current() itself succeeding
       // does not prove this method ever reached the line that applies it.
       debugPrint('[dashboard] _load() aborted: $e\n$st');
-      if (mounted) setState(() { _loading = false; _statsLoading = false; });
+      if (mounted) setState(() { _loading = false; _statsLoading = false; _noticesLoading = false; });
     }
   }
 
@@ -675,7 +705,7 @@ class _DashboardState extends State<DashboardScreen> {
                 ),
               ]),
               const SizedBox(height: 12),
-              if (_loading) const ShimmerList(count: 3, itemHeight: 80)
+              if (_noticesLoading) const ShimmerList(count: 3, itemHeight: 80)
               else if (_notices.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
