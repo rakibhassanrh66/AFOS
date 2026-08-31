@@ -4211,3 +4211,82 @@ None — the database was already correct.
 - Whether OTHER Dart-side mirrors of database logic elsewhere in the app
   have a similar dormant mismatch was not swept — this one was found because
   it was reported, not by an exhaustive audit.
+
+---
+
+## Phase K — the splash screen, read whole rather than rewritten blind · 2026-08-31
+
+Asked for an "amazing, not laggy even on lower-end phones" splash rebuild.
+Read the entire existing implementation before touching anything, because the
+honest finding was: this is already a deliberately-engineered sequence
+(particle field, a hand-painted clock dial with a sweeping trail, a letter-
+by-letter monogram punch, a wipe-reveal wordmark, a camera-punch exit), with
+two prior real bugs already found and fixed in its own comments. No evidence
+of it being "broken" — no crash, no exception, nothing a scan turned up.
+Said so plainly rather than inventing a dramatic rewrite to justify the ask;
+effort went into verified hardening and one grounded, reported-live fix
+instead.
+
+### Hardening, zero visual risk
+
+Three independently-animating regions (the static bezel, the continuously-
+sweeping clock dial, the ShaderMask-heavy monogram punch, and separately the
+double-ShaderMask wordmark reveal) shared render layers with no isolation —
+every frame of the clock hand's own 1600ms loop was forcing the others to
+recomposite too, and vice versa. Wrapped each in its own `RepaintBoundary`.
+This is a framework-guaranteed no-pixel-difference change (it only affects
+layer caching, never what's drawn) — the real lever for the busiest ~1.3s of
+the splash (bezel + sweep + monogram all animating at once) on weaker GPUs.
+
+One tasteful, genuinely low-cost addition: three satellite marks orbiting
+slower and counter to the hand, drawn on the SAME canvas `_ClockSweepPainter`
+already owns (three more `drawCircle` calls, no new layer, no new shader),
+glow-linked so the dial reads as one breathing instrument rather than a
+single hand on a static face. Placed at `radius - 9`, inside the outer ring
+— the canvas is exactly 200x200 (center at 100,100, ~98 already the outer
+ring's own safe max), so anything placed outside that clips against the
+Stack's own hardEdge bound; caught this by computing the bound, not by
+guessing and checking on-device.
+
+### "Still laggy and stuck sometimes" — reported live, chased to a real cause
+
+Live testimony beats code review. `_resolveDestination()` has two 3-second
+timeouts guarding exactly the operation this file's own history already
+documents as occasionally slow on certain OEM builds: a Keystore-backed
+`flutter_secure_storage` read (`BiometricTokenStore.isEnabled()` →
+`listAccounts()` → `_storage.read(...)`) . Confirmed this device has
+biometric quick-login enabled (it reached the Unlock screen live), so this
+read runs on every single launch, not as an edge case. `_destination` starts
+in `initState`, in parallel with the ~1.85s visual arc — on a slow run
+hitting the OLD 3s ceiling, that meant up to ~1.15s of dead air AFTER the
+wordmark had already fully revealed and the tagline was showing, with only
+ambient looping motion (which does not read as "still loading" once
+already looping since before the stall) to fill it. This is almost exactly
+"stuck sometimes": intermittent, tied to real device storage variance, not a
+permanent hang (already guarded against) but long enough past the visual
+arc's own completion to read as frozen. Tightened both timeouts to 1.5s —
+generous for the normal fast-path read, much tighter on the slow path.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged. Live on
+device: full cold-launch-to-Dashboard sequence captured across two
+back-to-back screenshots (the second already showing a fully-loaded
+Dashboard — weather, next class, modules grid, all instant) with the exit
+punch itself caught mid-frame, correctly layered, no artifacts, no stall
+observed for three different accounts across this session's testing.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The tightened 1.5s timeouts were sized by reasoning about the visual arc's
+  own length, not by measuring this device's actual slow-path duration
+  directly (no tooling available this session to do that) — worth revisiting
+  if "stuck sometimes" still recurs.
+- No frame-timing/GPU profiling was available this session (no video frame
+  extraction tool) to put a number on the RepaintBoundary hardening's actual
+  effect — the change is verified correct by Flutter's own layer-caching
+  contract, not measured before/after on this specific device.
