@@ -88,14 +88,31 @@ class WeatherDressCard extends StatelessWidget {
           const SizedBox(width: AppSpace.md),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Text('${weather.temperatureC.round()}°C',
-                    style: AppTextStyles.titleMedium
-                        .copyWith(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
-                const SizedBox(width: 8),
-                Text(label,
-                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-              ]),
+              // Wrap, not Row. Both of these were non-flex children of a Row,
+              // so at a large text scale the pair overflowed the card by 11px
+              // on a 320dp phone (measured at 1.6x). Making the condition
+              // Flexible stopped the overflow but truncated "Cloudy" to half
+              // its width — trading a visible fault for a silent one, which is
+              // worse: the reader cannot tell they are missing a word.
+              //
+              // Neither string is long; there simply is not room for both on
+              // one line beside a 48px icon at 1.6x. A Wrap puts the condition
+              // on its own line exactly when it stops fitting, and both stay
+              // whole and readable.
+              Wrap(
+                spacing: 8,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('${weather.temperatureC.round()}°C',
+                      style: AppTextStyles.titleMedium.copyWith(
+                          color: AppColors.textPrimaryOf(context),
+                          fontWeight: FontWeight.w700)),
+                  Text(label,
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textSecondaryOf(context))),
+                ],
+              ),
               const SizedBox(height: 4),
               Text(_suggestion,
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),

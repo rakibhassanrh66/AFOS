@@ -6,6 +6,11 @@ import 'package:afos_v7/shared/widgets/glass_tab_bar.dart';
 
 import 'package:afos_v7/shared/widgets/glass_card.dart';
 import 'package:afos_v7/shared/widgets/surface_card.dart';
+import 'package:afos_v7/core/services/weather_service.dart';
+import 'package:afos_v7/features/admin/presentation/widgets/user_card.dart';
+import 'package:afos_v7/features/admin/presentation/widgets/user_group_tree.dart';
+import 'package:afos_v7/features/dashboard/presentation/widgets/my_completeness_ring.dart';
+import 'package:afos_v7/features/dashboard/presentation/widgets/weather_dress_card.dart';
 import 'package:afos_v7/features/web/presentation/widgets/chart_primitives.dart';
 import 'package:afos_v7/features/web/presentation/widgets/console_grid.dart';
 
@@ -160,6 +165,70 @@ void main() {
           ],
           total: 542,
         ),
+
+    // --- feature widgets carrying real database text --------------------
+    // Names, emails and weather sentences are the least controlled strings in
+    // the app: nobody reviews them, they arrive from Postgres or an API, and
+    // they are exactly where a row starves a title.
+    'UserCard (long name + email, pending)': () => UserCard(
+          pending: true,
+          user: const {
+            'id': 'u1',
+            'full_name': 'Mohammad Shariar Ahamed Ripon Chowdhury',
+            'email': 'shariar.ahamed.ripon15-3132@diu.edu.bd',
+            'role': 'student',
+            'university_id': '241-15-1491',
+            'department': 'CSE',
+            'batch': '68',
+            'section': 'D',
+            'is_verified': false,
+          },
+          onApprove: () {},
+          onReject: () {},
+        ),
+
+    'UserCard (super admin, manager, with areas)': () => UserCard(
+          pending: false,
+          isManager: true,
+          areaCount: 4,
+          user: const {
+            'id': 'u2',
+            'full_name': 'Rakib Hassan',
+            'email': 'rakibhassan.rh66@gmail.com',
+            'role': 'super_admin',
+            'is_verified': true,
+          },
+          onChangeRole: () {},
+          onManagePermissions: () {},
+          onDelete: () {},
+        ),
+
+    // The completeness ring this session's work feeds. Its reason list is
+    // built from incompleteReasons(), whose longest entry is a sentence.
+    'MyCompletenessRing (longest real reason)': () => MyCompletenessRing(
+          missing: 3,
+          total: 16,
+          reasons: const [
+            'Emergency contact is the same as their own number',
+            'No photo uploaded past the 48h deadline',
+            'Permanent district',
+          ],
+          onTap: () {},
+        ),
+
+    'WeatherDressCard (dress advice sentence)': () => const WeatherDressCard(
+          weather: WeatherSnapshot(
+            temperatureC: 27.4,
+            condition: WeatherCondition.cloudy,
+            isDay: false,
+          ),
+          gender: 'male',
+        ),
+
+    // The header the per-role directory's group tree uses: an Expanded label
+    // beside a count, which is the shape that starves.
+    'GroupSectionHeader (long group label + count)': () =>
+        const GroupSectionHeader(label: 'Intake not set', total: 1854),
 
     // rowLabels come from a fixed const list in admin_overview
     // (['Sat','Sun','Mon',...]) and colLabels are hour numbers, so the real

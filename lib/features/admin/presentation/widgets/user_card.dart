@@ -164,7 +164,19 @@ class UserCard extends StatelessWidget {
             IconButton(icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20), onPressed: onDelete),
         ]),
         const SizedBox(height: 10),
-        Row(children: [
+        // BADGES ON THEIR OWN LINE, not in the row with the department and the
+        // join date.
+        //
+        // They used to share one Row, and badges are non-flex: a Row lays them
+        // out first at full width and gives the Expanded department whatever
+        // is left. With three of them — "Super Admin" + "Manager" + "4 areas",
+        // an ordinary super_admin row — the layout probe measured the card
+        // overflowing by 90px on a 320dp phone at the DEFAULT text size.
+        //
+        // This is the fix `row_starve_guard_test` names first ("move the badge
+        // onto its own line"), and the one JoinRequestCard and OfferingCard
+        // already use. A Wrap so a fourth badge can never re-break it.
+        Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: AppDepth.radius(0)),
               child: Text(roleLabel(role), style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))),
@@ -175,7 +187,6 @@ class UserCard extends StatelessWidget {
           // more reach than a `staff` holding none. Without them the list
           // answers "what were they signed up as", not "what can they do".
           if (isManager) ...[
-            const SizedBox(width: 6),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                     color: AppColors.holoviolet.withValues(alpha: 0.14),
@@ -184,7 +195,6 @@ class UserCard extends StatelessWidget {
                     style: TextStyle(color: AppColors.holoviolet, fontSize: 11, fontWeight: FontWeight.w700))),
           ],
           if (areaCount > 0) ...[
-            const SizedBox(width: 6),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                     color: AppColors.holoTeal.withValues(alpha: 0.14),
@@ -194,7 +204,6 @@ class UserCard extends StatelessWidget {
           ] else if (isManager) ...[
             // A manager with nothing to give. Worth calling out: they will
             // open the sheet to an empty list and conclude the app is broken.
-            const SizedBox(width: 6),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                     color: AppColors.amber.withValues(alpha: 0.14),
@@ -202,7 +211,11 @@ class UserCard extends StatelessWidget {
                 child: const Text('no areas',
                     style: TextStyle(color: AppColors.amber, fontSize: 11, fontWeight: FontWeight.w700))),
           ],
-          const SizedBox(width: 8),
+        ]),
+        const SizedBox(height: 6),
+        // The department and the join date, now on their own row where the
+        // badges above can no longer eat the space the department needs.
+        Row(children: [
           // Expanded, not Flexible-beside-a-Spacer. `Spacer` is an `Expanded`
           // with flex 1 and `Flexible` defaults to flex 1, so the two split the
           // free space 50/50: the department could only use HALF of what was
