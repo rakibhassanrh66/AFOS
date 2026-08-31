@@ -8,6 +8,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -27,6 +28,7 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> with Single
   late TabController _tab;
   List<Map<String, dynamic>> _requests = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _load(); }
@@ -39,8 +41,15 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> with Single
     try {
       final res = await SupabaseConfig.client.from('conference_room_requests')
           .select().eq('requester_id', uid).order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _requests = res.cast(); _loading = false; });
-    } catch (_) { if (mounted) setState(() => _loading = false); }
+      if (mounted) setState(() { _requests = res.cast(); _loading = false; _error = null; });
+    } catch (e) {
+      // Was `catch (_) { _loading = false; }`, which left `_requests` empty —
+      // so a failed load rendered as "you have no requests". Those are
+      // different answers, and this app has already paid for confusing them
+      // once on the exam seat screen. Someone who DOES hold a booking must
+      // not be told it does not exist because the network blipped.
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
   }
 
   Future<void> _cancel(String id) async {
@@ -86,8 +95,11 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> with Single
         ),
         const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
-          _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-              : _RequestsList(requests: _requests, onCancel: _cancel),
+          _loading
+              ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+              : _error != null
+                  ? ErrorView(message: _error!, onRetry: _load)
+                  : _RequestsList(requests: _requests, onCancel: _cancel),
           _NewRequestForm(onSubmitted: () { _load(); _tab.animateTo(0); }),
         ])),
       ]),

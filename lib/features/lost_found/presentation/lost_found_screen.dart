@@ -426,6 +426,10 @@ class _PostTabState extends State<_PostTab> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (!await ensurePhoneOnFile(context)) return;
+    // The other `ensurePhoneOnFile` call in this same file (the claim flow)
+    // already guards after this await, because it can put a dialog up and
+    // wait on the person. This one was missed.
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       String? photoUrl;
@@ -485,10 +489,18 @@ class _PostTabState extends State<_PostTab> {
                 // path directly. On web, XFile.path is a blob: URL that
                 // Image.network can load directly; only native platforms
                 // get a real filesystem path Image.file can use.
+                // cacheWidth on both: this box is 100px tall, but `pickImage`
+                // only compresses QUALITY (imageQuality: 70), never the
+                // dimensions, so what lands here is a full camera frame —
+                // decoding 4000x3000 into a 100px strip costs ~48MB of bitmap
+                // for a thumbnail. 1080 is a full-width phone screen at 3x,
+                // so the preview is still sharp and the decode is ~13x
+                // cheaper. The constitution bans images without cacheWidth
+                // for exactly this reason; this was the app's only Image.network.
                 ? ClipRRect(borderRadius: AppDepth.radius(1),
                     child: kIsWeb
-                        ? Image.network(_image!.path, fit: BoxFit.cover)
-                        : Image.file(File(_image!.path), fit: BoxFit.cover))
+                        ? Image.network(_image!.path, fit: BoxFit.cover, cacheWidth: 1080)
+                        : Image.file(File(_image!.path), fit: BoxFit.cover, cacheWidth: 1080))
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.add_photo_alternate_outlined, color: AppColors.textSecondaryOf(context), size: 32),
                     const SizedBox(height: 6),

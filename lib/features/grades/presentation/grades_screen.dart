@@ -419,8 +419,13 @@ class _CgpaCard extends StatelessWidget {
           const _Notice(
               color: AppColors.red,
               icon: Icons.warning_amber_rounded,
+              // "program", not "programme": this is the same thing the
+              // registration form labels "Program" and the routine header
+              // calls "Program". One concept the student has already been
+              // shown a name for should not acquire a second spelling in the
+              // one screen that tells them they could be removed from it.
               text: 'Below the 2.00 minimum — you are on academic probation. '
-                  'Three consecutive semesters below 2.00 means removal from the programme.'),
+                  'Three consecutive semesters below 2.00 means removal from the program.'),
         ],
         if (hasF) ...[
           const SizedBox(height: 8),

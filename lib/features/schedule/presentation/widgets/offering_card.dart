@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_text_styles.dart';
 import '../../../../config/theme/liquid_glass_tokens.dart';
+import '../../../../config/theme/motion.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/info_card.dart';
 import '../../../../core/layout/nav_insets.dart';
@@ -163,8 +164,16 @@ class OfferingCard extends StatelessWidget {
         ]),
       ),
     )
-        .animate(delay: Duration(milliseconds: index * 55))
-        .fadeIn(duration: LiquidGlass.motionFast)
+        // Was `Duration(milliseconds: index * 55)` — uncapped, and blind to
+        // reduced motion. Phase 2 batch 1 capped exactly this shape on three
+        // other lists ("a 40-row list meant the last row appeared ~4s after
+        // the first, which reads as the app being slow") and this card was
+        // missed by that sweep. It matters most here: Browse Courses and the
+        // admin catalogue are the LONGEST lists this card appears in, so row
+        // 40 was landing 2.2s after row 1. staggerFor caps at 6 items and
+        // collapses to zero when the OS asks for reduced motion.
+        .animate(delay: AppMotion.staggerFor(context, index))
+        .fadeIn(duration: AppMotion.durationOf(context, AppMotion.tight))
         .slideY(begin: 0.05, curve: LiquidGlass.motionCurve);
   }
 }
