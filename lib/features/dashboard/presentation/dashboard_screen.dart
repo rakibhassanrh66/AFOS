@@ -9,6 +9,8 @@ import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import 'widgets/exam_pulse_band.dart';
 import 'widgets/admin_insights_panel.dart';
+import 'widgets/my_completeness_ring.dart';
+import '../../../core/auth/profile_completeness.dart';
 import '../../web/presentation/consoles/admin_overview.dart' show AdminOverviewData;
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
@@ -93,7 +95,18 @@ class _DashboardState extends State<DashboardScreen> {
             .from('profiles').select('*, students(batch_label,section)').eq('id', uid).single(),
       );
       if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; }); return; }
-      if (mounted) setState(() => _user = UserModel.fromJson(profileRaw));
+      // Off the same raw row already fetched for UserModel -- no second
+      // query. profileCompletionCounts mirrors profile_is_complete() exactly
+      // (same file backing /complete-profile's own form), so this can never
+      // disagree with what actually gates the account.
+      final (missing, total) = profileCompletionCounts(profileRaw);
+      if (mounted) {
+        setState(() {
+          _user = UserModel.fromJson(profileRaw);
+          _missingFields = missing;
+          _totalFields = total;
+        });
+      }
       // A super_admin posting a notice should reach open dashboards
       // immediately, not on next manual refresh — subscribe instead of
       // fetching once.
@@ -428,6 +441,12 @@ class _DashboardState extends State<DashboardScreen> {
   AdminOverviewData? _insights;
   Future<AdminOverviewData?>? _insightsFuture;
 
+  /// Every user's own ring, computed off the same profile row already
+  /// fetched -- zero for both until _load resolves, which reads as "nothing
+  /// missing" and correctly shows no ring rather than a false positive.
+  int _missingFields = 0;
+  int _totalFields = 0;
+
   List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
       ? _allModules
       : _allModules.where((m) => !_studentOnlyModules.contains(m.title)).toList();
@@ -493,6 +512,13 @@ class _DashboardState extends State<DashboardScreen> {
                 ),
               ),
               if (!_loading && !_statsLoading && _search.trim().isEmpty) ...[
+                // Every role's own ring, not just super_admin's -- gone the
+                // instant the profile is complete, same contract as the exam
+                // pulse band below.
+                if (_missingFields > 0) ...[
+                  const SizedBox(height: 16),
+                  MyCompletenessRing(missing: _missingFields, total: _totalFields),
+                ],
                 if ((_user?.role == 'student' || _user?.role == 'teacher')) ...[
                   const SizedBox(height: 16),
                   _ClassStatusCard(status: _classStatus),
@@ -676,6 +702,11 @@ class _FeaturedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Flat white read fine against the darker category colours (violet,
+    // indigo) and badly against the lighter ones this same map hands out
+    // (amber, the sky-blue "gold" alias) -- exactly the luminance check
+    // AfosButton and GlassTabBar already use, just never applied here.
+    final fg = AppColors.foregroundOn(module.color);
     return GestureDetector(
       onTap: () => context.push(module.route),
       child: RepaintBoundary(
@@ -689,18 +720,18 @@ class _FeaturedCard extends StatelessWidget {
           ),
           child: Row(children: [
             Container(width: 44, height: 44,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                child: Icon(module.icon, color: Colors.white, size: 22)),
+                decoration: BoxDecoration(color: fg.withValues(alpha: 0.2), shape: BoxShape.circle),
+                child: Icon(module.icon, color: fg, size: 22)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('RECOMMENDED FOR YOU', style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                  color: fg.withValues(alpha: 0.85), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 3),
-              Text(reason, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+              Text(reason, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 14),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             ])),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+            Icon(Icons.arrow_forward_rounded, color: fg),
           ]),
         ),
       ),

@@ -10,6 +10,7 @@ import '../../features/admin/presentation/manage_course_offerings_admin_screen.d
 import '../../features/admin/presentation/activity_log_screen.dart';
 import '../../features/admin/presentation/manage_feedback_screen.dart';
 import '../../features/admin/presentation/manage_users_screen.dart';
+import '../../features/admin/presentation/profile_inspection_screen.dart';
 import '../../features/admin/presentation/user_directory_screen.dart';
 import '../../features/assignments/presentation/assignments_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
@@ -200,7 +201,7 @@ class AppRouter {
       // Broadened to /admin/users/:role (Phase B) -- a per-role directory page
       // is reached from this same screen and needs the identical grant set,
       // not a narrower one.
-      if (loc == '/admin/users' || loc.startsWith('/admin/users/')) {
+      if (loc == '/admin/users' || loc.startsWith('/admin/users/') || loc == '/admin/inspection') {
         final role = await RoleSession.ensureLoaded();
         if (role != 'super_admin') {
           final grants = await PermissionSession.ensureLoaded();
@@ -354,6 +355,13 @@ class AppRouter {
           // has always understood alongside every real profiles.role.
           GoRoute(path: '/admin/users/:role', pageBuilder: (c,s) =>
               slideRightPage(UserDirectoryScreen(role: s.pathParameters['role']!), s)),
+          // A DIFFERENT screen, not a third synthetic UserDirectoryScreen
+          // role -- it lists whoever fails profile_is_complete(), not people
+          // grouped by profiles.role, and needs columns that RPC's frozen
+          // 17-column shape does not carry. Shares the same permission gate
+          // (below) as everything else this screen's tile sits beside.
+          GoRoute(path: '/admin/inspection', pageBuilder: (c,s) =>
+              slideRightPage(const ProfileInspectionScreen(), s)),
           GoRoute(path: '/admin/feedback', pageBuilder: (c,s) => slideRightPage(const ManageFeedbackScreen(), s)),
           GoRoute(path: '/admin/activity', pageBuilder: (c,s) => slideRightPage(const ActivityLogScreen(), s)),
           GoRoute(path: '/admin/clubs',   pageBuilder: (c,s) => slideRightPage(const ManageClubsScreen(), s)),

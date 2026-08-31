@@ -57,19 +57,32 @@ class GlassTabBar extends StatelessWidget {
                   top: 0,
                   bottom: 0,
                   width: segW,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: AppColors.holoGradient,
-                      borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.holoTeal.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: AppDepth.litOffset(3),
+                  child: Builder(builder: (context) {
+                    // The user's chosen accent, not the fixed holoGradient
+                    // signature -- this is literally "a selected tab", the
+                    // doctrine's own named example of where the accent
+                    // should show up and previously did not. Same in-family
+                    // depth technique AfosButton uses, for one consistent
+                    // look across every accent-driven surface.
+                    final accent = AppColors.accentOf(context);
+                    final deep = Color.lerp(accent, AppColors.background, 0.35)!;
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          colors: [accent, deep],
                         ),
-                      ],
-                    ),
-                  ),
+                        borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: AppDepth.litOffset(3),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                 ),
                 Row(
                   children: [
@@ -99,8 +112,13 @@ class _Segment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Text/icon colour cross-fades with the indicator slide so the passing
-    // segment lights up as the pill arrives.
-    final fg = selected ? Colors.white : AppColors.textSecondaryOf(context);
+    // segment lights up as the pill arrives. Luminance-checked against the
+    // indicator's own fill, same as AfosButton -- a light accent (amber,
+    // gold) under a flat white label would fail contrast the instant the
+    // indicator stopped being a fixed dark-ish blue/teal gradient.
+    final fg = selected
+        ? AppColors.foregroundOn(AppColors.accentOf(context))
+        : AppColors.textSecondaryOf(context);
     final label = AnimatedDefaultTextStyle(
       duration: LiquidGlass.motionStandard,
       curve: LiquidGlass.motionCurve,

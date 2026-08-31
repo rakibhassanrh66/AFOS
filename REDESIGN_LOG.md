@@ -3720,3 +3720,127 @@ any web file — fully additive.
   with no data source to get wrong, the latter is blocked on a weather
   provider/API key decision that has to come from the owner (never something
   this session can create itself).
+
+---
+
+## Phase E — the filter strip, the seam in the drawer, the accent that
+never reached anything, and a ring for every user · 2026-08-31
+
+Live use of Phase C/D surfaced a fresh batch, all traced to real code before
+touching anything.
+
+### Manage Users still crowded, one layer further in
+
+The per-role directory's filter strip (Phase C's own fix) went from "many
+batch VALUES wrap the screen" to "up to 4 filter DIMENSIONS stack their own
+row each" — still roughly a third of a phone screen before any person is
+visible. Replaced `_drillLevel` with `_filterBar`: ONE row, one compact chip
+per dimension ("Batch: 68" or bare "Batch" when unset), each opening a
+`showGlassSheet` picker instead of showing every value inline. Confirmed
+first that this loses nothing: `admin_search_users`'s `p_q` already matches
+against `batch`/`section` via `profile_search_text()` (20260822112415), so
+direct search was never the gap.
+
+### The drawer's active-item border, and why it read as "off"
+
+The web sidebar's active-tab indicator (`_QuickRailTile`) draws its rounded
+fill and its accent left-border in ONE `BoxDecoration` — the border curves
+with the corners. The phone drawer's `_MenuTile` split the same two things
+across two nested containers, and only the outer one had `borderRadius` — so
+the straight border cut across where the fill's corner should curve. One-line
+fix: the inner container's decoration gets the same `AppDepth.radius(1)` the
+outer one already has.
+
+### The accent picker, still only reaching 3 of ~40 files
+
+`AppColors.accentOf(context)` was itself built to fix "the accent picker had
+no visible effect" (its own doc comment). It fixed the MECHANISM, not the
+COVERAGE: `grep` found exactly 3 files reading it against 37 still hardcoding
+`AppColors.holoBlue`. Fixed the highest-leverage shared ones rather than all
+37 individually — a shared widget fix reaches every screen that uses it:
+
+- `AfosButton`'s default fill was `AppColors.green`, not the user's accent —
+  the primary CTA on nearly every screen in the app never moved.
+- `AfosTextField`'s focus glow, focus icon colour, and trailing-icon colour
+  were hardcoded `holoBlue` — inconsistent with the OUTLINE border, which
+  already tracked the theme's `colorScheme.primary` via Material defaults.
+- `GlassTabBar`'s rolling selected-tab indicator used the fixed
+  `holoGradient` signature rather than the accent — the doctrine's own named
+  example of "a selected tab" that should follow it. Rebuilt as an
+  accent-based depth gradient (same in-family technique as `AfosButton`), and
+  its selected-label colour switched from flat white to
+  `AppColors.foregroundOn(accent)` — a light accent (amber, the sky-blue
+  "gold" alias) under flat white would have failed contrast the moment the
+  indicator stopped being a fixed dark-ish gradient.
+- Dashboard's `_FeaturedCard` had the exact same flat-white-on-a-variable-
+  colour bug independently: `module.color` includes `amber` (`hall`) and the
+  light "gold" alias (`cr`), both of which `Colors.white` text does not
+  survive. Same `foregroundOn` fix.
+
+`holoGradient` itself, and its uses in splash/dashboard headers/schedule/
+dept-chat (decorative, not a selection state), were deliberately left alone —
+the doctrine's own distinction is "brand for meaning-free selection, not for
+things that already carry meaning," and a decorative signature gradient
+carries none to override.
+
+### The new Inspection tool
+
+The owner asked for a place to specifically check whether profiles are okay
+and nudge the one person who still needs to fix theirs. Built with ZERO
+backend changes: `admin_search_users`'s return shape is explicitly frozen at
+17 columns ("must not have to adapt" — 20260822112415) and does not carry
+half of what `profile_is_complete()` checks, so extending it would have been
+exactly the return-type change the constitution forbids. Read `profiles`
+directly instead — the same pattern `_loadManagement()` already uses — after
+confirming the row policies allow it unrestricted by column
+(`admin_read_all`, `decision_holders_read_profiles`, 20260816014500).
+Notifying a flagged user reuses `NotificationService.sendToUsers`, already
+permission-gated server-side for an admin-tier caller sending to one arbitrary
+recipient — the same call site role-change/CR-approval already use.
+
+Added `incompleteReasons()` and `profileCompletionCounts()` to
+`profile_completeness.dart`, purely additive beside the existing
+`isProfileComplete()` — neither changes what actually gates an account, only
+what an admin (or the ring below) is told about why.
+
+### A ring for every user, not just super_admin's — and what "living" means here
+
+The owner asked for animated 3D "living" rings for every user's own interest.
+Built the honest version rather than reinterpreting the request away: a real
+personal number (their own profile completeness, computed off the exact same
+row already fetched for the dashboard, zero extra queries), not a decorative
+loop. Explicitly did NOT build a perpetually spinning/pulsing ring — the
+constitution's "animate on mount or explicit action, never on rebuild" is not
+ambiguous, and thousands of phones idly animating something that never
+changes is the literal failure mode that rule exists to prevent. What "living"
+means instead: a one-time sweep-in on mount (gone under reduced motion, not
+skipped — the ring still appears, just without the entrance), and real depth
+via `AppDepth.shadow()` (occlusion + directional light + scale, the
+doctrine's own definition), not a blur trick standing in for one. Disappears
+once the profile is complete, same contract the exam pulse band already
+uses.
+
+### Verified
+
+`flutter analyze`: 0 issues throughout. `flutter test`: 549 passing after one
+real regression caught and fixed — `row_starve_guard_test.dart` correctly
+flagged `ProfileInspectionScreen`'s bare `PillBadge` beside an `Expanded`
+name/role column; fixed by wrapping the badge in `Flexible` and adding the
+same `maxLines`/`overflow` guard the rest of the codebase already uses on
+that name column.
+
+### Migrations applied
+
+None. Every fix in this phase is Dart-only or reuses an existing, unmodified
+RPC/policy.
+
+### STILL OPEN
+
+- None of this phase's device-facing changes have been clicked through live
+  yet — verification stopped at `flutter analyze` + `flutter test` this pass.
+- Still not started: the "3D shadow" time/date widget, and weather + dress
+  suggestions (unblocked now — Open-Meteo needs no API key at all — but not
+  yet built).
+- Only the highest-leverage 4 files were migrated to `accentOf`; the
+  remaining ~33 files with hardcoded `holoBlue`/etc. were deliberately left
+  for a dedicated pass rather than a single large, harder-to-verify diff.
