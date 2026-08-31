@@ -3577,3 +3577,85 @@ correctly on the same device, live, against the real backend.
   proving a mailbox and recovering a password; every other notification is
   in-app/push, per `_shared/mailer.ts`'s own documented rationale). Confirmed
   intentional, not a gap, once the reasoning was found.
+
+---
+
+## Phase C (continued) — the profile screen that never stopped asking · 2026-08-31
+
+Live use immediately answered one of Phase C's own STILL OPEN items: the
+owner's own account kept landing back on `/complete-profile` no matter how
+many times it was filled in and saved. Traced to a real gap in
+`20260830164152_a_face_and_a_real_emergency_contact.sql` itself, not to
+anything from this session.
+
+### The grandfather gap
+
+`profile_is_complete()` accepts a photo as compliant when `verified_at` is
+within 48h, OR `avatar_review_status in ('pending','approved')`. That
+migration backfilled `verified_at` from `created_at` for every already-
+verified account (correctly — `now()` would have handed everyone an
+undeserved fresh grace window) but never backfilled `avatar_review_status`
+for accounts that already had a perfectly good `avatar_url` from before the
+review pipeline existed. Every one of those accounts was left at the `'none'`
+default with a 48h window that had already expired the instant the migration
+ran, since `verified_at` was backfilled into the past, not the present. Net
+effect: any account that was already verified and already had a real photo
+before 2026-08-30 was permanently stuck re-demanding a photo it already had —
+confirmed live on the owner's own account, which has carried a real
+`avatar_url` for months.
+
+**Fix**: `20260831000000_grandfather_avatars_predating_the_review_pipeline.sql`
+— sets `avatar_review_status = 'approved'` (and `avatar_reviewed_at`) for
+any row where it is still `'none'` and `avatar_url is not null`. Safe as a
+standing rule, not just a one-time cleanup: `20260830165726` already closed
+the direct-write bypass, so `avatar_url` can now only be set by
+`admin_approve_avatar()`, which always sets `avatar_review_status =
+'approved'` in the same statement — the combination this migration targets
+can only exist as a pre-pipeline leftover, never as a new row, so there is no
+future account it could misclassify.
+
+**Verified live**: force-stopped and relaunched the app on the connected
+device before and after applying the migration. Before: landed on
+`/complete-profile` on every cold start. After: lands directly on the real
+Dashboard. `supabase migration list` confirms the remote ledger recorded
+`20260831000000` matching the filename exactly.
+
+### The batch strip that ate the screen
+
+Separately reported live: opening the Student role directory showed "many
+batches" that "blocked the rest of the screen." Root cause in
+`user_directory_screen.dart`'s shared `_drillLevel()` (used for Batch,
+Section, Semester on students, and Department on every role): each was a
+`Wrap` with no height limit, so a role with dozens of distinct batch values
+wrapped across as many rows as it took, in the screen's fixed (non-scrolling)
+region above the list — for students specifically, this could consume the
+entire viewport and leave nothing for the actual people. Search already
+covered "find a student directly by batch/ID/name" (`admin_search_users`'s
+`p_q` already matches against `batch` and `section`, confirmed by reading
+`profile_search_text(...)` in `20260822112415`), so the fix is scoped
+entirely to the crowding, not to search.
+
+**Fix**: `_drillLevel()` now renders each filter level as a single fixed-
+height (52px) horizontally-scrolling row instead of a wrapping grid — one row
+per level, always, regardless of how many values it holds. Applies uniformly
+to every role that uses the shared helper, not just Student.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged (a filter
+chip's layout axis is not something the existing suite asserts on).
+
+### Migrations applied (verified behaviourally, against the live project)
+
+- `20260831000000_grandfather_avatars_predating_the_review_pipeline.sql` —
+  applied via `supabase db push`; remote ledger version confirmed to match
+  the filename exactly; behaviour confirmed via a real before/after app
+  relaunch on the connected device, not by reading the row count back.
+
+### STILL OPEN
+
+- The batch-strip fix was verified by rebuild + `flutter analyze`, not by a
+  second live click-through on the device — the same account's admin session
+  was already in active use by the owner by that point in the session, so
+  further automated navigation was deliberately stopped rather than risk
+  colliding with it.
