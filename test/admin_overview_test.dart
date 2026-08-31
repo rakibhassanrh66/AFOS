@@ -34,11 +34,13 @@ void main() {
     Map<String, dynamic>? facets,
     List<Map<String, dynamic>> recent = const [],
     int stuck = 0,
+    int incomplete = 0,
     List<Map<String, dynamic>> exams = const [],
     int beds = 2800,
     int occupied = 3,
   }) =>
       AdminOverviewData(
+        incomplete: incomplete,
         facets: facets ??
             const {
               'total': 14,
@@ -372,6 +374,27 @@ void main() {
       expect(find.text('Unnamed'), findsOneWidget);
       expect(find.textContaining('null'), findsNothing);
     });
+
+    // The web console IS the dashboard on web, and this tile is the only
+    // route to /admin/inspection there — the phone reaches it from a banner
+    // on Manage Users, which does not exist on this surface. If the tile goes
+    // missing, the tool becomes unreachable for every desktop admin.
+    // NOTE for anyone extending these: GridFigure renders only `value` and
+    // `note` as visible Text — `label` is a Semantics label for screen
+    // readers, so find.text('Incomplete profiles') finds nothing by design.
+    // The note is what a sighted person actually reads, which is why it has
+    // to carry the meaning on its own.
+    testWidgets('the incomplete-profiles tile reports its count', (t) async {
+      await pumpAt(t, desktop, AdminOverview(data: data(incomplete: 13)));
+      expect(find.text('13'), findsWidgets);
+      expect(find.text('missing required details'), findsOneWidget);
+    });
+
+    testWidgets('at zero it says everyone passes, not "0 missing"', (t) async {
+      await pumpAt(t, desktop, AdminOverview(data: data(incomplete: 0)));
+      expect(find.text('everyone passes'), findsOneWidget);
+      expect(find.text('missing required details'), findsNothing);
+    });
   });
 
   group('AdminOverviewData reads the facets it is given', () {
@@ -380,6 +403,7 @@ void main() {
         facets: {},
         recent: [],
         stuck: 0,
+        incomplete: 0,
         exams: [],
         beds: 0,
         occupied: 0,

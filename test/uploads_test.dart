@@ -155,4 +155,57 @@ void main() {
       expect(b.summary, isEmpty);
     });
   });
+
+  group('bulk-select filtering, for clearing out old uploads at once', () {
+    UploadBatch batch({
+      required String id,
+      String kind = 'exam_seat_plan',
+      String? department,
+    }) =>
+        UploadBatch.fromJson(batchJson(kind: kind)
+          ..['id'] = id
+          ..['department'] = department);
+
+    test('kind and department both narrow the list, together not separately', () {
+      final history = [
+        batch(id: 'a', kind: 'exam_seat_plan', department: 'CSE'),
+        batch(id: 'b', kind: 'exam_seat_plan', department: 'EEE'),
+        batch(id: 'c', kind: 'transport', department: 'CSE'),
+      ];
+      expect(filterUploadBatches(history, kind: 'exam_seat_plan').map((b) => b.id), ['a', 'b']);
+      expect(filterUploadBatches(history, department: 'CSE').map((b) => b.id), ['a', 'c']);
+      expect(
+          filterUploadBatches(history, kind: 'exam_seat_plan', department: 'CSE')
+              .map((b) => b.id),
+          ['a']);
+    });
+
+    test('no filter given returns everything, unfiltered', () {
+      final history = [
+        batch(id: 'a', department: 'CSE'),
+        batch(id: 'b', department: null),
+      ];
+      expect(filterUploadBatches(history).length, 2);
+    });
+
+    test('a batch with no department only matches the "all" state, never a chip', () {
+      final history = [batch(id: 'a', department: null)];
+      expect(filterUploadBatches(history, department: 'CSE'), isEmpty);
+      expect(filterUploadBatches(history), hasLength(1));
+    });
+
+    test('department chips list only real, non-blank departments, sorted', () {
+      // A blank string is not the same as absent — CLAUDE.md's own gotcha —
+      // and both must be excluded the same way null is: neither is something
+      // a person can tap as a filter.
+      final history = [
+        batch(id: 'a', department: 'EEE'),
+        batch(id: 'b', department: 'CSE'),
+        batch(id: 'c', department: 'CSE'),
+        batch(id: 'd', department: null),
+        batch(id: 'e', department: '  '),
+      ];
+      expect(departmentsInBatches(history), ['CSE', 'EEE']);
+    });
+  });
 }
