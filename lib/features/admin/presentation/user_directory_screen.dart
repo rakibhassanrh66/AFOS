@@ -16,6 +16,7 @@ import '../../../core/utils/role_labels.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_chip.dart';
+import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
@@ -304,31 +305,148 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
   List<Map<String, dynamic>> _facetList(String key) =>
       ((_facets[key] as List?) ?? const []).cast<Map<String, dynamic>>();
 
-  Widget _drillLevel({
+  // ONE row, one per filter DIMENSION, not one per VALUE. The previous fix
+  // (each level scrolling sideways) stopped "many batches" from wrapping
+  // across the screen, but a role with 4 dimensions (batch/section/semester/
+  // department) still stacked 4 of those rows above the list — on a phone
+  // that read as "half the screen is still filters". A chip now shows only
+  // the CURRENT selection ("Batch: 68" or just "Batch" when unset) and opens
+  // a picker sheet for the rest, so the fixed area is one ~44px row no matter
+  // how many dimensions or values exist.
+  Future<void> _pickFacet({
     required String title,
     required List<Map<String, dynamic>> values,
     required String? selected,
     required void Function(String?) onPick,
     String Function(Map<String, dynamic>)? labelOf,
-  }) {
-    if (values.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title.toUpperCase(),
-            style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.textSecondaryOf(context), letterSpacing: 1.1)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final v in values)
-            GlassChip(
-              label: '${labelOf?.call(v) ?? v['value']} (${v['count']})',
-              selected: selected == '${v['value']}',
-              color: AppColors.holoBlue,
-              onTap: () => onPick(selected == '${v['value']}' ? null : '${v['value']}'),
-            ),
-        ]),
+  }) async {
+    await showGlassSheet<void>(
+      context,
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: Text(title,
+              style: AppTextStyles.titleLarge.copyWith(
+                  color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
+        ),
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _FacetOption(
+                label: 'All',
+                selected: selected == null,
+                onTap: () { Navigator.pop(context); onPick(null); },
+              ),
+              for (final v in values)
+                _FacetOption(
+                  label: '${labelOf?.call(v) ?? v['value']} (${v['count']})',
+                  selected: selected == '${v['value']}',
+                  onTap: () {
+                    Navigator.pop(context);
+                    onPick(selected == '${v['value']}' ? null : '${v['value']}');
+                  },
+                ),
+            ],
+          ),
+        ),
       ]),
+    );
+  }
+
+  /// The label to show ON the chip for whichever value is currently picked —
+  /// resolved from the facet list so a department shows its name, not its id.
+  String? _facetDisplay(List<Map<String, dynamic>> values, String? selected,
+      {String Function(Map<String, dynamic>)? labelOf}) {
+    if (selected == null) return null;
+    for (final v in values) {
+      if ('${v['value']}' == selected) return labelOf?.call(v) ?? '${v['value']}';
+    }
+    return selected;
+  }
+
+  Widget _filterBar(BuildContext context) {
+    final entries = <(String label, String? display, VoidCallback onTap)>[];
+
+    if (!_isManagement && widget.role == 'student') {
+      final batches = _facetList('batches');
+      if (batches.isNotEmpty) {
+        entries.add((
+          'Batch',
+          _facetDisplay(batches, _fBatch),
+          () => _pickFacet(
+              title: 'Batch', values: batches, selected: _fBatch,
+              onPick: (v) {
+                setState(() { _fBatch = v; _fSection = null; });
+                _onFilterChanged();
+              }),
+        ));
+      }
+      if (_fBatch != null) {
+        final sections = _facetList('sections');
+        if (sections.isNotEmpty) {
+          entries.add((
+            'Section',
+            _facetDisplay(sections, _fSection),
+            () => _pickFacet(
+                title: 'Section', values: sections, selected: _fSection,
+                onPick: (v) { setState(() => _fSection = v); _onFilterChanged(); }),
+          ));
+        }
+      }
+      final semesters = _facetList('semesters');
+      if (semesters.isNotEmpty) {
+        entries.add((
+          'Semester',
+          _facetDisplay(semesters, _fSemester?.toString()),
+          () => _pickFacet(
+              title: 'Semester', values: semesters, selected: _fSemester?.toString(),
+              onPick: (v) {
+                setState(() => _fSemester = v == null ? null : int.tryParse(v));
+                _onFilterChanged();
+              }),
+        ));
+      }
+    }
+    if (!_isManagement && !_isAll) {
+      final depts = _facetList('departments');
+      if (depts.isNotEmpty) {
+        String labelOf(Map<String, dynamic> m) => '${m['label'] ?? m['value']}';
+        entries.add((
+          'Department',
+          _facetDisplay(depts, _fDepartmentId, labelOf: labelOf),
+          () => _pickFacet(
+              title: 'Department', values: depts, selected: _fDepartmentId, labelOf: labelOf,
+              onPick: (v) { setState(() => _fDepartmentId = v); _onFilterChanged(); }),
+        ));
+      }
+    }
+
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 0, 8),
+      child: SizedBox(
+        height: 44,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsetsDirectional.only(end: 16),
+          itemCount: entries.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final e = entries[i];
+            return Center(
+              child: GlassChip(
+                icon: Icons.tune_rounded,
+                label: e.$2 == null ? e.$1 : '${e.$1}: ${e.$2}',
+                selected: e.$2 != null,
+                color: AppColors.holoBlue,
+                onTap: e.$3,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -360,44 +478,7 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
                   filled: true, fillColor: AppColors.glassFill(context),
                   border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
         ),
-        if (!_isManagement && widget.role == 'student') ...[
-          _drillLevel(
-            title: 'Batch',
-            values: _facetList('batches'),
-            selected: _fBatch,
-            onPick: (v) {
-              setState(() { _fBatch = v; _fSection = null; });
-              _onFilterChanged();
-            },
-          ),
-          if (_fBatch != null)
-            _drillLevel(
-              title: 'Section',
-              values: _facetList('sections'),
-              selected: _fSection,
-              onPick: (v) { setState(() => _fSection = v); _onFilterChanged(); },
-            ),
-          _drillLevel(
-            title: 'Semester',
-            values: _facetList('semesters'),
-            selected: _fSemester?.toString(),
-            onPick: (v) {
-              setState(() => _fSemester = v == null ? null : int.tryParse(v));
-              _onFilterChanged();
-            },
-          ),
-        ],
-        if (!_isManagement && !_isAll)
-          _drillLevel(
-            title: 'Department',
-            values: _facetList('departments'),
-            selected: _fDepartmentId,
-            labelOf: (m) => '${m['label'] ?? m['value']}',
-            onPick: (v) {
-              setState(() => _fDepartmentId = v);
-              _onFilterChanged();
-            },
-          ),
+        _filterBar(context),
         const SizedBox(height: 8),
         Expanded(
           child: _loading && _firstLoad
@@ -476,6 +557,40 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
                 ),
         ),
       ]),
+    );
+  }
+}
+
+/// One row inside a facet picker sheet.
+class _FacetOption extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FacetOption({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppDepth.radius(1),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(children: [
+          Icon(
+            selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+            size: 20,
+            color: selected ? AppColors.holoBlue : AppColors.textSecondaryOf(context),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label,
+                style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+          ),
+        ]),
+      ),
     );
   }
 }

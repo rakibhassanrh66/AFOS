@@ -185,4 +185,55 @@ void main() {
       expect(isProfileComplete(p, now: clock), isTrue);
     });
   });
+
+  /// THERE IS NO `profiles.designation` COLUMN. Verified against
+  /// information_schema on 2026-08-31: asking PostgREST for it rejects the
+  /// whole select with 42703, which is precisely what made the Profile
+  /// Inspection screen render its error state on every open — it named the
+  /// column in its select list on the belief, written down in this repo's own
+  /// notes, that it "exists but is never populated". It does not exist.
+  ///
+  /// So for a teacher or staff row the embed is not a fallback, it is the
+  /// ONLY source. These pin that shape: no flat key present at all.
+  group('designation comes from the linked row, never a profiles column', () {
+    test('a teacher row carrying only the embed resolves, and is complete', () {
+      final p = base('teacher')..remove('designation');
+      p['teachers'] = [
+        {'designation': 'Assistant Professor'}
+      ];
+      expect(resolvedDesignation(p), 'Assistant Professor');
+
+      p['designation'] = resolvedDesignation(p);
+      expect(isProfileComplete(p), isTrue,
+          reason: 'the database considers this account complete; the ring and '
+              'the Inspection screen must agree with it');
+    });
+
+    test('PostgREST may hand back the embed as an object, not a list', () {
+      final p = base('staff')..remove('designation');
+      p['staff'] = {'designation': 'Controller of Examinations'};
+      expect(resolvedDesignation(p), 'Controller of Examinations');
+    });
+
+    test('no flat key and no embed resolves to null, not a crash', () {
+      final p = base('teacher')..remove('designation');
+      expect(resolvedDesignation(p), isNull);
+      expect(incompleteReasons(p), contains('Designation'));
+    });
+
+    test('a teacher missing only a join date is flagged for that alone', () {
+      // The live table on 2026-08-31 held exactly this: three teachers with a
+      // real designation on their linked row and no joined_on. Before the
+      // fix the screen could not list them at all; the risk after it is
+      // listing them for the WRONG reason.
+      final p = base('teacher')
+        ..remove('designation')
+        ..['joined_on'] = null;
+      p['teachers'] = [
+        {'designation': 'Lecturer'}
+      ];
+      p['designation'] = resolvedDesignation(p);
+      expect(incompleteReasons(p), ['Join date']);
+    });
+  });
 }

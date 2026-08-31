@@ -47,7 +47,11 @@ class _ExamRoutineUploadState extends State<ExamRoutineUploadScreen> {
   Future<void> _pick() async {
     final res = await FilePicker.platform.pickFiles(
         type: FileType.custom, allowedExtensions: ['pdf'], withData: true);
-    if (res == null || res.files.isEmpty) return;
+    // BUG_REGISTER P1-01: the file picker is a full platform round-trip, and
+    // exactly the kind of await a user can navigate away from. The sibling
+    // picker in admin_upload_routine_screen.dart already carries this guard
+    // with the same note; this copy was missed by that sweep.
+    if (!mounted || res == null || res.files.isEmpty) return;
     setState(() {
       _file = res.files.first;
       _parsed = null;

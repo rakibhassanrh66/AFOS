@@ -8,6 +8,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_chip.dart';
 import '../../../shared/widgets/glass_sheet.dart';
@@ -27,6 +28,7 @@ class ManageConferenceRoomsScreen extends StatefulWidget {
 class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScreen> {
   List<Map<String, dynamic>> _requests = [];
   bool _loading = true;
+  String? _error;
   String _filter = 'pending';
   RealtimeChannel? _sub;
   final _refresh = RealtimeRefresh();
@@ -57,8 +59,14 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
       final res = await SupabaseConfig.client.from('conference_room_requests')
           .select('*, profiles!requester_id(full_name, role)')
           .order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _requests = res.cast(); _loading = false; });
-    } catch (_) { if (mounted) setState(() => _loading = false); }
+      if (mounted) setState(() { _requests = res.cast(); _loading = false; _error = null; });
+    } catch (e) {
+      // Worse here than on the requester's own screen: this is the REVIEW
+      // queue. Swallowing the failure showed an admin "No requests" while
+      // real bookings sat waiting for a decision, and nothing anywhere said
+      // the fetch had failed — so the queue looked done rather than unread.
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
+    }
   }
 
   List<Map<String, dynamic>> get _visible =>
@@ -182,6 +190,8 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
         ),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
+            : _error != null
+                ? ErrorView(message: _error!, onRetry: _load)
             : _visible.isEmpty
                 ? EmptyState(icon: Icons.meeting_room_outlined, title: 'No requests', subtitle: 'Nothing in "$_filter" right now')
                 : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _visible.length,

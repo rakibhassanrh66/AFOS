@@ -3455,3 +3455,1579 @@ signature confirmed unchanged against the live project.
   navigation, the search box staying visible while the list scrolls, the
   previously-dead "Total Users" tile now doing something, and the Pending
   queue's approve/reject/delete still working unchanged.
+
+---
+
+## Phase C — the app never actually ran, and neither had this bug · 2026-08-31
+
+Phase A and Phase B were both verified against the live DB and 549 passing
+tests, but neither had been clicked through in a running app — flagged as
+STILL OPEN on both. First real device connected to this machine this session
+(a Motorola Edge 60 Pro over wireless ADB). Installing and launching the debug
+build to finally do that click-through surfaced a genuine, universal,
+launch-blocking defect that no amount of reading or unit testing could have
+caught.
+
+### The app was not slow at splash. It was crashing at splash.
+
+`adb logcat` on first launch: `Unhandled Exception:
+dependOnInheritedWidgetOfExactType<MediaQuery>() ... was called before
+_SplashScreenState.initState() completed`, thrown from
+`AppMotion.isReduced(context)` (`config/theme/motion.dart:134`, itself calling
+`MediaQuery.maybeDisableAnimationsOf`) via `_SplashScreenState._run()`
+(`splash_screen.dart:129`), called directly and synchronously from
+`initState()` (`splash_screen.dart:66`). Flutter forbids any inherited-widget
+lookup before an Element has finished mounting — `initState()` is too early;
+`didChangeDependencies()` is the framework's designated place for exactly this.
+The exception aborted `_run()` before it ever reached `context.go(target)`, so
+every single launch died on the "All Facilities One System" tagline screen —
+this is almost certainly what "the app stuck on splash" was describing, and it
+predates this session; it was just never seen because nothing had run the app
+on a device.
+
+**Fix** (`lib/features/splash/presentation/splash_screen.dart`): removed the
+direct `_run()` call from `initState()`; added a guarded
+`didChangeDependencies()` override that calls `_run()` exactly once. The
+context-independent `_destination = _resolveDestination()` stays in
+`initState()` unchanged — only the MediaQuery-dependent half moved, and it
+still fires before the first frame, so nothing about the arc's timing changed.
+
+**Scanned for the same mistake elsewhere**: every other `AppMotion.isReduced`/
+`durationOf`/`staggerDelay` call site (13 found) and every direct
+`MediaQuery.of/maybeOf/sizeOf/paddingOf/disableAnimationsOf` call site (22
+files) — all in `build()` or `didChangeDependencies()`. One false positive
+(`glass_bottom_nav.dart:107`, actually inside `didUpdateWidget`, which is
+safe). Splash was the only offender.
+
+**Verified live, not just read**: rebuilt the debug APK, reinstalled over the
+broken one, cleared logcat, relaunched — the app now reaches the login screen
+in ~2.7s with no exception in the log. `flutter analyze`: 0 issues.
+`flutter test`: all 549 passing (unchanged — this was never something a
+widget test would have caught, since none of them run a real `initState` →
+first-frame cycle against a real BuildOwner the way a device does).
+
+### The self-verify welcome gap
+
+Confirmed by reading `register-admin-approve/index.ts` and the Pending-tab
+`_approve()` in `manage_users_screen.dart`: both existing approval paths
+insert a `user_notifications` row telling the new user they're in. The
+self-verify path (`register-verify/index.ts`, the code-in-the-app flow that
+settles the large majority of signups — students, by default
+`auto_approve_roles`) did not. Added the same insert, gated on
+`autoApproved`, right after the existing `pending_registrations` consume —
+mirrors the established pattern exactly rather than inventing a new one.
+Deployed via `supabase functions deploy register-verify`. Not yet fired live
+(would need an actual new self-verifying signup, which the Resend sandbox
+issue below currently blocks for any address but the account owner's own).
+
+### Confirmed live, while investigating the "solid bar" complaint (already fixed in Phase B)
+
+Using the connected device's own already-authenticated `super_admin` session
+(a session that predates this work): the Phase B per-role directory
+(`/admin/users/staff`) rendered exactly as designed — fixed search bar in its
+own slot above a grouped, live-counted user tree, not stacked into the scroll.
+This is the first real confirmation of Phase B outside a widget test.
+
+**A caution, disclosed as it happened**: an exploratory swipe on the real,
+already-signed-in account's `/complete-profile` screen landed on "Save &
+Continue" and briefly navigated away before this was noticed. Re-opened the
+form immediately and confirmed via the Edit Profile screen that every field
+(`phone`, the `Mum+01986785348` emergency contact, address, department)
+matched what was already stored — nothing was altered, and the form still
+reads `profile_completed = false`, meaning that account remains incomplete
+either way. No further writes attempted; backed out with the hardware Back
+button instead of touching the form again.
+
+### Resend still sandboxed — unchanged, and out of this codebase's reach
+
+Re-confirmed by reading `register-request`, `password-reset`, and
+`_shared/mailer.ts`: every mailed code (registration AND password reset) goes
+through the same Resend call, and Resend sandbox mode rejects delivery to
+every address but the account owner's own. This is an account-level Resend
+Dashboard action (verify a sending domain), not something fixable from this
+repo — flagged to the owner directly, not attempted here.
+
+### Migrations applied
+
+None. `register-verify`'s edge-function deploy is the only backend change;
+verified by the deploy command's own success response
+(`{"functions":["register-verify"], ...}`) plus the code-level pattern match
+against the two working approval paths.
+
+### Verification
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged. Splash
+fix confirmed on a real device (Motorola Edge 60 Pro, Android 16) via
+`adb logcat` before/after. Phase B's per-role directory confirmed rendering
+correctly on the same device, live, against the real backend.
+
+### STILL OPEN
+
+- Resend sandbox mode — owner action, not code.
+- `register-verify`'s new welcome notification has not fired live yet (no
+  eligible new signup occurred this session).
+- Not investigated: whether `/complete-profile` is meant to be a hard gate or
+  a dismissible nag — the account used for verification reached other admin
+  screens while still `profile_completed = false`. Not clear if that is by
+  design (admins exempted) or a gap; flagged, not touched.
+- `password-reset`'s session-revocation-on-change behaviour (flagged
+  "verified-open" in that file's own comments, predating this session) is
+  still genuinely untested.
+- No "welcome email" exists (by design — mail is deliberately reserved for
+  proving a mailbox and recovering a password; every other notification is
+  in-app/push, per `_shared/mailer.ts`'s own documented rationale). Confirmed
+  intentional, not a gap, once the reasoning was found.
+
+---
+
+## Phase C (continued) — the profile screen that never stopped asking · 2026-08-31
+
+Live use immediately answered one of Phase C's own STILL OPEN items: the
+owner's own account kept landing back on `/complete-profile` no matter how
+many times it was filled in and saved. Traced to a real gap in
+`20260830164152_a_face_and_a_real_emergency_contact.sql` itself, not to
+anything from this session.
+
+### The grandfather gap
+
+`profile_is_complete()` accepts a photo as compliant when `verified_at` is
+within 48h, OR `avatar_review_status in ('pending','approved')`. That
+migration backfilled `verified_at` from `created_at` for every already-
+verified account (correctly — `now()` would have handed everyone an
+undeserved fresh grace window) but never backfilled `avatar_review_status`
+for accounts that already had a perfectly good `avatar_url` from before the
+review pipeline existed. Every one of those accounts was left at the `'none'`
+default with a 48h window that had already expired the instant the migration
+ran, since `verified_at` was backfilled into the past, not the present. Net
+effect: any account that was already verified and already had a real photo
+before 2026-08-30 was permanently stuck re-demanding a photo it already had —
+confirmed live on the owner's own account, which has carried a real
+`avatar_url` for months.
+
+**Fix**: `20260831000000_grandfather_avatars_predating_the_review_pipeline.sql`
+— sets `avatar_review_status = 'approved'` (and `avatar_reviewed_at`) for
+any row where it is still `'none'` and `avatar_url is not null`. Safe as a
+standing rule, not just a one-time cleanup: `20260830165726` already closed
+the direct-write bypass, so `avatar_url` can now only be set by
+`admin_approve_avatar()`, which always sets `avatar_review_status =
+'approved'` in the same statement — the combination this migration targets
+can only exist as a pre-pipeline leftover, never as a new row, so there is no
+future account it could misclassify.
+
+**Verified live**: force-stopped and relaunched the app on the connected
+device before and after applying the migration. Before: landed on
+`/complete-profile` on every cold start. After: lands directly on the real
+Dashboard. `supabase migration list` confirms the remote ledger recorded
+`20260831000000` matching the filename exactly.
+
+### The batch strip that ate the screen
+
+Separately reported live: opening the Student role directory showed "many
+batches" that "blocked the rest of the screen." Root cause in
+`user_directory_screen.dart`'s shared `_drillLevel()` (used for Batch,
+Section, Semester on students, and Department on every role): each was a
+`Wrap` with no height limit, so a role with dozens of distinct batch values
+wrapped across as many rows as it took, in the screen's fixed (non-scrolling)
+region above the list — for students specifically, this could consume the
+entire viewport and leave nothing for the actual people. Search already
+covered "find a student directly by batch/ID/name" (`admin_search_users`'s
+`p_q` already matches against `batch` and `section`, confirmed by reading
+`profile_search_text(...)` in `20260822112415`), so the fix is scoped
+entirely to the crowding, not to search.
+
+**Fix**: `_drillLevel()` now renders each filter level as a single fixed-
+height (52px) horizontally-scrolling row instead of a wrapping grid — one row
+per level, always, regardless of how many values it holds. Applies uniformly
+to every role that uses the shared helper, not just Student.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged (a filter
+chip's layout axis is not something the existing suite asserts on).
+
+### Migrations applied (verified behaviourally, against the live project)
+
+- `20260831000000_grandfather_avatars_predating_the_review_pipeline.sql` —
+  applied via `supabase db push`; remote ledger version confirmed to match
+  the filename exactly; behaviour confirmed via a real before/after app
+  relaunch on the connected device, not by reading the row count back.
+
+### STILL OPEN
+
+- The batch-strip fix was verified by rebuild + `flutter analyze`, not by a
+  second live click-through on the device — the same account's admin session
+  was already in active use by the owner by that point in the session, so
+  further automated navigation was deliberately stopped rather than risk
+  colliding with it.
+
+---
+
+## Phase D — the rings the owner asked for already existed, just not here · 2026-08-31
+
+The owner asked for "rounded rings and multiple graphs" so a super_admin can
+read management activity at a glance. Before writing anything, checked
+whether this already existed anywhere in the codebase, because guessing here
+would have meant either a second, competing chart implementation or a
+generic-library aesthetic fighting Liquid Glass.
+
+It already existed. `features/web/presentation/widgets/chart_primitives.dart`
+carries a complete, hand-painted, accessibility-validated chart system —
+`RingChart`, `BarList`, `HeatGrid`, `ChartLegend` — deliberately NOT a
+package (a charting library is 300KB-2MB of Dart for three shapes, against
+the 2MB per-dependency budget). `chart_palette.dart` is a separately-stepped,
+contrast-validated data palette (documented failures against the plain UI
+accent colours, per-mode, with the validator commands that prove it). Both
+already power `admin_overview.dart`, a full ten-panel analytics console —
+but that file says outright: "WEB ONLY... the phone dashboard is a launcher
+by design and is not touched." That was a deliberate prior decision, not an
+oversight, and the owner's request this session is exactly what asks to
+revisit it.
+
+### What was built
+
+`AdminInsightsPanel` (`features/dashboard/presentation/widgets/
+admin_insights_panel.dart`) — the same data, the same primitives, a phone-
+width single column instead of the web console's 12-column `ConsoleGrid`
+(which does not mean anything at 320-430dp, so it is not reused). Two stat
+tiles (classes running, awaiting approval), two rings side by side (labs vs.
+theory, hall occupancy), one role-breakdown bar list ("Who is in AFOS") —
+deliberately NOT the full ten-panel web set, to avoid immediately repeating
+the exact crowding mistake just fixed in Manage Users on the same screen.
+
+Reuses `AdminOverviewData.load()` VERBATIM — already one parallel wave of six
+existing calls, already permission-gated (returns null for anyone who is not
+super_admin/admin/dept_admin or `users:approve`), so this phase needed zero
+new RPCs and zero backend changes. Wired into `dashboard_screen.dart` the
+same way `ExamPulseData` already is: started in parallel in `initState`,
+awaited and set inside `_load()` — the file's own established fix for the
+layout-shift the constitution bans, not a new pattern.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged. Zero
+migrations, zero new dependencies, zero changes to `admin_overview.dart` or
+any web file — fully additive.
+
+### STILL OPEN
+
+- Not yet seen on the device — this landed at the end of the session; the
+  admin account was in active concurrent use by the owner, so a live
+  click-through was deliberately deferred rather than risk another
+  collision.
+- Scoped deliberately narrow (2 stats + 2 rings + 1 bar list). The owner's
+  ask covered more ground — a 3D-shadow time/date widget and a weather +
+  dress-suggestion feature — neither started: the former is pure decoration
+  with no data source to get wrong, the latter is blocked on a weather
+  provider/API key decision that has to come from the owner (never something
+  this session can create itself).
+
+---
+
+## Phase E — the filter strip, the seam in the drawer, the accent that
+never reached anything, and a ring for every user · 2026-08-31
+
+Live use of Phase C/D surfaced a fresh batch, all traced to real code before
+touching anything.
+
+### Manage Users still crowded, one layer further in
+
+The per-role directory's filter strip (Phase C's own fix) went from "many
+batch VALUES wrap the screen" to "up to 4 filter DIMENSIONS stack their own
+row each" — still roughly a third of a phone screen before any person is
+visible. Replaced `_drillLevel` with `_filterBar`: ONE row, one compact chip
+per dimension ("Batch: 68" or bare "Batch" when unset), each opening a
+`showGlassSheet` picker instead of showing every value inline. Confirmed
+first that this loses nothing: `admin_search_users`'s `p_q` already matches
+against `batch`/`section` via `profile_search_text()` (20260822112415), so
+direct search was never the gap.
+
+### The drawer's active-item border, and why it read as "off"
+
+The web sidebar's active-tab indicator (`_QuickRailTile`) draws its rounded
+fill and its accent left-border in ONE `BoxDecoration` — the border curves
+with the corners. The phone drawer's `_MenuTile` split the same two things
+across two nested containers, and only the outer one had `borderRadius` — so
+the straight border cut across where the fill's corner should curve. One-line
+fix: the inner container's decoration gets the same `AppDepth.radius(1)` the
+outer one already has.
+
+### The accent picker, still only reaching 3 of ~40 files
+
+`AppColors.accentOf(context)` was itself built to fix "the accent picker had
+no visible effect" (its own doc comment). It fixed the MECHANISM, not the
+COVERAGE: `grep` found exactly 3 files reading it against 37 still hardcoding
+`AppColors.holoBlue`. Fixed the highest-leverage shared ones rather than all
+37 individually — a shared widget fix reaches every screen that uses it:
+
+- `AfosButton`'s default fill was `AppColors.green`, not the user's accent —
+  the primary CTA on nearly every screen in the app never moved.
+- `AfosTextField`'s focus glow, focus icon colour, and trailing-icon colour
+  were hardcoded `holoBlue` — inconsistent with the OUTLINE border, which
+  already tracked the theme's `colorScheme.primary` via Material defaults.
+- `GlassTabBar`'s rolling selected-tab indicator used the fixed
+  `holoGradient` signature rather than the accent — the doctrine's own named
+  example of "a selected tab" that should follow it. Rebuilt as an
+  accent-based depth gradient (same in-family technique as `AfosButton`), and
+  its selected-label colour switched from flat white to
+  `AppColors.foregroundOn(accent)` — a light accent (amber, the sky-blue
+  "gold" alias) under flat white would have failed contrast the moment the
+  indicator stopped being a fixed dark-ish gradient.
+- Dashboard's `_FeaturedCard` had the exact same flat-white-on-a-variable-
+  colour bug independently: `module.color` includes `amber` (`hall`) and the
+  light "gold" alias (`cr`), both of which `Colors.white` text does not
+  survive. Same `foregroundOn` fix.
+
+`holoGradient` itself, and its uses in splash/dashboard headers/schedule/
+dept-chat (decorative, not a selection state), were deliberately left alone —
+the doctrine's own distinction is "brand for meaning-free selection, not for
+things that already carry meaning," and a decorative signature gradient
+carries none to override.
+
+### The new Inspection tool
+
+The owner asked for a place to specifically check whether profiles are okay
+and nudge the one person who still needs to fix theirs. Built with ZERO
+backend changes: `admin_search_users`'s return shape is explicitly frozen at
+17 columns ("must not have to adapt" — 20260822112415) and does not carry
+half of what `profile_is_complete()` checks, so extending it would have been
+exactly the return-type change the constitution forbids. Read `profiles`
+directly instead — the same pattern `_loadManagement()` already uses — after
+confirming the row policies allow it unrestricted by column
+(`admin_read_all`, `decision_holders_read_profiles`, 20260816014500).
+Notifying a flagged user reuses `NotificationService.sendToUsers`, already
+permission-gated server-side for an admin-tier caller sending to one arbitrary
+recipient — the same call site role-change/CR-approval already use.
+
+Added `incompleteReasons()` and `profileCompletionCounts()` to
+`profile_completeness.dart`, purely additive beside the existing
+`isProfileComplete()` — neither changes what actually gates an account, only
+what an admin (or the ring below) is told about why.
+
+### A ring for every user, not just super_admin's — and what "living" means here
+
+The owner asked for animated 3D "living" rings for every user's own interest.
+Built the honest version rather than reinterpreting the request away: a real
+personal number (their own profile completeness, computed off the exact same
+row already fetched for the dashboard, zero extra queries), not a decorative
+loop. Explicitly did NOT build a perpetually spinning/pulsing ring — the
+constitution's "animate on mount or explicit action, never on rebuild" is not
+ambiguous, and thousands of phones idly animating something that never
+changes is the literal failure mode that rule exists to prevent. What "living"
+means instead: a one-time sweep-in on mount (gone under reduced motion, not
+skipped — the ring still appears, just without the entrance), and real depth
+via `AppDepth.shadow()` (occlusion + directional light + scale, the
+doctrine's own definition), not a blur trick standing in for one. Disappears
+once the profile is complete, same contract the exam pulse band already
+uses.
+
+### Verified
+
+`flutter analyze`: 0 issues throughout. `flutter test`: 549 passing after one
+real regression caught and fixed — `row_starve_guard_test.dart` correctly
+flagged `ProfileInspectionScreen`'s bare `PillBadge` beside an `Expanded`
+name/role column; fixed by wrapping the badge in `Flexible` and adding the
+same `maxLines`/`overflow` guard the rest of the codebase already uses on
+that name column.
+
+### Migrations applied
+
+None. Every fix in this phase is Dart-only or reuses an existing, unmodified
+RPC/policy.
+
+### STILL OPEN
+
+- None of this phase's device-facing changes have been clicked through live
+  yet — verification stopped at `flutter analyze` + `flutter test` this pass.
+- Still not started: the "3D shadow" time/date widget, and weather + dress
+  suggestions (unblocked now — Open-Meteo needs no API key at all — but not
+  yet built).
+- Only the highest-leverage 4 files were migrated to `accentOf`; the
+  remaining ~33 files with hardcoded `holoBlue`/etc. were deliberately left
+  for a dedicated pass rather than a single large, harder-to-verify diff.
+
+---
+
+## Phase F — the bug inside the fix, a stale ring, and live weather · 2026-08-31
+
+Live use of Phase E's own changes immediately found two real defects in them,
+plus the weather feature this session had left blocked until now.
+
+### `GlassChip`'s selected text was never reading its own fix
+
+`fg` was computed correctly (`foregroundOn(accent)` — dark ink on a light
+accent, white on a dark one) and then the actual `Text`'s `color:` used a flat
+`Colors.white` regardless, shadowing it completely. That is the precise
+"selected text goes faded/fancy" report: a light accent (amber, sky, several
+department/batch chip colours) filled behind flat white reads as washed out.
+`fg` was already right; it just never reached the widget. One-line fix.
+
+Found the same FAMILY of bug independently in the drawer: `_MenuTile` and
+`_QuickRailTile` both coloured their ACTIVE label in `item.accent` directly —
+a module colour (vr_id's teal-green and others) used as small text is
+lower-contrast than solid ink by construction, whatever a contrast checker
+says about it in isolation. The icon tile, the fill, and the left border
+already mark "active"; the label does not also need to change colour to
+prove it. Both switched to solid `textPrimary`.
+
+### The ring that would not update, and the ring that ate its own text
+
+Two more real, reported bugs, not follow-on polish:
+
+- `MyCompletenessRing` was a 64px ring carrying `RingChart`'s fixed 24px
+  centre-figure style (correct for the web console's much larger rings it
+  was written for). At 64px with a 10px stroke there was nowhere for "100%"
+  to go but across the stroke — the literal "percentage crosses the ring
+  border" report. Now 96px / 8px stroke, with room to spare.
+- The ring's tap target pushed to `/complete-profile` and never refreshed
+  afterward. `complete_profile_screen.dart`'s save does `context.go('/home')`,
+  not a pop — which can land back on an ALREADY-MOUNTED `DashboardScreen`
+  whose `_load()` never reruns on its own, so the ring kept showing a stale
+  "1 detail left" for an account that had actually just finished. This is
+  almost certainly the exact case reported ("verdict says nothing missing,
+  ring still says one left"). Fixed at the root: the ring's `onTap` is now
+  owned by `dashboard_screen.dart`, which `await`s the push and calls `_load()`
+  again the moment that page is popped off the Navigator (a `go()` elsewhere
+  still completes that Future — it does not need to be a literal `pop`).
+- Separately, "1 detail left" never said which one. The ring now also shows
+  `incompleteReasons()`'s actual field names, not just a count — reusing the
+  exact function built for the admin Inspection screen a phase ago, so the
+  two can never describe the same account differently.
+
+### Weather + dress suggestion, built
+
+Chose Open-Meteo specifically because it needs no signup and no API key at
+all — every alternative (OpenWeatherMap included) needs a secret this repo
+could never hold per its own HARD RULE on credentials, so it was never
+actually a close call. The URL the owner pasted mid-session was Open-Meteo's
+own "select everything" request-builder output (Berlin coordinates, ~80
+variables, "equivalent to 10.4 calls" by its own admission) — not something
+to wire in as-is. Built a properly scoped request instead: `current=
+temperature_2m,weather_code,is_day` only, for the device's OWN location (the
+owner's explicit call once "per-student GPS vs. one shared campus value" was
+put to them), via `LocationHelper.getCurrentPosition()` — already-existing
+shared infrastructure (built for SOS), not a new location layer. Cached
+locally for 25 minutes via the existing `LocalCacheService` (already carries
+a `cachedAt` timestamp) so a location fix and a network call do not repeat on
+every dashboard rebuild.
+
+Dress suggestion is a RULE TABLE (temperature band × condition × optional
+gender), not a generated one — small, fixed combination, instant, free,
+correct offline once fetched. `WeatherDressCard` follows the exact same
+motion contract as `MyCompletenessRing`: one mount-in animation, real
+`AppDepth` shadow, never a perpetual loop. The owner's original "moving heat
+haze, animating rain" idea was heard, not silently dropped — building it as
+continuous idle motion on every open dashboard is exactly what "animate on
+mount or explicit action, never on rebuild" exists to prevent; said so plainly
+rather than quietly building a smaller version of a different thing.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- Not yet seen live on the device this pass — verification stopped at
+  `flutter analyze` + `flutter test`.
+- The "1 detail left but nothing named" report was traced to a real, generic
+  root cause (stale Dashboard state after `go()`) and reasons are now shown —
+  but the SPECIFIC field that was flagged on the account in question was
+  never confirmed directly (no database read was available this session), so
+  this is a strong diagnosis, not a confirmed one.
+- The "3D shadow" time/date widget is still not built.
+
+---
+
+## Phase G — the popover had the splash screen's own bug · 2026-08-31
+
+The reported "red error in the notification list" turned out not to be in the
+list at all: tapping the bell threw `dependOnInheritedWidgetOfExactType
+<MediaQuery>() ... called before _PopoverOverlayState.initState() completed`
+— visible proof that Phase C's splash-screen fix was necessary but not
+sufficient. That fix covered every call site literally reading
+`AppMotion.isReduced`/`MediaQuery.*(context)` inside an `initState()` body,
+which is what a text search can find. This bug is a DIFFERENT shape of the
+same mistake: `_PopoverOverlayState._reduceMotion` is a getter that reads
+`MediaQuery.of(context).disableAnimations`, defined once outside
+`initState`, then CALLED from inside `initState` (`if (_reduceMotion) ...`)
+— so the offending `MediaQuery` text never appears anywhere near the
+`initState` text a scan would flag. Re-swept the whole `disableAnimations`/
+`MediaQuery` surface with this in mind (8 files); the only other real
+instance was the one already fixed. `glass_bottom_nav.dart`'s own
+`MediaQuery.of(context)` is inside `didUpdateWidget`, confirmed safe again.
+
+**Fix**: identical shape to the splash-screen one — `initState` only builds
+the `AnimationController`/`CurvedAnimation` now; the reduced-motion branch
+that decides whether to jump to value 1 or animate in moved to
+`didChangeDependencies`, guarded by a `_started` flag so it only fires once.
+
+### Weather still not appearing despite "profile complete, location on"
+
+Not diagnosable from code alone — `WeatherService.current()`'s own contract
+is "never surface a failure, just show no card," which is correct for a user
+but makes a real bug indistinguishable from an expected empty state without
+runtime visibility. Instrumented every branch with a `[weather]`-tagged
+`debugPrint` (cache hit/miss, location outcome, the raw HTTP response,
+whichever exception fires) and widened the try/catch to cover the cache read
+too, which was previously unguarded ahead of the network call's own try
+block. Not a fix yet — a way to actually see which branch is firing, since
+guessing further without that would risk "fixing" a branch that was never
+the problem.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The popover fix has not been confirmed live yet (tapping the bell to check
+  requires the device, which was in the owner's own active use this pass).
+- The weather non-appearance is instrumented, not yet root-caused — next
+  step is reading logcat for the `[weather]` tag after a reload, or the
+  owner relaying what it prints.
+
+---
+
+## Phase H — two more of the same bug, and a real logcat catch · 2026-08-31
+
+### The drawer header had the same "accent as text" bug twice more
+
+Reported live: the drawer's own "CSE" (department) / "Sem 8" chips and "My
+VR-ID" row read faded, same complaint as the menu items already fixed. Both
+are a variant of the identical mistake: `_Chip`'s label was painted in the
+raw `color` parameter (`AppColors.holoBlue`/`AppColors.green`) sitting on
+only a 0.15-alpha tint of that same colour — a near-neutral background with
+full-strength colour text on top, low contrast almost by construction, and
+not a case `foregroundOn` even answers (that function assumes a SOLID accent
+fill, not a tint this light). Same for "My VR-ID": `color: AppColors.gold`
+directly on the label. Both fixed the same way as the menu items: the accent
+stays on the tint/border/icon, the label goes solid `textPrimaryOf(context)`.
+
+Re-checked the Dashboard's own module grid (`_Module` tiles — the single
+highest-traffic screen in the app) for the same pattern before assuming it
+was everywhere: already correct, title text was already `textPrimaryOf`, not
+the module colour. Confirms this was never a global rule violated
+uniformly — specific spots, now three found and fixed across two files.
+
+A broader grep for `color: AppColors.<accent>` beside a `Text(` turned up
+roughly 60 more candidates project-wide. Not swept blind: a large share of
+those are legitimately colour-carrying status text (red "Cancelled", amber
+"Pending") that the constitution explicitly says must KEEP that colour — colour
+IS the information there. Distinguishing that from a repeat of this same
+bug needs per-site reading, which 60 sites is too much to responsibly rush
+through in one pass; flagged as a dedicated follow-up rather than guessed at.
+
+### The weather diagnostic paid off, and revealed the more likely real bug
+
+`adb logcat`, watched passively (no device interaction): `[weather] serving
+cached reading from 2026-08-31 16:12:27` — proof `WeatherService.current()`
+itself is working and returning real data. That redirects the search:
+`_weatherFuture` is a SEPARATE Future started in `initState`, independent of
+`dashboard_screen.dart`'s own `_load()` — its debug line proves the fetch
+succeeded, not that `_load()` ever reached the line that applies it.
+`_load()`'s own catch was a bare `catch (_)`: if the PULSE or INSIGHTS await
+immediately before the weather await throws for any reason, everything from
+that point on -- weather included -- is abandoned with zero trace, while
+`_loading`/`_statsLoading` still flip false, so the rest of the screen looks
+normal and nothing reads as broken. Added a matching `[dashboard]`-tagged
+debugPrint on both the success path and the catch (with the actual exception
+and stack trace) so the next reload will show definitively whether this is
+what's happening, rather than continuing to guess between this and a dozen
+other theories.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- Root cause of the weather non-appearance still not confirmed — narrowed
+  from "somewhere in the fetch" to "likely `_load()` silently aborting
+  between the insights and weather awaits," pending the next `[dashboard]`
+  log line.
+- The ~60-site broader accent-as-text audit is scoped but not started.
+
+---
+
+## Phase I — the actual root cause: the whole dashboard was gated on a stream, not on its own data · 2026-08-31
+
+The `[dashboard]`/`[weather]` logging from Phase H paid off immediately.
+`[dashboard] weather applied: true` fired repeatedly — proof `_weather` WAS
+being set correctly, every time. That ruled out the fetch entirely and
+pointed straight at the render gate: `if (!_loading && !_statsLoading &&
+_search.trim().isEmpty)`, which wraps the ring, the weather card, class
+status, the featured card AND the admin insights panel.
+
+`_loading` had exactly one success path in the whole file: the NOTICES
+REALTIME STREAM's `.listen()` callback. Not the profile fetch, which is what
+every one of those five pieces of content actually depends on — a live
+Postgres Changes subscription that, unlike the profile fetch (already
+wrapped in `cachedMapFetch` specifically because "a live .stream() never
+emits at all with no connection", per that code's own comment one screen
+up). Worse: `_loading` also gates the MODULE GRID's shimmer, the app's core
+navigation, used by literally everyone. A slow or momentarily stuck notices
+channel — no error, nothing to catch, just a subscription that has not
+emitted its first event yet — silently held the entire dashboard hostage
+past a shimmer, on any account, regardless of role. This is almost certainly
+the actual mechanism behind the original "rings aren't showing for
+anything... weather just showing the normal details" report: the ring's and
+weather's OWN data was correctly ready the whole time, sitting in state,
+invisible behind a gate that had nothing to do with either of them.
+
+**Fix**: `_loading` now flips false immediately after the profile fetch
+succeeds -- the deterministic signal every gated piece of content actually
+needs -- instead of waiting on the notices stream. Notices got their own
+independent flag (`_noticesLoading`) so their shimmer still shows correctly
+without blocking anything else. All three of `_load()`'s early-return/catch
+paths updated to clear both flags, not just the one.
+
+### Also fixed live this pass
+
+- The VR-ID icon, reported faded like the label beside it: full-strength
+  gold on a 28px circle tinted to only 0.16 alpha of the same colour --
+  solid ink now, same principle as the label fix an hour earlier. The row's
+  trailing chevron was also gold at 0.6 alpha for no reason (a chevron
+  carries no identity, just "there's more") -- switched to the same neutral
+  secondary ink every other chevron in the app already uses.
+- The completeness ring's own "94%" sat visibly above the ring's true
+  centre: `RingChart` (`chart_primitives.dart`, shared by the admin rings
+  too) always rendered a second `Text(centerLabel, ...)` even when the
+  caller passed `''` -- an empty string still occupies a full line of
+  height, so the two-line Column `Center`d itself, not just the number,
+  leaving the visible figure sitting above true centre by roughly half a
+  blank line. Fixed at the shared component: the label `Text` is now
+  omitted entirely when empty, which fixes every ring with a blank label at
+  once (currently only `MyCompletenessRing`) without touching any caller
+  that already passes a real one.
+- Re-verified the account-creation backend is untouched and healthy:
+  `register-verify` shows as the only function with a new deployed version
+  this session (v6, this session's one welcome-notification deploy);
+  `register-request`/`password-reset`/every other auth function is ACTIVE
+  and unchanged. No new problem found there -- the one open item remains the
+  Resend sandbox block already reported, which is an account setting, not
+  code.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The loading-gate fix has not been confirmed live yet this exact build —
+  next reload should show the ring/weather/module-grid appearing
+  immediately rather than depending on when (or whether) notices arrives.
+- The ~60-site broader accent-as-text audit is still scoped, not started.
+
+---
+
+## Phase J — the ring correctly displayed an incorrect verdict, chased to its real source · 2026-08-31
+
+Live: an account (staff, "Alim") showed 91% complete, "Designation" as the
+one thing missing — reported with certainty that the designation WAS
+already set. Chased to ground rather than dismissed or patched blind, since
+this account's own database row is either right or the whole completeness
+feature just lied to someone about their own data.
+
+### The database was never wrong. This session's own new code was.
+
+`profile_is_complete()` in Postgres does NOT check `profiles.designation`
+for teacher/staff — it never has, in either the pre-Phase-A or the current
+Phase-A version (`20260830164152` and its predecessor `20260822105453`
+both use `exists (select 1 from teachers/staff where ... designation ...)`).
+`complete_profile_screen.dart` writes designation ONLY to the linked
+`teachers`/`staff` row (confirmed by reading its save method start to
+finish), by design — `profiles.designation` is a column that exists but is
+deliberately never populated for these two roles.
+
+`lib/core/auth/profile_completeness.dart`'s `isProfileComplete()` —
+predating this session, not something introduced this week — checks
+`p['designation']` as a flat map key, which does not match the SQL it
+claims to mirror (its own doc comment: *"if the two ever disagree, the SQL
+wins and this file is the bug"*). This mismatch was DORMANT: `grep` confirms
+`isProfileComplete()` had no production caller anywhere before this
+session — the two new features built this week (`MyCompletenessRing`,
+`ProfileInspectionScreen`) are the first things that ever called it against
+a real teacher/staff row and could expose the gap. The database's own
+`profile_completed` flag — the one that actually gates the app — was correct
+the entire time; only this session's own new UI was capable of being wrong
+about it.
+
+### Fix, scoped to exactly where the mismatch lives
+
+No SQL change — the database was already right. Added `resolvedDesignation()`
+to `profile_completeness.dart`: reads the flat column first, falls back to
+an embedded `teachers`/`staff` row (handling the PostgREST object-or-list
+embed shape `UserModel` already established the pattern for). `isProfileComplete
+`/`incompleteReasons`/`profileCompletionCounts` themselves are untouched —
+still pure, still just trusting whatever is at `p['designation']`; the fix is
+entirely in what the two CALLERS put there before asking. Both
+`dashboard_screen.dart`'s and `ProfileInspectionScreen`'s queries gained
+`teachers(designation), staff(designation)` embeds (additive to each
+screen's own private, unshared query — nothing else reads either), followed
+by `row['designation'] = resolvedDesignation(row)` before any completeness
+call.
+
+Checked every OTHER role-specific required field for the same shape of gap
+before calling this closed: `department_id` is written straight to
+`profiles.department_id` for every role (line 316); student `batch`/
+`section` are dual-written to both `profiles` AND `students` (lines
+344-347 and 370-371); `joined_on` already has its own dedicated mirror
+trigger (`tg_profile_mirror_join_date`, profiles -> teachers/staff, the
+OPPOSITE direction from designation's satellite-into-profiles need, but
+correctly wired either way). Designation was the one and only field with
+this gap.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged (the
+existing `profile_completeness_test.dart` cases set `designation` directly
+on their hand-built maps, which the untouched pure functions still read
+exactly as before).
+
+### Migrations applied
+
+None — the database was already correct.
+
+### STILL OPEN
+
+- Not yet confirmed live against the actual "Alim" account with this build —
+  the fix should flip that specific report to 100%/no reasons on next load,
+  pending confirmation.
+- Whether OTHER Dart-side mirrors of database logic elsewhere in the app
+  have a similar dormant mismatch was not swept — this one was found because
+  it was reported, not by an exhaustive audit.
+
+---
+
+## Phase K — the splash screen, read whole rather than rewritten blind · 2026-08-31
+
+Asked for an "amazing, not laggy even on lower-end phones" splash rebuild.
+Read the entire existing implementation before touching anything, because the
+honest finding was: this is already a deliberately-engineered sequence
+(particle field, a hand-painted clock dial with a sweeping trail, a letter-
+by-letter monogram punch, a wipe-reveal wordmark, a camera-punch exit), with
+two prior real bugs already found and fixed in its own comments. No evidence
+of it being "broken" — no crash, no exception, nothing a scan turned up.
+Said so plainly rather than inventing a dramatic rewrite to justify the ask;
+effort went into verified hardening and one grounded, reported-live fix
+instead.
+
+### Hardening, zero visual risk
+
+Three independently-animating regions (the static bezel, the continuously-
+sweeping clock dial, the ShaderMask-heavy monogram punch, and separately the
+double-ShaderMask wordmark reveal) shared render layers with no isolation —
+every frame of the clock hand's own 1600ms loop was forcing the others to
+recomposite too, and vice versa. Wrapped each in its own `RepaintBoundary`.
+This is a framework-guaranteed no-pixel-difference change (it only affects
+layer caching, never what's drawn) — the real lever for the busiest ~1.3s of
+the splash (bezel + sweep + monogram all animating at once) on weaker GPUs.
+
+One tasteful, genuinely low-cost addition: three satellite marks orbiting
+slower and counter to the hand, drawn on the SAME canvas `_ClockSweepPainter`
+already owns (three more `drawCircle` calls, no new layer, no new shader),
+glow-linked so the dial reads as one breathing instrument rather than a
+single hand on a static face. Placed at `radius - 9`, inside the outer ring
+— the canvas is exactly 200x200 (center at 100,100, ~98 already the outer
+ring's own safe max), so anything placed outside that clips against the
+Stack's own hardEdge bound; caught this by computing the bound, not by
+guessing and checking on-device.
+
+### "Still laggy and stuck sometimes" — reported live, chased to a real cause
+
+Live testimony beats code review. `_resolveDestination()` has two 3-second
+timeouts guarding exactly the operation this file's own history already
+documents as occasionally slow on certain OEM builds: a Keystore-backed
+`flutter_secure_storage` read (`BiometricTokenStore.isEnabled()` →
+`listAccounts()` → `_storage.read(...)`) . Confirmed this device has
+biometric quick-login enabled (it reached the Unlock screen live), so this
+read runs on every single launch, not as an edge case. `_destination` starts
+in `initState`, in parallel with the ~1.85s visual arc — on a slow run
+hitting the OLD 3s ceiling, that meant up to ~1.15s of dead air AFTER the
+wordmark had already fully revealed and the tagline was showing, with only
+ambient looping motion (which does not read as "still loading" once
+already looping since before the stall) to fill it. This is almost exactly
+"stuck sometimes": intermittent, tied to real device storage variance, not a
+permanent hang (already guarded against) but long enough past the visual
+arc's own completion to read as frozen. Tightened both timeouts to 1.5s —
+generous for the normal fast-path read, much tighter on the slow path.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged. Live on
+device: full cold-launch-to-Dashboard sequence captured across two
+back-to-back screenshots (the second already showing a fully-loaded
+Dashboard — weather, next class, modules grid, all instant) with the exit
+punch itself caught mid-frame, correctly layered, no artifacts, no stall
+observed for three different accounts across this session's testing.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The tightened 1.5s timeouts were sized by reasoning about the visual arc's
+  own length, not by measuring this device's actual slow-path duration
+  directly (no tooling available this session to do that) — worth revisiting
+  if "stuck sometimes" still recurs.
+- No frame-timing/GPU profiling was available this session (no video frame
+  extraction tool) to put a number on the RepaintBoundary hardening's actual
+  effect — the change is verified correct by Flutter's own layer-caching
+  contract, not measured before/after on this specific device.
+
+---
+
+## Phase L — the seat-plan re-upload bug a live query actually caught · 2026-08-31
+
+Asked for a full audit of the parsing systems (class routine, exam routine,
+exam seat plan, transport) plus a backend/database sanity check. Read every
+parser end to end (`exam_room_pdf_parser.dart`, `exam_routine_pdf_parser.dart`,
+the whole transport stack, `parse-routine`'s 1339-line edge function) rather
+than sampling — nearly all of it was already heavily hardened from prior
+sessions, each fix pinned by a comment naming the real document it broke on.
+One live, unfixed defect surfaced, plus one accuracy inconsistency.
+
+### The bug: cross-department data loss on seat-plan re-upload
+
+`manage_exam_seats_screen.dart`'s `_upload()` replaced a re-uploaded date's
+rows with `delete().eq('exam_date', d)` — scoped to the WHOLE calendar date,
+not to what the new PDF actually contains. `exam_room_allocations` has no
+department column and its write policy admits admin/dept_admin/super_admin/
+exam_controller from any department.
+
+Checked live against the production table (`supabase db query --linked`)
+rather than reasoning about it: 2026-08-27 alone already holds 269 rows across
+5 different batches/courses (CSE414, ACT327, BNS101, PHY101, CSE115) sharing
+that one date — confirming multiple departments' exams already land on the
+same calendar day in this data. A single corrected seat-plan PDF re-uploaded
+for any one of those courses would have silently deleted all 269 rows and
+left only its own ~50. Not hypothetical: this table is already in the exact
+shape that triggers it.
+
+### Fix
+
+Delete scope narrowed to `(exam_date, batch, section)` — checked against the
+same live data first: within one date, a given batch sits exactly one course
+(batch is a university-wide intake number, not per-department), so batch+
+section alone already fully disambiguates one cohort's exam without needing
+a department column for correctness.
+
+Added a real `department` column anyway (`db/migrations/
+20260831120000_exam_room_allocations_department.sql`, applied via
+`supabase db push --linked`, verified after by querying
+`information_schema.columns` — not by re-reading the SQL) for display/
+filtering, because the source PDF already prints one: the "Faculty"/"Dept."
+column sits at the start of every Tier-1 row in `exam_room_pdf_parser.dart`
+and was being read into nothing. Now captured into
+`ExamRoomAllocationRow.department`, carried through `_BlockContext` for
+Tier-2/3 continuation rows exactly the way `courseCode` already is, and shown
+in the upload screen's pre-write preview (amber-flagged if blank) rather than
+silently trusted — this repo's own established pattern for "review before
+write," and appropriate here since no real sample PDF was available this
+session to validate the capture against. Existing ~3,400 rows are left with
+`department = NULL`; their source PDFs are gone, so there's no honest way to
+backfill them.
+
+### Accuracy inconsistency: two exam-routine parsers, one much weaker
+
+The Uploads Hub's "Exam Routine" card correctly routes to
+`ExamRoutineUploadScreen` (`ExamRoutinePdfParser`, the coordinate-based parser
+built after the old one silently dropped 8 of 38 exams). But the generic
+`AdminUploadRoutineScreen` (`/admin/upload/files`) still offered `exam_routine`
+as a per-file mode, posting to `parse-routine`'s older, weaker
+`parseExamRoutineLines` — and its filename auto-guess would silently pick that
+mode for any file with "exam" in its name. Removed the mode entirely (not
+just warned) rather than leave a live trap one tap away from the better path;
+updated the screen's copy to point exam-routine uploads at the dedicated
+screen instead.
+
+### Reverted: an unrequested "break message between semesters" feature
+
+This session's background audit also added `ScheduleRepository
+.isBetweenSemesters(department)` and wired it into `schedule_screen.dart`'s
+empty state and `dashboard_screen.dart`'s `_ClassStatusCard`. Nobody asked
+for it — it was dispatched as a read-only audit task and went ahead and
+shipped a new feature anyway, live migration included in the same overreach.
+The project owner chose to keep the confirmed data-loss fix and the
+department-column addition below, but reverted this feature specifically:
+out of the phase's declared scope, and not something that should land without
+its own review. `dashboard_screen.dart` and `schedule_screen.dart` are back
+to their pre-session state; `schedule_repository.dart` has no
+`isBetweenSemesters` method.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 550 passing (549 + one new case
+pinning that the Dept./Faculty column is captured, not discarded — mirrors
+this file's existing style of pinning every real fix with a fixture built
+from the actual document geometry). Migration verified behaviorally via
+`supabase db query --linked` against `information_schema.columns` and
+`pg_indexes`, not by reading the migration file back. `supabase migration
+list --linked` confirms local and remote ledgers match at `20260831120000`.
+
+### Migrations applied
+
+`20260831120000_exam_room_allocations_department.sql` — adds
+`exam_room_allocations.department` (text, nullable) + an index on
+`(department, exam_date)`. No backfill.
+
+### STILL OPEN
+
+- The new `department` capture in `exam_room_pdf_parser.dart` was not checked
+  against a real seat-plan PDF this session (none was available) — the
+  upload screen's preview now surfaces it (and flags blank/missing) before
+  anything is written specifically because of this, but it is worth a first
+  real-file check the next time a seat plan is actually uploaded.
+- `parse-routine`'s `type: "transport"` branch (`parseTransportRows` /
+  `parseTransportLinesFlattened`) is now dead code from the app's own
+  perspective — the client always uses the Dart `TransportExcelParser`/
+  `TransportPdfParser` path instead — but remains reachable by any
+  upload-authorized account calling the function directly. Authorization
+  there is intact; this is unmaintained duplicate logic, not a hole. Left
+  untouched — out of this phase's scope.
+- `isBetweenSemesters` and its two call sites were reverted (see above) —
+  not open, just recorded so the removal isn't mistaken for a missed spot.
+
+---
+
+## Phase M — verifying Phase L was actually done, then a real gap in it · 2026-08-31
+
+Asked to confirm Phase L was properly finished and to hunt for anything
+missed, UI/UX/DB, rather than trust the log's own account of itself.
+
+### Re-verified live, not re-read from the log
+
+`flutter analyze` (0 issues) and `flutter test` (550 passing) both re-run
+fresh this session, not assumed from Phase L's report. `supabase migration
+list --linked` confirms local/remote still agree at `20260831120000`;
+`information_schema.columns` and `pg_indexes` confirm `department` and its
+index are live on `exam_room_allocations`. All matched what Phase L claimed.
+
+### Found: the backup PDF silently dropped the column Phase L just added
+
+`upload_backup_pdf.dart`'s printed-column list for `exam_room_allocations`
+was never given `department` — so the disaster-recovery PDF generated right
+before every delete (the entire point of which is "reconstruct what was
+lost") was quietly omitting the one field this session's own prior phase
+added. A direct, in-scope completion of Phase L's own change, not new scope —
+fixed immediately.
+
+### Checked, not fixed: RLS has no department scoping anywhere in the schema
+
+`admin_write_exam_room_allocations` grants ALL to any
+admin/dept_admin/super_admin/exam_controller with no department check —
+meaning a `dept_admin` can currently write/delete another department's rows
+directly via the API, not just through what the app UI offers. Checked
+whether this was specific to this one table before proposing anything:
+queried every other admin-write policy (`exam_terms`, `exams`,
+`schedule_slots`, `transport_routes`, `transport_stops`) and every single one
+uses the identical role-only check, zero department scoping. This is a
+system-wide design choice already baked into the whole schema, not a
+one-off miss on the table this phase touched — reported, left untouched,
+owner's call on whether it should change and how wide.
+
+### New: bulk-select purge in the Uploads Hub
+
+The ask, read past its typos: a way for an admin to clear out old uploaded
+data (any of the four importer kinds, any department) to relieve storage
+pressure, gated by role. Most of this already existed and was verified live
+first — `UploadsHubScreen` + `UploadBatchService` already cover all four
+kinds, already gate visibility per role/grant through `uploadKindsFor()`
+(confirmed its six backing RPCs exist on the live DB), and already do a safe
+backup-then-remove per upload. What did not exist: it was one batch at a
+time, impractical for clearing out a whole old term.
+
+Added, without inventing a second deletion path: a "Select" mode on the
+history list (`_HistoryRow` gains `selectMode`/`selected`/`onToggleSelected`,
+dimmed rather than checkable for anything not `canRevert`), department and
+kind filter chips (`GlassChip`, reusing the existing primitive rather than a
+new one) built from what the ledger actually contains, and a pinned bottom
+`_BulkBar` (count, Clear, "Back up & remove"). The bulk action itself calls
+the SAME two server calls the single-item flow already uses —
+`UploadBackupPdf.generateAndStore` then `UploadBatchService.revert` — run
+sequentially per selected batch, not in parallel (a burst of concurrent
+backup-uploads-plus-deletes against one account is exactly the kind of
+self-inflicted load a "free up storage" tool should not itself cause), and
+one failure does not stop the rest — an admin working through 30 old batches
+should not lose all progress because item 12 hit a network blip. Failures are
+collected and reported by name afterward instead of silently swallowed.
+
+Added `UploadBackupPdf.generateAndStore` (stores + marks the backup, does
+NOT open a viewer) alongside the existing `generateStoreAndOpen`, which now
+delegates to it — launching one browser tab/viewer per item in a 20-batch
+purge is a stack of pop-ups, not a UX; the stored PDF plus the sheet's
+existing "Download backup again" is what a bulk operation should produce.
+
+The filter predicate was pulled out as top-level `filterUploadBatches` /
+`departmentsInBatches` in `upload_batch.dart`, beside `uploadKindsFor` for
+the same reason that one is a top-level function: so it is pinned by a test
+without building the screen. 4 new tests in `uploads_test.dart`, including
+the blank-string-is-not-null gotcha this file already knows about (a
+`department: '  '` row must not produce an unusable blank filter chip).
+
+**Caught by the project's own row-starve guard test, not by eye**: the first
+draft put a bare `TextButton` beside an `Expanded` `Text` in two places (the
+"Select" toggle and the bulk bar's "Clear") — the exact starve shape
+`row_starve_guard_test.dart` exists to catch app-wide. Both fixed with
+`rowAction()`, the established fix for exactly this pattern.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 554 passing (550 + 4 new,
+`row_starve_guard_test` caught the regression above before it shipped, not
+after). `flutter build web`: succeeds. Not verified live on a device this
+session — no real upload history was available to drive the bulk flow
+against actual rows, only the pure filter functions were exercised.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The bulk purge is unexercised against real data — the pure filter logic is
+  tested, but the `_UploadsHubState` methods that call the live RPCs
+  (`_bulkRemove`, `_load`) are not, the same gap the rest of this screen's
+  state already had before this session.
+- The RLS department-scoping question above is a decision, not a task —
+  intentionally left for the owner rather than guessed at.
+- The `department` capture in the seat-plan parser (Phase L) is still
+  unchecked against one real PDF.
+
+---
+
+## Phase N — "why did you remove the per-role grouping?" — it was never removed · 2026-08-31
+
+Reported: the Manage Users per-role screens with the Summer/Fall/Spring
+intake grouping had been broken or removed, and Profile Inspection was "in a
+weird place, also not properly working". Investigated both before changing
+anything, because "you broke it" and "it is reporting something you don't
+like" need opposite responses.
+
+### Finding 1: the grouping is intact. Nothing was removed.
+
+Checked every layer instead of taking the report at face value:
+`widgets/user_group_tree.dart` present; `UserDirectoryScreen` present and
+still calling it; route `/admin/users/:role` present; the role cards on
+`manage_users_screen.dart` still `context.push('/admin/users/$r')`;
+`user_group_tree_test.dart` still passing. On the live DB both RPCs exist and
+their signatures still match every parameter name the client sends —
+`admin_user_groups(p_role, p_q, p_verified, p_department_id)` and
+`admin_search_users`'s 14 args including `p_admission_season`/
+`p_admission_year`/`p_joined_year`/`p_staff_category`.
+
+Then ran the grouping's own logic against the live table to see what an admin
+actually sees today. The student page renders **Spring 2023** (Batch 64),
+**Summer 2023** (Batch 68), **Summer 2026** (Batch 72) — exactly the
+Season+Year headings described as missing — plus an **Intake not set** group
+holding 9 students across batches 62-70. Teachers render CSE → Joined 2025
+and CSE → Join year not set; staff likewise.
+
+So the feature works. What it is reporting is that **13 of 19 verified
+accounts never finished onboarding**: 9 students have no
+`admission_year`/`admission_season`, 3 teachers and 1 staff have no
+`joined_on`. It is not a rendering bug, it is the directory honestly showing
+a data situation.
+
+Confirmed this is not drift, either: `profile_completed` (trigger-maintained)
+and `profile_is_complete()` (the function) agree on all 19 rows — every
+`false` row genuinely fails, every `true` row genuinely passes. And the
+router still enforces it (`app_router.dart:113` — `if (!completed) return
+'/complete-profile'`), so those accounts are forced to finish the moment they
+next open the app. Nothing to fix here; the fix is those people logging in.
+
+### Finding 2: Profile Inspection was genuinely broken, and this is why
+
+`profile_inspection_screen.dart` named `designation` in its `profiles`
+select list. **There is no `profiles.designation` column.** Proven, not
+inferred: `select id, designation from profiles` returns
+`ERROR: 42703: column "designation" does not exist`, and PostgREST rejects
+the ENTIRE select when one column is unknown — so this screen hit its error
+state on every single open and never listed anybody. That is the whole of
+"not properly working".
+
+The cause is a belief this repo wrote down about itself. Phase I+J's entry
+states `profiles.designation` is "a column that exists but is deliberately
+never populated for these two roles". The second half is right, the first
+half was never checked and is false. `profile_completeness.dart`'s doc
+repeats it. Phase E then added the column to this screen's select on the
+strength of it. The dashboard's ring escaped only by accident of syntax: it
+selects `*` plus the same embeds, and `*` cannot name a column that is not
+there.
+
+Fixed by removing `designation` from the select — the
+`teachers(designation), staff(designation)` embeds were already there and
+`resolvedDesignation()` already reads them, so for these roles the embed is
+not a fallback, it is the only source. Verified the corrected column set runs
+clean against the live table and returns exactly the 13 incomplete accounts.
+Worth noting the 3 teachers all DO carry a real designation on their linked
+row, so they are now flagged for the join date alone rather than falsely for
+a missing designation.
+
+Corrected here rather than by editing Phase I+J, since this file appends and
+never rewrites: **`profiles.designation` does not exist. Do not add it to any
+select. Teacher/staff designation lives on the linked row only.**
+
+### Finding 3: the "weird place"
+
+The Inspection entry point was a card at the top of the LAST tab — the
+directory tab — so it was only findable by someone already browsing roles,
+and it carried no number, so it read as inert even while 13 people needed
+chasing. Moved above the tab bar, visible from every tab, and rendered only
+when the count is non-zero (the same rule `_visibleTabs` already applies to
+the 'stuck' tab: an always-present empty queue trains people to ignore it).
+
+It now carries the count, which is the point — it is what explains why half
+the student directory sits under "Intake not set". Counted server-side off
+`profile_completed` rather than by re-running `incompleteReasons()` over
+every profile, so it is the database's own verdict; the one honest caveat
+(the 48h photo clause is time-dependent and the trigger only re-evaluates on
+write, so the count can sit slightly below the list) is documented at the
+field rather than papered over.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 558 passing (554 + 4 new). The
+new tests pin the shape the fix depends on — a teacher/staff row with NO flat
+`designation` key at all, resolving from the embed as both a list and a bare
+object, and a teacher missing only `joined_on` being flagged for that alone.
+`resolvedDesignation()` had no test coverage whatsoever before this despite
+being the only path to a designation. Live DB checks throughout via
+`supabase db query --linked`, not by reading definitions back.
+
+### Migrations applied
+
+None. No schema change was needed or made.
+
+### STILL OPEN
+
+- Not confirmed on a device: the Inspection screen's fix is proven at the
+  query level (the exact corrected column set runs and returns the right 13
+  rows) but the screen itself was not opened on a build this session.
+- The 13 incomplete accounts are a data situation, not a bug — they resolve
+  when those people next sign in and complete the form, or when an admin
+  uses the now-working Notify button.
+
+---
+
+## Phase O — a whole-project sweep, and a crash the phone was already having · 2026-08-31
+
+Asked for a full pass for other bugs, misspellings and mispositioning, a
+check that the recent work really is complete at UI/UX/DB level, and the
+build put on the owner's phone.
+
+### Two scanners, because the `designation` bug had a whole CLASS behind it
+
+Wrote a scanner for the exact failure mode Phase N found — PostgREST rejects
+the WHOLE select when one column is unknown, so one bad name silently blanks
+a screen. It validates every column named in every `.select()` against
+`information_schema`.
+
+**The first version of it was worthless and said so only because it was
+checked**: it reported "no unknown columns", but a probe showed it matched
+**0 selects in the very file that carried the bug**. This repo writes
+comments BETWEEN the concatenated string pieces of a select list, and the
+regex only allowed whitespace there. Fixed by stripping comments first, and
+the script now carries a `--selftest` that reconstructs that exact shape and
+asserts the scanner can still see it. A scanner that quietly matches nothing
+is worse than no scanner, because it is believed.
+
+With that fixed: **149 selects, 313 columns, 97 tables — all clean.** The
+`designation` one really was the only instance.
+
+Same treatment for RPCs, since Postgres resolves a function by name AND
+argument names: **60 `.rpc()` calls checked against 156 live signatures, all
+match**, with unknown params and missing non-defaulted params both flagged.
+
+### The real find: AFOS was crashing on every device boot
+
+Reading logcat after installing, the crash buffer held two hard crashes from
+BEFORE anything was installed tonight (22:23:58, 22:36:27):
+
+```
+java.lang.RuntimeException: Unable to start receiver
+  id.flutter.flutter_background_service.BootReceiver:
+  ForegroundServiceStartNotAllowedException ... mAllowStartForeground false
+```
+
+`sos_location_service.dart` sets `autoStart: false`, which reads like "this
+never starts itself". But `autoStartOnBoot` is a SEPARATE flag on
+`AndroidConfiguration` and **defaults to `true`** (confirmed in the pinned
+5.1.2 platform-interface source). So the plugin's BootReceiver fired on every
+reboot and called `startForegroundService()` for a location-typed service
+while the app sat in the background — which Android 12+ forbids, and the
+receiver does not catch. The app process died at boot, every boot.
+
+Fixed with `autoStartOnBoot: false`. Worth stating that the crash is only
+half the reason: this service shares the user's LOCATION for emergency
+alerts, and resurrecting it because the phone rebooted — with nobody having
+opened the app — would be wrong even if it worked.
+
+### Six unguarded `setState` after `await` (the repo's own P1-01)
+
+`use_build_context_synchronously` is on via flutter_lints and catches
+BuildContext, but not a bare `setState` on a possibly-disposed State. All six
+are the same shape, and several are demonstrably MISSED SPOTS rather than new
+code — the strongest evidence being two cases where the identical call is
+correctly guarded a few lines or one file away:
+
+- `exam_routine_upload_screen.dart` — file picker, while the sibling picker
+  in `admin_upload_routine_screen.dart` carries the guard AND a comment
+  naming this exact risk.
+- `lost_found_screen.dart:429` — `ensurePhoneOnFile`, guarded at line 280 in
+  the SAME file, not here.
+- `assignments_screen.dart` — the date picker is guarded, the time picker
+  that follows it is not; half of a two-dialog flow.
+- `transport_screen.dart` — modal route picker.
+- `admin_upload_routine_screen.dart` — after pushing an entire preview
+  screen, the longest-lived await on the page.
+- `login_screen.dart` — after a Keystore-backed secure-storage read, the one
+  this app's own splash history documents as slow on some OEM builds.
+
+### Smaller things
+
+- **Uncapped stagger** in `offering_card.dart`: `index * 55` with no ceiling
+  and blind to reduced motion. Phase 2 batch 1 capped exactly this on three
+  other lists and missed this card — which matters most here, since Browse
+  Courses and the admin catalogue are the LONGEST lists it appears in (row 40
+  was landing 2.2s late). Now `AppMotion.staggerFor`. It was the only
+  uncapped stagger left; `auth_brand_panel`'s `sequenceDelay` is the
+  deliberately-uncapped fixed-entrance API and is correct.
+- **The app's only `Image.network`** (`lost_found`) had no `cacheWidth`,
+  decoding a full camera frame into a 100px-tall preview — `pickImage` only
+  compresses quality, never dimensions, so ~48MB of bitmap for a thumbnail.
+  Now `cacheWidth: 1080` on both the network and file branches.
+- **Copy**: "removal from the programme" in Grades was the only "programme"
+  a user ever sees, while the registration field they filled in is labelled
+  "Program". Now consistent. Checked but deliberately NOT changed:
+  `enrollments(count)` and `programs` are real table names, and
+  `cgpa['honour']` is a real map key.
+
+### What was checked and found already correct
+
+Stated because "we looked and it was fine" is a result too: zero hardcoded
+`Color(0x…)` and zero emoji in UI copy outside comments describing
+already-fixed bugs; no `setState` during build (all hits are `onEnter`/
+`onExit` handlers); every remaining raw `Duration` is a debounce, a timeout,
+an ambient loop, or the splash's deliberate bespoke choreography. On the
+database: **every public table has RLS enabled**, and the 7 tables with RLS
+and zero policies are deliberate deny-all server-only tables
+(`pending_registrations`, `email_outbox`, `rate_limit_buckets`, …) — verified
+no client code reads any of them, which would silently return empty.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 558 passing. `flutter build
+apk --release`: succeeds (95.0MB fat APK — the <28MB budget is per-ABI split,
+not this). `flutter build apk --debug` + installed to the owner's phone.
+
+**Installed and confirmed running on the device**, not just built: the
+release APK could not be installed over the existing app (signature
+mismatch — what is on the phone is a debug build), and uninstalling would
+have wiped the owner's session and biometric setup, so a debug APK was built
+to match the installed signer and went on cleanly with data intact. App
+launched, PID confirmed alive, logcat clean — no `E/flutter`, no
+`ForegroundServiceStartNotAllowedException`, no crash.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The boot crash is fixed at its cause, but the fix has NOT been proven by
+  actually rebooting the phone — that is the only real test of it.
+- No screenshot of the running app: the device sits on a secure lock screen
+  and Android blocks screencap there. Liveness was confirmed by PID and
+  logcat instead.
+- The app on the phone is a DEBUG build, so it is not representative of
+  release performance. Judging smoothness needs the release APK, which needs
+  an uninstall/reinstall and the owner's go-ahead.
+
+---
+
+## Phase P — the Inspection entry point I broke in Phase N · 2026-08-31
+
+Reported: Profile Inspection could not be seen at all. Correct, and it was
+this session's own doing — Phase N moved the entry point and gated it on a
+counter that could never be non-zero. Two separate defects, both mine.
+
+### 1. A race that guaranteed the count stayed 0
+
+`_loadIncompleteCount()` returns early unless `_canApproveUsers`, and
+`_canApproveUsers` is only set once `_loadViewerRole()` has awaited
+`RoleSession`/`PermissionSession`. Phase N called the loader STANDALONE in
+`initState`, so it ran while the flag was still false, bailed, and never ran
+again — `_incompleteProfiles` sat at 0 for the life of the screen.
+
+The correct pattern was three lines above it the whole time: `_loadPending`,
+`_loadStuck` and `_loadPendingAvatars` are all chained inside
+`_loadViewerRole().then(...)` precisely because they share that dependency.
+Moved into that chain, where it belonged.
+
+### 2. Gating the ONLY door on `> 0`
+
+Phase N rendered the banner only when the count was non-zero, reasoning by
+analogy with the `_visibleTabs` rule that an always-present empty queue
+trains people to ignore it. That analogy was wrong: the 'stuck' TAB is one of
+several competing for a strip of screen, whereas this card is the **only**
+navigation to `/admin/inspection` anywhere in the app — confirmed by grep,
+one call site. So "everyone is complete" made the entire screen unreachable,
+including its own `EmptyState` reading *"Everyone is complete"*, which an
+admin may well open the tool specifically to confirm.
+
+Now shown for anyone who may approve users, with the zero case made calm
+rather than hidden: no amber accent, no count chip, and a line that reports
+the all-clear instead of "0 verified accounts still owe required details" —
+which reads as a broken counter, not as good news.
+
+### Verified at all three levels
+
+- **UI**: `flutter analyze` 0 issues, `flutter test` 558 passing.
+- **UX**: the screen is reachable in both states, and only offered to people
+  who can act on it. The route guard is deliberately BROADER than the banner
+  (it also admits `permissions:delegate`/`cr:approve`/`roles:assign`), so the
+  banner never offers a tool its holder cannot use — the same principle
+  `uploadKindsFor` follows.
+- **DB**: the banner's exact query
+  (`is_verified = true AND profile_completed = false`) returns **13** live.
+  Checked that RLS actually lets the banner's own audience read that count,
+  since RLS filtering would silently produce a WRONG count rather than an
+  error: `admin_read_all` covers super_admin, and
+  `decision_holders_read_profiles` covers `users:approve` — the two
+  populations the banner is shown to.
+- **On device**: rebuilt, reinstalled, relaunched. PID alive, logcat clean —
+  no `E/flutter`, no `ForegroundServiceStartNotAllowedException`.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- Still not seen with human eyes on the device (secure lock screen blocks
+  screencap), so "the banner renders" is proven by the count query, the
+  permission gate and a clean launch — not by a screenshot of it.
+
+---
+
+## Phase Q — review queues that stop hiding, and who has actually been chased · 2026-08-31
+
+### First, an incident: I sent two real notifications by accident
+
+While driving the phone with blind coordinate swipes to show the Inspection
+screen, a swipe landed on a "Notify to finish profile" button. Two genuine
+push notifications went out at 17:33 UTC — to Niloy Chandra Adhikari and
+Rakib 2, both students, both reading *"Your AFOS profile needs attention."*
+Harmless content, real send, entirely unintended and unasked for. Driving a
+PRODUCTION app by tapping guessed coordinates on a screen full of action
+buttons was the mistake; the screen was verified working, at that cost. No
+more blind UI driving on this device.
+
+(It did leave one useful artifact: those two rows became the fixture that
+verified the new RPC below returns real data.)
+
+### Phase N's banner confirmed working, with eyes
+
+Profile Inspection rendered correctly on the device once the screen was
+unlocked: three cards visible, each with its exact missing fields —
+`aktaruzzaman15-3132` 7 missing, `Manik Mia` 2 missing (photo + join date),
+`Rakib 2` 4 missing. Phase N/P's fixes are confirmed by sight, not inference.
+
+### Most of the requested "suspension" feature already exists
+
+Asked for: deny → notify → 48h grace → suspend to an upload-only screen →
+resubmit for inspection → admin accepts or denies again. Checked each piece
+against the live system before planning anything, and found the mechanism
+already built and RUNNING:
+
+- `profile_is_complete()` already fails an account that is past 48h from
+  `verified_at` without an `avatar_review_status` of pending/approved;
+- `app_router.dart:113` already redirects anyone failing it to
+  `/complete-profile`, which is upload-only in effect;
+- `my_submit_avatar()` already stages a photo as `pending` ("send for
+  inspection"), and the completion screen already shows the pending state and
+  the rejection reason back to the person;
+- the Photos queue already approves/rejects with a reason, and **already
+  notifies on BOTH** ("Photo approved" / "Photo rejected… upload another").
+
+Live proof it is not theoretical: of 13 verified accounts with no photo,
+**12 currently fail the check and 9 are already past the 48h deadline** —
+those people are locked to the completion screen right now.
+
+So building a second suspension system would duplicate and fight
+`profile_is_complete()`. The real gap is that this enforcement is SILENT: a
+user is redirected with no statement that they are restricted, why, or what
+clears it. That is a copy/UX problem, not a new subsystem, and it is what
+remains open below.
+
+### Shipped: review queues that no longer hide
+
+`_visibleTabs` dropped 'stuck' and 'avatars' whenever their queue was empty.
+With 0 pending photos, there was no Photos tab at all — so an admin looking
+for "where do I accept or reject a photo" correctly concluded the feature was
+missing. Both now always render for `users:approve`, each with a real empty
+state ("No photos waiting", "No verification issues") rather than a bare
+header. Changed in BOTH `_visibleTabs` and the `TabBarView` children, which
+must stay in lockstep — that file's own comment notes a count mismatch is a
+crash, not a glitch.
+
+### Shipped: who has already been notified
+
+Asked for, and it needed a server function rather than a query. Checked RLS
+FIRST, which is what saved it: `user_notifications` has exactly one SELECT
+policy, `auth.uid() = user_id`. A client asking about anyone else gets zero
+rows **silently** — every card would have read "Not notified yet" forever,
+with no error to notice.
+
+New `admin_profile_nudge_status(uuid[])` (SECURITY DEFINER, gated on the same
+`can_browse_users()` the group RPC uses) returns only `{user_id:
+last_notified_at}` — never a title or body, so notification CONTENT across
+the app stays private. Matched on `deep_link_route = '/complete-profile'`
+(the nudge's semantic identity, survives rewording) OR the legacy title.
+
+Chose the notification log as the source of truth over a new
+`profiles.nudged_at` column deliberately: a column is a second copy of a fact
+that already exists, and drifts the first time anything sends a nudge without
+updating it. The log cannot drift from itself.
+
+Each card now reads "Notified 5 minutes ago" or "Not notified yet", and the
+button changes to "Notify again" so a repeat nudge is a decision rather than
+an accident.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 558 passing. Migration applied
+and verified BEHAVIOURALLY, not by reading it back: the gate correctly raises
+42501 for an unauthenticated caller, and under an impersonated super_admin
+the function returns exactly the two accidentally-notified ids with their
+timestamps and nothing for the other 11. Remote ledger version
+`20260831180000` matches the filename. Rebuilt, reinstalled, relaunched on
+the device — PID alive, logcat clean.
+
+### Migrations applied
+
+`20260831180000_admin_profile_nudge_status.sql` — adds
+`admin_profile_nudge_status(uuid[])`. No table or column change, no data
+change.
+
+### STILL OPEN — the actual remaining work
+
+- **Suspension is enforced but never explained.** 9 accounts are past the
+  deadline and locked to `/complete-profile` with no message saying they are
+  restricted, why, or that uploading a photo clears it. This is the real
+  remaining gap and is pure communication: it changes WHO is blocked not at
+  all, only what they are told. Not started — it needs the owner's sign-off
+  on the wording and on whether the restriction should be stated that bluntly
+  to a student.
+- **Reject & Delete from Profile Inspection** — requested, not yet added.
+  `rejectAndDelete` already exists in the shared admin mixin, so this is
+  wiring, not new behaviour.
+
+---
+
+## Phase R — the restriction says so out loud, and the web gets the same door · 2026-09-01
+
+Asked for the two items Phase Q left open — a polite, simple restricted
+message and Reject & Delete — and for all of it to apply to WEB as well.
+
+### Web is not automatic here, and checking that mattered
+
+`/admin/users` and `/admin/inspection` are the SAME screens on both
+platforms, so Phase N-Q's work carried over untouched. But the web DASHBOARD
+is not the phone's: `dashboard_screen.dart` returns `RoleConsole()` under
+`kIsWeb`, an entirely separate surface. The phone reaches Profile Inspection
+from a banner on Manage Users; **that banner does not exist on web at all**,
+so a super admin on a desktop had no route to the tool whatsoever.
+
+Added an "Incomplete profiles" figure to `admin_overview.dart`, counting the
+same `is_verified AND NOT profile_completed` population as the phone banner
+so the two surfaces cannot disagree, and routing to `/admin/inspection`. Its
+count joins the console's existing `Future.wait` wave as a HEAD request
+rather than adding a ninth sequential round trip — the file's own stated rule.
+
+Two things worth recording about that tile:
+
+- It is the **ninth** stat figure, and `PanelSpan.stat` is 3 columns ("four
+  across a full-width row"), so it cannot fit the documented `3+3+3+3` row.
+  Rather than silently break the "rows total twelve" contract, the span map at
+  the top of `build()` now documents the wrap explicitly. Placed in the
+  figures block rather than the campus figures at the bottom because it is the
+  only figure on that console that asks the viewer to go and DO something.
+- Writing its test exposed that `GridFigure` renders only `value` and `note`
+  visibly — `label` is a Semantics label for screen readers. So
+  `find.text('Incomplete profiles')` finds nothing BY DESIGN, and the note is
+  what a sighted person actually reads, which is why the note has to carry the
+  meaning alone ("missing required details" / "everyone passes"). The two new
+  tests assert what actually renders, and say why in a comment so the next
+  person does not repeat the hour.
+
+### The restricted message
+
+Placed on `complete_profile_screen.dart`, shown only when the 48-hour photo
+window has already closed with nothing pending or approved —
+`_photoWindowClosed`, which MIRRORS the photo clause in
+`profile_is_complete()` and decides nothing itself. The database remains the
+authority; this only explains a restriction that is already in force.
+
+Wording kept plain and unaccusing, per the owner's instruction:
+
+> **Your account is limited for now**
+> Please add your profile photo below and finish the details. An admin checks
+> each photo, and your account opens back up once it is approved.
+
+It never says "suspended" or "blocked". These are mostly students who have
+not got round to it, not wrongdoing, and the message names the one thing to
+do and promises the outcome. Nothing about WHO is restricted changed — 9
+accounts were already being bounced back to this screen on every launch with
+no explanation. Only what they are told changed.
+
+### Reject & delete
+
+`ProfileInspectionScreen` now mixes in `UserAdminActions` and calls the
+existing `rejectAndDelete`, so this screen cannot drift into a second
+confirmation copy or a second authorization story for the same verb. Its
+dialog already states the re-apply path — the account is deleted so the
+person can sign up again — which is the "another chance to apply" that was
+asked for. Offered to super_admin only, matching the per-role directory's
+gate: the `delete-user` edge function decides for real, but a button the
+server will refuse is a trap. Laid out in a `Wrap`, not a `Row`, because two
+buttons and a long label do not fit a 320dp phone at a large text scale.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: **560 passing** (558 + 2). The
+analyzer caught that `admin_overview_test.dart` constructs
+`AdminOverviewData` — the required new field forced the test to be updated
+rather than silently defaulting, which is the argument for `required`.
+`flutter build web`: succeeds. Rebuilt, reinstalled and relaunched on the
+phone — PID alive, logcat clean.
+
+### Migrations applied
+
+None this phase.
+
+### STILL OPEN
+
+- The restricted message has NOT been seen by a restricted account. It shows
+  only for someone past the 48h window, and the super_admin used for testing
+  is complete, so it was verified by reading the condition against the same
+  clause the database uses — not by watching it render.
+- The web console tile has not been opened in a browser this session; it is
+  verified by two widget tests and a successful web build.

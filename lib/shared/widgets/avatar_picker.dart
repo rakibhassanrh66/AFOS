@@ -52,7 +52,9 @@ class _AvatarPickerState extends State<AvatarPicker> {
       // NOT a direct write to avatar_url. Every photo goes through admin
       // review before it becomes the live picture shown elsewhere in the
       // app — this RPC only stages it as pending.
+      debugPrint('[avatar] uploaded to storage, submitting for review: $url');
       await SupabaseConfig.client.rpc('my_submit_avatar', params: {'p_url': url});
+      debugPrint('[avatar] my_submit_avatar OK');
       widget.onChanged(url);
       if (mounted) {
         AppHaptics.success();
@@ -61,6 +63,14 @@ class _AvatarPickerState extends State<AvatarPicker> {
           const SnackBar(content: Text('Photo submitted for review'), backgroundColor: AppColors.green));
       }
     } catch (e) {
+      // The raw error, not just the friendly one. This failed live on a real
+      // account with "Not authorized to change avatar review state" and was
+      // undiagnosable afterwards, because the only trace of it was a SnackBar
+      // that had already gone: nothing reached logcat, so there was no way to
+      // tell WHICH of the two steps above threw, or what PostgREST actually
+      // said. `friendlyError` deliberately throws detail away for the user —
+      // that detail is exactly what a bug report needs.
+      debugPrint('[avatar] SUBMIT FAILED: ${e.runtimeType} -> $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e)), backgroundColor: AppColors.red));

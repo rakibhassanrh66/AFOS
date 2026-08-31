@@ -85,9 +85,29 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
 
       // Replace, not append — re-uploading the same exam date(s) (e.g. a
       // corrected PDF) shouldn't leave stale duplicate rows behind.
+      //
+      // Scoped to (exam_date, batch, section), NOT exam_date alone. A live
+      // check against production data found several dates carrying five
+      // different departments' batches/courses at once (e.g. 2026-08-27:
+      // CSE414/ACT327/BNS101/PHY101/CSE115, 269 rows) — deleting by date
+      // alone would have wiped every other department's seat plan for that
+      // day the moment any one course's corrected PDF was re-uploaded.
+      // batch+section already uniquely identifies one cohort's exam (a batch
+      // sits exactly one course per date in the real data), so this is
+      // sufficient without needing the new department column below for
+      // correctness — department is captured for display/filtering only.
       final dates = _parsedRows.map((r) => r.examDate.toIso8601String().split('T').first).toSet();
-      for (final d in dates) {
-        await SupabaseConfig.client.from('exam_room_allocations').delete().eq('exam_date', d);
+      final replacedKeys = _parsedRows
+          .map((r) => '${r.examDate.toIso8601String().split('T').first}|${r.batch}|${r.section}')
+          .toSet();
+      for (final key in replacedKeys) {
+        final parts = key.split('|');
+        await SupabaseConfig.client
+            .from('exam_room_allocations')
+            .delete()
+            .eq('exam_date', parts[0])
+            .eq('batch', parts[1])
+            .eq('section', parts[2]);
       }
 
       // Stamp the term these dates fall in. Without this every upload files
@@ -115,10 +135,16 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
 
       // Closed with the server's own count of stamped rows, so the history
       // reports what landed rather than what was sent.
+      final departments = _parsedRows
+          .map((r) => r.department)
+          .whereType<String>()
+          .where((d) => d.trim().isNotEmpty)
+          .toSet();
       await UploadBatchService.finalize(batchId, summary: {
         'dates': dates.length,
         'sections': _parsedRows.map((r) => '${r.batch}_${r.section}').toSet().length,
         'seats': _parsedRows.fold<int>(0, (a, r) => a + r.seats),
+        'departments': departments.toList(),
         if (termId == null) 'unlinked': true,
       });
 
@@ -198,12 +224,33 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
         ],
         if (_parsedRows.isNotEmpty) ...[
           const SizedBox(height: 16),
-          SurfaceCard(child: Row(children: [
-            const Icon(AppIcons.examSeat, color: AppColors.gold, size: 18),
-            const SizedBox(width: 8),
-            Expanded(child: Text(
-                '${_parsedRows.length} room allocations · $distinctSections sections · $distinctDates exam date(s)',
-                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))),
+          SurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(AppIcons.examSeat, color: AppColors.gold, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                  '${_parsedRows.length} room allocations · $distinctSections sections · $distinctDates exam date(s)',
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))),
+            ]),
+            const SizedBox(height: 8),
+            // Shown before anything is written — the same reason the transport
+            // importer previews its parse first. This is the only chance to
+            // catch a Faculty/Dept. column that read as blank or as something
+            // unexpected before it lands in the database.
+            Builder(builder: (context) {
+              final departments = _parsedRows
+                  .map((r) => r.department?.trim())
+                  .where((d) => d != null && d.isNotEmpty)
+                  .toSet();
+              final missing = _parsedRows.any((r) => (r.department?.trim() ?? '').isEmpty);
+              return Text(
+                  departments.isEmpty
+                      ? 'Department column not read from this PDF — rows will upload without one.'
+                      : 'Department${departments.length == 1 ? '' : 's'}: ${departments.join(', ')}'
+                          '${missing ? ' (some rows missing it)' : ''}',
+                  style: AppTextStyles.labelSmall.copyWith(
+                      color: departments.isEmpty || missing ? AppColors.amber : AppColors.textSecondaryOf(context)));
+            }),
           ])),
           const SizedBox(height: 12),
           AfosButton(label: 'Confirm & Upload', loading: _uploading, onTap: _upload),

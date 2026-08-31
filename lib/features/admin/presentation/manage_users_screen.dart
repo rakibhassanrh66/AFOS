@@ -140,11 +140,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
   /// between controller length and child count is a crash, not a glitch.
   List<String> get _visibleTabs => [
         if (_canApproveUsers) 'pending',
-        // Shown only when there is something in it. The code settles almost
-        // every signup, so an always-present "Verification issues" tab that is
-        // empty 99% of the time trains people to ignore it.
-        if (_canApproveUsers && _stuck.isNotEmpty) 'stuck',
-        if (_canApproveUsers && _pendingAvatars.isNotEmpty) 'avatars',
+        // These two used to appear only when non-empty, on the reasoning that
+        // an always-present empty queue trains people to ignore it. Changed on
+        // the owner's instruction, and they were right: a review queue that
+        // DISAPPEARS when empty cannot be found on purpose. An admin looking
+        // for "where do I accept or reject a photo" saw no Photos tab at all
+        // and concluded the feature did not exist — which is exactly what
+        // happened. A queue you can open and see is clear is worth more than
+        // one that hides its own existence.
+        //
+        // Both tabs already carry their count in the label ("Photos (0)"), and
+        // each now renders an explicit empty state rather than a bare header.
+        if (_canApproveUsers) 'stuck',
+        if (_canApproveUsers) 'avatars',
         if (_canApproveCr) 'cr',
         'users', // everyone who can open this screen at all gets the directory
       ];
@@ -169,6 +177,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
       _loadPending();
       _loadStuck();
       _loadPendingAvatars();
+      // MUST be inside this .then(), like its three neighbours above.
+      // _canApproveUsers is false until _loadViewerRole() resolves, and this
+      // loader returns early without it — called standalone below, it bailed
+      // every time and left the count at 0 forever, which (while the banner
+      // was gated on `> 0`) meant Profile Inspection had no entry point at
+      // all. The permission-gated loaders chain here for exactly this reason.
+      _loadIncompleteCount();
     });
     _loadRoleCounts();
     loadGrants();
@@ -217,6 +232,40 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
   }
 
   int get _totalUsers => (_facets['total'] as num?)?.toInt() ?? 0;
+
+  /// How many verified accounts are still failing the profile requirements —
+  /// the population the Inspection screen lists.
+  ///
+  /// Counted server-side off `profile_completed` rather than by pulling every
+  /// profile and re-running `incompleteReasons()` here: that flag is
+  /// overwritten by a BEFORE INSERT/UPDATE trigger with Postgres's own
+  /// `profile_is_complete()` verdict, so it is the database's answer, not a
+  /// second opinion. Checked against the live table on 2026-08-31 — the flag
+  /// and the function agreed on all 19 rows, no drift.
+  ///
+  /// One honest caveat: the photo clause in `profile_is_complete()` is
+  /// time-dependent (a 48h deadline), and the trigger only re-evaluates on
+  /// WRITE. So an account that crosses that deadline without any further write
+  /// keeps a stale `true` until it is next touched, and this count can sit one
+  /// or two below what the Inspection screen itself lists. It is a signal for
+  /// "there is work here", never a figure to reconcile against the list.
+  int _incompleteProfiles = 0;
+
+  Future<void> _loadIncompleteCount() async {
+    if (!_canApproveUsers) return;
+    try {
+      final n = await SupabaseConfig.client
+          .from('profiles')
+          .count()
+          .eq('is_verified', true)
+          .eq('profile_completed', false);
+      if (mounted) setState(() => _incompleteProfiles = n);
+    } catch (_) {
+      // Same rule as the other counts on this screen: a number that fails to
+      // load must not take the entry point down with it. The card still
+      // renders and still opens.
+    }
+  }
 
   /// One role's count, straight from the facet RPC's `roles` array.
   int _roleCount(String role) {
@@ -378,7 +427,15 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
   }
 
   Future<void> _refreshAll() async {
-    await Future.wait([_loadRoleCounts(), _loadPending(), _loadPendingAvatars()]);
+    await Future.wait([
+      _loadRoleCounts(),
+      _loadPending(),
+      _loadPendingAvatars(),
+      // Approving someone, or their own edit landing over realtime, is exactly
+      // when this number changes — refreshing the queues but not this one is
+      // how a card ends up quoting a figure the list no longer agrees with.
+      _loadIncompleteCount(),
+    ]);
   }
 
   Future<void> _loadCrRequests() async {
@@ -574,6 +631,26 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
             ),
           ),
         ),
+        // Work that needs chasing, above the tabs rather than inside one of
+        // them — an admin should not have to already be in the directory tab
+        // to discover that people are sitting incomplete.
+        //
+        // Shown whenever this viewer may approve users, NOT only when the
+        // count is non-zero. Hiding it at zero was wrong twice over: this
+        // card is the ONLY route to the screen, so "everybody is complete"
+        // made the whole thing unreachable — including the screen's own
+        // "Everyone is complete" state, which is a real answer an admin comes
+        // looking for, not an empty list. It differs from the 'stuck' tab
+        // rule for the same reason: that tab is one of several competing for
+        // a strip of screen, this is the single door to a tool.
+        //
+        // Zero is not shouted, though: at 0 it drops the amber accent and the
+        // count chip and simply reports that everyone passes.
+        if (_canApproveUsers)
+          _InspectionBanner(
+            count: _incompleteProfiles,
+            onTap: () => context.push('/admin/inspection'),
+          ),
         // One tab needs no tab bar to switch between.
         if (_visibleTabs.length > 1)
           AnimatedBuilder(
@@ -629,11 +706,28 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       ),
                 ],
                 // Order here MUST match _visibleTabs exactly.
-                if (_canApproveUsers && _stuck.isNotEmpty) ...[
+                // Condition MUST match _visibleTabs' 'stuck' entry exactly —
+                // controller length vs child count is a crash, not a glitch.
+                if (_canApproveUsers) ...[
                 AdaptiveList(
                     padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
-                    itemCount: _stuck.length + 1,
+                    // +1 for the explainer header; when the queue is empty the
+                    // extra slot carries an explicit "nothing here" instead of
+                    // leaving the tab looking like it failed to load.
+                    itemCount: _stuck.isEmpty ? 2 : _stuck.length + 1,
                     itemBuilder: (ctx, i) {
+                      if (i == 1 && _stuck.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 24),
+                          child: EmptyState(
+                              icon: Icons.mark_email_read_outlined,
+                              title: 'No verification issues',
+                              subtitle:
+                                  'Everyone who asked for an account settled it with the '
+                                  'emailed code. People whose code expired or ran out of '
+                                  'attempts would appear here.'),
+                        );
+                      }
                       if (i == 0) {
                         return SurfaceCard(
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -692,11 +786,24 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       );
                     }),
                 ],
-                if (_canApproveUsers && _pendingAvatars.isNotEmpty) ...[
+                // Condition MUST match _visibleTabs' 'avatars' entry exactly.
+                if (_canApproveUsers) ...[
                 AdaptiveList(
                     padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
-                    itemCount: _pendingAvatars.length + 1,
+                    itemCount: _pendingAvatars.isEmpty ? 2 : _pendingAvatars.length + 1,
                     itemBuilder: (ctx, i) {
+                      if (i == 1 && _pendingAvatars.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 24),
+                          child: EmptyState(
+                              icon: Icons.photo_camera_outlined,
+                              title: 'No photos waiting',
+                              subtitle:
+                                  'Nothing is queued for review. A photo appears here as '
+                                  'soon as somebody uploads one, and stays until it is '
+                                  'approved or rejected.'),
+                        );
+                      }
                       if (i == 0) {
                         return SurfaceCard(
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -783,6 +890,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                               ]));
                         }),
                 ],
+                // Profile Inspection used to sit HERE, at the top of this
+                // tab. That put a tool for "who still owes us details" behind
+                // the directory tab, so it was only found by someone already
+                // browsing roles — and it carried no number, so it read as
+                // inert even while 13 accounts needed chasing. It now sits
+                // above the tab bar, visible from every tab, and only when it
+                // has something to report. See _InspectionBanner.
+                //
                 // THE ROLE PICKER. Was a single scrolling column of a search
                 // box, role chips and drill-down chips stacked above a list —
                 // crowded enough on a phone that only a sliver was left for
@@ -820,6 +935,81 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                 ),
               ])),
       ]),
+    );
+  }
+}
+
+/// "N verified accounts are still missing required details" — the entry point
+/// to Profile Inspection.
+///
+/// The count is the whole point of the card. Without it the old version said
+/// only "Find and notify incomplete profiles", which gives an admin no reason
+/// to tap it on any particular day, and no way to tell that the reason half
+/// the student directory sits under "Intake not set" is that those people
+/// never finished onboarding.
+///
+/// The count is a plain Container, not a PillBadge, deliberately: PillBadge is
+/// on `row_starve_guard_test`'s greedy list, and beside an Expanded text
+/// column it is exactly the shape that has starved a title to 0px in this repo
+/// eight times.
+class _InspectionBanner extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _InspectionBanner({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    // At zero there is nothing to chase, so the card stops behaving like an
+    // alert: no amber accent, no count chip, and a line that reports the
+    // all-clear instead of "0 accounts still owe required details" — which
+    // reads as a broken counter rather than good news.
+    final hasWork = count > 0;
+    final tint = hasWork ? AppColors.amber : AppColors.textSecondaryOf(context);
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 0),
+      child: SurfaceCard(
+        accent: hasWork ? AppColors.amber : null,
+        onTap: onTap,
+        child: Row(children: [
+          Icon(hasWork ? Icons.fact_check_rounded : Icons.verified_outlined,
+              color: tint, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Profile Inspection',
+                  style: AppTextStyles.titleMedium
+                      .copyWith(color: AppColors.textPrimaryOf(context))),
+              Text(
+                  switch (count) {
+                    0 => 'Every verified account passes its requirements',
+                    1 => '1 verified account still owes required details',
+                    _ => '$count verified accounts still owe required details',
+                  },
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+            ]),
+          ),
+          if (hasWork) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsetsDirectional.fromSTEB(8, 2, 8, 2),
+              decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.14),
+                borderRadius: AppDepth.radius(0),
+              ),
+              child: Text('$count',
+                  style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.amber,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+          ],
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right_rounded,
+              color: AppColors.textSecondaryOf(context), size: 20),
+        ]),
+      ),
     );
   }
 }

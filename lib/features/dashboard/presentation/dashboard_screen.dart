@@ -8,6 +8,12 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
 import '../../../config/theme/app_text_styles.dart';
 import 'widgets/exam_pulse_band.dart';
+import 'widgets/admin_insights_panel.dart';
+import 'widgets/my_completeness_ring.dart';
+import 'widgets/weather_dress_card.dart';
+import '../../../core/auth/profile_completeness.dart';
+import '../../../core/services/weather_service.dart';
+import '../../web/presentation/consoles/admin_overview.dart' show AdminOverviewData;
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../config/theme/spacing.dart';
@@ -33,6 +39,11 @@ class _DashboardState extends State<DashboardScreen> {
   UserModel? _user;
   List<Map<String,dynamic>> _notices = [];
   bool _loading = true;
+  // Separate from _loading on purpose -- see _load()'s comment at the
+  // notices subscription for why. Only the Latest Notices section's own
+  // shimmer (line ~678) reads this; _loading gates everything else and no
+  // longer waits on it.
+  bool _noticesLoading = true;
   StreamSubscription? _noticesSub;
 
   // Real per-user quick stats — replaces what used to be 4 hardcoded
@@ -68,6 +79,8 @@ class _DashboardState extends State<DashboardScreen> {
     // it in parallel and letting _load await it means one shimmer, one paint,
     // and no growth in total wait beyond the slowest of the two.
     _pulseFuture = ExamPulseData.load();
+    _insightsFuture = AdminOverviewData.load();
+    _weatherFuture = WeatherService.current();
     _load();
     _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -79,18 +92,58 @@ class _DashboardState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     final uid = SupabaseConfig.uid;
-    if (uid == null) { setState(() { _loading = false; _statsLoading = false; }); return; }
+    if (uid == null) { setState(() { _loading = false; _statsLoading = false; _noticesLoading = false; }); return; }
     try {
       // Cached so a cold open while offline shows the last-known profile
       // and notices instead of hanging on the loading shimmer forever (a
       // live .stream() never emits at all with no connection).
+      // teachers(designation)/staff(designation) added alongside the
+      // existing students(...) embed -- found live: a teacher/staff account
+      // profile_is_complete() itself already considers complete (it checks
+      // designation via EXISTS against teachers/staff, never against
+      // profiles.designation, which the client never writes for these roles)
+      // still showed "Designation" as missing on this screen's own ring,
+      // because profileCompletionCounts/incompleteReasons only ever saw the
+      // always-empty flat column. Purely additive to this screen's own
+      // inline query -- nothing else reads it -- so nothing else's shape
+      // changes.
       final profileRaw = await cachedMapFetch(
         cacheKey: 'dashboard_profile_$uid',
         liveFetch: () => SupabaseConfig.client
-            .from('profiles').select('*, students(batch_label,section)').eq('id', uid).single(),
+            .from('profiles')
+            .select('*, students(batch_label,section), teachers(designation), staff(designation)')
+            .eq('id', uid).single(),
       );
-      if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; }); return; }
-      if (mounted) setState(() => _user = UserModel.fromJson(profileRaw));
+      if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; _noticesLoading = false; }); return; }
+      // Off the same raw row already fetched for UserModel -- no second
+      // query. Both mirror profile_is_complete() exactly (same file backing
+      // /complete-profile's own form and the admin Inspection screen), so
+      // this can never disagree with what actually gates the account, and
+      // reasons names the field rather than leaving "1 detail left" unsaid.
+      profileRaw['designation'] = resolvedDesignation(profileRaw);
+      final (missing, total) = profileCompletionCounts(profileRaw);
+      final reasons = incompleteReasons(profileRaw);
+      // _loading flips false HERE, on the profile fetch's own deterministic
+      // success -- not inside the notices stream's callback below. It used
+      // to be the stream that flipped it, which meant the module grid, the
+      // ring and the weather card were all gated on a REALTIME SUBSCRIPTION
+      // emitting at least once. Found live: WeatherService.current() and the
+      // completeness counts were confirmed (via debugPrint) to succeed and
+      // get applied to state correctly, and the content still never
+      // appeared -- because `_loading` never flipped, most likely a slow or
+      // stuck notices channel on that session. Notices are a genuinely
+      // separate concern now (_noticesLoading, below) and no longer block
+      // anything else on the screen.
+      if (mounted) {
+        setState(() {
+          _user = UserModel.fromJson(profileRaw);
+          _gender = profileRaw['gender'] as String?;
+          _missingFields = missing;
+          _totalFields = total;
+          _missingReasons = reasons;
+          _loading = false;
+        });
+      }
       // A super_admin posting a notice should reach open dashboards
       // immediately, not on next manual refresh — subscribe instead of
       // fetching once.
@@ -101,15 +154,27 @@ class _DashboardState extends State<DashboardScreen> {
             .order('created_at', ascending: false).limit(3)
             .map((rows) => rows.map((r) => Map<String, dynamic>.from(r)).toList()),
       ).listen((rows) {
-        if (mounted) setState(() { _notices = rows; _loading = false; });
+        if (mounted) setState(() { _notices = rows; _noticesLoading = false; });
       });
       unawaited(_loadQuickStats(profileRaw, uid));
       // Resolved before anything below the fold settles, so the band never
       // appears late and pushes the module grid down.
       final pulse = await (_pulseFuture ?? Future<ExamPulseData?>.value(null));
       if (mounted) setState(() => _pulse = pulse);
-    } catch (_) {
-      if (mounted) setState(() { _loading = false; _statsLoading = false; });
+      final insights = await (_insightsFuture ?? Future<AdminOverviewData?>.value(null));
+      if (mounted) setState(() => _insights = insights);
+      final weather = await (_weatherFuture ?? Future<WeatherSnapshot?>.value(null));
+      debugPrint('[dashboard] weather applied: ${weather != null}');
+      if (mounted) setState(() => _weather = weather);
+    } catch (e, st) {
+      // This was a bare `catch (_)` -- if ANYTHING earlier in this same try
+      // (the pulse await, the insights await, _loadQuickStats's own
+      // exceptions if they ever propagated here) threw, everything from that
+      // point on, weather included, was silently abandoned with zero trace.
+      // A [weather] log showing WeatherService.current() itself succeeding
+      // does not prove this method ever reached the line that applies it.
+      debugPrint('[dashboard] _load() aborted: $e\n$st');
+      if (mounted) setState(() { _loading = false; _statsLoading = false; _noticesLoading = false; });
     }
   }
 
@@ -416,6 +481,30 @@ class _DashboardState extends State<DashboardScreen> {
   ExamPulseData? _pulse;
   Future<ExamPulseData?>? _pulseFuture;
 
+  /// The admin analytics panel -- rings and bars, ported from the web
+  /// console's AdminOverview. Null for anyone AdminOverviewData.load() does
+  /// not consider admin-tier (it checks role and grants itself), so this
+  /// renders nothing at all for a student or teacher.
+  AdminOverviewData? _insights;
+  Future<AdminOverviewData?>? _insightsFuture;
+
+  /// Every user's own ring, computed off the same profile row already
+  /// fetched -- zero for both until _load resolves, which reads as "nothing
+  /// missing" and correctly shows no ring rather than a false positive.
+  int _missingFields = 0;
+  int _totalFields = 0;
+  List<String> _missingReasons = const [];
+
+  /// Live weather + dress suggestion for every user, wherever their device
+  /// actually is. Null (no card) until resolved, and stays null forever for
+  /// anyone without location available -- never an error state.
+  WeatherSnapshot? _weather;
+  Future<WeatherSnapshot?>? _weatherFuture;
+
+  /// Read straight off the raw profile row rather than adding a field to the
+  /// shared UserModel just for this one card.
+  String? _gender;
+
   List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
       ? _allModules
       : _allModules.where((m) => !_studentOnlyModules.contains(m.title)).toList();
@@ -481,6 +570,32 @@ class _DashboardState extends State<DashboardScreen> {
                 ),
               ),
               if (!_loading && !_statsLoading && _search.trim().isEmpty) ...[
+                // Every role's own ring, not just super_admin's -- gone the
+                // instant the profile is complete, same contract as the exam
+                // pulse band below.
+                if (_missingFields > 0) ...[
+                  const SizedBox(height: 16),
+                  MyCompletenessRing(
+                    missing: _missingFields,
+                    total: _totalFields,
+                    reasons: _missingReasons,
+                    // Awaited, then refreshed: Save & Continue on
+                    // /complete-profile does context.go('/home'), not a pop,
+                    // which can land back on this already-mounted Dashboard
+                    // without _load() ever re-running on its own -- the exact
+                    // "verdict says fine but the ring still says 1 left"
+                    // report. context.push's Future still completes when
+                    // that page is removed from the Navigator, go() included.
+                    onTap: () async {
+                      await context.push('/complete-profile');
+                      if (mounted) _load();
+                    },
+                  ),
+                ],
+                if (_weather != null) ...[
+                  const SizedBox(height: 16),
+                  WeatherDressCard(weather: _weather!, gender: _gender),
+                ],
                 if ((_user?.role == 'student' || _user?.role == 'teacher')) ...[
                   const SizedBox(height: 16),
                   _ClassStatusCard(status: _classStatus),
@@ -491,6 +606,10 @@ class _DashboardState extends State<DashboardScreen> {
                 ] else if (_user?.role != 'super_admin' && _featured != null) ...[
                   const SizedBox(height: 16),
                   _FeaturedCard(module: _featured!.$1, reason: _featured!.$2),
+                ],
+                if (_adminTierRoles.contains(_user?.role) && _insights != null) ...[
+                  const SizedBox(height: 24),
+                  AdminInsightsPanel(data: _insights),
                 ],
               ],
               const SizedBox(height: 24),
@@ -586,7 +705,7 @@ class _DashboardState extends State<DashboardScreen> {
                 ),
               ]),
               const SizedBox(height: 12),
-              if (_loading) const ShimmerList(count: 3, itemHeight: 80)
+              if (_noticesLoading) const ShimmerList(count: 3, itemHeight: 80)
               else if (_notices.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -660,6 +779,11 @@ class _FeaturedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Flat white read fine against the darker category colours (violet,
+    // indigo) and badly against the lighter ones this same map hands out
+    // (amber, the sky-blue "gold" alias) -- exactly the luminance check
+    // AfosButton and GlassTabBar already use, just never applied here.
+    final fg = AppColors.foregroundOn(module.color);
     return GestureDetector(
       onTap: () => context.push(module.route),
       child: RepaintBoundary(
@@ -673,18 +797,18 @@ class _FeaturedCard extends StatelessWidget {
           ),
           child: Row(children: [
             Container(width: 44, height: 44,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                child: Icon(module.icon, color: Colors.white, size: 22)),
+                decoration: BoxDecoration(color: fg.withValues(alpha: 0.2), shape: BoxShape.circle),
+                child: Icon(module.icon, color: fg, size: 22)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('RECOMMENDED FOR YOU', style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                  color: fg.withValues(alpha: 0.85), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 3),
-              Text(reason, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+              Text(reason, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 14),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             ])),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+            Icon(Icons.arrow_forward_rounded, color: fg),
           ]),
         ),
       ),
