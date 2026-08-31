@@ -50,6 +50,18 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 .github/scripts/check_notification_audiences.py
 
+      # Standing assertion that every column name in Dart actually exists.
+      # This class has cost the project twice and both times SILENTLY:
+      # profiles.designation killed the whole Profile Inspection screen (one
+      # unknown name makes PostgREST reject the entire select), and six wrong
+      # names in the backup PDF's column map made a class-routine backup print
+      # no course and no room while still looking complete. Neither was caught
+      # by review; both are caught by this.
+      - name: Audit column names against the live schema
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 .github/scripts/check_column_names.py
+
   # No Mac in this project's dev environment (Windows), so this is the only
   # way to know an iOS-breaking change shipped -- macos-latest runners
   # ship Xcode, so this actually compiles the app for iOS (catching missing

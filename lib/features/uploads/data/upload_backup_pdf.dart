@@ -93,13 +93,33 @@ class UploadBackupPdf {
       'exam_date', 'slot_label', 'start_time', 'end_time', 'subject_code',
       'subject', 'batch', 'section', 'department', 'exam_type',
     ],
+    // Every name here was checked against information_schema on 2026-09-01,
+    // because six of them did not exist and this table is silent about that:
+    // `_section()` below drops any column no row carries a value for, so a
+    // misnamed column does not render empty — it VANISHES, taking the data
+    // with it and leaving a backup that looks complete.
+    //
+    // schedule_slots was asking for course_code / course_title / room. The
+    // real names are subject_code / subject / room_number, so a class-routine
+    // backup — the document someone restores from after deleting an upload —
+    // printed the day, time, batch and section but never WHICH class or
+    // WHERE. Same family as the profiles.designation bug: a column name
+    // believed rather than verified.
     'schedule_slots': [
-      'day_of_week', 'start_time', 'end_time', 'course_code', 'course_title',
-      'batch', 'section', 'room', 'teacher_initial',
+      'day_of_week', 'start_time', 'end_time', 'subject_code', 'subject',
+      'batch', 'section', 'room_number', 'building', 'teacher_initial',
     ],
     'notices': ['created_at', 'category', 'title', 'body', 'author_name'],
-    'transport_routes': ['route_number', 'route_name', 'start_point', 'end_point'],
-    'transport_stops': ['route_id', 'stop_name', 'arrival_time', 'stop_order'],
+    // transport_routes has no start_point/end_point at all; the route's shape
+    // lives in route_details and the stop list. transport_stops has no
+    // arrival_time — the timing column is estimated_minutes_from_diu, which
+    // is the one thing a rider actually needs back.
+    'transport_routes': [
+      'route_number', 'route_name', 'schedule_type', 'route_details',
+    ],
+    'transport_stops': [
+      'route_id', 'stop_name', 'stop_order', 'estimated_minutes_from_diu',
+    ],
   };
 
   static Future<Uint8List> _build(

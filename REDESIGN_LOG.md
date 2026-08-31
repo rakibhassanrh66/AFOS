@@ -5127,3 +5127,82 @@ and `x86_64` slices.
   the ACL fix landed. The release job has no `needs:` on it, so the APKs
   published regardless; `main` is green now, but that tag's run stays red in
   the history.
+
+---
+
+## Phase T — the backup that quietly wasn't one, and a guard for the class · 2026-09-01
+
+A hunting pass for bugs across UI, UX and data. Most of it came back clean,
+which is recorded here as a result rather than padded out.
+
+### Checked and genuinely clean
+
+- **Leaked controllers/subscriptions**: zero. The first scanner claimed 21,
+  but it looked for ONE `dispose()` per FILE while these files hold several
+  State classes each — it reported `sos_floating_button`'s timers as leaked
+  when `dispose()` cancels both, four classes further down. Rewritten to scan
+  per CLASS, with a self-test pinning that exact regression. Result: 3 hits,
+  all controllers passed in as widget PARAMETERS and owned (and correctly
+  disposed) by the parent. Nothing to fix.
+- **N+1 network calls in loops**: 15 candidates, none real. `_roleCount` is a
+  pure in-memory loop (the scanner's 14-line lookahead had caught the NEXT
+  function's await), and the seat-plan notification loop is documented as
+  required by a 20-recipient-per-call cap.
+
+### Found: the backup PDF was silently dropping the data it exists to preserve
+
+`upload_backup_pdf.dart`'s `_columns` map named **six columns that do not
+exist**. `schedule_slots` was asked for `course_code`, `course_title` and
+`room`; the real names are `subject_code`, `subject`, `room_number`.
+`transport_routes` was asked for `start_point`/`end_point`, which exist
+nowhere, and `transport_stops` for `arrival_time` (really
+`estimated_minutes_from_diu`).
+
+What makes this worse than a blank column: `_section()` drops any column no
+row carries a value for, so the misnamed ones did not render empty — they
+VANISHED. **A class-routine backup printed the day, time, batch and section
+but never which class or where**, and looked complete doing it. This is the
+document a person restores from after deleting an upload, and the server
+refuses the delete until it exists — so the one safety net in the whole
+uploads feature was quietly holding less than it claimed.
+
+Same family as `profiles.designation`: a column name believed rather than
+verified. Fixed, and every name in the corrected map verified to exist.
+
+Found by extending the earlier column check to a place it could not reach —
+that scanner only understood `.select()`, and this bug lives in a Dart map.
+
+### Shipped a standing guard, because this class has now cost twice
+
+`.github/scripts/check_column_names.py`, wired into the existing
+`db_security` job. It validates BOTH shapes — PostgREST select lists and the
+backup PDF's column map — against the live schema, read from PostgREST's own
+OpenAPI document (no new RPC, no raw credentials).
+
+It carries its own self-test, and for good reason: an early parser matched
+ZERO selects in the very file carrying the original bug, because this repo
+writes comments BETWEEN the concatenated string pieces of a select list. The
+self-test pins that shape, plus "embeds are not columns" and the column-map
+reader.
+
+Validated end to end before shipping, not just written: run against the live
+schema it checked **356 column references with 0 problems**, and it was
+proven to CATCH both historical bugs — the `designation` select and the
+backup-PDF map. A guard that has never been shown to fail on a real bug is
+not a guard.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 560 passing.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The guard's live half runs only in CI; locally it self-tests and skips,
+  since the service-role key is a CI secret and this session does not have
+  (or want) it. Its live behaviour was proven against a schema dump instead.
+- The avatar upload failure is still unreproduced and unexplained; the
+  instrumented build on the phone has not been retried yet.
