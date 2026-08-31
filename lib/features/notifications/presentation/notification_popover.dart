@@ -63,6 +63,7 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
   bool _closing = false;
 
   bool get _reduceMotion => MediaQuery.of(context).disableAnimations;
+  bool _started = false;
 
   @override
   void initState() {
@@ -70,10 +71,25 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
     _controller = AnimationController(
         vsync: this, duration: LiquidGlass.entranceDuration);
     _curved = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    if (_reduceMotion) {
-      _controller.value = 1;
-    } else {
-      _controller.forward();
+  }
+
+  // _reduceMotion reads MediaQuery, which throws if touched from initState --
+  // dependOnInheritedElement() is only legal once the element has actually
+  // mounted (same class of bug already found and fixed in splash_screen.dart
+  // this session). didChangeDependencies is the framework's designated place
+  // for it, and still fires before the first frame, so starting the entrance
+  // here costs nothing relative to before. Guarded because
+  // didChangeDependencies can fire more than once.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started) {
+      _started = true;
+      if (_reduceMotion) {
+        _controller.value = 1;
+      } else {
+        _controller.forward();
+      }
     }
   }
 

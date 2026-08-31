@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../services/local_cache_service.dart';
 import '../utils/location_helper.dart';
@@ -70,52 +71,84 @@ class WeatherService {
   /// session touched already follows; a missing weather card is not an
   /// error a user should ever see.
   static Future<WeatherSnapshot?> current() async {
-    final cached = LocalCacheService.instance.getMap(_cacheKey);
-    if (cached != null && DateTime.now().difference(cached.cachedAt) < _freshFor) {
-      try {
-        return WeatherSnapshot.fromJson(cached.data);
-      } catch (_) {
-        // Falls through to a live fetch -- a cache shape from a version this
-        // build no longer parses must not become a permanent dead end.
-      }
-    }
-
-    // A user with location permission already granted (routine by this
-    // point -- complete-profile already asked once) gets a position with no
-    // new prompt. One who denied it gets null here and no card, not a
-    // request badgering them again on every dashboard load.
-    final position = await LocationHelper.getCurrentPosition();
-    if (position == null) return null;
-
+    // Wrapped as a whole, not just the network call: an uncaught exception
+    // anywhere in here (including the cache read below) would propagate out
+    // through dashboard_screen.dart's `await _weatherFuture` and get
+    // swallowed by ITS OWN outer catch instead -- silently skipping the
+    // weather card with no trace anywhere. Every branch is tagged so a
+    // logcat filter on "[weather]" says exactly which one fired, since a
+    // "profile complete, location on, still nothing" report has no other way
+    // to be diagnosed without runtime visibility.
     try {
-      final res = await Dio().get(
-        'https://api.open-meteo.com/v1/forecast',
-        queryParameters: {
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'current': 'temperature_2m,weather_code,is_day',
-          'timezone': 'auto',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      final current = res.data['current'] as Map<String, dynamic>;
-      final snapshot = WeatherSnapshot(
-        temperatureC: (current['temperature_2m'] as num).toDouble(),
-        condition: _conditionFor((current['weather_code'] as num).toInt()),
-        isDay: current['is_day'] == 1,
-      );
-      await LocalCacheService.instance.putMap(_cacheKey, snapshot.toJson());
-      return snapshot;
-    } catch (_) {
-      // A stale-but-present cache beats nothing if the network call itself
-      // is what failed.
-      if (cached != null) {
+      ({Map<String, dynamic> data, DateTime cachedAt})? cached;
+      try {
+        cached = LocalCacheService.instance.getMap(_cacheKey);
+      } catch (e) {
+        debugPrint('[weather] cache read failed: $e');
+      }
+      if (cached != null && DateTime.now().difference(cached.cachedAt) < _freshFor) {
         try {
+          debugPrint('[weather] serving cached reading from ${cached.cachedAt}');
           return WeatherSnapshot.fromJson(cached.data);
-        } catch (_) {
-          return null;
+        } catch (e) {
+          debugPrint('[weather] cached shape unparsable, falling through: $e');
+          // Falls through to a live fetch -- a cache shape from a version
+          // this build no longer parses must not become a permanent dead end.
         }
       }
+
+      // A user with location permission already granted (routine by this
+      // point -- complete-profile already asked once) gets a position with
+      // no new prompt. One who denied it gets null here and no card, not a
+      // request badgering them again on every dashboard load.
+      final position = await LocationHelper.getCurrentPosition(
+        onError: (msg) => debugPrint('[weather] location unavailable: $msg'),
+      );
+      if (position == null) {
+        debugPrint('[weather] no position -- skipping card');
+        return null;
+      }
+      debugPrint('[weather] position ${position.latitude},${position.longitude}');
+
+      try {
+        final res = await Dio().get(
+          'https://api.open-meteo.com/v1/forecast',
+          queryParameters: {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'current': 'temperature_2m,weather_code,is_day',
+            'timezone': 'auto',
+          },
+        ).timeout(const Duration(seconds: 10));
+
+        debugPrint('[weather] response status ${res.statusCode}: ${res.data}');
+        final current = res.data['current'] as Map<String, dynamic>;
+        final snapshot = WeatherSnapshot(
+          temperatureC: (current['temperature_2m'] as num).toDouble(),
+          condition: _conditionFor((current['weather_code'] as num).toInt()),
+          isDay: current['is_day'] == 1,
+        );
+        try {
+          await LocalCacheService.instance.putMap(_cacheKey, snapshot.toJson());
+        } catch (e) {
+          debugPrint('[weather] cache write failed (non-fatal): $e');
+        }
+        return snapshot;
+      } catch (e) {
+        debugPrint('[weather] live fetch failed: $e');
+        // A stale-but-present cache beats nothing if the network call itself
+        // is what failed.
+        if (cached != null) {
+          try {
+            return WeatherSnapshot.fromJson(cached.data);
+          } catch (_) {
+            return null;
+          }
+        }
+        return null;
+      }
+    } catch (e, st) {
+      debugPrint('[weather] unexpected failure: $e\n$st');
       return null;
     }
   }
