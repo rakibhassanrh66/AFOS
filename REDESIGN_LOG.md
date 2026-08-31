@@ -5302,3 +5302,63 @@ None.
   cannot be probed without being made public — `SurfaceCard` carrying the
   banner's exact row was probed as the closest honest proxy.
 - The avatar upload remains unreproduced.
+
+---
+
+## Phase V — the web console's chart layer, and nearly fixing three non-bugs · 2026-09-01
+
+Extended the sweep from 6 widgets to 11, covering the web console's entire
+chart layer (`RingChart`, `ChartLegend`, `BarList`, `HeatGrid`) plus
+`GlassCard`, none of which had ever been probed. 264 render checks in all
+(11 widgets x 6 viewports x 4 text scales).
+
+### The part worth recording: three failures that were MY test's fault
+
+The first run failed `ChartLegend`, `RingChart` and `HeatGrid`. Before
+touching any of them, checked what production actually passes:
+
+- `RingChart.centerLabel` is `''`, `'classes'`, `'timetabled'` or
+  `'total beds'` at every real call site. The draft test used "timetabled
+  this semester".
+- `HeatGrid.rowLabels` is a fixed `const ['Sat','Sun','Mon',…]` in
+  `admin_overview`. The draft used "Saturday", "Sunday", "Monday".
+
+Re-probed with the real values and `HeatGrid` passed outright. Had the widget
+been "fixed" instead, the change would have been reshaping a component around
+a string it is never given — and the test would then have enshrined the wrong
+input as a requirement. Worth stating plainly: the probe's verdict is only as
+good as the data handed to it, and a red test is not automatically a bug.
+
+### The two that survived realistic data, and were real
+
+**`ChartLegend` overflowed by 30px** at 320dp and a 1.3x text scale with the
+longest genuine role labels. A `Wrap` moves whole children to the next line;
+it cannot split ONE — and each entry was an unbounded `Row`, so a single
+entry wider than the line ran off the edge instead of wrapping. Each entry is
+now bounded to the line width with the LABEL ellipsising, so the count — the
+part carrying the meaning — stays visible.
+
+**`RingChart`'s centre caption was 50% hidden** at a 2.0x scale on tablet and
+desktop web, with the real label `timetabled` (31px of 62px shown). The
+ring's hole is a fixed fraction of the chart while the text grows with the
+reader's scale. Now `scaleDown`s, unchanged at the normal scale. Clipping the
+caption of a figure is the one thing that makes the figure meaningless.
+
+Both are web-console faults, which is where this project had the least
+coverage: the console is a first-class target and a browser at phone width
+with enlarged text is an ordinary way to read it.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: **571 passing** (566 + 5).
+`flutter build web` succeeds.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- `OfflineBanner` still cannot be probed (needs an open Hive box).
+- Per-screen private widgets remain unprobeable without being made public.
+- The avatar upload remains unreproduced.

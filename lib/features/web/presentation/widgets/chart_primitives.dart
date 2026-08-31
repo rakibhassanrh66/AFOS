@@ -77,7 +77,17 @@ class RingChart extends StatelessWidget {
               gap: AppColors.surfaceOf(context),
             ),
             child: Center(
-              child: Column(
+              // scaleDown, because the ring's HOLE is a fixed fraction of the
+              // chart while the value and its caption grow with the reader's
+              // text scale. The layout probe caught "timetabled" — a real
+              // centre label, not an invented long one — rendering 31px of
+              // 62px, half hidden, at a 2.0x scale on tablet and desktop web.
+              // Clipping the caption of a figure is the one thing that makes
+              // the figure meaningless, and at the normal scale this changes
+              // nothing.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(centerValue,
@@ -102,6 +112,7 @@ class RingChart extends StatelessWidget {
                         style: AppTextStyles.labelSmall
                             .copyWith(color: AppColors.textSecondaryOf(context))),
                 ],
+                ),
               ),
             ),
           ),
@@ -195,28 +206,45 @@ class ChartLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = format ?? (n) => '$n';
-    return Wrap(
-      spacing: AppSpace.md,
-      runSpacing: AppSpace.xs,
-      alignment: WrapAlignment.center,
-      children: [
-        for (final s in slices)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
+    // A Wrap moves whole children onto the next line; it cannot split ONE.
+    // Each entry was an unbounded Row, so a single entry wider than the line
+    // overflowed instead of wrapping — the probe measured 30px past the right
+    // edge at 320dp and a 1.3x text scale with real role labels ("Department
+    // Admin"), which is a browser at phone width with the text turned up.
+    // Bounding each entry to the line width and letting the LABEL ellipsise
+    // keeps the count — the part that carries the meaning — always visible.
+    return LayoutBuilder(builder: (context, c) {
+      return Wrap(
+        spacing: AppSpace.md,
+        runSpacing: AppSpace.xs,
+        alignment: WrapAlignment.center,
+        children: [
+          for (final s in slices)
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: c.maxWidth),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration:
+                      BoxDecoration(color: s.color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: AppSpace.xs),
+                Flexible(
+                  child: Text('${s.label} ',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.textSecondaryOf(context))),
+                ),
+                Text(fmt(s.value),
+                    style: AppTextStyles.numericSmall
+                        .copyWith(color: AppColors.textPrimaryOf(context))),
+              ]),
             ),
-            const SizedBox(width: AppSpace.xs),
-            Text('${s.label} ',
-                style: AppTextStyles.labelSmall
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
-            Text(fmt(s.value),
-                style: AppTextStyles.numericSmall
-                    .copyWith(color: AppColors.textPrimaryOf(context))),
-          ]),
-      ],
-    );
+        ],
+      );
+    });
   }
 }
 

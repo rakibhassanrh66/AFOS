@@ -4,7 +4,9 @@ import 'package:afos_v7/config/theme/app_colors.dart';
 import 'package:afos_v7/shared/widgets/afos_text_field.dart';
 import 'package:afos_v7/shared/widgets/glass_tab_bar.dart';
 
+import 'package:afos_v7/shared/widgets/glass_card.dart';
 import 'package:afos_v7/shared/widgets/surface_card.dart';
+import 'package:afos_v7/features/web/presentation/widgets/chart_primitives.dart';
 import 'package:afos_v7/features/web/presentation/widgets/console_grid.dart';
 
 import 'support/layout_probe.dart';
@@ -104,6 +106,78 @@ void main() {
             note: 'missing required details',
             icon: Icons.fact_check_rounded,
             accent: AppColors.amber,
+          ),
+        ),
+
+    'GlassCard (stat row, the Manage Users header)': () => const GlassCard(
+          borderRadius: 16,
+          glowColor: AppColors.holoviolet,
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Row(children: [
+            Expanded(child: Column(children: [Text('12'), Text('Pending')])),
+            Expanded(child: Column(children: [Text('4'), Text('CR Requests')])),
+            Expanded(child: Column(children: [Text('1854'), Text('Total Users')])),
+          ]),
+        ),
+
+    // --- the web console's chart layer, none of it probed before ---------
+    // These carry real, uncontrolled text: department names, batch numbers
+    // and day labels come from the database, and the console is a web-first
+    // surface that also renders in a phone-width browser window.
+    // Centre labels are one word in every real call site ('', 'classes',
+    // 'timetabled', 'total beds') — checked before writing this, because an
+    // earlier draft used "timetabled this semester", watched it starve, and
+    // very nearly reshaped the widget around a string it is never given.
+    // Probe what production actually passes.
+    'RingChart (real centre label)': () => const SizedBox(
+          height: 180,
+          child: RingChart(
+            slices: [
+              RingSlice(label: 'Lab', value: 844, color: AppColors.blue),
+              RingSlice(label: 'Theory', value: 1010, color: AppColors.green),
+            ],
+            centerLabel: 'timetabled',
+            centerValue: '1854',
+          ),
+        ),
+
+    // The legend's labels are role names on the "Who is in AFOS" panel, so
+    // the longest realistic pair is what gets probed.
+    'ChartLegend (longest real role labels)': () => const ChartLegend(
+          slices: [
+            RingSlice(
+                label: 'Exam Controller', value: 844, color: AppColors.blue),
+            RingSlice(
+                label: 'Department Admin', value: 1010, color: AppColors.green),
+          ],
+        ),
+
+    'BarList (long row labels)': () => const BarList(
+          data: [
+            BarDatum('Computer Science and Engineering', 320),
+            BarDatum('Business Administration', 210),
+            BarDatum('68', 12),
+          ],
+          total: 542,
+        ),
+
+    // rowLabels come from a fixed const list in admin_overview
+    // (['Sat','Sun','Mon',...]) and colLabels are hour numbers, so the real
+    // worst case is a FULL week of columns rather than long strings.
+    'HeatGrid (full week, real labels)': () => const SizedBox(
+          height: 220,
+          child: HeatGrid(
+            values: [
+              [0, 3, 5, 2, 1, 4, 2, 0],
+              [1, 4, 2, 0, 3, 1, 5, 2],
+              [2, 2, 6, 1, 0, 2, 3, 4],
+              [0, 1, 2, 3, 4, 5, 1, 0],
+              [3, 0, 1, 2, 2, 1, 0, 3],
+              [1, 1, 1, 1, 1, 1, 1, 1],
+              [0, 0, 2, 2, 0, 0, 2, 2],
+            ],
+            rowLabels: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            colLabels: ['8', '9', '10', '11', '12', '13', '14', '15'],
           ),
         ),
   });
