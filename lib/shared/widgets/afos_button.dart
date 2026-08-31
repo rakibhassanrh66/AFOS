@@ -30,9 +30,13 @@ class _AfosButtonState extends State<AfosButton> {
 
   @override
   Widget build(BuildContext context) {
-    // Brand teal is the Liquid Glass primary CTA color; callers can still
-    // pass any color (destructive red, role accents) explicitly.
-    final bg = widget.color ?? AppColors.green;
+    // The user's chosen accent is the default primary CTA color -- this is
+    // exactly the "primary action" case AppColors.accentOf's own doctrine
+    // names by example, and it was the one button on nearly every screen
+    // that never read it, so changing the accent in Settings had no visible
+    // effect anywhere it mattered most. Callers can still pass any color
+    // (destructive red, role accents) explicitly.
+    final bg = widget.color ?? AppColors.accentOf(context);
     // In-family depth gradient: the button's own hue deepened toward the
     // canvas, instead of the old cross-hue blend into violet (violet is
     // reserved for the super-admin signal under the two-accent cap).

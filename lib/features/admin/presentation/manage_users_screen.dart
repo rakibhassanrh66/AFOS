@@ -783,6 +783,35 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                               ]));
                         }),
                 ],
+                // A TOOL, not a role -- deliberately styled apart from the
+                // role cards below rather than added as a ninth one, so it
+                // reads as "do a job" rather than "browse a group". Finds
+                // every VERIFIED account still failing profile_is_complete()
+                // (the Pending/Photos queues already own unverified accounts)
+                // and can notify the specific person, rather than only
+                // reacting to what gets submitted.
+                if (_canApproveUsers)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 0),
+                    child: SurfaceCard(
+                      accent: AppColors.amber,
+                      onTap: () => context.push('/admin/inspection'),
+                      child: Row(children: [
+                        const Icon(Icons.fact_check_rounded, color: AppColors.amber, size: 22),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Profile Inspection', style: AppTextStyles.titleMedium
+                                .copyWith(color: AppColors.textPrimaryOf(context))),
+                            Text('Find and notify incomplete profiles',
+                                style: AppTextStyles.labelSmall
+                                    .copyWith(color: AppColors.textSecondaryOf(context))),
+                          ]),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context), size: 20),
+                      ]),
+                    ),
+                  ),
                 // THE ROLE PICKER. Was a single scrolling column of a search
                 // box, role chips and drill-down chips stacked above a list —
                 // crowded enough on a phone that only a sliver was left for

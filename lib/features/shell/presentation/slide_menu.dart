@@ -496,6 +496,7 @@ class _MenuTileState extends State<_MenuTile> {
             padding: EdgeInsetsDirectional.fromSTEB(
                 _hover && !isActive ? 14 : 12, 10, 12, 10),
             decoration:isActive?BoxDecoration(
+              borderRadius: AppDepth.radius(1),
               border:Border(left:BorderSide(color:item.accent,width:3)),
             ):null,
             child: Row(children:[
