@@ -26,6 +26,42 @@ String _digits(Object? v) {
   return d.length <= 10 ? d : d.substring(d.length - 10);
 }
 
+/// The TRUE designation for a teacher/staff row.
+///
+/// `profiles.designation` is never written by the client for these roles —
+/// `complete_profile_screen.dart` writes designation to the linked
+/// `teachers`/`staff` row only, and `profile_is_complete()` in Postgres
+/// already knows this: its teacher/staff branches check designation via
+/// `exists (select 1 from teachers/staff where ...)`, not `p.designation`.
+///
+/// This file's functions below are pure — they read whatever is at
+/// `p['designation']` and trust it. Found live: an account correctly marked
+/// complete by the database still showed as "missing Designation" on the
+/// ring, because the caller's query never embedded `teachers(designation)`/
+/// `staff(designation)`, so `p['designation']` was the always-empty flat
+/// column instead of the real value. ANY caller that fetches a profile row
+/// for [isProfileComplete]/[incompleteReasons]/[profileCompletionCounts] on
+/// a teacher or staff account MUST embed both and run the result through
+/// this first (`p['designation'] = resolvedDesignation(p)`), or those
+/// functions will disagree with the database's own verdict every time.
+///
+/// PostgREST embeds may come back as an object OR a single-element list
+/// depending on the relationship shape — `UserModel` already handles both;
+/// this copies that exact pattern rather than assuming one.
+String? resolvedDesignation(Map<String, dynamic> p) {
+  String? fromEmbed(Object? raw) {
+    if (raw is List && raw.isNotEmpty && raw.first is Map) {
+      return (raw.first as Map)['designation'] as String?;
+    }
+    if (raw is Map) return raw['designation'] as String?;
+    return null;
+  }
+
+  final direct = p['designation'] as String?;
+  if (_has(direct)) return direct;
+  return fromEmbed(p['teachers']) ?? fromEmbed(p['staff']);
+}
+
 /// Whether [p] — a `profiles` row as PostgREST returns it — carries every
 /// detail its role is required to provide.
 ///
