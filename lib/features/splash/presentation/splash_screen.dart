@@ -100,11 +100,21 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     // read must never be able to take the whole launch down with it again --
     // if it doesn't answer promptly, treat quick-login as "not set up" and
     // let the user sign in normally, which is a full recovery, not a failure.
+    //
+    // 3s TIGHTENED TO 1.5s -- reported live as "stuck sometimes". _destination
+    // starts in initState, in parallel with the ~1.85s visual arc, so a slow
+    // path hitting the OLD 3s ceiling meant up to (3 - 1.85) ≈ 1.15s of dead
+    // air AFTER the reveal had already finished and nothing new was left to
+    // show -- ambient motion (particles, the clock hand) never stops, but
+    // that alone does not read as "still loading" once the wordmark is fully
+    // revealed and the tagline is showing. 1.5s keeps the same safety net for
+    // a genuinely hung read while landing close to where the visual arc ends
+    // anyway on the slow path, instead of stalling well past it.
     bool biometricEnabled = false;
     if (!kIsWeb) {
       try {
         biometricEnabled = await BiometricTokenStore.isEnabled()
-            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+            .timeout(const Duration(milliseconds: 1500), onTimeout: () => false);
       } catch (_) {
         biometricEnabled = false;
       }
@@ -118,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     if (session == null) return '/auth/login';
     String? last;
     try {
-      last = await loadLastRoute().timeout(const Duration(seconds: 3), onTimeout: () => null);
+      last = await loadLastRoute().timeout(const Duration(milliseconds: 1500), onTimeout: () => null);
     } catch (_) {
       last = null;
     }
@@ -236,46 +246,68 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   // shadow along the SAME light. Before this, the splash had no
                   // lit surface at all — which is why the lockup read as flat
                   // artwork on a dark rectangle rather than as an object.
-                  Container(
-                    width: 188,
-                    height: 188,
-                    decoration: AppDepth.metal(
-                      level: 3,
-                      isDark: true,
-                      radius: BorderRadius.circular(94),
+                  // RepaintBoundary here and on the two AnimatedBuilders below:
+                  // three independently-animating layers were sharing one
+                  // render region with no isolation between them, so every
+                  // frame of the clock hand's own 1600ms loop forced the
+                  // static bezel and the (ShaderMask-heavy, saveLayer-costing)
+                  // monogram to be recomposited too, and vice versa. This is
+                  // the single biggest lever for keeping the busiest 1.3s of
+                  // the splash (bezel + sweep + monogram all animating at
+                  // once) cheap on weaker GPUs — each layer is now cached and
+                  // repainted only when ITS OWN animation actually changes.
+                  RepaintBoundary(
+                    child: Container(
+                      width: 188,
+                      height: 188,
+                      decoration: AppDepth.metal(
+                        level: 3,
+                        isDark: true,
+                        radius: BorderRadius.circular(94),
+                      ),
                     ),
                   ),
-                  AnimatedBuilder(
-                    animation: Listenable.merge([_handCtrl, _glowCtrl]),
-                    builder: (_, __) => CustomPaint(
-                      size: const Size(200, 200),
-                      painter: _ClockSweepPainter(t: _handCtrl.value, glow: _glowCtrl.value),
+                  RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([_handCtrl, _glowCtrl]),
+                      builder: (_, __) => CustomPaint(
+                        size: const Size(200, 200),
+                        painter: _ClockSweepPainter(t: _handCtrl.value, glow: _glowCtrl.value),
+                      ),
                     ),
                   ),
                   // The AFOS monogram punches in letter-by-letter — a dramatic
                   // spring pop toward the viewer, tinted with the brand duo.
-                  AnimatedBuilder(
-                    animation: _introCtrl,
-                    builder: (_, __) => ShaderMask(
-                      shaderCallback: (r) => AppColors.holoGradient.createShader(r),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        for (var i = 0; i < 4; i++) _monoLetter('AFOS'[i], i),
-                      ]),
+                  RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: _introCtrl,
+                      builder: (_, __) => ShaderMask(
+                        shaderCallback: (r) => AppColors.holoGradient.createShader(r),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          for (var i = 0; i < 4; i++) _monoLetter('AFOS'[i], i),
+                        ]),
+                      ),
                     ),
                   ),
                 ]),
               ),
               const SizedBox(height: 28),
-              // Wordmark revealed right-to-left by the clock wipe.
-              AnimatedBuilder(
-                animation: _revealCtrl,
-                builder: (_, __) => ShaderMask(
-                  blendMode: BlendMode.dstIn,
-                  shaderCallback: (rect) => _wipeShader(rect, _revealCtrl.value),
-                  child: ShaderMask(
-                    shaderCallback: (rect) => AppColors.holoGradient.createShader(rect),
-                    child: const Text('All Facilities One System',
-                        style: TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 1.8, fontWeight: FontWeight.w600)),
+              // Its own boundary too -- two NESTED ShaderMasks (the wipe, then
+              // the gradient tint) each cost a saveLayer; isolating them stops
+              // that cost from also forcing the clock/monogram stack above
+              // (and the particle field behind everything) to recomposite on
+              // every one of this animation's frames, and vice versa.
+              RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _revealCtrl,
+                  builder: (_, __) => ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (rect) => _wipeShader(rect, _revealCtrl.value),
+                    child: ShaderMask(
+                      shaderCallback: (rect) => AppColors.holoGradient.createShader(rect),
+                      child: const Text('All Facilities One System',
+                          style: TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 1.8, fontWeight: FontWeight.w600)),
+                    ),
                   ),
                 ),
               ),
@@ -415,6 +447,25 @@ class _ClockSweepPainter extends CustomPainter {
     final c = size.center(Offset.zero);
     final radius = size.shortestSide / 2 - 2;
     final angle = t * 2 * pi - pi / 2; // start at 12 o'clock
+
+    // Three satellite marks, orbiting slower and counter to the hand --
+    // cheap (three more drawCircle calls on the SAME canvas this painter
+    // already owns, no new layer, no new shader) but reads as a real
+    // instrument with more than one thing in motion, not a single hand on a
+    // static face. Glow-linked so the whole dial breathes as one system
+    // rather than two unrelated loops. Placed INSIDE the outer ring, not
+    // beyond it -- the canvas is exactly 200x200 (center at 100,100, so ~98
+    // is already the safe max radius the outer ring itself uses); anything
+    // past that clips against the Stack's own hardEdge bound.
+    final orbitR = radius - 9;
+    for (int i = 0; i < 3; i++) {
+      final a = -t * 2 * pi * 0.4 + i * (2 * pi / 3);
+      canvas.drawCircle(
+        c + Offset(cos(a), sin(a)) * orbitR,
+        1.1 + glow * 0.4,
+        Paint()..color = AppColors.holoTeal.withValues(alpha: 0.25 + glow * 0.35),
+      );
+    }
 
     // Outer ring.
     canvas.drawCircle(c, radius, Paint()
