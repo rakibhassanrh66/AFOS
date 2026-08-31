@@ -304,6 +304,15 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
   List<Map<String, dynamic>> _facetList(String key) =>
       ((_facets[key] as List?) ?? const []).cast<Map<String, dynamic>>();
 
+  // A single fixed-height row, however many values there are — a role with
+  // dozens of batches (student) used to Wrap those chips onto as many lines
+  // as it took, which for "many batches" meant the filter strip alone could
+  // fill the screen and push the actual list of people off it entirely. This
+  // is the "many batches appear and block the rest of the screen" complaint.
+  // Scrolling sideways instead keeps every drill level (batch, section,
+  // semester, department) to one row no matter how many values it holds, the
+  // same "own fixed slot, never eats the list's space" fix Phase B already
+  // applied to the search box above it.
   Widget _drillLevel({
     required String title,
     required List<Map<String, dynamic>> values,
@@ -313,21 +322,35 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
   }) {
     if (values.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 0, 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title.toUpperCase(),
-            style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.textSecondaryOf(context), letterSpacing: 1.1)),
+        Padding(
+          padding: const EdgeInsetsDirectional.only(end: 16),
+          child: Text(title.toUpperCase(),
+              style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.textSecondaryOf(context), letterSpacing: 1.1)),
+        ),
         const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final v in values)
-            GlassChip(
-              label: '${labelOf?.call(v) ?? v['value']} (${v['count']})',
-              selected: selected == '${v['value']}',
-              color: AppColors.holoBlue,
-              onTap: () => onPick(selected == '${v['value']}' ? null : '${v['value']}'),
-            ),
-        ]),
+        SizedBox(
+          height: 52,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsetsDirectional.only(end: 16),
+            itemCount: values.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final v = values[i];
+              return Center(
+                child: GlassChip(
+                  label: '${labelOf?.call(v) ?? v['value']} (${v['count']})',
+                  selected: selected == '${v['value']}',
+                  color: AppColors.holoBlue,
+                  onTap: () => onPick(selected == '${v['value']}' ? null : '${v['value']}'),
+                ),
+              );
+            },
+          ),
+        ),
       ]),
     );
   }
