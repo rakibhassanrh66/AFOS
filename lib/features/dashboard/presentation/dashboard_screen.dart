@@ -134,8 +134,16 @@ class _DashboardState extends State<DashboardScreen> {
       final insights = await (_insightsFuture ?? Future<AdminOverviewData?>.value(null));
       if (mounted) setState(() => _insights = insights);
       final weather = await (_weatherFuture ?? Future<WeatherSnapshot?>.value(null));
+      debugPrint('[dashboard] weather applied: ${weather != null}');
       if (mounted) setState(() => _weather = weather);
-    } catch (_) {
+    } catch (e, st) {
+      // This was a bare `catch (_)` -- if ANYTHING earlier in this same try
+      // (the pulse await, the insights await, _loadQuickStats's own
+      // exceptions if they ever propagated here) threw, everything from that
+      // point on, weather included, was silently abandoned with zero trace.
+      // A [weather] log showing WeatherService.current() itself succeeding
+      // does not prove this method ever reached the line that applies it.
+      debugPrint('[dashboard] _load() aborted: $e\n$st');
       if (mounted) setState(() { _loading = false; _statsLoading = false; });
     }
   }

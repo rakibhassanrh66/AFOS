@@ -403,7 +403,9 @@ class _SlideMenuState extends State<SlideMenu> {
                   decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.16), shape: BoxShape.circle),
                   child: const Icon(AppIcons.vrId,color:AppColors.gold,size:15)),
               const SizedBox(width:10),
-              Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:AppColors.gold, fontWeight: FontWeight.w700))),
+              // Same fix as _Chip above: gold stays on the icon, the tint and
+              // the border; the label itself is solid ink, not the accent.
+              Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:textPrimary, fontWeight: FontWeight.w700))),
               Icon(Icons.chevron_right_rounded, color: AppColors.gold.withValues(alpha:0.6), size: 18),
             ]),
           ),
@@ -587,12 +589,21 @@ class _Chip extends StatelessWidget {
   // same vertical-centering issue without touching how the Container sizes
   // itself, so both the bare and Flexible-wrapped usages stay tightly
   // wrapped around their text.
+  //
+  // TEXT IS SOLID INK, NOT `color` -- reported live as "CSE"/"Sem 8" reading
+  // faded. The 0.15-alpha tint behind the text is barely off the surface
+  // colour, so painting the label in the full-strength accent on top of that
+  // near-neutral tint is a low-contrast combination almost by construction;
+  // `foregroundOn` does not apply either, since that answers for a SOLID
+  // accent fill, not a tint this light. The accent still carries the chip's
+  // identity via the tint and the border -- the label does not also need to
+  // repeat it in a harder-to-read colour.
   Widget build(BuildContext context) => Container(
     padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
     decoration:BoxDecoration(color:color.withValues(alpha:0.15),borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
       border:Border.all(color:color.withValues(alpha:0.3))),
     child:Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-      style:TextStyle(color:color,fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
+      style:TextStyle(color:AppColors.textPrimaryOf(context),fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
       maxLines:1,overflow:TextOverflow.ellipsis),
   );
 }

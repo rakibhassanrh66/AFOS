@@ -3992,3 +3992,68 @@ None.
 - The weather non-appearance is instrumented, not yet root-caused — next
   step is reading logcat for the `[weather]` tag after a reload, or the
   owner relaying what it prints.
+
+---
+
+## Phase H — two more of the same bug, and a real logcat catch · 2026-08-31
+
+### The drawer header had the same "accent as text" bug twice more
+
+Reported live: the drawer's own "CSE" (department) / "Sem 8" chips and "My
+VR-ID" row read faded, same complaint as the menu items already fixed. Both
+are a variant of the identical mistake: `_Chip`'s label was painted in the
+raw `color` parameter (`AppColors.holoBlue`/`AppColors.green`) sitting on
+only a 0.15-alpha tint of that same colour — a near-neutral background with
+full-strength colour text on top, low contrast almost by construction, and
+not a case `foregroundOn` even answers (that function assumes a SOLID accent
+fill, not a tint this light). Same for "My VR-ID": `color: AppColors.gold`
+directly on the label. Both fixed the same way as the menu items: the accent
+stays on the tint/border/icon, the label goes solid `textPrimaryOf(context)`.
+
+Re-checked the Dashboard's own module grid (`_Module` tiles — the single
+highest-traffic screen in the app) for the same pattern before assuming it
+was everywhere: already correct, title text was already `textPrimaryOf`, not
+the module colour. Confirms this was never a global rule violated
+uniformly — specific spots, now three found and fixed across two files.
+
+A broader grep for `color: AppColors.<accent>` beside a `Text(` turned up
+roughly 60 more candidates project-wide. Not swept blind: a large share of
+those are legitimately colour-carrying status text (red "Cancelled", amber
+"Pending") that the constitution explicitly says must KEEP that colour — colour
+IS the information there. Distinguishing that from a repeat of this same
+bug needs per-site reading, which 60 sites is too much to responsibly rush
+through in one pass; flagged as a dedicated follow-up rather than guessed at.
+
+### The weather diagnostic paid off, and revealed the more likely real bug
+
+`adb logcat`, watched passively (no device interaction): `[weather] serving
+cached reading from 2026-08-31 16:12:27` — proof `WeatherService.current()`
+itself is working and returning real data. That redirects the search:
+`_weatherFuture` is a SEPARATE Future started in `initState`, independent of
+`dashboard_screen.dart`'s own `_load()` — its debug line proves the fetch
+succeeded, not that `_load()` ever reached the line that applies it.
+`_load()`'s own catch was a bare `catch (_)`: if the PULSE or INSIGHTS await
+immediately before the weather await throws for any reason, everything from
+that point on -- weather included -- is abandoned with zero trace, while
+`_loading`/`_statsLoading` still flip false, so the rest of the screen looks
+normal and nothing reads as broken. Added a matching `[dashboard]`-tagged
+debugPrint on both the success path and the catch (with the actual exception
+and stack trace) so the next reload will show definitively whether this is
+what's happening, rather than continuing to guess between this and a dozen
+other theories.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- Root cause of the weather non-appearance still not confirmed — narrowed
+  from "somewhere in the fetch" to "likely `_load()` silently aborting
+  between the insights and weather awaits," pending the next `[dashboard]`
+  log line.
+- The ~60-site broader accent-as-text audit is scoped but not started.
