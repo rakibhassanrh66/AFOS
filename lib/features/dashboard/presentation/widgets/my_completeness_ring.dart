@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_text_styles.dart';
@@ -33,8 +32,24 @@ import '../../../web/presentation/widgets/chart_primitives.dart';
 class MyCompletenessRing extends StatelessWidget {
   final int missing;
   final int total;
+  final List<String> reasons;
 
-  const MyCompletenessRing({super.key, required this.missing, required this.total});
+  /// Owned by the caller rather than hardcoded here: the caller needs to
+  /// AWAIT the trip to /complete-profile and refresh afterward. Save &
+  /// Continue there does `context.go('/home')`, not a pop -- which can land
+  /// back on an already-mounted Dashboard whose _load() never re-runs, so
+  /// this ring kept showing a stale "1 detail left" for an account that had
+  /// actually just finished. A plain unmanaged push here could not fix that;
+  /// only the caller refreshing its own data on return can.
+  final VoidCallback onTap;
+
+  const MyCompletenessRing({
+    super.key,
+    required this.missing,
+    required this.total,
+    required this.reasons,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +59,7 @@ class MyCompletenessRing extends StatelessWidget {
 
     return RepaintBoundary(
       child: GestureDetector(
-        onTap: () => context.push('/complete-profile'),
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -53,40 +68,69 @@ class MyCompletenessRing extends StatelessWidget {
             border: Border.all(color: AppColors.borderOf(context), width: 0.5),
             boxShadow: AppDepth.shadow(2, isDark: AppColors.isDark(context)),
           ),
-          child: Row(children: [
-            SizedBox(
-              width: 64,
-              height: 64,
-              child: RingChart(
-                stroke: 10,
-                centerValue: '$pct%',
-                centerLabel: '',
-                slices: [
-                  RingSlice(label: 'Done', value: done, color: ChartPalette.good(context)),
-                  RingSlice(
-                      label: 'Remaining', value: missing, color: ChartPalette.muted(context)),
-                ],
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              // 96px, not the original 64px: RingChart's centre figure is a
+              // fixed 24px numericLarge style (right, correctly, for the big
+              // web-console rings it was built for) and does not shrink to
+              // fit a smaller ring. At 64px with a 10px stroke, "100%" had
+              // nowhere to go but across the stroke itself -- the literal
+              // "percentage crosses the ring border" report. 96px with an 8px
+              // stroke leaves genuine room.
+              SizedBox(
+                width: 96,
+                height: 96,
+                child: RingChart(
+                  stroke: 8,
+                  centerValue: '$pct%',
+                  centerLabel: '',
+                  slices: [
+                    RingSlice(label: 'Done', value: done, color: ChartPalette.good(context)),
+                    RingSlice(
+                        label: 'Remaining', value: missing, color: ChartPalette.muted(context)),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Your profile is $pct% complete',
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Your profile is $pct% complete',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleMedium
+                          .copyWith(color: AppColors.textPrimaryOf(context))),
+                  const SizedBox(height: 2),
+                  Text(
+                    missing == 1 ? '1 detail left to finish' : '$missing details left to finish',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.titleMedium
-                        .copyWith(color: AppColors.textPrimaryOf(context))),
-                const SizedBox(height: 2),
-                Text(
-                  missing == 1 ? '1 detail left to finish' : '$missing details left to finish',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelSmall
-                      .copyWith(color: AppColors.textSecondaryOf(context)),
-                ),
+                    style: AppTextStyles.labelSmall
+                        .copyWith(color: AppColors.textSecondaryOf(context)),
+                  ),
+                ]),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
+            ]),
+            // WHICH ONE, not just how many — "1 detail left" with nothing
+            // named left the reader guessing, and guessing "it must be the
+            // photo" when the real gap was something else entirely (an
+            // already-admin-approved photo should never be the thing someone
+            // keeps worrying about).
+            if (reasons.isNotEmpty) ...[
+              const SizedBox(height: AppSpace.sm),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final r in reasons)
+                  Container(
+                    padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.amber.withValues(alpha: 0.12),
+                      borderRadius: AppDepth.radius(0),
+                    ),
+                    child: Text(r,
+                        style: AppTextStyles.labelSmall.copyWith(color: AppColors.amber)),
+                  ),
               ]),
-            ),
-            Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
+            ],
           ]),
         ),
       ),

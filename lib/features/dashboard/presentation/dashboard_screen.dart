@@ -10,7 +10,9 @@ import '../../../config/theme/app_text_styles.dart';
 import 'widgets/exam_pulse_band.dart';
 import 'widgets/admin_insights_panel.dart';
 import 'widgets/my_completeness_ring.dart';
+import 'widgets/weather_dress_card.dart';
 import '../../../core/auth/profile_completeness.dart';
+import '../../../core/services/weather_service.dart';
 import '../../web/presentation/consoles/admin_overview.dart' show AdminOverviewData;
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
@@ -73,6 +75,7 @@ class _DashboardState extends State<DashboardScreen> {
     // and no growth in total wait beyond the slowest of the two.
     _pulseFuture = ExamPulseData.load();
     _insightsFuture = AdminOverviewData.load();
+    _weatherFuture = WeatherService.current();
     _load();
     _tickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -96,15 +99,19 @@ class _DashboardState extends State<DashboardScreen> {
       );
       if (profileRaw == null) { if (mounted) setState(() { _loading = false; _statsLoading = false; }); return; }
       // Off the same raw row already fetched for UserModel -- no second
-      // query. profileCompletionCounts mirrors profile_is_complete() exactly
-      // (same file backing /complete-profile's own form), so this can never
-      // disagree with what actually gates the account.
+      // query. Both mirror profile_is_complete() exactly (same file backing
+      // /complete-profile's own form and the admin Inspection screen), so
+      // this can never disagree with what actually gates the account, and
+      // reasons names the field rather than leaving "1 detail left" unsaid.
       final (missing, total) = profileCompletionCounts(profileRaw);
+      final reasons = incompleteReasons(profileRaw);
       if (mounted) {
         setState(() {
           _user = UserModel.fromJson(profileRaw);
+          _gender = profileRaw['gender'] as String?;
           _missingFields = missing;
           _totalFields = total;
+          _missingReasons = reasons;
         });
       }
       // A super_admin posting a notice should reach open dashboards
@@ -126,6 +133,8 @@ class _DashboardState extends State<DashboardScreen> {
       if (mounted) setState(() => _pulse = pulse);
       final insights = await (_insightsFuture ?? Future<AdminOverviewData?>.value(null));
       if (mounted) setState(() => _insights = insights);
+      final weather = await (_weatherFuture ?? Future<WeatherSnapshot?>.value(null));
+      if (mounted) setState(() => _weather = weather);
     } catch (_) {
       if (mounted) setState(() { _loading = false; _statsLoading = false; });
     }
@@ -446,6 +455,17 @@ class _DashboardState extends State<DashboardScreen> {
   /// missing" and correctly shows no ring rather than a false positive.
   int _missingFields = 0;
   int _totalFields = 0;
+  List<String> _missingReasons = const [];
+
+  /// Live weather + dress suggestion for every user, wherever their device
+  /// actually is. Null (no card) until resolved, and stays null forever for
+  /// anyone without location available -- never an error state.
+  WeatherSnapshot? _weather;
+  Future<WeatherSnapshot?>? _weatherFuture;
+
+  /// Read straight off the raw profile row rather than adding a field to the
+  /// shared UserModel just for this one card.
+  String? _gender;
 
   List<_Module> get _modules => _user?.role == 'student' || _user?.role == null
       ? _allModules
@@ -517,7 +537,26 @@ class _DashboardState extends State<DashboardScreen> {
                 // pulse band below.
                 if (_missingFields > 0) ...[
                   const SizedBox(height: 16),
-                  MyCompletenessRing(missing: _missingFields, total: _totalFields),
+                  MyCompletenessRing(
+                    missing: _missingFields,
+                    total: _totalFields,
+                    reasons: _missingReasons,
+                    // Awaited, then refreshed: Save & Continue on
+                    // /complete-profile does context.go('/home'), not a pop,
+                    // which can land back on this already-mounted Dashboard
+                    // without _load() ever re-running on its own -- the exact
+                    // "verdict says fine but the ring still says 1 left"
+                    // report. context.push's Future still completes when
+                    // that page is removed from the Navigator, go() included.
+                    onTap: () async {
+                      await context.push('/complete-profile');
+                      if (mounted) _load();
+                    },
+                  ),
+                ],
+                if (_weather != null) ...[
+                  const SizedBox(height: 16),
+                  WeatherDressCard(weather: _weather!, gender: _gender),
                 ],
                 if ((_user?.role == 'student' || _user?.role == 'teacher')) ...[
                   const SizedBox(height: 16),
