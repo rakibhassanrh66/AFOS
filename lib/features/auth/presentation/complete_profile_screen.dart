@@ -51,6 +51,22 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   String? _avatarPendingUrl;
   String? _avatarReviewStatus;
   String? _avatarReviewReason;
+  DateTime? _verifiedAt;
+
+  /// Whether the 48-hour grace period for adding a photo has already passed
+  /// with nothing submitted or an earlier photo rejected.
+  ///
+  /// This MIRRORS the photo clause in `profile_is_complete()` — the database
+  /// is the authority, and the same three escapes apply: not yet verified (the
+  /// clock has not started), still inside the window, or a photo already
+  /// pending/approved. It exists only to EXPLAIN a restriction that is already
+  /// in force; it never decides anything.
+  bool get _photoWindowClosed {
+    final at = _verifiedAt;
+    if (at == null) return false;
+    if (DateTime.now().difference(at) < const Duration(hours: 48)) return false;
+    return _avatarReviewStatus != 'pending' && _avatarReviewStatus != 'approved';
+  }
   String _studentId = '';
   String _email = '';
 
@@ -193,6 +209,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             _avatarPendingUrl = p['avatar_pending_url'] as String?;
             _avatarReviewStatus = p['avatar_review_status'] as String?;
             _avatarReviewReason = p['avatar_review_reason'] as String?;
+          } catch (_) {}
+          // Read so this screen can tell someone WHY they are here when the
+          // 48-hour photo window has already closed. See _photoWindowClosed.
+          try {
+            _verifiedAt = DateTime.tryParse('${p['verified_at'] ?? ''}');
           } catch (_) {}
           try { _gender = p['gender'] as String?; } catch (_) {}
           try { _studentId = p['university_id'] as String? ?? p['student_id'] as String? ?? ''; } catch (_) {}
@@ -403,6 +424,51 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     const SizedBox(height: 6),
                     Text('A few required details are missing before you can continue.',
                         style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
+                    // Says out loud what the app has been doing SILENTLY. An
+                    // account past the photo window already fails
+                    // profile_is_complete(), so the router has been sending
+                    // this person back here on every launch with no
+                    // explanation of why, or of what ends it. The restriction
+                    // is not new; being told about it is.
+                    //
+                    // Deliberately plain and unthreatening: this is mostly
+                    // students who have not got around to it, not wrongdoing.
+                    // It names the one thing to do and promises the outcome,
+                    // and it never says "suspended" or "blocked" — words that
+                    // read as an accusation for what is usually forgetfulness.
+                    if (_photoWindowClosed) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.amber.withValues(alpha: 0.10),
+                          borderRadius: AppDepth.radius(1),
+                          border: Border.all(
+                              color: AppColors.amber.withValues(alpha: 0.35)),
+                        ),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Icon(Icons.info_outline, color: AppColors.amber, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Your account is limited for now',
+                                      style: AppTextStyles.bodyMedium.copyWith(
+                                          color: textPrimary,
+                                          fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                      'Please add your profile photo below and finish '
+                                      'the details. An admin checks each photo, and '
+                                      'your account opens back up once it is approved.',
+                                      style: AppTextStyles.labelSmall
+                                          .copyWith(color: textSecondary)),
+                                ]),
+                          ),
+                        ]),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     Center(child: AvatarPicker(
                         avatarUrl: _avatarUrl,

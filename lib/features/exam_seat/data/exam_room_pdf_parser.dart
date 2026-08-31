@@ -24,12 +24,22 @@ class ExamRoomAllocationRow {
   final String? slotLabel;
   final String? slotStart, slotEnd;
   final String? courseCode, courseTitle, teacherInitial;
+  /// The row's leading "Faculty"/"Dept." column, verbatim. Was sitting
+  /// unread at the start of every Tier-1 row (see the header comment) — the
+  /// source table prints it, this just stops discarding it. Kept raw rather
+  /// than normalized into a department CODE (the way the exam-routine
+  /// header text is abbreviated to e.g. "CSE") because that abbreviation was
+  /// tuned against a "Department of X" sentence, a different shape of text
+  /// from whatever this column prints; guessing at that mapping without a
+  /// real sample to check it against risks a confidently wrong code, which
+  /// is worse than an unabbreviated but honest string.
+  final String? department;
   final String batch, section, roomNo;
   final int seats;
 
   ExamRoomAllocationRow({
     this.examTitle, required this.examDate, this.slotLabel, this.slotStart, this.slotEnd,
-    this.courseCode, this.courseTitle, this.teacherInitial,
+    this.courseCode, this.courseTitle, this.teacherInitial, this.department,
     required this.batch, required this.section, required this.roomNo, required this.seats,
   });
 
@@ -37,6 +47,7 @@ class ExamRoomAllocationRow {
     'exam_title': examTitle, 'exam_date': examDate.toIso8601String().split('T').first,
     'slot_label': slotLabel, 'slot_start': slotStart, 'slot_end': slotEnd,
     'course_code': courseCode, 'course_title': courseTitle, 'teacher_initial': teacherInitial,
+    'department': department,
     'batch': batch, 'section': section, 'room_no': roomNo, 'seats': seats,
   };
 }
@@ -54,11 +65,11 @@ class _Word { final String text; final double left, top; _Word(this.text, this.l
 /// Reset deliberately when a page turns out to belong to a different
 /// date+slot, so one exam's course can never bleed into the next one's table.
 class _BlockContext {
-  String? courseCode, courseTitle, teacherInitial, batch, section;
+  String? courseCode, courseTitle, teacherInitial, batch, section, department;
   String? slotKey;
 
   void clear() {
-    courseCode = courseTitle = teacherInitial = batch = section = null;
+    courseCode = courseTitle = teacherInitial = batch = section = department = null;
   }
 
   /// Returns after clearing if [key] names a different exam block.
@@ -217,10 +228,11 @@ class ExamRoomPdfParser {
         ctx.batch = batchSection[0];
         ctx.section = batchSection[1];
         ctx.teacherInitial = texts[sectionIdx - 1];
+        ctx.department = texts[0];
         ctx.courseCode = texts[1];
         ctx.courseTitle = texts.sublist(2, sectionIdx - 1).join(' ');
         _addRoomRow(out, texts.sublist(sectionIdx + 1), examTitle, examDate, slotLabel, slotStart, slotEnd,
-            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.batch, ctx.section);
+            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.department, ctx.batch, ctx.section);
       } else if (leftmost < _roomColMin) {
         // Tier 2: new section within the same course — TeacherInitial | Section | Room | Seats | Total
         final sectionIdx = texts.indexWhere((t) => _sectionToken.hasMatch(t));
@@ -231,11 +243,11 @@ class ExamRoomPdfParser {
         ctx.section = batchSection[1];
         ctx.teacherInitial = texts[sectionIdx - 1];
         _addRoomRow(out, texts.sublist(sectionIdx + 1), examTitle, examDate, slotLabel, slotStart, slotEnd,
-            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.batch, ctx.section);
+            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.department, ctx.batch, ctx.section);
       } else if (ctx.batch != null && ctx.section != null) {
         // Tier 3: continuation — just another Room+Seats pair for the current section.
         _addRoomRow(out, texts, examTitle, examDate, slotLabel, slotStart, slotEnd,
-            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.batch, ctx.section);
+            ctx.courseCode, ctx.courseTitle, ctx.teacherInitial, ctx.department, ctx.batch, ctx.section);
       }
     }
     return out;
@@ -246,7 +258,8 @@ class ExamRoomPdfParser {
   /// source document.
   static void _addRoomRow(List<ExamRoomAllocationRow> out, List<String> roomTokens,
       String? examTitle, DateTime? examDate, String? slotLabel, String? slotStart, String? slotEnd,
-      String? courseCode, String? courseTitle, String? teacherInitial, String? batch, String? section) {
+      String? courseCode, String? courseTitle, String? teacherInitial, String? department,
+      String? batch, String? section) {
     if (roomTokens.length < 2 || examDate == null || batch == null || section == null) return;
 
     // Same split-token hazard as the date: a room is "G1-001" in one
@@ -267,6 +280,7 @@ class ExamRoomPdfParser {
       examTitle: examTitle, examDate: examDate, slotLabel: slotLabel,
       slotStart: slotStart, slotEnd: slotEnd,
       courseCode: courseCode, courseTitle: courseTitle, teacherInitial: teacherInitial,
+      department: department,
       batch: batch, section: section, roomNo: room.toString(), seats: seats,
     ));
   }

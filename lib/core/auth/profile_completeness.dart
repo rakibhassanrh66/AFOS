@@ -26,6 +26,42 @@ String _digits(Object? v) {
   return d.length <= 10 ? d : d.substring(d.length - 10);
 }
 
+/// The TRUE designation for a teacher/staff row.
+///
+/// `profiles.designation` is never written by the client for these roles —
+/// `complete_profile_screen.dart` writes designation to the linked
+/// `teachers`/`staff` row only, and `profile_is_complete()` in Postgres
+/// already knows this: its teacher/staff branches check designation via
+/// `exists (select 1 from teachers/staff where ...)`, not `p.designation`.
+///
+/// This file's functions below are pure — they read whatever is at
+/// `p['designation']` and trust it. Found live: an account correctly marked
+/// complete by the database still showed as "missing Designation" on the
+/// ring, because the caller's query never embedded `teachers(designation)`/
+/// `staff(designation)`, so `p['designation']` was the always-empty flat
+/// column instead of the real value. ANY caller that fetches a profile row
+/// for [isProfileComplete]/[incompleteReasons]/[profileCompletionCounts] on
+/// a teacher or staff account MUST embed both and run the result through
+/// this first (`p['designation'] = resolvedDesignation(p)`), or those
+/// functions will disagree with the database's own verdict every time.
+///
+/// PostgREST embeds may come back as an object OR a single-element list
+/// depending on the relationship shape — `UserModel` already handles both;
+/// this copies that exact pattern rather than assuming one.
+String? resolvedDesignation(Map<String, dynamic> p) {
+  String? fromEmbed(Object? raw) {
+    if (raw is List && raw.isNotEmpty && raw.first is Map) {
+      return (raw.first as Map)['designation'] as String?;
+    }
+    if (raw is Map) return raw['designation'] as String?;
+    return null;
+  }
+
+  final direct = p['designation'] as String?;
+  if (_has(direct)) return direct;
+  return fromEmbed(p['teachers']) ?? fromEmbed(p['staff']);
+}
+
 /// Whether [p] — a `profiles` row as PostgREST returns it — carries every
 /// detail its role is required to provide.
 ///
@@ -88,4 +124,86 @@ bool isProfileComplete(Map<String, dynamic> p, {DateTime? now}) {
       // whole app.
       return _has(p['role']);
   }
+}
+
+/// Which of [isProfileComplete]'s checks [p] is actually failing, in the same
+/// order that function tests them — for the admin Inspection screen, which
+/// needs to SHOW a reason, not just a pass/fail. Never used to gate anything;
+/// [isProfileComplete] (and the database behind it) remains the one verdict
+/// that matters.
+List<String> incompleteReasons(Map<String, dynamic> p, {DateTime? now}) {
+  final role = (p['role'] ?? '').toString().trim();
+  final at = now ?? DateTime.now();
+  final reasons = <String>[];
+
+  void need(bool ok, String label) { if (!ok) reasons.add(label); }
+
+  need(_has(p['full_name']), 'Full name');
+  need(_has(p['phone']), 'Phone number');
+  need(_has(p['gender']), 'Gender');
+  need(_has(p['emergency_contact']), 'Emergency contact');
+  need(_has(p['permanent_division']), 'Permanent division');
+  need(_has(p['permanent_district']), 'Permanent district');
+  need(_has(p['permanent_upazila']), 'Permanent upazila');
+
+  if (_has(p['emergency_contact']) && _has(p['phone']) &&
+      _digits(p['emergency_contact']) == _digits(p['phone'])) {
+    reasons.add('Emergency contact is the same as their own number');
+  }
+
+  final verifiedAt = DateTime.tryParse('${p['verified_at'] ?? ''}');
+  final avatarStatus = (p['avatar_review_status'] ?? 'none').toString();
+  final photoOk = verifiedAt == null ||
+      at.difference(verifiedAt) < const Duration(hours: 48) ||
+      avatarStatus == 'pending' ||
+      avatarStatus == 'approved';
+  if (!photoOk) {
+    reasons.add(avatarStatus == 'rejected'
+        ? 'Photo was rejected and never resubmitted'
+        : 'No photo uploaded past the 48h deadline');
+  }
+
+  switch (role) {
+    case 'student':
+      need(_has(p['department_id']), 'Department');
+      need(_has(p['batch']), 'Batch');
+      need(_has(p['section']), 'Section');
+      need(_has(p['semester']), 'Semester');
+      need(_has(p['admission_season']), 'Admission season');
+      need(_has(p['admission_year']), 'Admission year');
+      need(_has(p['joined_on']), 'Join date');
+      break;
+    case 'teacher':
+      need(_has(p['department_id']), 'Department');
+      need(_has(p['designation']), 'Designation');
+      need(_has(p['joined_on']), 'Join date');
+      break;
+    case 'staff':
+      need(_has(p['designation']), 'Designation');
+      need(_has(p['joined_on']), 'Join date');
+      break;
+    default:
+      need(_has(p['role']), 'Role');
+  }
+
+  return reasons;
+}
+
+/// (fields still missing, fields required in total) for [p] — the same
+/// checks [incompleteReasons] runs, counted rather than named. Exists to draw
+/// a completion ring; what to actually SAY about a gap still comes from
+/// [incompleteReasons], and whether the account may proceed at all is still
+/// [isProfileComplete]'s call alone.
+(int missing, int total) profileCompletionCounts(Map<String, dynamic> p, {DateTime? now}) {
+  final role = (p['role'] ?? '').toString().trim();
+  // The 7 everyone-fields, the emergency-contact-distinct check, the photo
+  // check — every "everyone" clause incompleteReasons can raise.
+  const everyoneChecks = 9;
+  final roleChecks = switch (role) {
+    'student' => 7,
+    'teacher' => 3,
+    'staff' => 2,
+    _ => 1,
+  };
+  return (incompleteReasons(p, now: now).length, everyoneChecks + roleChecks);
 }

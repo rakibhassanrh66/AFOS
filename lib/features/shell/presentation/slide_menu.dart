@@ -399,12 +399,23 @@ class _SlideMenuState extends State<SlideMenu> {
               ]),
             ),
             child: Row(children:[
+              // Reported live as faded too: a 15px icon in full-strength
+              // gold (actually a light sky-blue, despite the name) sitting
+              // on only a 0.16-alpha tint of itself is a thin, light-on-
+              // light mark -- the same failure mode as the label, just on
+              // an icon instead of text. Solid ink here too; gold still
+              // reads as the row's identity via the tint and the border.
               Container(width: 28, height: 28, alignment: Alignment.center,
                   decoration: BoxDecoration(color: AppColors.gold.withValues(alpha:0.16), shape: BoxShape.circle),
-                  child: const Icon(AppIcons.vrId,color:AppColors.gold,size:15)),
+                  child: Icon(AppIcons.vrId,color:textPrimary,size:15)),
               const SizedBox(width:10),
-              Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:AppColors.gold, fontWeight: FontWeight.w700))),
-              Icon(Icons.chevron_right_rounded, color: AppColors.gold.withValues(alpha:0.6), size: 18),
+              // Same fix as _Chip above: gold stays on the icon, the tint and
+              // the border; the label itself is solid ink, not the accent.
+              Expanded(child: Text('My VR-ID', style:AppTextStyles.labelSmall.copyWith(color:textPrimary, fontWeight: FontWeight.w700))),
+              // A pure navigation affordance, not an identity mark -- neutral
+              // secondary ink like every other chevron in the app, not a
+              // muted accent that reads as faded at this size.
+              Icon(Icons.chevron_right_rounded, color: textSecondary, size: 18),
             ]),
           ),
         ),
@@ -496,6 +507,7 @@ class _MenuTileState extends State<_MenuTile> {
             padding: EdgeInsetsDirectional.fromSTEB(
                 _hover && !isActive ? 14 : 12, 10, 12, 10),
             decoration:isActive?BoxDecoration(
+              borderRadius: AppDepth.radius(1),
               border:Border(left:BorderSide(color:item.accent,width:3)),
             ):null,
             child: Row(children:[
@@ -519,10 +531,19 @@ class _MenuTileState extends State<_MenuTile> {
               // Expanded + ellipsis, not a bare Text: long labels ("Upload
               // Routine/Transport", "Feedback & Contributions") were
               // painting straight past the rounded hover/active box.
+              // The accent still marks "active" on the icon tile and the left
+              // border -- this is deliberately NOT also tinting the label.
+              // A module colour (vr_id's teal-green, CSE-style department
+              // hues) used as small TEXT is lower-contrast than solid ink by
+              // construction, whatever it scores on a contrast checker --
+              // this is exactly "selected text goes faded/fancy" reported
+              // live. Solid textPrimary reads as clearly selected already,
+              // from the fill + border + bold weight; it does not also need
+              // to change colour to prove it.
               Expanded(child: Text(item.label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style:TextStyle(
-                color:isActive?item.accent:textPrimary,
+                color:textPrimary,
                 fontSize:14, fontWeight:isActive?FontWeight.w600:FontWeight.w400))),
             ]),
           ),
@@ -577,12 +598,21 @@ class _Chip extends StatelessWidget {
   // same vertical-centering issue without touching how the Container sizes
   // itself, so both the bare and Flexible-wrapped usages stay tightly
   // wrapped around their text.
+  //
+  // TEXT IS SOLID INK, NOT `color` -- reported live as "CSE"/"Sem 8" reading
+  // faded. The 0.15-alpha tint behind the text is barely off the surface
+  // colour, so painting the label in the full-strength accent on top of that
+  // near-neutral tint is a low-contrast combination almost by construction;
+  // `foregroundOn` does not apply either, since that answers for a SOLID
+  // accent fill, not a tint this light. The accent still carries the chip's
+  // identity via the tint and the border -- the label does not also need to
+  // repeat it in a harder-to-read colour.
   Widget build(BuildContext context) => Container(
     padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
     decoration:BoxDecoration(color:color.withValues(alpha:0.15),borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
       border:Border.all(color:color.withValues(alpha:0.3))),
     child:Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-      style:TextStyle(color:color,fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
+      style:TextStyle(color:AppColors.textPrimaryOf(context),fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
       maxLines:1,overflow:TextOverflow.ellipsis),
   );
 }
@@ -623,9 +653,13 @@ class _QuickRailTile extends StatelessWidget {
                   borderRadius: AppDepth.radius(1)),
                 child: Icon(item.icon, color: item.accent, size: 18)),
               const SizedBox(width: 12),
+              // Same reasoning as _MenuTile: the accent already marks active
+              // via the icon tile, the fill and the left border -- the label
+              // stays solid ink rather than repeating it in a lower-contrast
+              // colour.
               Expanded(child: Text(item.label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: active ? item.accent : textPrimary,
+                style: TextStyle(color: textPrimary,
                   fontSize: 14, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
             ]),
           ),
