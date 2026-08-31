@@ -5031,3 +5031,99 @@ None this phase.
   clause the database uses — not by watching it render.
 - The web console tile has not been opened in a browser this session; it is
   verified by two widget tests and a successful web build.
+
+---
+
+## Phase S — release 2.9.7, and the guard rail that caught me · 2026-09-01
+
+Asked to get everything onto `main` and released so people can update from
+inside the app and be told about it.
+
+### `main` was behind, and the first merge attempt failed
+
+`main` was 18 commits "ahead" only in the sense of carrying cherry-picked
+DUPLICATES of Phases A-B under different hashes; it had no
+`resolvedDesignation()` (Phase I+J) and 1 of the splash screen's 6
+`RepaintBoundary`s (Phase K). Verified before merging that `main` held
+nothing this branch lacked: **zero** log headings and no code unique to it,
+so resolving every conflict in favour of this branch lost nothing real.
+
+The owner's own merge of PR #2 was refused by GitHub — 19 conflicts, all from
+that duplicate history. Merged `origin/main` in and resolved all 20
+(`pubspec.yaml` included), then re-verified the merged tree: analyze 0
+issues, 560 tests passing, no conflict markers anywhere.
+
+### The repo's own CI caught a security bug in this session's migration
+
+`20260831180000` created `admin_profile_nudge_status` with
+`revoke all ... from public` + `grant execute ... to authenticated`. That is
+NOT enough: Supabase's default privileges grant every new public-schema
+function EXECUTE to `anon` and `authenticated` **explicitly**, and revoking
+from `PUBLIC` does not remove an explicit role grant. The live ACL still read
+`anon=X`.
+
+The `db_security` job (`.github/scripts/check_definer_acls.py`) failed the
+build with "SECURITY DEFINER functions are executable by anon" and named the
+function. It exists for exactly this, and it worked on the first migration to
+get it wrong — which is the argument for keeping guard rails that only ever
+fire on your own mistakes.
+
+Not exploitable as it stood: the function's first statement is a
+`can_browse_users()` check, false for an anonymous caller, so the call raised
+42501 before reading anything. But a SECURITY DEFINER function bypasses RLS,
+and "safe because the guard happens to run first" is not a property to lean
+on. Fixed in `20260901000000`, applied, and verified both ways — `anon` is
+gone from the ACL, and an authenticated super_admin still gets the same
+result. The next `main` run went green.
+
+### The release, in the order that matters
+
+1. `main` merged (PR #2, then #3 for the security fix)
+2. version bumped to `2.9.7+5011`
+3. tag `v2.9.7` pushed -> the release job built and published four APKs
+   (universal + three per-ABI slices)
+4. ONLY THEN the `app_releases` row
+
+That order is not incidental. Inserting the release row fires
+`trg_notify_new_release`, which tells every user to update — so doing it
+before the APK exists would have pointed 19 people at a download that 404s.
+The release row carries `2.9.7` with no `+build` suffix, and the database now
+rejects one outright (`trg_app_releases_version_no_build`), so the 404 this
+repo shipped before is impossible at the schema level.
+
+Confirmed delivered: 19 notifications written, `push_recipients = 19`,
+`push_sent_at` stamped.
+
+### Working directly on main from here
+
+Per the owner's instruction, the feature branch is deleted locally and on the
+remote, and this repo now sits on `main`. Author identity was already the
+owner's account.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 560 passing. `main` CI: green.
+Release assets present: `AFOS-v2.9.7.apk` plus `arm64-v8a`, `armeabi-v7a`
+and `x86_64` slices.
+
+### Migrations applied
+
+`20260901000000_revoke_anon_on_nudge_status.sql` — revokes EXECUTE on
+`admin_profile_nudge_status` from `public, anon`. No data change.
+
+### STILL OPEN
+
+- **The avatar upload the owner reports is still failing, and remains
+  unexplained.** Every database path was tested and PASSES: `my_submit_avatar`
+  succeeds for all 19 accounts, in every avatar state, as the `authenticated`
+  role with RLS on — with the harness validated twice (`auth.uid()` resolves,
+  `can_browse_users()` false, so the protective trigger's guard really ran).
+  All three client writes to `profiles` pass too. The build now on the phone
+  logs the raw error, so the next attempt should finally name the failing
+  step; nothing further can be concluded without it.
+- The arm64 APK slice is **36.6 MB**, over CLAUDE.md's `< 28 MB` per-ABI
+  budget. Not investigated this session.
+- `db_security` failed on the v2.9.7 TAG run because it ran minutes before
+  the ACL fix landed. The release job has no `needs:` on it, so the APKs
+  published regardless; `main` is green now, but that tag's run stays red in
+  the history.
