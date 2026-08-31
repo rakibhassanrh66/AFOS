@@ -321,22 +321,35 @@ class GridFigure extends StatelessWidget {
         ),
         const SizedBox(width: AppSpace.sm),
         Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.numericLarge.copyWith(
-                      color: AppColors.textPrimaryOf(context),
-                      fontWeight: FontWeight.w800)),
-              Text(note,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelSmall
-                      .copyWith(color: AppColors.textSecondaryOf(context))),
-            ],
+          // scaleDown, because this panel's HEIGHT is fixed by the grid
+          // (`heightFor(PanelSpan.stat)` = one 78px row) while the figure and
+          // its note grow with the reader's text scale. The layout probe
+          // caught the pair overflowing that row by 4px at a 1.3x scale on a
+          // 320dp-wide window — a browser at phone width with the text turned
+          // up, which is a real way to read the web console. Ellipsis does not
+          // help a VERTICAL overflow; shrinking to fit does, and at the normal
+          // scale it changes nothing.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.numericLarge.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                        fontWeight: FontWeight.w800)),
+                Text(note,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.labelSmall
+                        .copyWith(color: AppColors.textSecondaryOf(context))),
+              ],
+            ),
           ),
         ),
       ]),

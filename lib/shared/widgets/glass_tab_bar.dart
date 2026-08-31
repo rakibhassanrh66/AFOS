@@ -45,8 +45,65 @@ class GlassTabBar extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, c) {
-            final segW = n == 0 ? 0.0 : c.maxWidth / n;
+            // WHY THIS MEASURES INSTEAD OF JUST DIVIDING.
+            //
+            // It used to be `c.maxWidth / n` and nothing else, which silently
+            // assumed every label fits whatever slice it gets. On a 320dp
+            // phone with the five tabs Manage Users now shows, a slice is
+            // ~46px of usable text width and "Pending (12)" needs 60px at the
+            // DEFAULT text size — the layout probe measured it rendering
+            // 12px of 60px, i.e. "P…". At a 2.0x accessibility scale it was
+            // 24px of 264px. Every label on the bar, unreadable, and the
+            // ellipsis made it look deliberate rather than broken.
+            //
+            // Four tabs failed too, so this predates the fifth; adding one
+            // just made a bar that was already too tight impossible.
+            //
+            // So: measure what the widest label actually needs at the current
+            // text scale, and if the tabs cannot all be read at once, let the
+            // bar scroll horizontally instead of shredding every label.
+            // Segments stay equal width either way, which is what keeps the
+            // rolling indicator's arithmetic honest.
             final idx = currentIndex.clamp(0, n - 1);
+            final scaler = MediaQuery.textScalerOf(context);
+            var needed = 0.0;
+            for (final t in tabs) {
+              final tp = TextPainter(
+                text: TextSpan(
+                    text: t.label,
+                    style: const TextStyle(fontSize: 12, height: 1.0)),
+                maxLines: 1,
+                textScaler: scaler,
+                textDirection: Directionality.of(context),
+              )..layout();
+              if (tp.width > needed) needed = tp.width;
+            }
+            // +12 for the segment's own horizontal padding, and never below a
+            // 48dp touch target.
+            final minSegW = (needed + 12).clamp(48.0, double.infinity);
+            final evenSegW = n == 0 ? 0.0 : c.maxWidth / n;
+            final scrolls = evenSegW < minSegW;
+            final segW = scrolls ? minSegW : evenSegW;
+
+            final bar = SizedBox(
+              width: scrolls ? segW * n : c.maxWidth,
+              child: _track(context, segW, idx, n),
+            );
+            return scrolls
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    // The selected tab is usually the one you want in view.
+                    physics: const ClampingScrollPhysics(),
+                    child: bar,
+                  )
+                : bar;
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _track(BuildContext context, double segW, int idx, int n) {
             return Stack(
               children: [
                 // The one rolling indicator — slides between segments.
@@ -87,19 +144,21 @@ class GlassTabBar extends StatelessWidget {
                 Row(
                   children: [
                     for (var i = 0; i < n; i++)
-                      Expanded(child: _Segment(
-                        tab: tabs[i],
-                        selected: i == idx,
-                        onTap: () => onChanged(i),
-                      )),
+                      // A fixed width, not Expanded: when the bar scrolls, the
+                      // Row sits inside an unbounded viewport where Expanded
+                      // has nothing to divide up.
+                      SizedBox(
+                        width: segW,
+                        child: _Segment(
+                          tab: tabs[i],
+                          selected: i == idx,
+                          onTap: () => onChanged(i),
+                        ),
+                      ),
                   ],
                 ),
               ],
             );
-          },
-        ),
-      ),
-    );
   }
 }
 

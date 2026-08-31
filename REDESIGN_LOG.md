@@ -5227,3 +5227,78 @@ None.
   (or want) it. Its live behaviour was proven against a schema dump instead.
 - The avatar upload failure is still unreproduced and unexplained; the
   instrumented build on the phone has not been retried yet.
+
+---
+
+## Phase U — the tab bar nobody could read on a small phone · 2026-09-01
+
+Asked for a deep sweep of the UI — app and web — for misspelling,
+mispositioning and overflow. Stopped pattern-scanning and used the repo's own
+`layout_probe`, which RENDERS real widgets across 6 viewport sizes
+(320 -> 1280, phone and web) x 4 text scales (1.0 -> 2.0) and asserts against
+BOTH overflow and starved text. It found what greps could not.
+
+### The find: five tabs, and not one of them readable
+
+`shared_widgets_layout_test` probes ten shared widgets. `GlassTabBar` is not
+one of them — and its own doc says icons stack over labels "to stay readable
+at 3-4 tabs", while Phase Q changed Manage Users to render the Photos and
+Code Failed queues even when empty, taking it to FIVE.
+
+Probed with the exact five tabs Manage Users now produces, on a 320dp phone:
+
+```
+320x568 @ 1.0x -> STARVED "Pending (12)" showing 12px of 60px of text
+320x568 @ 2.0x -> STARVED "Pending (12)" showing 24px of 264px of text
+```
+
+Every label on the bar, at the DEFAULT text size. The segment maths was
+`c.maxWidth / n` and nothing else — an even slice regardless of what the
+labels need — so at 320dp each tab got ~46px of usable text width for a label
+needing 60. Ellipsis rendered that as "P…", which reads as intentional rather
+than broken.
+
+**The four-tab case failed too**, so this predates the fifth tab; Phase Q
+turned a bar that was already too tight into an unusable one. Recorded plainly
+because it was this session that made it worse.
+
+Fixed by measuring rather than assuming: a `TextPainter` sizes the widest
+label at the reader's CURRENT text scale, and if the tabs cannot all be read
+at once the bar scrolls horizontally instead of shredding every label.
+Segments stay equal width either way, which is what keeps the rolling
+indicator's arithmetic honest, and each is floored at a 48dp touch target.
+`Expanded` became a fixed `SizedBox` because a scrolling Row sits in an
+unbounded viewport where `Expanded` has nothing to divide.
+
+### Also found: the web console figure clipped when zoomed
+
+`GridFigure`'s panel HEIGHT is fixed by the grid (`heightFor(PanelSpan.stat)`
+= one 78px row) while its figure and note grow with text scale. The probe
+caught a 4px vertical overflow at 1.3x on a 320dp-wide window — a browser at
+phone width with the text turned up, which is a real way to read the web
+console. Ellipsis cannot help a vertical overflow; the text block now
+`scaleDown`s to fit, and is unchanged at the normal scale.
+
+### Left un-probed, honestly
+
+`OfflineBanner` reads the offline cache on build and throws "HiveError: Box
+not found" without an opened box. That is a harness limitation, not a layout
+fault, so it is excluded with a comment saying so rather than papered over
+with a fake pass.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: **566 passing** (560 + 6), each
+new case sweeping 24 size x scale combinations. `flutter build web` succeeds.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The sweep covers shared widgets. The private per-screen widgets this session
+  added (`_InspectionBanner`, `_BulkBar`, Profile Inspection's card) still
+  cannot be probed without being made public — `SurfaceCard` carrying the
+  banner's exact row was probed as the closest honest proxy.
+- The avatar upload remains unreproduced.
