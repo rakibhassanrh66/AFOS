@@ -70,7 +70,14 @@ class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
               'department_id, batch, section, semester, gender, emergency_contact, '
               'permanent_division, permanent_district, permanent_upazila, '
               'verified_at, avatar_review_status, admission_season, admission_year, '
-              'joined_on, designation, is_verified, created_at')
+              'joined_on, designation, is_verified, created_at, '
+              // Found live: profiles.designation is never written by the
+              // client for teacher/staff (it lives on the linked row, and
+              // profile_is_complete() in Postgres already checks it there) --
+              // without these two embeds every teacher/staff account would
+              // be flagged here even when the database itself considers them
+              // complete. See resolvedDesignation()'s own doc for the detail.
+              'teachers(designation), staff(designation)')
           .eq('is_verified', true)
           .order('created_at', ascending: false)
           .limit(500) as List;
@@ -78,6 +85,7 @@ class _ProfileInspectionScreenState extends State<ProfileInspectionScreen> {
       final rows = res.cast<Map<String, dynamic>>();
       final flagged = <(Map<String, dynamic>, List<String>)>[];
       for (final row in rows) {
+        row['designation'] = resolvedDesignation(row);
         final reasons = incompleteReasons(row);
         if (reasons.isNotEmpty) flagged.add((row, reasons));
       }

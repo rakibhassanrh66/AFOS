@@ -85,11 +85,22 @@ class RingChart extends StatelessWidget {
                       style: AppTextStyles.numericLarge.copyWith(
                           color: AppColors.textPrimaryOf(context),
                           fontWeight: FontWeight.w800)),
-                  Text(centerLabel,
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.labelSmall
-                          .copyWith(color: AppColors.textSecondaryOf(context))),
+                  // Reported live as "the number sits above centre, not in
+                  // it": an empty centerLabel ('' -- a caller with nothing to
+                  // caption the ring with) still rendered a Text widget, and
+                  // an empty string still occupies a full line of height. The
+                  // Column (mainAxisSize.min) then measured value-line +
+                  // blank-line, and Center centred THAT taller box -- so the
+                  // visible number sat above the ring's true centre by
+                  // roughly half the phantom line's height. Omitting the
+                  // widget entirely when there is nothing to show fixes every
+                  // ring with a blank label at once, not just one call site.
+                  if (centerLabel.isNotEmpty)
+                    Text(centerLabel,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.labelSmall
+                            .copyWith(color: AppColors.textSecondaryOf(context))),
                 ],
               ),
             ),

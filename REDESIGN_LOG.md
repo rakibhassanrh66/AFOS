@@ -4057,3 +4057,157 @@ None.
   between the insights and weather awaits," pending the next `[dashboard]`
   log line.
 - The ~60-site broader accent-as-text audit is scoped but not started.
+
+---
+
+## Phase I — the actual root cause: the whole dashboard was gated on a stream, not on its own data · 2026-08-31
+
+The `[dashboard]`/`[weather]` logging from Phase H paid off immediately.
+`[dashboard] weather applied: true` fired repeatedly — proof `_weather` WAS
+being set correctly, every time. That ruled out the fetch entirely and
+pointed straight at the render gate: `if (!_loading && !_statsLoading &&
+_search.trim().isEmpty)`, which wraps the ring, the weather card, class
+status, the featured card AND the admin insights panel.
+
+`_loading` had exactly one success path in the whole file: the NOTICES
+REALTIME STREAM's `.listen()` callback. Not the profile fetch, which is what
+every one of those five pieces of content actually depends on — a live
+Postgres Changes subscription that, unlike the profile fetch (already
+wrapped in `cachedMapFetch` specifically because "a live .stream() never
+emits at all with no connection", per that code's own comment one screen
+up). Worse: `_loading` also gates the MODULE GRID's shimmer, the app's core
+navigation, used by literally everyone. A slow or momentarily stuck notices
+channel — no error, nothing to catch, just a subscription that has not
+emitted its first event yet — silently held the entire dashboard hostage
+past a shimmer, on any account, regardless of role. This is almost certainly
+the actual mechanism behind the original "rings aren't showing for
+anything... weather just showing the normal details" report: the ring's and
+weather's OWN data was correctly ready the whole time, sitting in state,
+invisible behind a gate that had nothing to do with either of them.
+
+**Fix**: `_loading` now flips false immediately after the profile fetch
+succeeds -- the deterministic signal every gated piece of content actually
+needs -- instead of waiting on the notices stream. Notices got their own
+independent flag (`_noticesLoading`) so their shimmer still shows correctly
+without blocking anything else. All three of `_load()`'s early-return/catch
+paths updated to clear both flags, not just the one.
+
+### Also fixed live this pass
+
+- The VR-ID icon, reported faded like the label beside it: full-strength
+  gold on a 28px circle tinted to only 0.16 alpha of the same colour --
+  solid ink now, same principle as the label fix an hour earlier. The row's
+  trailing chevron was also gold at 0.6 alpha for no reason (a chevron
+  carries no identity, just "there's more") -- switched to the same neutral
+  secondary ink every other chevron in the app already uses.
+- The completeness ring's own "94%" sat visibly above the ring's true
+  centre: `RingChart` (`chart_primitives.dart`, shared by the admin rings
+  too) always rendered a second `Text(centerLabel, ...)` even when the
+  caller passed `''` -- an empty string still occupies a full line of
+  height, so the two-line Column `Center`d itself, not just the number,
+  leaving the visible figure sitting above true centre by roughly half a
+  blank line. Fixed at the shared component: the label `Text` is now
+  omitted entirely when empty, which fixes every ring with a blank label at
+  once (currently only `MyCompletenessRing`) without touching any caller
+  that already passes a real one.
+- Re-verified the account-creation backend is untouched and healthy:
+  `register-verify` shows as the only function with a new deployed version
+  this session (v6, this session's one welcome-notification deploy);
+  `register-request`/`password-reset`/every other auth function is ACTIVE
+  and unchanged. No new problem found there -- the one open item remains the
+  Resend sandbox block already reported, which is an account setting, not
+  code.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged.
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- The loading-gate fix has not been confirmed live yet this exact build —
+  next reload should show the ring/weather/module-grid appearing
+  immediately rather than depending on when (or whether) notices arrives.
+- The ~60-site broader accent-as-text audit is still scoped, not started.
+
+---
+
+## Phase J — the ring correctly displayed an incorrect verdict, chased to its real source · 2026-08-31
+
+Live: an account (staff, "Alim") showed 91% complete, "Designation" as the
+one thing missing — reported with certainty that the designation WAS
+already set. Chased to ground rather than dismissed or patched blind, since
+this account's own database row is either right or the whole completeness
+feature just lied to someone about their own data.
+
+### The database was never wrong. This session's own new code was.
+
+`profile_is_complete()` in Postgres does NOT check `profiles.designation`
+for teacher/staff — it never has, in either the pre-Phase-A or the current
+Phase-A version (`20260830164152` and its predecessor `20260822105453`
+both use `exists (select 1 from teachers/staff where ... designation ...)`).
+`complete_profile_screen.dart` writes designation ONLY to the linked
+`teachers`/`staff` row (confirmed by reading its save method start to
+finish), by design — `profiles.designation` is a column that exists but is
+deliberately never populated for these two roles.
+
+`lib/core/auth/profile_completeness.dart`'s `isProfileComplete()` —
+predating this session, not something introduced this week — checks
+`p['designation']` as a flat map key, which does not match the SQL it
+claims to mirror (its own doc comment: *"if the two ever disagree, the SQL
+wins and this file is the bug"*). This mismatch was DORMANT: `grep` confirms
+`isProfileComplete()` had no production caller anywhere before this
+session — the two new features built this week (`MyCompletenessRing`,
+`ProfileInspectionScreen`) are the first things that ever called it against
+a real teacher/staff row and could expose the gap. The database's own
+`profile_completed` flag — the one that actually gates the app — was correct
+the entire time; only this session's own new UI was capable of being wrong
+about it.
+
+### Fix, scoped to exactly where the mismatch lives
+
+No SQL change — the database was already right. Added `resolvedDesignation()`
+to `profile_completeness.dart`: reads the flat column first, falls back to
+an embedded `teachers`/`staff` row (handling the PostgREST object-or-list
+embed shape `UserModel` already established the pattern for). `isProfileComplete
+`/`incompleteReasons`/`profileCompletionCounts` themselves are untouched —
+still pure, still just trusting whatever is at `p['designation']`; the fix is
+entirely in what the two CALLERS put there before asking. Both
+`dashboard_screen.dart`'s and `ProfileInspectionScreen`'s queries gained
+`teachers(designation), staff(designation)` embeds (additive to each
+screen's own private, unshared query — nothing else reads either), followed
+by `row['designation'] = resolvedDesignation(row)` before any completeness
+call.
+
+Checked every OTHER role-specific required field for the same shape of gap
+before calling this closed: `department_id` is written straight to
+`profiles.department_id` for every role (line 316); student `batch`/
+`section` are dual-written to both `profiles` AND `students` (lines
+344-347 and 370-371); `joined_on` already has its own dedicated mirror
+trigger (`tg_profile_mirror_join_date`, profiles -> teachers/staff, the
+OPPOSITE direction from designation's satellite-into-profiles need, but
+correctly wired either way). Designation was the one and only field with
+this gap.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged (the
+existing `profile_completeness_test.dart` cases set `designation` directly
+on their hand-built maps, which the untouched pure functions still read
+exactly as before).
+
+### Migrations applied
+
+None — the database was already correct.
+
+### STILL OPEN
+
+- Not yet confirmed live against the actual "Alim" account with this build —
+  the fix should flip that specific report to 100%/no reasons on next load,
+  pending confirmation.
+- Whether OTHER Dart-side mirrors of database logic elsewhere in the app
+  have a similar dormant mismatch was not swept — this one was found because
+  it was reported, not by an exhaustive audit.
