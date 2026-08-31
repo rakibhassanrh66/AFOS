@@ -520,10 +520,19 @@ class _MenuTileState extends State<_MenuTile> {
               // Expanded + ellipsis, not a bare Text: long labels ("Upload
               // Routine/Transport", "Feedback & Contributions") were
               // painting straight past the rounded hover/active box.
+              // The accent still marks "active" on the icon tile and the left
+              // border -- this is deliberately NOT also tinting the label.
+              // A module colour (vr_id's teal-green, CSE-style department
+              // hues) used as small TEXT is lower-contrast than solid ink by
+              // construction, whatever it scores on a contrast checker --
+              // this is exactly "selected text goes faded/fancy" reported
+              // live. Solid textPrimary reads as clearly selected already,
+              // from the fill + border + bold weight; it does not also need
+              // to change colour to prove it.
               Expanded(child: Text(item.label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style:TextStyle(
-                color:isActive?item.accent:textPrimary,
+                color:textPrimary,
                 fontSize:14, fontWeight:isActive?FontWeight.w600:FontWeight.w400))),
             ]),
           ),
@@ -624,9 +633,13 @@ class _QuickRailTile extends StatelessWidget {
                   borderRadius: AppDepth.radius(1)),
                 child: Icon(item.icon, color: item.accent, size: 18)),
               const SizedBox(width: 12),
+              // Same reasoning as _MenuTile: the accent already marks active
+              // via the icon tile, the fill and the left border -- the label
+              // stays solid ink rather than repeating it in a lower-contrast
+              // colour.
               Expanded(child: Text(item.label,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: active ? item.accent : textPrimary,
+                style: TextStyle(color: textPrimary,
                   fontSize: 14, fontWeight: active ? FontWeight.w700 : FontWeight.w500))),
             ]),
           ),
