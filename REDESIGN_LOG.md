@@ -3659,3 +3659,64 @@ chip's layout axis is not something the existing suite asserts on).
   was already in active use by the owner by that point in the session, so
   further automated navigation was deliberately stopped rather than risk
   colliding with it.
+
+---
+
+## Phase D — the rings the owner asked for already existed, just not here · 2026-08-31
+
+The owner asked for "rounded rings and multiple graphs" so a super_admin can
+read management activity at a glance. Before writing anything, checked
+whether this already existed anywhere in the codebase, because guessing here
+would have meant either a second, competing chart implementation or a
+generic-library aesthetic fighting Liquid Glass.
+
+It already existed. `features/web/presentation/widgets/chart_primitives.dart`
+carries a complete, hand-painted, accessibility-validated chart system —
+`RingChart`, `BarList`, `HeatGrid`, `ChartLegend` — deliberately NOT a
+package (a charting library is 300KB-2MB of Dart for three shapes, against
+the 2MB per-dependency budget). `chart_palette.dart` is a separately-stepped,
+contrast-validated data palette (documented failures against the plain UI
+accent colours, per-mode, with the validator commands that prove it). Both
+already power `admin_overview.dart`, a full ten-panel analytics console —
+but that file says outright: "WEB ONLY... the phone dashboard is a launcher
+by design and is not touched." That was a deliberate prior decision, not an
+oversight, and the owner's request this session is exactly what asks to
+revisit it.
+
+### What was built
+
+`AdminInsightsPanel` (`features/dashboard/presentation/widgets/
+admin_insights_panel.dart`) — the same data, the same primitives, a phone-
+width single column instead of the web console's 12-column `ConsoleGrid`
+(which does not mean anything at 320-430dp, so it is not reused). Two stat
+tiles (classes running, awaiting approval), two rings side by side (labs vs.
+theory, hall occupancy), one role-breakdown bar list ("Who is in AFOS") —
+deliberately NOT the full ten-panel web set, to avoid immediately repeating
+the exact crowding mistake just fixed in Manage Users on the same screen.
+
+Reuses `AdminOverviewData.load()` VERBATIM — already one parallel wave of six
+existing calls, already permission-gated (returns null for anyone who is not
+super_admin/admin/dept_admin or `users:approve`), so this phase needed zero
+new RPCs and zero backend changes. Wired into `dashboard_screen.dart` the
+same way `ExamPulseData` already is: started in parallel in `initState`,
+awaited and set inside `_load()` — the file's own established fix for the
+layout-shift the constitution bans, not a new pattern.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 549 passing, unchanged. Zero
+migrations, zero new dependencies, zero changes to `admin_overview.dart` or
+any web file — fully additive.
+
+### STILL OPEN
+
+- Not yet seen on the device — this landed at the end of the session; the
+  admin account was in active concurrent use by the owner, so a live
+  click-through was deliberately deferred rather than risk another
+  collision.
+- Scoped deliberately narrow (2 stats + 2 rings + 1 bar list). The owner's
+  ask covered more ground — a 3D-shadow time/date widget and a weather +
+  dress-suggestion feature — neither started: the former is pure decoration
+  with no data source to get wrong, the latter is blocked on a weather
+  provider/API key decision that has to come from the owner (never something
+  this session can create itself).
