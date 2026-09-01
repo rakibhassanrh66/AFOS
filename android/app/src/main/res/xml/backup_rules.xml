@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android auto-backup rules for API 30 and below (`android:fullBackupContent`).
+
+  WHY THIS FILE EXISTS. flutter_secure_storage keeps its CIPHERTEXT in an
+  ordinary SharedPreferences file and its KEY in the Android Keystore. Auto
+  backup copies the first and can never copy the second: a Keystore key is
+  device-bound and does not leave the device. So a restore — to a new phone, or
+  onto a reinstall of the same app — hands the app a blob of bytes it has no
+  way to decrypt, and every read of it throws:
+
+      javax.crypto.BadPaddingException: OPENSSL_internal:BAD_DECRYPT
+
+  That is not theoretical. It froze this app on its launch screen, because the
+  read sat in `hasAccessToken` on the startup path (see
+  secure_session_storage.dart, which now survives it, and main.dart, which now
+  renders an error instead of nothing).
+
+  Excluding the file means a restored device starts with NO saved session and
+  the user signs in once. That is the correct outcome, because a session that
+  cannot be decrypted was never usable — backing it up only ever produced the
+  broken state, never a working one.
+-->
+<full-backup-content>
+    <!-- The encrypted store itself. -->
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+    <!-- The plugin's own key-alias bookkeeping; useless without the Keystore
+         entry it names, and misleading if restored beside a different one. -->
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+</full-backup-content>

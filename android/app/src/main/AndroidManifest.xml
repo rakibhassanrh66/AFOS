@@ -20,10 +20,19 @@
          "allow AFOS to install unknown apps" prompt the first time — that
          part is Android's own UX, not something this permission bypasses. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Backup stays ON — settings, caches and preferences are worth carrying
+         to a new phone. What must NOT travel is the encrypted session store:
+         its Keystore key is device-bound and cannot follow it, so restoring
+         the ciphertext alone produced a session that threw BAD_DECRYPT on
+         every read and froze the app on its launch screen. Both rule files are
+         needed: API 31+ reads dataExtractionRules, API 30 and below read
+         fullBackupContent. -->
     <application
         android:label="AFOS"
         android:name="${applicationName}"
         android:hasFragileUserData="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

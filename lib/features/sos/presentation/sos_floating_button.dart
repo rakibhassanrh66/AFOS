@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/motion.dart';
 import '../../../core/services/app_config_service.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -158,9 +159,20 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
     // On mobile/tablet the floating bottom nav occupies the bottom, so lift the
     // SOS button clear of it; the web rail has no bottom bar, so keep it low.
     final onRail = kIsWeb && Responsive.isExpanded(context);
+    final reduced = AppMotion.isReduced(context);
     return Positioned(
       right: 16, bottom: onRail ? 88 : 168,
-      child: GestureDetector(
+      // THE PULSE MUST NOT DIRTY THE SHELL. This button is mounted by SosGate,
+      // which lives in app_shell and is therefore on screen on EVERY route. Its
+      // pulse repeats forever, so without its own layer it re-dirties the shell
+      // on every vsync — and the shell stacks three BackdropFilters, each of
+      // which then re-runs a full-framebuffer blur 60 times a second, on every
+      // screen, for the entire life of the app. That is the same fault the
+      // drawer's GlowingAvatar had (see app_shell's TickerMode note); this is
+      // the other half of it. A RepaintBoundary confines the repaint to these
+      // 64 logical pixels.
+      child: RepaintBoundary(
+        child: GestureDetector(
         onLongPressStart: (_) => _onHoldStart(),
         onLongPressEnd: (_) => _onHoldEnd(),
         onLongPressCancel: _onHoldEnd,
@@ -184,7 +196,18 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
               boxShadow: [BoxShadow(color: AppColors.red.withValues(alpha: 0.5), blurRadius: 12, spreadRadius: 1)],
             ),
             child: const Icon(Icons.sos_rounded, color: Colors.white, size: 28),
-          ).animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(end: 1.06, duration: 900.ms),
+          )
+              // Reduced motion was never honoured here. Every other animation
+              // in the app checks it, and the one that ran on every screen
+              // forever did not. A person who asked the OS to stop moving
+              // things gets a still button — it is red, round and says SOS,
+              // so nothing about what it IS depended on the pulse.
+              .animate(
+                  onPlay: (c) {
+                    if (!reduced) c.repeat(reverse: true);
+                  })
+              .scaleXY(end: reduced ? 1.0 : 1.06, duration: 900.ms),
+          ),
         ),
       ),
     );
