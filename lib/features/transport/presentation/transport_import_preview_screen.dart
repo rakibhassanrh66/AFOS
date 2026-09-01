@@ -282,7 +282,7 @@ class _RoutePreviewCard extends StatelessWidget {
             color: AppColors.textSecondaryOf(context),
             tooltip: 'Fix this route before import',
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             visualDensity: VisualDensity.compact,
           ),
         ]),
@@ -576,7 +576,12 @@ class _StopRow extends StatelessWidget {
         Container(
           width: 22, height: 22, alignment: Alignment.center,
           decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
-          child: Text('${index + 1}', style: const TextStyle(color: AppColors.holoTeal, fontSize: 10, fontWeight: FontWeight.bold)),
+          // 10px in a 22dp circle needs 24px of line box at the 2.0x text
+          // scale — burst from 1.83x. The circle stays fixed, the digit scales.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('${index + 1}', style: const TextStyle(color: AppColors.holoTeal, fontSize: 10, fontWeight: FontWeight.bold)),
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(child: TextField(
@@ -592,19 +597,25 @@ class _StopRow extends StatelessWidget {
             border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
           ),
         )),
+        // 48, the touch floor, rather than the 40 these were shrunk to. Three
+        // targets sit adjacent here — up, down, remove — so an undersized one
+        // is not a theoretical accessibility nit: a mis-tap between "move
+        // down" and "remove" silently deletes a stop from the import. The
+        // field keeps Expanded and lands at ~114px on a 320px screen, which
+        // still holds a stop name.
         IconButton(
           onPressed: onMoveUp, icon: const Icon(Icons.arrow_upward_rounded, size: 16),
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           color: AppColors.textSecondaryOf(context), visualDensity: VisualDensity.compact,
         ),
         IconButton(
           onPressed: onMoveDown, icon: const Icon(Icons.arrow_downward_rounded, size: 16),
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           color: AppColors.textSecondaryOf(context), visualDensity: VisualDensity.compact,
         ),
         IconButton(
           onPressed: onRemove, icon: const Icon(Icons.close_rounded, size: 16),
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           color: AppColors.red, visualDensity: VisualDensity.compact,
         ),
       ]),
@@ -664,7 +675,7 @@ class _TripEditRowState extends State<_TripEditRow> {
           )),
           IconButton(
             onPressed: widget.onRemove, icon: const Icon(Icons.close_rounded, size: 16),
-            padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             color: AppColors.red, visualDensity: VisualDensity.compact,
           ),
         ]),

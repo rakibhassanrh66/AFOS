@@ -389,9 +389,11 @@ class _InputBar extends StatelessWidget {
         const SizedBox(width: 8),
         GestureDetector(
           onTap: onSend,
+          // 48, not 44: the constitution's touch floor, and this is the one
+          // control in the composer that a mis-tap loses a typed message to.
           child: Container(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
             child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
           ),

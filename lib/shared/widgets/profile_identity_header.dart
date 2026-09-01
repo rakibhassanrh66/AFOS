@@ -15,8 +15,15 @@ import '../../config/theme/spacing.dart';
 /// entire right half of a 300dp drawer empty and made the photo an
 /// afterthought. The identity now reads as one block: the portrait on the
 /// RIGHT at 84px, and the name, id and role sitting to its LEFT, centred
-/// against it so the two halves balance instead of one dangling under the
-/// other.
+/// against it BOTH WAYS — vertically against the portrait, and horizontally
+/// within their own half — so the two halves balance across the gap instead
+/// of one dangling under the other or trailing off the left edge.
+///
+/// The portrait's vertical centring is only half this widget's doing: it
+/// centres within the Row, but whether that Row is centred in the HEADER
+/// depends on the caller's padding. See `_buildHeader` in slide_menu.dart,
+/// which balances the drawer's collapse button against the bottom padding for
+/// exactly this reason.
 ///
 /// WHAT THE SECOND LINE SAYS IS ROLE-DEPENDENT, and deliberately so — a
 /// student's department plus their semester, a teacher's department plus their
@@ -65,19 +72,26 @@ class ProfileIdentityHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
+          // CENTRED, not left-aligned. Ragged-left text hard against the
+          // drawer's padding read as a caption that had drifted away from the
+          // portrait; centring the block on its own half makes the two halves
+          // balance across the gap, which is the whole point of putting the
+          // portrait opposite it rather than under it.
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: AppTextStyles.titleLarge.copyWith(color: textPrimary)),
               if (id.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(id,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: AppTextStyles.monoSmall.copyWith(color: textSecondary)),
               ],
               if (dept.isNotEmpty || role.isNotEmpty) ...[
@@ -88,6 +102,7 @@ class ProfileIdentityHeader extends StatelessWidget {
                 Wrap(
                   spacing: AppSpace.sm,
                   runSpacing: AppSpace.xs,
+                  alignment: WrapAlignment.center,
                   children: [
                     if (dept.isNotEmpty) _Chip(dept, AppColors.holoBlue),
                     if (role.isNotEmpty) _Chip(role, AppColors.green),

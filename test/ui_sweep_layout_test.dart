@@ -11,6 +11,7 @@ import 'package:afos_v7/features/admin/presentation/widgets/user_card.dart';
 // GroupSectionHeader lives in user_group_tree.dart alongside UserGroupTree,
 // which is itself not probeable (see the note at its case below).
 import 'package:afos_v7/features/admin/presentation/widgets/user_group_tree.dart';
+import 'package:afos_v7/features/auth/presentation/login_screen.dart' show logoLetter;
 import 'package:afos_v7/features/auth/presentation/widgets/auth_brand_panel.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.dart';
 
@@ -287,6 +288,18 @@ void main() {
     // geometry so nothing shifts when real data lands; the least they must do
     // is survive every size and scale the real content does.
     'ShimmerList (loading skeleton)': () => const ShimmerList(),
+
+    // The login screen's own wordmark tile, and the reason the UI-bounds guard
+    // exists. A 22px letter in a fixed 44dp tile needs 52.8px of line box at
+    // the 2.0x accessibility text scale, so it overflowed from 1.67x upward —
+    // meaning a reader with large text met a broken wordmark BEFORE they could
+    // sign in. Fixed with FittedBox(scaleDown), since four of these sit in a
+    // row and must stay square and equal.
+    //
+    // The real function, reached through a Builder because it takes a context.
+    // A copy of it here could not regress.
+    'logoLetter (login wordmark tile)': () =>
+        Builder(builder: (ctx) => logoLetter('A', AppColors.holoBlue, ctx)),
 
     // The semester-break card, new this phase. It replaces the routine
     // entirely for a whole department, so it has to survive every size and

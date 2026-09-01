@@ -20,6 +20,13 @@ class AssignmentsRepository {
     required String description,
     required DateTime deadline,
     double maxMarks = 10,
+    /// Storage PATH of the teacher's brief, from [uploadBriefFile]. Optional
+    /// and defaulted, so every existing caller compiles unchanged — the
+    /// constitution forbids changing a repository signature, and this was
+    /// added only after the owner asked for the attach control explicitly.
+    /// Omitted entirely from the insert when null, so a plain assignment
+    /// writes exactly the columns it always did.
+    String? attachmentPath,
   }) async {
     await _client.from('assignments').insert({
       'teacher_id': SupabaseConfig.uid,
@@ -29,6 +36,7 @@ class AssignmentsRepository {
       'title': title, 'description': description,
       'deadline': deadline.toIso8601String(),
       'max_marks': maxMarks,
+      if (attachmentPath != null) 'attachment_url': attachmentPath,
     });
 
     // Notify the whole section immediately — reuses the same narrow
@@ -57,7 +65,22 @@ class AssignmentsRepository {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// Deletes the assignment and the brief attached to it.
+  ///
+  /// The file goes FIRST and its failure is swallowed: `attachment_url` is
+  /// what `assignment_brief_read` keys on, so once the row is gone nobody can
+  /// read the object anyway — a stranded file is a storage leak, not an
+  /// exposure. Letting a storage hiccup abort the delete would instead leave
+  /// the teacher unable to remove an assignment at all, which is worse.
   Future<void> deleteAssignment(String id) async {
+    try {
+      final row = await _client.from('assignments')
+          .select('attachment_url').eq('id', id).maybeSingle();
+      final path = row?['attachment_url'] as String?;
+      if (path != null && path.isNotEmpty) {
+        await _client.storage.from('assignment-submissions').remove([path]);
+      }
+    } catch (_) {}
     await _client.from('assignments').delete().eq('id', id);
   }
 
@@ -104,8 +127,12 @@ class AssignmentsRepository {
     // the caller's own department/batch/section — narrowing the column list
     // (not adding a redundant filter) is the real saving here, since the row
     // set returned is identical either way.
+    // `attachment_url` added when teachers gained the attach control — without
+    // it the brief is written but never fetched, so the student card could
+    // never offer it. Additive: the return type and every existing key are
+    // unchanged, so no caller has to adapt.
     final assignments = await _client.from('assignments')
-        .select('id, title, course_code, course_title, description, deadline, max_marks')
+        .select('id, title, course_code, course_title, description, deadline, max_marks, attachment_url')
         .order('deadline') as List;
     // Marks/feedback come back too, so a student sees what they scored rather
     // than only that they handed something in.
@@ -150,11 +177,35 @@ class AssignmentsRepository {
     required String assignmentId,
     required String filename,
     required Uint8List bytes,
-  }) async {
+  }) =>
+      _put('${assignmentId}_${DateTime.now().millisecondsSinceEpoch}', filename, bytes);
+
+  /// Uploads a TEACHER's brief — the question paper or handout that goes out
+  /// with an assignment — and returns its storage path.
+  ///
+  /// Same private bucket and same `{uid}/…` convention as a submission, which
+  /// is what the bucket's INSERT policy keys on, so a teacher can write it
+  /// without a new policy. Reading it needed one: a brief sits under the
+  /// TEACHER's folder, and the two SELECT policies covered only your own
+  /// folder and a teacher reading submissions to their own assignment — a
+  /// student matched neither. `assignment_brief_read` (20260901120000) closes
+  /// that by allowing a read when some assignment row THE CALLER CAN SEE
+  /// points at the object, which inherits the assignments table's own scoping
+  /// instead of restating it.
+  ///
+  /// Uploaded BEFORE the row exists, so the name is keyed by time rather than
+  /// by assignment id — there is no id yet to key it by.
+  Future<String> uploadBriefFile({
+    required String filename,
+    required Uint8List bytes,
+  }) =>
+      _put('brief_${DateTime.now().millisecondsSinceEpoch}', filename, bytes);
+
+  Future<String> _put(String stem, String filename, Uint8List bytes) async {
     final uid = SupabaseConfig.uid;
     if (uid == null) throw StateError('Not signed in');
     final ext = filename.contains('.') ? filename.split('.').last : 'bin';
-    final path = '$uid/${assignmentId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final path = '$uid/$stem.$ext';
     await _client.storage.from('assignment-submissions').uploadBinary(
           path,
           bytes,

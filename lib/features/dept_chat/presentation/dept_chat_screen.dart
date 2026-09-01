@@ -169,7 +169,13 @@ class _ChannelTileState extends State<_ChannelTile> {
                         colors: [color, color.withValues(alpha: 0.7)]),
                     borderRadius: AppDepth.radius(1),
                     boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
-                child: const Center(child: Text('#', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)))),
+                // scaleDown, not Center alone: a 22px '#' needs 52.8px of line
+                // box at the 2.0x text scale and this tile is 44px, so the
+                // channel badge overflowed from 1.67x upward.
+                child: const Center(
+                    child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('#', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800))))),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('#$name', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),

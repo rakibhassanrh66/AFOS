@@ -25,6 +25,19 @@ jobs:
       # this step fail on every push/PR regardless of real correctness.
       - run: flutter analyze --no-fatal-infos
 
+      # Standing assertion that no fixed-size box holds text it cannot fit at
+      # the 2.0x accessibility text scale, and that no control is under the
+      # 48dp touch floor. `flutter analyze` cannot see either: both are
+      # arithmetic about rendered geometry, not type errors.
+      #
+      # The audit that produced this found six bursting boxes between 1.67x
+      # and 1.94x, one of them the login screen's own wordmark -- so a reader
+      # with large text met a broken login screen before they could sign in.
+      # Source-only, so it needs no secrets and belongs here rather than
+      # beside the PostgREST guards in db_security.
+      - name: Audit UI bounds (text fit at 2.0x, 48dp touch targets)
+        run: python3 .github/scripts/check_ui_bounds.py
+
   # Standing assertion that no SECURITY DEFINER function is reachable by
   # `anon`. CREATE FUNCTION grants EXECUTE to PUBLIC by default, so a new
   # definer RPC is exposed unless its author remembers to REVOKE — which has

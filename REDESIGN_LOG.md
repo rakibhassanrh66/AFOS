@@ -5657,3 +5657,197 @@ is now visible to the teacher instead of silent.
 - One teacher's `full_name` is literally their email address
   (`aktaruzzaman15-3132@diu.edu.bd`), which renders as their name across the
   app. Not touched — it is a data correction for an admin, not a code fix.
+
+---
+
+## Phase M — Teacher assignment attachments
+
+### Why
+
+A teacher could set an assignment only by typing it into a text box. Anything
+that was already a PDF — a question paper, a spec sheet, a dataset — had to be
+*described* rather than handed over. `assignments.attachment_url` had existed
+since the table was created and nothing had ever written it, because no attach
+control existed on the teacher's side.
+
+### Files
+
+- `lib/features/assignments/data/repositories/assignments_repository.dart`
+  - `createAssignment` gains an optional `attachmentPath`. Optional and
+    defaulted, so no existing caller changes, and omitted from the insert when
+    null so a plain assignment writes the same columns it always did.
+  - New `uploadBriefFile`; it and `uploadSubmissionFile` now share a `_put`
+    helper rather than duplicating the path/extension logic.
+  - `getMyClassAssignments` selects `attachment_url` as well. Additive — the
+    return type and every existing key are unchanged.
+  - `deleteAssignment` removes the brief before dropping the row.
+- `lib/features/assignments/presentation/assignments_screen.dart`
+  - Teacher create sheet: attach control, remove-attachment affordance, 25 MB
+    cap, upload before insert.
+  - Student card: "Open the question paper", above the status line.
+
+### Verification
+
+`flutter analyze`: **No issues found!** `flutter test`: **597 passing**.
+`OutlinedButton.icon` wraps its label in `Flexible`
+(flutter/.../outlined_button.dart:446), so the new labels wrap instead of
+overflowing; no new probe case, because probing a hand-copied button would
+violate "test the real widget, never a copy of it".
+
+### Migrations applied
+
+Two, both mirrored under the version the remote ledger assigned:
+
+- `20260901120000_assignment_brief_read.sql` — SELECT on `storage.objects`
+  when an assignment **the caller can see** points at the object. The bucket
+  had only "your own folder" and "a teacher reading submissions to their own
+  assignment"; a brief lives under the TEACHER's folder, so a student matched
+  neither and a brief would have been readable by nobody but its author. It
+  inherits the `assignments` table's own RLS via the subquery instead of
+  restating it, so the two cannot drift.
+- `20260901180000_assignment_own_file_delete.sql` — the bucket was created
+  with INSERT, UPDATE and two SELECT policies and **no DELETE policy at all**,
+  so nothing put there could ever be removed. Deleting an assignment would
+  have leaked one file every time. Scoped to your own `{uid}/` folder, like
+  the INSERT and UPDATE policies beside it.
+
+Confirmed from the 20260726120221 DDL that the existing INSERT policy is
+`TO authenticated` keyed only on the folder being your own uid, with no role
+check — so a teacher can write to this bucket without a new policy.
+
+### STILL OPEN
+
+- The teacher's own assignment list shows no "brief attached" marker. That
+  list uses `prototypeItem`, which forces every row to one height, so a
+  conditional control there would clip cards. Deliberately skipped.
+- **Pre-existing, not introduced here:** `submitAssignment` upserts a new
+  timestamped path on every resubmission, so a student who hands in three
+  times leaves two orphaned files. The new DELETE policy now makes cleaning
+  those up possible; nothing does it yet.
+- The RLS round trip (teacher attaches -> student opens) is verified by
+  reading the DDL and by the ledger, not yet by two real accounts on a device.
+
+---
+
+## Phase M2 — Drawer header: collapse control and centring
+
+### Files
+
+- `lib/features/shell/presentation/slide_menu.dart`
+- `lib/shared/widgets/profile_identity_header.dart`
+
+### What changed, and why
+
+1. **Collapse moved to the START edge.** It was on the END edge, arguing with
+   the portrait for the right-hand side.
+2. **X replaced with a left chevron**, in a new `_CollapseButton`: 40dp circle
+   drawn inside a 48dp target, hairline ring in the header's own accent, glyph
+   tinted to match. The drawer slides out FROM the start edge and folds back
+   INTO it, so a chevron names the motion the control performs; an X named a
+   dismissal that does not happen. Kept deliberately quieter than the portrait
+   opposite so the header has one loud round shape, not two competing ones.
+   Press-scale and commit-haptic come from the existing `Pressable`, not from
+   a hand-rolled copy.
+3. **The portrait is now genuinely centred.** It was already centred within
+   its Row, but the collapse button's line above it was dead weight on the
+   right-hand side, pushing the whole Row below the header's true centre. Fixed
+   with arithmetic rather than taste: the space above the Row (top padding +
+   the 40dp button line) is made equal to the space below it —
+   `8 + 40 == 48` collapsed, `24 == 24` permanent. Portrait centre lands at
+   90 of 180 and 66 of 132 respectively. Both numbers are on the spacing scale.
+4. **Name, id and chips are centred** in their half instead of ragged against
+   the drawer's left padding, so the two halves balance across the gap.
+
+### Verification
+
+`flutter analyze`: **No issues found!** `flutter test`: **597 passing**,
+including the three `ProfileIdentityHeader` probe cases across 6 viewports
+x 4 text scales (320-1280px, 1.0-2.0x) — the centring introduces no overflow
+and no starved text.
+
+---
+
+## Phase N — Project-wide UI bounds audit
+
+### Why the first attempt was thrown away
+
+The first scanner used a fixed line-lookahead window and reported **65
+touch-target and 70 overflow problems**. Almost all of it was noise: a
+`Border.all(width: 0.5)` falling inside the window was read as a 0.5dp touch
+target, and `SizedBox(height: 24)` used as a SPACER was read as a box wrapping
+the next sibling. Regex cannot see structure.
+
+The replacement parses — finds a constructor call, walks to the matching paren,
+splits the argument list at depth 0 — so a `width:` nested inside `decoration:`
+is invisible to it and a `child:` either exists or does not. The same counts
+came back as **1 and 6**. The overflow check was then turned into arithmetic
+(`F * scale * lineBox > H - padding`) with `AppTextStyles.*` roles resolved to
+real sizes, which makes the answer a total rather than a floor.
+
+### Fixed — text that bursts its box at the 2.0x accessibility scale (6)
+
+| Site | Box | Burst | Fix |
+|---|---|---|---|
+| `login_screen.dart` `logoLetter` | 44x44, 22px | 1.67x | FittedBox |
+| `dept_chat_screen.dart:166` | 44x44, 22px | 1.67x | FittedBox |
+| `marks_entry_screen.dart:243` | strip h 38 | 1.67x | strip GROWS |
+| `manage_stop_times_screen.dart:230` | 26x26, 12px | 1.81x | FittedBox |
+| `transport_import_preview_screen.dart:576` | 22x22, 10px | 1.83x | FittedBox |
+| `hall_screen.dart:156` | 28x28, 12px | 1.94x | FittedBox |
+
+`logoLetter` is the one that mattered: it draws the AFOS wordmark on the LOGIN
+screen, so anyone running large text met a broken wordmark before they could
+sign in.
+
+Two different fixes on purpose. Badges and letters are fixed geometric elements
+in rows that must stay equal, so the GLYPH yields — `FittedBox(scaleDown)`,
+the same answer `_Initials` and `_CountdownRing` already use. The marks-entry
+chip strip is the opposite: those are course codes a teacher must read and tap,
+so shrinking them would defeat the setting that asked for bigger text. The
+strip grows instead, using ExamPulseBand's height idiom.
+
+### Fixed — touch targets under the 48dp floor (6)
+
+`course_group_screen.dart:390` (chat send button, 44 -> 48) and five
+`IconButton`s in `transport_import_preview_screen.dart` explicitly shrunk to
+40dp. Three of those sit adjacent in one row — up / down / remove — so a
+mis-tap between "move down" and "remove" silently deletes a stop from an
+import. Owner chose to raise them and let the stop-name field shrink to ~114px
+at 320px.
+
+### Checked and found genuinely clean — NOT padded into the count
+
+- Hardcoded colours outside the theme: **0**.
+- Images without `cacheWidth`/`memCacheWidth`: **0**.
+- Negative `Positioned` offsets: 3, all correct — `glass_bottom_nav` and
+  `top_app_bar` both set `Stack(clipBehavior: Clip.none)`; `auth_brand_panel`'s
+  glow blobs are meant to clip.
+- Raw `Duration`s: 22, **none are violations** — all timers, debounces or
+  reduced-motion-aware ambient loops. The motion-token rule governs interaction
+  motion, which none of these are.
+- **RTL padding: my own false alarm.** The scanner flagged 6 `EdgeInsets.fromLTRB`
+  without checking whether left equals right. All six are horizontally
+  symmetric and therefore already RTL-neutral; `nav_insets.dart` documents
+  exactly that reasoning. Nothing changed — churning six files for no
+  behavioural difference would have been worse than the bug.
+
+### The guard
+
+`.github/scripts/check_ui_bounds.py`, wired into the `analyze` job in
+`.github/workflows/main.yml`. Source-only, so unlike the three PostgREST guards
+it needs no `SUPABASE_SERVICE_ROLE_KEY`. 12 self-tests; it refuses to report
+findings if any fails.
+
+**Why the guard and not just the probe.** The probe harness would most likely
+have MISSED this class. Its starve threshold is 25% of a label hidden;
+`logoLetter` hid 44px of 52.8px, which is 17% — under the bar. `flutter
+analyze` cannot see it either, because it is arithmetic about rendered
+geometry, not a type error. That gap is the whole reason this script exists.
+
+### Verification
+
+- `flutter analyze`: **No issues found!**
+- `flutter test`: **598 passing** (was 597 — `logoLetter` added to the probe
+  registry, reached through a `Builder` as the REAL function, not a copy).
+- `check_ui_bounds.py`: 12/12 self-tests pass, then **0 violations** across 234
+  files.
