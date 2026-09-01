@@ -19,7 +19,13 @@ import '../../../core/layout/nav_insets.dart';
 /// module and tap through to the relevant screen. All reads go through the
 /// caller's existing RLS (authenticated-read tables) — no new access path.
 class GlobalSearchScreen extends StatefulWidget {
-  const GlobalSearchScreen({super.key});
+  /// Open with the field focused and the keyboard already up.
+  ///
+  /// Set by a DOUBLE tap on the Search tab (see app_shell). A single tap
+  /// leaves it false, so the screen opens exactly as it always has and the
+  /// shortcut costs nothing to anyone who never finds it.
+  final bool autofocus;
+  const GlobalSearchScreen({super.key, this.autofocus = false});
   @override State<GlobalSearchScreen> createState() => _GlobalSearchScreenState();
 }
 
@@ -156,6 +162,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             hint: 'Search notices, classes, books, clubs, routes…',
             controller: _ctrl,
             prefixIcon: Icons.search_rounded,
+            autofocus: widget.autofocus,
             onChanged: _onChanged,
           ),
         ),

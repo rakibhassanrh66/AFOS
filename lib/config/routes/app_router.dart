@@ -314,7 +314,11 @@ class AppRouter {
         routes: [
           GoRoute(path: '/home',          pageBuilder: (c,s) => slideRightPage(const DashboardScreen(), s)),
           GoRoute(path: '/profile',       pageBuilder: (c,s) => slideRightPage(const ProfileScreen(), s)),
-          GoRoute(path: '/search',        pageBuilder: (c,s) => slideRightPage(const GlobalSearchScreen(), s)),
+          // `?focus=1` opens the field already focused, with the keyboard up.
+          // Set by a DOUBLE tap on the Search tab; a single tap opens the
+          // screen the way it always did.
+          GoRoute(path: '/search',        pageBuilder: (c,s) => slideRightPage(
+              GlobalSearchScreen(autofocus: s.uri.queryParameters['focus'] == '1'), s)),
           GoRoute(path: '/schedule',      pageBuilder: (c,s) => slideRightPage(const ScheduleScreen(), s)),
           GoRoute(path: '/hall',          pageBuilder: (c,s) => slideRightPage(const HallScreen(), s)),
           GoRoute(path: '/transport',     pageBuilder: (c,s) => slideRightPage(const TransportScreen(), s)),
