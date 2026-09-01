@@ -16,6 +16,10 @@ import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.
 
 import 'package:afos_v7/features/dashboard/presentation/widgets/my_completeness_ring.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/weather_dress_card.dart';
+import 'package:afos_v7/shared/widgets/shimmer_card.dart';
+import 'package:afos_v7/features/dashboard/presentation/widgets/admin_insights_panel.dart';
+import 'package:afos_v7/features/web/presentation/consoles/admin_overview.dart';
+import 'package:afos_v7/features/web/presentation/widgets/web_layout.dart';
 import 'package:afos_v7/features/schedule/data/repositories/schedule_repository.dart';
 import 'package:afos_v7/features/schedule/presentation/widgets/semester_break_card.dart';
 import 'package:afos_v7/features/web/presentation/widgets/chart_primitives.dart';
@@ -186,6 +190,73 @@ void main() {
           ],
           total: 542,
         ),
+
+    // --- the last unprobed public widgets -------------------------------
+    // AdminInsightsPanel is the dashboard's largest admin surface and takes a
+    // whole AdminOverviewData, which is why it kept being skipped.
+    'AdminInsightsPanel (populated)': () => const AdminInsightsPanel(
+          data: AdminOverviewData(
+            facets: {
+              'total': 1854,
+              'pending': 12,
+              'roles': [
+                {'value': 'student', 'count': 1600},
+                {'value': 'teacher', 'count': 180},
+                {'value': 'exam_controller', 'count': 4},
+              ],
+            },
+            recent: [],
+            stuck: 3,
+            incomplete: 13,
+            exams: [],
+            beds: 2800,
+            occupied: 2797,
+            campus: {
+              'liveSlots': 1854,
+              'labSlots': 844,
+              'rooms': 68,
+            },
+          ),
+        ),
+
+    'WebStatStrip (long labels, real figures)': () => const WebStatStrip(
+          stats: [
+            WebStat(
+                label: 'Incomplete profiles',
+                value: '13',
+                icon: Icons.fact_check_rounded,
+                accent: AppColors.amber),
+            WebStat(
+                label: 'Awaiting approval',
+                value: '12',
+                icon: Icons.how_to_reg_rounded,
+                accent: AppColors.green),
+            WebStat(
+                label: 'People in AFOS',
+                value: '1854',
+                icon: Icons.groups_rounded,
+                accent: AppColors.blue),
+          ],
+        ),
+
+    'WebPanel (title + actions + content)': () => WebPanel(
+          title: 'Recently joined, and how they proved who they are',
+          actions: [TextButton(onPressed: () {}, child: const Text('See all'))],
+          child: const Text('Panel body'),
+        ),
+
+    'GridPanel (console panel with a long title)': () => const SizedBox(
+          height: 180,
+          child: GridPanel(
+            title: 'Teaching load by batch',
+            child: Text('Panel body'),
+          ),
+        ),
+
+    // Skeletons. The constitution requires them to match the final layout's
+    // geometry so nothing shifts when real data lands; the least they must do
+    // is survive every size and scale the real content does.
+    'ShimmerList (loading skeleton)': () => const ShimmerList(),
 
     // The semester-break card, new this phase. It replaces the routine
     // entirely for a whole department, so it has to survive every size and

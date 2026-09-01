@@ -69,53 +69,97 @@ class AdminInsightsPanel extends StatelessWidget {
       ),
       if (d.liveSlots > 0 || d.beds > 0) ...[
         const SizedBox(height: AppSpace.sm),
-        SizedBox(
-          height: 224,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // Side by side only when there is genuinely room for two.
+        //
+        // These were always a Row of two Expanded ring panels, which on a
+        // 320dp phone gives each about 140px to hold a ring AND its legend —
+        // and the legend lost, with "Theory", "Occupied" and "Available" all
+        // truncated at the DEFAULT text size. A chart whose key cannot be read
+        // is decoration.
+        //
+        // The threshold scales with the reader's text because the legend is
+        // text: two panels need twice the room the labels need, whatever size
+        // they are being rendered at.
+        LayoutBuilder(builder: (context, box) {
+          final side = box.maxWidth >=
+              MediaQuery.textScalerOf(context).scale(360);
+          // 224 was fixed while the panel's title, legend and centre figure
+          // all scale with the reader's text, so at 1.6x the contents ran 30px
+          // past the bottom. Stays exactly 224 at the normal size and grows
+          // from there — the same shape of fix the exam band needed.
+          final panelH =
+              (224 + (MediaQuery.textScalerOf(context).scale(1) - 1) * 90)
+                  .clamp(224.0, 360.0);
+          final panels = <Widget>[
             if (d.liveSlots > 0)
-              Expanded(
-                child: _RingPanel(
-                  title: 'Labs and theory',
-                  centerValue: '${d.liveSlots}',
-                  centerLabel: 'timetabled',
-                  slices: [
-                    RingSlice(
-                        label: 'Lab',
-                        value: d.labSlots,
-                        color: ChartPalette.series(context, 0)),
-                    RingSlice(
-                        label: 'Theory',
-                        value: d.theorySlots,
-                        color: ChartPalette.series(context, 1)),
-                  ],
-                ),
+              _RingPanel(
+                title: 'Labs and theory',
+                centerValue: '${d.liveSlots}',
+                centerLabel: 'timetabled',
+                slices: [
+                  RingSlice(
+                      label: 'Lab',
+                      value: d.labSlots,
+                      color: ChartPalette.series(context, 0)),
+                  RingSlice(
+                      label: 'Theory',
+                      value: d.theorySlots,
+                      color: ChartPalette.series(context, 1)),
+                ],
               ),
-            if (d.liveSlots > 0 && d.beds > 0) const SizedBox(width: AppSpace.sm),
             if (d.beds > 0)
-              Expanded(
-                child: _RingPanel(
-                  title: 'Hall occupancy',
-                  centerValue: '${d.beds}',
-                  centerLabel: 'total beds',
-                  slices: [
-                    RingSlice(
-                        label: 'Occupied',
-                        value: d.occupied,
-                        color: ChartPalette.series(context, 0)),
-                    RingSlice(
-                        label: 'Available',
-                        value: (d.beds - d.occupied).clamp(0, d.beds),
-                        color: ChartPalette.series(context, 1)),
-                  ],
-                ),
+              _RingPanel(
+                title: 'Hall occupancy',
+                centerValue: '${d.beds}',
+                centerLabel: 'total beds',
+                slices: [
+                  // series 0/1, as before this restructure. Re-checked against
+                  // the original rather than left at the 3/4 an intermediate
+                  // edit introduced: this pass is for layout faults, and a
+                  // silent palette change is not one of them.
+                  RingSlice(
+                      label: 'Occupied',
+                      value: d.occupied,
+                      color: ChartPalette.series(context, 0)),
+                  RingSlice(
+                      label: 'Available',
+                      value: (d.beds - d.occupied).clamp(0, d.beds),
+                      color: ChartPalette.series(context, 1)),
+                ],
               ),
-          ]),
-        ),
+          ];
+          if (!side) {
+            return Column(
+              children: [
+                for (var i = 0; i < panels.length; i++) ...[
+                  if (i > 0) const SizedBox(height: AppSpace.sm),
+                  SizedBox(height: panelH, child: panels[i]),
+                ],
+              ],
+            );
+          }
+          return SizedBox(
+            height: panelH,
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              for (var i = 0; i < panels.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpace.sm),
+                Expanded(child: panels[i]),
+              ],
+            ]),
+          );
+        }),
       ],
       if (d.roles.isNotEmpty) ...[
         const SizedBox(height: AppSpace.sm),
         SizedBox(
-          height: 208,
+          // Scales for the same reason the ring panels do: this box holds a
+          // title and one text row per role, and a fixed 208 overflowed by
+          // 30px at 1.6x. The 30 stayed at exactly 30 while the ring panels'
+          // height was changed, which is what identified this box rather than
+          // that one — a fault indifferent to the space you give it is not in
+          // the box you are giving it to.
+          height: (208 + (MediaQuery.textScalerOf(context).scale(1) - 1) * 175)
+              .clamp(208.0, 420.0),
           child: GridPanel(
             title: 'Who is in AFOS',
             child: BarList(
