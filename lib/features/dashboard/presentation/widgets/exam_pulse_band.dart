@@ -161,23 +161,71 @@ class ExamPulseBand extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpace.lg),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
+        // "in progress" was a NON-FLEX child beside the Expanded term name,
+        // so it claimed its full width first and left the title whatever
+        // remained: the layout probe measured "Final Summer 2026" rendering
+        // 40px of 600px on a 320dp phone at a 2.0x text scale, and the row
+        // overflowing by up to 42px on the teacher variant.
+        //
+        // Two changes, because there were two faults. The status is now
+        // Flexible (loose, so it still takes only what it needs when there IS
+        // room, and gives way when there is not), and the term name may use a
+        // second line — at 2.0x it needs 600px, which no phone line can hold,
+        // so capping it at one line guaranteed a truncated title no matter how
+        // the space was divided.
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Text(d.termName,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.titleMedium.copyWith(
                     color: AppColors.textPrimaryOf(context),
                     fontWeight: FontWeight.w700)),
           ),
-          if (d.isLive)
-            Text('in progress',
-                style: AppTextStyles.labelSmall
-                    .copyWith(color: AppColors.textSecondaryOf(context))),
+          if (d.isLive) ...[
+            const SizedBox(width: AppSpace.sm),
+            Flexible(
+              child: Text('in progress',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+            ),
+          ],
         ]),
         const SizedBox(height: AppSpace.sm),
+        // This strip was a `SizedBox(height: 148)` around a horizontal
+        // ListView. 148 is a fixed number for cards made entirely of text, so
+        // the contents overflowed the bottom by 42px at a 1.3x text scale.
+        //
+        // Scaling that number with the text scaler was tried first and was
+        // still wrong: wrapped lines make the content grow FASTER than
+        // linearly, so 2.0x still overflowed by 51px. Any hard number is a
+        // guess that a longer course title or a bigger scale re-breaks.
+        //
+        // The strip keeps a BOUNDED height, and that is deliberate: the
+        // countdown card paints a sparkline through `Expanded(CustomPaint(
+        // size: Size.infinite))` and the duty card lays itself out with
+        // Spacers, both of which need a definite height to divide. Two
+        // unbounded variants were tried and both were wrong — IntrinsicHeight
+        // measured wrapping text at its intrinsic width and still overflowed
+        // by 6px at 1.6x, and a plain unbounded Row threw "RenderFlex children
+        // have non-zero flex but incoming height constraints are unbounded".
+        //
+        // What WAS wrong was the number: a flat 148 for a strip made of text,
+        // which overflowed by 42px at 1.3x. It now grows with the reader's
+        // text scale, from a base with room for a two-line course title, and
+        // is clamped so a 2.0x scale widens the strip without letting one
+        // band eat the dashboard.
+        // Height stays exactly 148 at the normal text size — scaling the base
+        // instead would have made the strip 22px taller for every reader who
+        // never changed their text setting, to satisfy a case only large-text
+        // readers hit. It grows from there, steeply enough to cover a title
+        // that wraps to a second line (measured need: ~190 at 1.3x, ~278 at
+        // 1.6x, ~311 at 2.0x).
         SizedBox(
-          height: 148,
+          height: (148 + (MediaQuery.textScalerOf(context).scale(1) - 1) * 230)
+              .clamp(148.0, 380.0),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.zero,
@@ -313,18 +361,40 @@ class _ExamCard extends StatelessWidget {
         : ChartPalette.series(context, 0);
 
     return _Card(
-      width: 250,
+      // The card was a flat 250px while everything inside it scales with the
+      // reader's text setting, so at 2.0x the probe measured "Exam today"
+      // showing 31px of 62px — half the label gone — and the date/room line
+      // the same. A card in a horizontally scrolling strip has no reason to
+      // stay one width: it can afford to grow, because the strip scrolls.
+      // Clamped so a large scale widens it without turning one card into the
+      // whole screen.
+      width: MediaQuery.textScalerOf(context).scale(250).clamp(250.0, 340.0),
       accent: accent,
       onTap: () => context.push('/exam-seat'),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // mainAxisSize.min and real gaps instead of Spacers. The strip that
+      // holds these cards is measured by IntrinsicHeight now, and a flex
+      // child (Spacer is an Expanded) contributes NOTHING to an intrinsic
+      // measurement — so the card was measured short and then asked to lay
+      // out text that needed more, overflowing the bottom by 6px at 1.6x and
+      // 12px at 2.0x. Fixed gaps measure the same way they lay out.
+      child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         Row(children: [
           _Pulse(active: live, color: accent),
           const SizedBox(width: AppSpace.xs),
-          Text(live ? 'Exam today' : 'Next exam',
-              style: AppTextStyles.labelSmall
-                  .copyWith(color: accent, fontWeight: FontWeight.w700)),
+          // Flexible: at a 2.0x scale this label alone approaches the card's
+          // fixed 250px width.
+          Flexible(
+            child: Text(live ? 'Exam today' : 'Next exam',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelSmall
+                    .copyWith(color: accent, fontWeight: FontWeight.w700)),
+          ),
         ]),
-        const Spacer(),
+        const SizedBox(height: AppSpace.sm),
         Text('${row['code']}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -336,7 +406,7 @@ class _ExamCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.labelSmall
                 .copyWith(color: AppColors.textSecondaryOf(context))),
-        const Spacer(),
+        const SizedBox(height: AppSpace.sm),
         Text(
           [
             if (when != null) '${when.day}/${when.month}',
@@ -459,17 +529,27 @@ class _CountdownRing extends StatelessWidget {
                 width: 74,
                 height: 74,
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('$left',
-                          style: AppTextStyles.numericLarge.copyWith(
-                              color: AppColors.textPrimaryOf(context),
-                              fontWeight: FontWeight.w800)),
-                      Text('left',
-                          style: AppTextStyles.labelSmall.copyWith(
-                              color: AppColors.textSecondaryOf(context))),
-                    ],
+                  // scaleDown: this box is 74x74 to match the arc painted
+                  // behind it, so it CANNOT grow, while the count and its
+                  // caption scale with the reader's text setting. At 1.6x the
+                  // pair needed 80px and overflowed by exactly 6 — a constant
+                  // that did not move however tall the surrounding strip was
+                  // made, which is what identified it. Same fix as the web
+                  // console's ring centre, for the same reason.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('$left',
+                            style: AppTextStyles.numericLarge.copyWith(
+                                color: AppColors.textPrimaryOf(context),
+                                fontWeight: FontWeight.w800)),
+                        Text('left',
+                            style: AppTextStyles.labelSmall.copyWith(
+                                color: AppColors.textSecondaryOf(context))),
+                      ],
+                    ),
                   ),
                 ),
               ),
