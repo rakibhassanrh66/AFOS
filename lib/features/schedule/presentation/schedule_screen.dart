@@ -56,6 +56,11 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   /// timetable is still in the table, so leaving it on screen would keep
   /// advertising classes that are not happening.
   SemesterBreak? _break;
+
+  /// Whether this routine timetables anything against the viewer's teacher
+  /// initial. Null until checked; false also covers "no initial set at all".
+  /// Only meaningful for faculty.
+  bool? _initialInRoutine;
   late TabController _tab;
   final _repo = ScheduleRepository();
   Map<String, ({String fullName, String? avatarUrl})> _teacherDirectory = const {};
@@ -115,6 +120,15 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
           .then((h) { if (mounted) setState(() => _classHeader = h); });
       _repo.semesterBreak(_user!.department)
           .then((b) { if (mounted) setState(() => _break = b); });
+      if (_isFacultyRole) {
+        final initial = _myTeacherInitial?.trim() ?? '';
+        if (initial.isEmpty) {
+          if (mounted) setState(() => _initialInRoutine = false);
+        } else {
+          _repo.routineMentionsTeacher(initial).then(
+              (v) { if (mounted) setState(() => _initialInRoutine = v); });
+        }
+      }
     }
   }
 
@@ -380,6 +394,45 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                         // finds them, pinSlot adds them, findConflictsWith
                         // warns on a clash. It was just never signposted from
                         // the one screen where its absence is felt.
+                        // THE SAME MISTAKE THIS BLOCK'S COMMENT DESCRIBES, ON
+                        // THE OTHER SIDE OF THE ROOM.
+                        //
+                        // "Nothing is scheduled for you today" was said to
+                        // every teacher with an empty day, including the ones
+                        // whose day is empty because the app cannot match them
+                        // to the routine at all. A teacher's day is looked up
+                        // purely by teacher_initial, and on 2026-09-01 three of
+                        // this department's four teachers could never match:
+                        // two have no initial stored, and one's 'FNB' is not
+                        // among the routine's 221 initials (FFN and FNN are,
+                        // so it reads like a typo). All three were being told
+                        // they had a free day.
+                        //
+                        // Each case now says what is actually true, and the
+                        // first two say what to do about it — the initial is
+                        // editable by the teacher in Settings.
+                        final noInitial =
+                            (_myTeacherInitial?.trim() ?? '').isEmpty;
+                        if (_isFacultyRole && noInitial) {
+                          return const EmptyState(
+                            icon: AppIcons.schedule,
+                            title: 'Your teaching initial is not set',
+                            subtitle:
+                                'Your classes are matched to the routine by your '
+                                'initial, so nothing can be found without it. Add '
+                                'it in Settings, or ask an admin to.',
+                          );
+                        }
+                        if (_isFacultyRole && _initialInRoutine == false) {
+                          return EmptyState(
+                            icon: AppIcons.schedule,
+                            title: 'No classes under "${_myTeacherInitial!.trim()}"',
+                            subtitle:
+                                'This routine does not mention that initial '
+                                'anywhere, so it may be spelled differently here. '
+                                'Check it in Settings against the printed routine.',
+                          );
+                        }
                         return EmptyState(
                           icon: AppIcons.schedule,
                           title: 'No classes ${_days[_day]}',

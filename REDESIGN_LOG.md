@@ -5570,3 +5570,90 @@ None — `exam_terms` already carried everything the rule needs.
 - Only the FINAL term ends a semester, per the owner's instruction. A
   department whose finals were never published as a term simply never enters
   the break, which is the safe direction to fail.
+
+---
+
+## Phase Z — three of four teachers were told they had a free day · 2026-09-01
+
+Asked to focus the sweep on the TEACHER side, check the database for anything
+missing, and find any mock or fake data.
+
+### The teacher fault, found in the data rather than the code
+
+A teacher's day view is matched purely on `teacher_initial`. Checked every
+teacher against the live routine:
+
+| Teacher | initial | slots matched |
+|---|---|---:|
+| Masuk | MSK | 8 |
+| Manik Mia | FNB | **0** |
+| aktaruzzaman… | **null** | 0 |
+| sharifulhaque | **null** | 0 |
+
+**Three of the four can never match anything.** Two have no initial stored at
+all; the third's `FNB` is not among the routine's 221 distinct initials —
+`FFN` and `FNN` are, so it reads like a typo.
+
+All three were shown *"Nothing is scheduled for you today."*
+
+That is the same mistake this very block's comment already describes for
+students — *"Enjoy your free day!" … for a final-year student it is frequently
+WRONG rather than merely unhelpful* — reproduced exactly, on the other side of
+the room, for the people who teach.
+
+### Fixed by telling the three cases apart
+
+`routineMentionsTeacher(initial)` (a HEAD count, since the answer is yes/no)
+lets the screen distinguish:
+
+* no initial stored — *"Your teaching initial is not set. Your classes are
+  matched to the routine by your initial, so nothing can be found without it.
+  Add it in Settings, or ask an admin to."*
+* an initial this routine never mentions — *"No classes under 'FNB'. This
+  routine does not mention that initial anywhere, so it may be spelled
+  differently here."*
+* genuinely free today — the original message, which is now only shown when it
+  is true.
+
+Both new messages are actionable because the initial is editable by the
+teacher themselves in Settings (`settings_screen.dart` writes
+`profiles.teacher_initial`). A failed check degrades to the old neutral
+message rather than accusing a correctly-configured teacher of a bad initial.
+
+### Mock data: none found, and one near-miss avoided
+
+Searched for mock/dummy/fake/placeholder/lorem across `lib/` — the only hits
+are a genuine `_WebScanPlaceholder` widget and a `placeholder` parameter on a
+master/detail pane. Nothing renders invented content; every screen reads
+Supabase.
+
+Then checked the harder version of the question: hardcoded lists that could
+DISAGREE with the database. 36 hardcoded string lists exist, all legitimate
+domain vocabulary (role enums, status filters, tab labels, day names). Their
+values were compared against the live columns:
+
+* `clubs.category` holds Academic, Business, Cultural, Sports, Tech,
+  Volunteer — and the filter list covers all six. An earlier truncated scan
+  output made it look like Academic and Business were missing, which would
+  have meant two categories of club being unreachable. Checked the full list
+  before "fixing" anything; there was nothing to fix.
+* `hall_complaints.category` is a subset of its filter list (no Washroom
+  complaints yet), which is the harmless direction.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: 594 passing.
+
+### Migrations applied
+
+None. The teacher gap is data (missing/typo'd initials), not schema — and it
+is now visible to the teacher instead of silent.
+
+### STILL OPEN
+
+- The two teachers with no initial and the one with `FNB` are DATA problems
+  this change only surfaces. Someone still has to set MSK-style initials for
+  them, or correct `FNB`; the app now says so instead of implying a free day.
+- One teacher's `full_name` is literally their email address
+  (`aktaruzzaman15-3132@diu.edu.bd`), which renders as their name across the
+  app. Not touched — it is a data correction for an admin, not a code fix.
