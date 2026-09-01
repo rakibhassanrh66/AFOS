@@ -33,6 +33,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
 
 const EXPIRES_MINUTES = 10;
+
+// Where an applicant is told to go when we cannot mail them. Env-overridable
+// so support contacts can change without shipping an app release — the phone
+// renders whatever the response carries.
+const SUPPORT_EMAIL = Deno.env.get("SUPPORT_EMAIL") ?? "rakibhassan.rh66@protonmail.com";
+const SUPPORT_TELEGRAM = Deno.env.get("SUPPORT_TELEGRAM") ?? "@deadbrat";
 const ACCOUNT_TYPES = ["student", "teacher", "staff"];
 
 serve(async (req) => {
@@ -208,26 +214,73 @@ serve(async (req) => {
     // someone to check an inbox nothing was sent to.
     let lane = "inline";
     let mailFailed = false;
-    try {
-      lane = await dispatch(supabase, {
-        to: email,
-        template: "verify_account",
-        payload: { fullName, code, actionUrl: confirmUrl, expiresMinutes: EXPIRES_MINUTES },
-        // Collapses rage-taps inside the same 10-minute window into one send.
-        dedupeKey: `verify:${email}:${Math.floor(Date.now() / 600_000)}`,
-        priority: 1,
-      });
-    } catch (e) {
-      console.error("[register-request] verification mail failed permanently:", e);
+    let mailReason: "quota" | "provider" | null = null;
+
+    // ASK BEFORE PROMISING. The provider has a DAILY ceiling the app previously
+    // knew nothing about, so it would send confidently past it and the
+    // applicant would be told to check an inbox nothing could reach. Checking
+    // first turns an invisible failure into a stated one, and the same call
+    // raises the admin alert — deliberately one call, so the alert cannot be
+    // forgotten by a caller that only wanted the boolean.
+    const { data: budget } = await supabase.rpc("mail_check_and_alert");
+    const canSend = !budget || budget[0]?.can_send !== false;
+
+    if (!canSend) {
       mailFailed = true;
-      lane = "failed";
+      mailReason = "quota";
+      lane = "quota_exhausted";
+      // Staged for a human instead of silently stranded. This is the same
+      // queue register-review-request feeds, so the applicant appears in the
+      // admin's existing review list rather than in a new place nobody checks.
+      await supabase.from("pending_registrations")
+        .update({
+          review_state: "needs_review",
+          review_reason: "Email quota exhausted — code could not be sent",
+        })
+        // `email`, matching the delete at the top of this handler — the value
+        // is already normalised by the time it reaches here, and email_norm is
+        // what the table keys on.
+        .eq("email_norm", email)
+        .is("consumed_at", null);
+      console.error("[register-request] daily mail quota exhausted; staged for manual approval");
+    }
+
+    // Skipped entirely when the quota is gone — not attempted and caught,
+    // because there is nothing to attempt and a thrown-and-caught "error" would
+    // report the wrong reason to the applicant.
+    if (canSend) {
+      try {
+        lane = await dispatch(supabase, {
+          to: email,
+          template: "verify_account",
+          payload: { fullName, code, actionUrl: confirmUrl, expiresMinutes: EXPIRES_MINUTES },
+          // Collapses rage-taps inside the same 10-minute window into one send.
+          dedupeKey: `verify:${email}:${Math.floor(Date.now() / 600_000)}`,
+          priority: 1,
+        });
+      } catch (e) {
+        console.error("[register-request] verification mail failed permanently:", e);
+        mailFailed = true;
+        mailReason = "provider";
+        lane = "failed";
+      }
     }
 
     return json({
       ok: true,
       lane,
       mailFailed,
+      // WHY the mail is missing, not just THAT it is. The two cases need
+      // different copy: a quota is ours and temporary ("we are sorry, this is
+      // our end"), a provider rejection may be the address itself. Telling an
+      // applicant to re-check their spelling when our allowance ran out is the
+      // kind of small wrongness that makes people give up.
+      mailReason,
       manualFallback,
+      // Sent with the response rather than hardcoded in the app, so support
+      // contacts can change without shipping a release to every phone.
+      supportEmail: SUPPORT_EMAIL,
+      supportTelegram: SUPPORT_TELEGRAM,
       expiresInSeconds: EXPIRES_MINUTES * 60,
       resendAfterSeconds: 60,
     });

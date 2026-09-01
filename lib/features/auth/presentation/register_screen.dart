@@ -145,6 +145,9 @@ class _RegisterBodyState extends State<_RegisterBody> {
             'lane': state.lane,
             'manualFallback': state.manualFallback,
             'mailFailed': state.mailFailed,
+            'mailReason': state.mailReason,
+            'supportEmail': state.supportEmail,
+            'supportTelegram': state.supportTelegram,
           });
         }
         if(state is AuthError) ctx.showSnack(state.message, isError:true);

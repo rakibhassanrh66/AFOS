@@ -63,6 +63,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         // is the worse failure of the two.
         manualFallback: res['manualFallback'] as bool? ?? true,
         mailFailed: res['mailFailed'] as bool? ?? false,
+        // All three are null on an older deployed function, and every reader
+        // treats null as "say the generic thing" — so a version skew degrades
+        // to the previous copy rather than rendering "null" at an applicant.
+        mailReason: res['mailReason'] as String?,
+        supportEmail: res['supportEmail'] as String?,
+        supportTelegram: res['supportTelegram'] as String?,
       ));
     } catch(err) {
       emit(AuthError(friendlyError(err)));
