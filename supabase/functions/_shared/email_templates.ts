@@ -87,14 +87,31 @@ interface Shell {
 
 function shell(o: Shell): string {
   const codeBlock = !o.code ? "" : `
-  <!-- The code. Deliberately the single loudest element on the page: most
-       people will type this rather than click, especially on mobile. -->
+  <!-- THE CODE. The single loudest element on the page, because most people
+       type it rather than click — especially on a phone.
+
+       ONE SELECTABLE TEXT RUN, not one box per digit. Per-digit chips look
+       sharper in a screenshot, but they put each character in its own table
+       cell, so a long-press selection copies "1 2 3 4 5 6" with the cell
+       whitespace baked in and the paste fails validation. Beauty that breaks
+       the paste is a downgrade: this is the one string in the whole message
+       the reader has to physically move somewhere else.
+
+       The accent rule above the code carries the brand instead, which costs
+       nothing and cannot fragment the text. -->
   <tr><td class="afos-pad" style="padding:26px 40px 0 40px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="afos-panel" style="background:${PANEL};border:1px solid ${HAIRLINE};border-radius:11px;">
-      <tr><td align="center" style="padding:22px 16px 20px 16px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
-        <div class="afos-muted" style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:${INK_MUTED};font-weight:600;margin-bottom:12px;">Your confirmation code</div>
-        <div class="afos-code afos-ink" style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:36px;font-weight:700;letter-spacing:11px;color:${INK};line-height:1.1;padding-left:11px;">${escapeHtml(o.code)}</div>
-        <div class="afos-muted" style="font-size:12px;color:${INK_MUTED};margin-top:13px;">Expires in ${o.expiresMinutes} minutes · works once</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="afos-panel afos-rise" style="background:${PANEL};border:1px solid ${HAIRLINE};border-radius:14px;">
+      <tr><td style="padding:0;font-size:0;line-height:0;">
+        <!-- 3px brand rule, drawn as a cell so Outlook renders it. -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td height="3" style="height:3px;line-height:3px;font-size:0;background:${BRAND_GREEN_DEEP};border-radius:14px 14px 0 0;">&nbsp;</td>
+        </tr></table>
+      </td></tr>
+      <tr><td align="center" style="padding:24px 16px 22px 16px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
+        <div class="afos-muted" style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:${INK_MUTED};font-weight:600;margin-bottom:14px;">Your confirmation code</div>
+        <div class="afos-code afos-ink afos-shimmer" style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:40px;font-weight:700;letter-spacing:12px;color:${INK};line-height:1.15;padding-left:12px;">${escapeHtml(o.code)}</div>
+        <div class="afos-muted" style="font-size:12px;color:${INK_MUTED};margin-top:14px;">Tap and hold the code to copy it</div>
+        <div class="afos-muted" style="font-size:12px;color:${INK_MUTED};margin-top:4px;">Expires in ${o.expiresMinutes} minutes · works once</div>
       </td></tr>
     </table>
   </td></tr>
@@ -120,6 +137,36 @@ function shell(o: Shell): string {
   @media (max-width:620px){
     .afos-pad{padding-left:24px!important;padding-right:24px!important}
     .afos-code{font-size:30px!important;letter-spacing:8px!important}
+  }
+
+  /* MOTION, AND THE RULE THAT MAKES IT SAFE.
+     Gmail and Outlook (Word engine) strip @keyframes outright; Apple Mail,
+     iOS Mail, Samsung Mail and Thunderbird honour them. So animation here is
+     decoration for roughly half of readers and must be invisible to the rest.
+
+     The rule: an element's FINISHED state is what is inlined, and these blocks
+     only replay the arrival. Nothing starts at opacity:0 inline. Get that
+     backwards — the usual way this is written — and every Gmail reader opens a
+     mail with an invisible confirmation code, which is a total failure for a
+     decorative gain.
+
+     Also honoured: prefers-reduced-motion, same as the app. */
+  @keyframes afosRise{
+    from{opacity:0;transform:translateY(10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  @keyframes afosShimmer{
+    0%,72%{text-shadow:none}
+    82%{text-shadow:0 0 14px rgba(62,207,142,0.55)}
+    100%{text-shadow:none}
+  }
+  .afos-rise{animation:afosRise 620ms cubic-bezier(0.22,1,0.36,1) both}
+  .afos-shimmer{animation:afosShimmer 3.6s ease-in-out 700ms infinite}
+  .afos-btn{transition:transform 160ms ease,box-shadow 160ms ease}
+  .afos-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(14,143,94,0.34)}
+  @media (prefers-reduced-motion:reduce){
+    .afos-rise,.afos-shimmer{animation:none!important}
+    .afos-btn{transition:none!important}
   }
   @media (prefers-color-scheme:dark){
     .afos-page{background:#070D18!important}
@@ -154,8 +201,24 @@ function shell(o: Shell): string {
     <p class="afos-muted" style="margin:0;font-size:15px;line-height:1.6;color:${INK_MUTED};">${o.intro}</p>
   </td></tr>
 ${codeBlock}
-  <tr><td class="afos-pad" align="center" style="padding:22px 40px 4px 40px;">
-    <a href="${escapeHtml(o.actionUrl)}" style="display:inline-block;background:${BRAND_GREEN_DEEP};color:#FFFFFF;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;text-decoration:none;padding:14px 34px;border-radius:9px;">${escapeHtml(o.actionLabel)}</a>
+  <!-- BULLETPROOF BUTTON. Outlook on Windows renders through Word, which
+       ignores padding on an inline <a> — the button collapses to bare
+       underlined text sitting on a coloured rectangle the size of the words.
+       The VML rectangle below is the standard answer: Outlook draws that and
+       skips the <a>, every other client skips the VML and draws the <a>.
+       Both carry the same href and label, so they cannot drift. -->
+  <tr><td class="afos-pad" align="center" style="padding:24px 40px 4px 40px;">
+    <!--[if mso]>
+    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+      href="${escapeHtml(o.actionUrl)}" style="height:48px;v-text-anchor:middle;width:280px;" arcsize="19%"
+      stroke="f" fillcolor="${BRAND_GREEN_DEEP}">
+      <w:anchorlock/>
+      <center style="color:#FFFFFF;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;">${escapeHtml(o.actionLabel)}</center>
+    </v:roundrect>
+    <![endif]-->
+    <!--[if !mso]><!-- -->
+    <a class="afos-btn" href="${escapeHtml(o.actionUrl)}" style="display:inline-block;background:${BRAND_GREEN_DEEP};color:#FFFFFF;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;text-decoration:none;padding:15px 36px;border-radius:9px;box-shadow:0 3px 10px rgba(14,143,94,0.26);">${escapeHtml(o.actionLabel)}</a>
+    <!--<![endif]-->
   </td></tr>
 
   <tr><td class="afos-pad" align="center" style="padding:14px 40px 0 40px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
