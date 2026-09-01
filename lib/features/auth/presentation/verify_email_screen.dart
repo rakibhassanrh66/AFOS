@@ -192,6 +192,43 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     context.go('/auth/register');
   }
 
+  /// Pulls the code out of the clipboard and submits it in one tap.
+  ///
+  /// WHY A BUTTON AND NOT AN AUTOMATIC SNIFF. Reading the clipboard on Android
+  /// 12+ raises a system toast — "AFOS pasted from your clipboard" — every
+  /// single time. Checking silently on open, and again on every resume, would
+  /// fire that toast repeatedly at someone in the middle of signing up and
+  /// read as an app going through their clipboard uninvited. A button makes
+  /// the read something they asked for, so the toast is an expected
+  /// confirmation instead of an accusation.
+  ///
+  /// The regex takes a 6-digit run with non-digits either side, so it still
+  /// finds the code when someone copies a whole line out of the email —
+  /// "123456 is your AFOS confirmation code" pastes correctly — while refusing
+  /// to slice six digits out of a longer number.
+  Future<void> _pasteCode() async {
+    String? found;
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      found = RegExp(r'(?<!\d)(\d{6})(?!\d)').firstMatch(data?.text ?? '')?.group(1);
+    } catch (_) {
+      // A denied or empty clipboard is not an error worth a red banner.
+    }
+    if (!mounted) return;
+    if (found == null) {
+      context.showSnack('No 6-digit code found in your clipboard. Copy it from the email first.');
+      return;
+    }
+    setState(() {
+      _codeCtrl.text = found!;
+      _error = null;
+    });
+    AppHaptics.selection();
+    // Straight through to verification: they copied a code and pressed paste,
+    // so making them reach for a second button is the friction this removes.
+    await _verifyWithCode();
+  }
+
   /// The escape hatch for someone no code will ever reach.
   ///
   /// The server answers identically whether or not a staged signup exists for
@@ -243,6 +280,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           onSubmit: _verifyWithCode,
           onResend: _resendIn > 0 ? null : _resend,
           onRetryToken: _verifyWithToken,
+          onPasteCode: _pasteCode,
           manualFallback: widget.manualFallback,
           mailFailed: widget.mailFailed,
           mailReason: widget.mailReason,
@@ -282,6 +320,7 @@ class VerifyEmailPane extends StatelessWidget {
     required this.onSubmit,
     required this.onResend,
     required this.onRetryToken,
+    required this.onPasteCode,
     required this.manualFallback,
     required this.mailFailed,
     required this.mailReason,
@@ -307,6 +346,7 @@ class VerifyEmailPane extends StatelessWidget {
   final VoidCallback onSubmit;
   final VoidCallback? onResend;
   final VoidCallback onRetryToken;
+  final VoidCallback onPasteCode;
   final bool manualFallback;
   final bool mailFailed;
   final String? mailReason;
@@ -504,6 +544,26 @@ class VerifyEmailPane extends StatelessWidget {
             if (v.replaceAll(RegExp(r'\D'), '').length == 6 && !busy) onSubmit();
           },
           onSubmitted: (_) => onSubmit(),
+        ),
+
+        // ONE TAP FROM THE EMAIL TO SIGNED IN.
+        //
+        // The real friction in a code flow is not typing six digits, it is the
+        // trip: open mail, select the code without grabbing the words around
+        // it, switch apps, long-press the field, find Paste. This collapses all
+        // of it — copy anything containing the code (the whole line is fine)
+        // and press once. It fills AND submits.
+        //
+        // No clipboard is read until this is pressed; see _pasteCode for why
+        // that matters on Android 12+.
+        const SizedBox(height: 10),
+        Center(
+          child: TextButton.icon(
+            onPressed: busy ? null : onPasteCode,
+            icon: const Icon(Icons.content_paste_rounded, size: 16),
+            label: const Text('Paste code from email'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.holoTeal),
+          ),
         ),
 
         if (error != null) ...[
