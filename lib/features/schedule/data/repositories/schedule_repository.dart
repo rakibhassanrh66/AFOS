@@ -2,6 +2,34 @@ import '../../../../config/supabase_config.dart';
 import '../../../../core/utils/offline_cache.dart';
 import '../models/class_slot.dart';
 
+/// A department whose final exams are over and whose next routine has not
+/// arrived yet. See [ScheduleRepository.semesterBreak] for how it is decided.
+class SemesterBreak {
+  /// e.g. 'summer' — the season of the term that just ended, lower case as
+  /// stored.
+  final String season;
+  final int? year;
+
+  /// The last exam day for the whole department.
+  final DateTime endedOn;
+
+  const SemesterBreak({
+    required this.season,
+    required this.year,
+    required this.endedOn,
+  });
+
+  /// 'Summer 2026', or '' when the term carries neither.
+  String get termLabel {
+    final s = season.isEmpty
+        ? ''
+        : '${season[0].toUpperCase()}${season.substring(1)}';
+    return [s, if (year != null) '$year'].where((v) => v.isNotEmpty).join(' ');
+  }
+
+  int get daysSince => DateTime.now().difference(endedOn).inDays;
+}
+
 class ScheduleRepository {
   final _client = SupabaseConfig.client;
 
@@ -298,6 +326,70 @@ class ScheduleRepository {
       return res;
     },
   );
+
+  /// The semester break for [department], or null if classes are still on.
+  ///
+  /// THE RULE, and why each half of it is needed.
+  ///
+  /// A department is between semesters once its published FINAL exam term has
+  /// finished — mid-terms do not end a semester, so only `exam_type = 'final'`
+  /// counts. `exam_terms.ends_on` is the last exam day for the whole
+  /// department, which is exactly the moment the owner described: not when one
+  /// section finishes, but when the last one does.
+  ///
+  /// The second half matters just as much. The previous semester's routine is
+  /// STILL IN THE TABLE after the exams end — CSE holds 1854 slots uploaded
+  /// 2026-07-11, and finals ended 2026-08-27 — so a screen that only asks
+  /// "are there slots for today" keeps showing last semester's timetable as
+  /// though term were still running. That is the actual reported fault. The
+  /// break therefore stays on until a routine is uploaded that is NEWER than
+  /// the end of the exams, at which point classes speak for themselves again
+  /// and this returns null with no one having to switch anything off.
+  ///
+  /// Returns the term that ended so the message can name it.
+  Future<SemesterBreak?> semesterBreak(String department) async {
+    try {
+      final term = await _client
+          .from('exam_terms')
+          .select('season, year, ends_on')
+          .eq('department', department)
+          .eq('exam_type', 'final')
+          .eq('published', true)
+          .not('ends_on', 'is', null)
+          .order('ends_on', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (term == null) return null;
+
+      final endsOn = DateTime.tryParse('${term['ends_on']}');
+      if (endsOn == null) return null;
+      // Compared on whole days: exam_date/ends_on carry no time, so "the exams
+      // are over" means the day after the last one has started.
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (!today.isAfter(endsOn)) return null;
+
+      // Has a newer routine landed since? One row is enough to answer it.
+      final fresher = await _client
+          .from('schedule_slots')
+          .select('id')
+          .eq('department', department)
+          .gt('created_at', endsOn.toIso8601String())
+          .limit(1)
+          .maybeSingle();
+      if (fresher != null) return null;
+
+      return SemesterBreak(
+        season: '${term['season'] ?? ''}',
+        year: (term['year'] as num?)?.toInt(),
+        endedOn: endsOn,
+      );
+    } catch (_) {
+      // Never block the routine on this. A screen that cannot answer "is it
+      // the break?" should show the timetable, not an error.
+      return null;
+    }
+  }
 
   Stream<List<ClassSlot>> watchMyPinnedSlots() {
     final uid = SupabaseConfig.uid;

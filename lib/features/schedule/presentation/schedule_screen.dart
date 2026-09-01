@@ -20,8 +20,10 @@ import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../config/theme/spacing.dart';
 import '../data/models/class_slot.dart';
 import '../data/repositories/schedule_repository.dart';
+import 'widgets/semester_break_card.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
@@ -48,6 +50,12 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
   String? _myBatch, _mySection, _myTeacherInitial;
   bool _loading = true;
   Map<String, dynamic>? _classHeader;
+
+  /// Set once the department's final exams are over and no newer routine has
+  /// been uploaded. When present it REPLACES the day's slots: last term's
+  /// timetable is still in the table, so leaving it on screen would keep
+  /// advertising classes that are not happening.
+  SemesterBreak? _break;
   late TabController _tab;
   final _repo = ScheduleRepository();
   Map<String, ({String fullName, String? avatarUrl})> _teacherDirectory = const {};
@@ -105,6 +113,8 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
     if (_user != null) {
       _repo.fetchRoutineHeader(_user!.department, 'class_routine')
           .then((h) { if (mounted) setState(() => _classHeader = h); });
+      _repo.semesterBreak(_user!.department)
+          .then((b) { if (mounted) setState(() => _break = b); });
     }
   }
 
@@ -330,6 +340,19 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                         return const Padding(padding:EdgeInsets.all(16),child:ShimmerList());
                       }
                       final slots = snap.data??[];
+                      // BEFORE the slots are considered, not after. Last
+                      // term's routine is still in schedule_slots once the
+                      // finals end, so `slots.isEmpty` is false and the day
+                      // view would happily print a finished semester's
+                      // classes, with times, as if term were running. That is
+                      // the reported fault, and an empty-state could never
+                      // have caught it.
+                      if (_break != null) {
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.all(AppSpace.md),
+                          child: SemesterBreakCard(brk: _break!),
+                        );
+                      }
                       if(slots.isEmpty) {
                         // "Enjoy your free day!" was the only thing this ever
                         // said, and for a final-year student it is frequently

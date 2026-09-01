@@ -5499,3 +5499,74 @@ None.
   strip, and the probe's starve threshold is a fraction of the VIEWPORT. The
   real faults those cases found were fixed in the widget, not allowed here.
 - The avatar upload remains unreproduced.
+
+---
+
+## Phase Y — the semester break, this time actually asked for · 2026-09-01
+
+Phase L records this exact feature being built by a previous session and
+REVERTED as unrequested scope creep. The owner has now asked for it directly,
+with a sharper rule than the reverted version had: it must key off the FINAL
+exam routine, per department, and hold until the next routine is published.
+
+### The fault it fixes is not an empty screen — it is a wrong one
+
+The reverted version treated this as an empty-state. It is not. Last
+semester's slots stay in `schedule_slots` after the exams end: CSE holds
+**1854 slots uploaded 2026-07-11**, and its finals ended **2026-08-27**. So
+`slots.isEmpty` is false, and the day view goes on printing a finished
+semester's timetable, with times, as though term were running. The break has
+to REPLACE the routine, not fill a gap it never leaves.
+
+### The rule, and why both halves are needed
+
+`ScheduleRepository.semesterBreak(department)` returns a break when:
+
+1. there is a **published** `exam_terms` row for that department with
+   `exam_type = 'final'` — mid-terms do not end a semester; and
+2. `ends_on` (the last exam day for the WHOLE department, which is exactly the
+   moment described: not one section finishing, the last one) is in the past;
+   and
+3. no `schedule_slots` row for that department is newer than `ends_on`.
+
+Clause 3 is what ends the break by itself. When next semester's routine is
+uploaded, classes speak for themselves again and nobody has to switch
+anything off.
+
+Verified against the live database before any UI was written, not after —
+CSE: final term published, ends 2026-08-27, zero slots newer, today
+2026-09-01, verdict **SEMESTER BREAK ACTIVE**. The feature is in its real
+state on the real data right now.
+
+### Where it shows
+
+`SemesterBreakCard`, on the routine screen (replacing the day's slots) and on
+the dashboard in a compact form (replacing the class card, which would
+otherwise quote a "next class" from last term). It names the term that ended,
+says the break is on, carries one motivational line, and states plainly what
+brings the routine back — so nobody reads a blank timetable as the app being
+broken.
+
+The motivational line is keyed to the DATE, not chosen at random. The
+constitution forbids motion on rebuild and the same reasoning applies to copy:
+a message that changes on every scroll reads as broken rather than as
+encouragement. Pinned by a test, along with "no emoji in UI copy".
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: **589 passing** (579 + 8 rule/copy
+tests + 2 layout cases). The card was put through the layout sweep at all 6
+sizes and 4 text scales and passed first time.
+
+### Migrations applied
+
+None — `exam_terms` already carried everything the rule needs.
+
+### STILL OPEN
+
+- Not yet seen on a device: the phone dropped off wireless ADB during Phase X
+  and has not reconnected, so this is verified by the live query and the tests
+  rather than by looking at it.
+- Only the FINAL term ends a semester, per the owner's instruction. A
+  department whose finals were never published as a term simply never enters
+  the break, which is the safe direction to fail.
