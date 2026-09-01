@@ -198,8 +198,12 @@ class _GlowingAvatarState extends State<GlowingAvatar>
       return _tappable(_StaticRing(accent: accent, size: size, child: portrait));
     }
 
+    // RepaintBoundary: this is the only thing in the drawer that repaints per
+    // frame, so it gets its own layer rather than dirtying the menu — and the
+    // menu sits behind the shell's BackdropFilters.
     return _tappable(
-      AnimatedBuilder(
+      RepaintBoundary(
+        child: AnimatedBuilder(
         animation: _c,
         // The portrait is built ONCE and passed through: it holds a network
         // image, and rebuilding it 60 times a second to spin a ring around it
@@ -234,6 +238,7 @@ class _GlowingAvatarState extends State<GlowingAvatar>
             ),
           );
         },
+        ),
       ),
     );
   }
@@ -262,6 +267,39 @@ class _GlowRingPainter extends CustomPainter {
     required this.isDark,
   });
 
+  /// Shaders, cached across frames and across instances.
+  ///
+  /// A shader is a GPU program: building one is expensive, and this painter
+  /// used to build TWO per frame by calling `createShader` on a freshly
+  /// constructed `SweepGradient` whose `GradientRotation` changed every tick.
+  /// Rotating the gradient meant a new shader 60 times a second, forever.
+  ///
+  /// Rotating the CANVAS instead gives the identical picture from a gradient
+  /// that never changes — so one shader is built per (colour, theme, size) and
+  /// then reused for the life of the app. Keyed on exactly those three, since
+  /// they are the only things the gradient depends on.
+  static final Map<int, Shader> _shaderCache = {};
+
+  static Shader _sweepShader(Rect rect, Color accent, bool isDark) {
+    final key = Object.hash(accent.toARGB32(), isDark, rect.width, rect.height);
+    return _shaderCache.putIfAbsent(key, () {
+      return SweepGradient(
+        startAngle: 0,
+        endAngle: 2 * math.pi,
+        colors: [
+          accent.withValues(alpha: 0.0),
+          accent.withValues(alpha: 0.0),
+          accent.withValues(alpha: 0.85),
+          Colors.white.withValues(alpha: isDark ? 0.9 : 0.6),
+          accent.withValues(alpha: 0.85),
+          accent.withValues(alpha: 0.0),
+          accent.withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.55, 0.72, 0.78, 0.84, 0.95, 1.0],
+      ).createShader(rect);
+    });
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
@@ -280,23 +318,15 @@ class _GlowRingPainter extends CustomPainter {
         ..color = accent.withValues(alpha: isDark ? 0.30 : 0.22),
     );
 
-    // The travelling highlight. A SweepGradient rotated by `progress`, so the
-    // bright head chases the ring rather than the ring rotating as a whole.
-    final sweep = SweepGradient(
-      startAngle: 0,
-      endAngle: 2 * math.pi,
-      transform: GradientRotation(sweepStart),
-      colors: [
-        accent.withValues(alpha: 0.0),
-        accent.withValues(alpha: 0.0),
-        accent.withValues(alpha: 0.85),
-        Colors.white.withValues(alpha: isDark ? 0.9 : 0.6),
-        accent.withValues(alpha: 0.85),
-        accent.withValues(alpha: 0.0),
-        accent.withValues(alpha: 0.0),
-      ],
-      stops: const [0.0, 0.55, 0.72, 0.78, 0.84, 0.95, 1.0],
-    );
+    // The travelling highlight, and the bloom it throws outward. Both use the
+    // SAME cached shader; the canvas rotates under them, which is what makes
+    // the bright head chase the ring without rebuilding a shader per frame.
+    final shader = _sweepShader(rect, accent, isDark);
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(sweepStart);
+    canvas.translate(-center.dx, -center.dy);
 
     canvas.drawCircle(
       center,
@@ -305,21 +335,21 @@ class _GlowRingPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round
-        ..shader = sweep.createShader(rect)
+        ..shader = shader
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
     );
 
-    // The bloom the light throws outward. Drawn OUTSIDE the ring so it never
-    // washes over the face.
+    // Drawn OUTSIDE the ring so it never washes over the face.
     canvas.drawCircle(
       center,
       radius + 3,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 6
-        ..shader = sweep.createShader(rect)
+        ..shader = shader
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
     );
+    canvas.restore();
   }
 
   @override

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31+) replacement for backup_rules.xml
+  (`android:dataExtractionRules`). Same exclusions, stated twice because the
+  platform reads a different file depending on the OS version — this phone
+  (Android 16) uses THIS one, older devices use the other. Keep them in step.
+
+  See backup_rules.xml for the full reasoning. In short: the ciphertext can be
+  backed up, the Keystore key cannot, and restoring one without the other
+  produces a session that throws BAD_DECRYPT on every read.
+
+  Both destinations are covered deliberately:
+    * cloud-backup  — Google account backup to a new device
+    * device-transfer — the direct phone-to-phone copy during setup
+  The key is device-bound in both cases, so the ciphertext is worthless in
+  both cases.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+    </device-transfer>
+</data-extraction-rules>

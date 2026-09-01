@@ -2,6 +2,10 @@ import '../../config/theme/depth.dart';
 import '../../config/theme/motion.dart';
 import 'dart:math' as math;
 import 'dart:ui';
+// For kDoubleTapTimeout — the same window Flutter's own recogniser uses, so
+// the hand-timed double tap in _handleTap feels identical to a real one
+// without putting that recogniser in the arena. See the note there.
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/theme/app_colors.dart';
@@ -122,8 +126,44 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
   @override
   void dispose() { _ctrl.dispose(); super.dispose(); }
 
+  /// When the last tap landed, and on which tab — the whole double-tap
+  /// mechanism, replacing a recogniser that cost 300ms on every press.
+  int? _lastTapIndex;
+  DateTime? _lastTapAt;
+
+  /// Acts on the FIRST tap immediately, then treats a quick second tap on the
+  /// same item as the shortcut.
+  ///
+  /// This is the inversion that removes the delay. A DoubleTapGestureRecognizer
+  /// has to wait to find out whether a tap was single, so it delays everything.
+  /// Here the single-tap action runs at once and the second tap simply does
+  /// something extra — which works because the two are not in conflict: a
+  /// single tap on Search opens Search, and a double tap opens Search AND puts
+  /// the cursor in the field. The first tap of a double tap was never wrong,
+  /// so there is nothing to wait for.
   void _handleTap(int i) {
-    if (i == widget.currentIndex) return; // already on this exact screen
+    final now = DateTime.now();
+    final isSecond = widget.onDoubleTap != null &&
+        _lastTapIndex == i &&
+        _lastTapAt != null &&
+        now.difference(_lastTapAt!) < kDoubleTapTimeout;
+    _lastTapIndex = i;
+    _lastTapAt = now;
+
+    if (isSecond) {
+      // Consume it, so a third tap starts a fresh pair rather than firing the
+      // shortcut again on every subsequent tap.
+      _lastTapIndex = null;
+      _lastTapAt = null;
+      HapticFeedback.selectionClick();
+      widget.onDoubleTap!(i);
+      return;
+    }
+
+    // Checked AFTER the double-tap test on purpose: tapping the tab you are
+    // already on is a no-op, but double-tapping it must still reach the
+    // shortcut — that is the main way anyone uses it.
+    if (i == widget.currentIndex) return;
     HapticFeedback.selectionClick();
     widget.onTap(i);
   }
@@ -214,13 +254,10 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
                       Expanded(child: _NavItem(
                         dest: widget.destinations[i],
                         active: i == _display,
+                        // One callback. _handleTap decides whether this press
+                        // was a single or a second tap, so the item never has
+                        // to host a double-tap recogniser.
                         onTap: () => _handleTap(i),
-                        onDoubleTap: widget.onDoubleTap == null
-                            ? null
-                            : () {
-                                HapticFeedback.selectionClick();
-                                widget.onDoubleTap!(i);
-                              },
                       )),
                   ]),
                 ),
@@ -286,23 +323,28 @@ class _NavItem extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
-  /// Optional shortcut on the same target. Search uses it to open ALREADY
-  /// typing, the way the Play Store's search does, so nobody has to land on
-  /// the screen and then reach up to the field to start.
-  final VoidCallback? onDoubleTap;
-
   const _NavItem(
-      {required this.dest,
-      required this.active,
-      required this.onTap,
-      this.onDoubleTap});
+      {required this.dest, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final iconColor = AppColors.textSecondaryOf(context);
+    // onTap ONLY. Never add onDoubleTap here.
+    //
+    // A GestureDetector carrying both puts a DoubleTapGestureRecognizer in the
+    // arena beside the tap recognizer, and that recogniser holds the arena open
+    // for kDoubleTapTimeout (300ms) in case a second tap is coming. onTap
+    // cannot fire until it gives up — so EVERY tab press paid 300ms before
+    // navigation even began. It shipped that way with the double-tap-search
+    // shortcut and was reported as the nav bar "crawling".
+    //
+    // It also hid well from profiling: rendering was never the problem.
+    // `dumpsys gfxinfo` measured 0.00% janky frames and a 5ms 50th percentile
+    // while flagging high input latency on 114 of 117 frames — fast frames,
+    // late touches. The double tap is now timed in the parent (see
+    // _handleTap), which needs no recogniser and so costs nothing.
     return GestureDetector(
       onTap: onTap,
-      onDoubleTap: onDoubleTap,
       behavior: HitTestBehavior.opaque,
       child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
         const SizedBox(height: 12),

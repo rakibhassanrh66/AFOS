@@ -276,6 +276,51 @@ def check_touch_targets(src):
     return hits
 
 
+def check_perpetual_animation(src, rel):
+    """A never-ending animation in an always-mounted widget, with no own layer.
+
+    THIS IS A PERFORMANCE BUG THAT LOOKS LIKE NOTHING. A ticker schedules a
+    frame every vsync, and a BackdropFilter re-runs its blur on every frame it
+    takes part in. This app's shell stacks three of them, so ONE perpetual
+    animation anywhere in the shell turns every blur in the app into a 60fps
+    full-framebuffer readback -- on every screen, forever, whether or not the
+    animating pixel is even visible.
+
+    All three known cases were exactly this:
+      * GlowingAvatar, in a drawer app_shell never unmounts (fixed with
+        TickerMode, so the closed drawer costs nothing).
+      * the SOS button's pulse, mounted by SosGate on every route.
+      * the app bar's unread badge, likewise on every route.
+
+    Measured with the drawer case live: `dumpsys gfxinfo` reported high input
+    latency on 114 of 117 frames while rendering stayed at a 5ms 50th
+    percentile and 0.00% jank. Nothing looked slow; touches simply arrived
+    late. Neither `flutter analyze` nor a rendering profile flags it.
+
+    So: a `.repeat(` inside the shell must be paired with a RepaintBoundary
+    (its own layer, so its repaints stop at its own bounds) and must honour
+    reduced motion. Checked per FILE rather than per widget -- a coarser test
+    than ideal, but it fails loudly on a new unisolated shell animation, which
+    is the case that matters.
+    """
+    # Only the always-mounted surfaces. A screen's own animation unmounts with
+    # the screen and cannot cost anything on other routes.
+    SHELL = ("features/shell/", "shared/widgets/glass_bottom_nav",
+             "shared/widgets/profile_identity_header", "features/sos/presentation/sos_floating_button")
+    if not any(s in rel for s in SHELL):
+        return []
+    hits = []
+    for m in re.finditer(r"\.repeat\s*\(|repeat\s*\(\s*reverse", src):
+        line = line_of(src, m.start())
+        if "RepaintBoundary" not in src:
+            hits.append((line, "perpetual animation in an always-mounted shell "
+                               "widget with no RepaintBoundary in the file"))
+        if "isReduced" not in src and "disableAnimations" not in src:
+            hits.append((line, "perpetual animation in the shell that never "
+                               "checks reduced motion"))
+    return hits
+
+
 def check_shrunk_buttons(src):
     """Material buttons whose 48dp default has been explicitly shrunk."""
     hits = []
@@ -329,8 +374,36 @@ SELFTESTS = [
 ]
 
 
+PERPETUAL_SELFTESTS = [
+    # The exact shape the SOS button shipped with: repeats forever, no layer,
+    # no reduced-motion check, on a route-independent shell widget.
+    ("an unisolated shell animation is a finding",
+     "features/sos/presentation/sos_floating_button.dart",
+     "Container().animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(end: 1.06)",
+     True),
+    ("isolated + reduced-motion-aware is fine",
+     "features/sos/presentation/sos_floating_button.dart",
+     "RepaintBoundary(child: Container().animate(onPlay: (c) "
+     "{ if (!AppMotion.isReduced(context)) c.repeat(reverse: true); }))",
+     False),
+    # A screen's own animation unmounts with the screen, so it cannot cost
+    # anything on other routes and is not this check's business.
+    ("a screen-local animation is not this check's business",
+     "features/transport/presentation/transport_screen.dart",
+     "_c.repeat(reverse: true);",
+     False),
+]
+
+
 def selftest(verbose=True):
     ok = True
+    for label, rel, sample, expect in PERPETUAL_SELFTESTS:
+        got = bool(check_perpetual_animation(strip_comments(sample), rel))
+        if got != expect:
+            print(f"  FAIL {label}: expected {expect}, got {got}")
+            ok = False
+        elif verbose:
+            print(f"  pass {label}")
     for label, fn, sample, expect in SELFTESTS:
         got = bool(fn(strip_comments(sample)))
         if got != expect:
@@ -372,6 +445,11 @@ def main():
                     if f"lib/{rel}:{line}" in ALLOW:
                         continue
                     findings.append(f"lib/{rel}:{line}  [{label}]  {msg}")
+            # Needs the path as well as the source, so it is called separately.
+            for line, msg in check_perpetual_animation(src, rel):
+                if f"lib/{rel}:{line}" in ALLOW:
+                    continue
+                findings.append(f"lib/{rel}:{line}  [perpetual animation]  {msg}")
 
     print(f"\nscanned {scanned} dart files under lib/")
     if not findings:

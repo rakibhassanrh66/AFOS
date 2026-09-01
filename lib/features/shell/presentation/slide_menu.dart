@@ -398,7 +398,16 @@ class _SlideMenuState extends State<SlideMenu> {
         ),
         const SizedBox(height:14),
         GestureDetector(
-          onTap:()=>ctx.go('/vr-id'),
+          // Closes the drawer first, like every other destination in here.
+          // Without this the VR ID card navigated UNDER the still-open menu,
+          // so the one screen whose entire purpose is to be looked at (and
+          // scanned) opened hidden behind the drawer that launched it.
+          // `_QuickRailTile` below skips the close deliberately — it only
+          // renders in the permanent web rail, which has no drawer to close.
+          onTap: () {
+            if (!widget.permanent) ctx.read<ShellBloc>().add(CloseMenu());
+            ctx.go('/vr-id');
+          },
           child: Container(
             width: double.infinity,
             padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),

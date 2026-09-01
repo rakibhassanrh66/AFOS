@@ -18,12 +18,48 @@ import '../../../core/layout/nav_insets.dart';
 /// schedule, library books, lost & found, and clubs; results are grouped by
 /// module and tap through to the relevant screen. All reads go through the
 /// caller's existing RLS (authenticated-read tables) — no new access path.
+/// "Put the cursor in the global search field."
+///
+/// WHY THIS EXISTS RATHER THAN A ROUTE PARAMETER. The double-tap shortcut used
+/// to work by navigating to `/search?focus=1`, which broke in a way that looked
+/// like it had never worked: the FIRST double tap set that URL, and every one
+/// after produced an IDENTICAL URI, so GoRouter had nothing to rebuild and the
+/// field was never focused again. It fired exactly once per app launch.
+///
+/// The deeper mistake was modelling it as navigation at all. By the time the
+/// second tap lands, the search screen is already open — the user is not asking
+/// to go anywhere, they are asking for the keyboard. So this is a signal, not a
+/// route, and it repeats as many times as it is sent.
+///
+/// [pending] covers the ordering race: the first tap starts the navigation and
+/// the second arrives before the screen has mounted, so a request made while
+/// nobody is listening still has to be honoured by whoever mounts next.
+class SearchFocusRequest {
+  SearchFocusRequest._();
+
+  static final ValueNotifier<int> tick = ValueNotifier<int>(0);
+  static DateTime? _at;
+
+  static void fire() {
+    _at = DateTime.now();
+    tick.value++;
+  }
+
+  /// A request made in the last [window], for a screen that has just mounted.
+  /// Short on purpose — a stale request must not steal focus minutes later
+  /// when the user opens Search deliberately and calmly.
+  static bool pending({Duration window = const Duration(seconds: 2)}) =>
+      _at != null && DateTime.now().difference(_at!) < window;
+
+  static void consume() => _at = null;
+}
+
 class GlobalSearchScreen extends StatefulWidget {
   /// Open with the field focused and the keyboard already up.
   ///
-  /// Set by a DOUBLE tap on the Search tab (see app_shell). A single tap
-  /// leaves it false, so the screen opens exactly as it always has and the
-  /// shortcut costs nothing to anyone who never finds it.
+  /// Kept for direct links (`/search?focus=1` typed or shared). The nav bar's
+  /// double tap goes through [SearchFocusRequest] instead, because it has to
+  /// work the second, third and fourth time as well.
   final bool autofocus;
   const GlobalSearchScreen({super.key, this.autofocus = false});
   @override State<GlobalSearchScreen> createState() => _GlobalSearchScreenState();
@@ -44,6 +80,7 @@ class _SearchGroup {
 
 class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   final _ctrl = TextEditingController();
+  final _focus = FocusNode();
   Timer? _debounce;
   int _gen = 0;
   bool _loading = false;
@@ -51,7 +88,33 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   List<_SearchGroup> _groups = [];
 
   @override
-  void dispose() { _debounce?.cancel(); _ctrl.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    SearchFocusRequest.tick.addListener(_focusField);
+    // A request can arrive BEFORE this screen exists: the first tab tap starts
+    // the navigation, the second lands while the route is still building. So
+    // check for one on mount as well as listening for later ones.
+    if (widget.autofocus || SearchFocusRequest.pending()) _focusField();
+  }
+
+  /// Focus after the current frame. Requesting focus during build or during
+  /// route construction is a no-op — the field's own FocusNode is not attached
+  /// to the tree yet, so the keyboard never comes up.
+  void _focusField() {
+    SearchFocusRequest.consume();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    SearchFocusRequest.tick.removeListener(_focusField);
+    _debounce?.cancel();
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
 
   void _onChanged(String v) {
     _debounce?.cancel();
@@ -161,7 +224,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           child: AfosTextField(
             hint: 'Search notices, classes, books, clubs, routes…',
             controller: _ctrl,
+            focusNode: _focus,
             prefixIcon: Icons.search_rounded,
+            // autofocus stays for the deep-link case; the node above is what
+            // makes the shortcut repeatable.
             autofocus: widget.autofocus,
             onChanged: _onChanged,
           ),

@@ -57,18 +57,80 @@ class SecureSessionLocalStorage extends LocalStorage {
     }
   }
 
-  @override
-  Future<bool> hasAccessToken() async =>
-      (await _storage.read(key: persistSessionKey)) != null;
+  /// Reads the stored session, and treats ANY failure as "no session".
+  ///
+  /// THIS BRICKED THE APP. `hasAccessToken` is the first thing
+  /// `SupabaseAuth.initialize` calls, and it was an unguarded `await
+  /// _storage.read(...)`. When the read throws, the exception propagates
+  /// through `Supabase.initialize` -> `bootstrap()` -> `main()`, so `runApp`
+  /// is never reached: no Flutter frame is ever drawn and the user sits on the
+  /// native launch icon forever, with no error, no crash dialog, and nothing
+  /// to tap. Observed live as:
+  ///
+  ///   PlatformException(Exception encountered, read,
+  ///   javax.crypto.BadPaddingException: OPENSSL_internal:BAD_DECRYPT)
+  ///   #2 SecureSessionLocalStorage.hasAccessToken
+  ///   #3 SupabaseAuth.initialize  #4 Supabase.initialize
+  ///   #5 bootstrap  #6 main
+  ///
+  /// HOW IT HAPPENS TO REAL USERS. flutter_secure_storage encrypts with a key
+  /// held in the Android Keystore, while the ciphertext lives in ordinary app
+  /// storage. The two can be separated:
+  ///   * Android auto-backup restores the ciphertext to a new device or a
+  ///     reinstall; the Keystore key is device-bound and does not come with it.
+  ///   * Changing the screen lock or re-enrolling a fingerprint can invalidate
+  ///     the key while the ciphertext stays exactly where it was.
+  /// In both cases the bytes are intact and undecryptable — which is precisely
+  /// BAD_DECRYPT. This is not an exotic edge case; it is the ordinary
+  /// new-phone path.
+  ///
+  /// SO IT SELF-HEALS. An entry that cannot be decrypted can never be decrypted
+  /// again, so keeping it only guarantees the same failure on every future
+  /// launch. Deleting it costs the user one sign-in; keeping it costs them the
+  /// app. `initialize` below already reasoned this way about migration failure
+  /// ("must not brick startup... Throwing here would not be [recoverable]") —
+  /// that reasoning was simply never applied to the other four methods.
+  Future<String?> _readOrHeal() async {
+    try {
+      return await _storage.read(key: persistSessionKey);
+    } catch (e) {
+      debugPrint('[SecureSessionLocalStorage] unreadable session discarded: $e');
+      try {
+        await _storage.delete(key: persistSessionKey);
+      } catch (_) {
+        // Even the delete can fail on a wedged keystore. Reporting "no
+        // session" is still correct and still lets the app start.
+      }
+      return null;
+    }
+  }
 
   @override
-  Future<String?> accessToken() => _storage.read(key: persistSessionKey);
+  Future<bool> hasAccessToken() async => (await _readOrHeal()) != null;
 
   @override
-  Future<void> removePersistedSession() =>
-      _storage.delete(key: persistSessionKey);
+  Future<String?> accessToken() => _readOrHeal();
 
   @override
-  Future<void> persistSession(String persistSessionString) =>
-      _storage.write(key: persistSessionKey, value: persistSessionString);
+  Future<void> removePersistedSession() async {
+    try {
+      await _storage.delete(key: persistSessionKey);
+    } catch (e) {
+      // Signing out must always succeed from the user's point of view. The
+      // in-memory session is cleared by the caller regardless.
+      debugPrint('[SecureSessionLocalStorage] delete failed: $e');
+    }
+  }
+
+  @override
+  Future<void> persistSession(String persistSessionString) async {
+    try {
+      await _storage.write(key: persistSessionKey, value: persistSessionString);
+    } catch (e) {
+      // Failing to REMEMBER a session is a lost convenience: the user stays
+      // signed in for this run and signs in again next launch. Failing to
+      // start the app is not a trade worth making for it.
+      debugPrint('[SecureSessionLocalStorage] persist failed: $e');
+    }
+  }
 }

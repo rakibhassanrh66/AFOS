@@ -360,7 +360,12 @@ class _NotificationBellState extends State<_NotificationBell> {
           // interacts with Container's own bounded-constraints-plus-alignment
           // expand rule unpredictably; height:1.0 + textHeightBehavior below
           // centers the count text without touching how this Container sizes.
-          Positioned(right: 6, top: 6, child: IgnorePointer(child: Container(
+          // RepaintBoundary for the same reason the SOS button now has one:
+          // this badge pulses forever, it is in the app bar so it is on screen
+          // on EVERY route, and the shell stacks three BackdropFilters. Without
+          // its own layer, a 16dp dot re-blurs the whole chrome 60 times a
+          // second for as long as anything is unread.
+          Positioned(right: 6, top: 6, child: RepaintBoundary(child: IgnorePointer(child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
               decoration: BoxDecoration(color: AppColors.red, shape: BoxShape.circle,
@@ -377,7 +382,7 @@ class _NotificationBellState extends State<_NotificationBell> {
                   onPlay: (c) { if (!AppMotion.isReduced(context)) c.repeat(reverse: true); })
               .scaleXY(
                   end: AppMotion.isReduced(context) ? 1.0 : 1.15,
-                  duration: AppMotion.durationOf(context, AppMotion.hero)))),
+                  duration: AppMotion.durationOf(context, AppMotion.hero))))),
       ]),
     );
   }

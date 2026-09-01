@@ -14,6 +14,7 @@ import '../../../shared/widgets/glass_bottom_nav.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/liquid_backdrop.dart';
 import '../../../shared/widgets/offline_banner.dart';
+import '../../search/presentation/global_search_screen.dart' show SearchFocusRequest;
 import '../../sos/presentation/sos_floating_button.dart';
 import '../bloc/shell_bloc.dart';
 import 'command_palette.dart';
@@ -365,13 +366,23 @@ class _ShellBody extends StatelessWidget {
                           // saves landing on the screen and then reaching
                           // back up to the field. The single tap is
                           // unchanged, so nobody has to know this exists.
+                          // A SIGNAL, NOT A SECOND NAVIGATION. This used to
+                          // `go('/search?focus=1')`, which worked exactly once
+                          // per launch: after the first time, the URL already
+                          // WAS that, so the second double tap produced an
+                          // identical URI, GoRouter had nothing to rebuild, and
+                          // the keyboard never came up again.
+                          //
+                          // By the time this fires the screen is already open
+                          // (the first tap of the pair navigated), so what is
+                          // wanted is the cursor, not a route. Firing a request
+                          // repeats as often as it is sent, and
+                          // SearchFocusRequest.pending() covers the case where
+                          // this lands before the screen has mounted.
                           onDoubleTap: (i) {
                             final route = kQuickNavDestinations[i].route;
-                            if (route == '/search') {
-                              context.go('$route?focus=1');
-                            } else {
-                              context.go(route);
-                            }
+                            context.go(route);
+                            if (route == '/search') SearchFocusRequest.fire();
                           },
                         ),
                       ),
@@ -424,7 +435,35 @@ class _ShellBody extends StatelessWidget {
                   top: mq.padding.top + 8,
                   bottom: mq.padding.bottom + 8,
                   width: menuWidth,
-                  child: const SlideMenu(),
+                  // THE CLOSED DRAWER MUST COST NOTHING PER FRAME.
+                  //
+                  // This menu is never unmounted — the line above slides it to
+                  // `-(menuWidth + 20)` and leaves it in the tree, laid out and
+                  // ticking, for the whole life of the app. So ANY descendant
+                  // that calls `AnimationController.repeat()` runs at 60fps
+                  // forever, whether or not the drawer has ever been opened.
+                  //
+                  // That is not a drawer problem, it is an app problem, and the
+                  // bottom nav is where it shows up worst. A ticker anywhere
+                  // schedules a frame every vsync; a BackdropFilter re-runs its
+                  // blur on every frame it is part of. This shell stacks three
+                  // of them (nav bar, app bar, this menu), so one perpetual
+                  // animation quietly turned every blur in the app into a
+                  // 60fps full-framebuffer readback. Measured symptom:
+                  // `dumpsys gfxinfo` reporting "Number High input latency" on
+                  // 11 of 13 frames — touches answered late, everywhere.
+                  //
+                  // TickerMode is the framework's own answer (it is what routes
+                  // use for covered pages) and it disables EVERY descendant
+                  // ticker, so this keeps working for animations added to the
+                  // menu later by someone who never reads this comment.
+                  // Verified in test/idle_animation_cost_test.dart: muted, the
+                  // subtree reports zero transient frame callbacks, and it
+                  // resumes correctly when the drawer reopens.
+                  child: TickerMode(
+                    enabled: state.isOpen,
+                    child: const SlideMenu(),
+                  ),
                 ),
               ]),
             ),
