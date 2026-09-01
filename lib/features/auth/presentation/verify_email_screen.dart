@@ -12,6 +12,7 @@ import '../../../config/theme/motion.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/otp_code.dart';
 import '../../../core/utils/pending_credentials_store.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/extensions/context_ext.dart';
@@ -202,15 +203,16 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   /// the read something they asked for, so the toast is an expected
   /// confirmation instead of an accusation.
   ///
-  /// The regex takes a 6-digit run with non-digits either side, so it still
-  /// finds the code when someone copies a whole line out of the email —
-  /// "123456 is your AFOS confirmation code" pastes correctly — while refusing
-  /// to slice six digits out of a longer number.
+  /// Parsing lives in [extractOtpCode], which tolerates the separators a mail
+  /// client puts on the clipboard — including `4 8 2 9 1 3` from selecting the
+  /// email's per-digit chips — while still refusing to slice six digits out of
+  /// a longer number. See its tests; that tolerance is what let the email be
+  /// designed properly.
   Future<void> _pasteCode() async {
     String? found;
     try {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
-      found = RegExp(r'(?<!\d)(\d{6})(?!\d)').firstMatch(data?.text ?? '')?.group(1);
+      found = extractOtpCode(data?.text);
     } catch (_) {
       // A denied or empty clipboard is not an error worth a red banner.
     }

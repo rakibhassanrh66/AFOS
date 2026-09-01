@@ -86,19 +86,45 @@ interface Shell {
 }
 
 function shell(o: Shell): string {
+  // One cell per character, with a 6px spacer between them. The spacer is its
+  // own <td> rather than a margin, because Word ignores margins on table cells
+  // and the chips would touch in Outlook.
+  //
+  // Split on the raw code and escape EACH character: the code is generated
+  // server-side and is always digits, but escaping per-cell rather than
+  // trusting that keeps the guarantee local to this line, where anyone reading
+  // it can see it holds.
+  const digitCells = !o.code ? "" : o.code
+    .split("")
+    .map((ch, idx) =>
+      `${idx === 0 ? "" : `<td width="6" style="width:6px;font-size:0;line-height:0;">&nbsp;</td>`}` +
+      `<td class="afos-chip" align="center" style="width:46px;height:58px;background:#FFFFFF;` +
+      `border:1px solid ${HAIRLINE};border-bottom:3px solid ${BRAND_GREEN_DEEP};border-radius:10px;` +
+      `font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:30px;` +
+      `font-weight:700;color:${INK};text-align:center;vertical-align:middle;">${escapeHtml(ch)}</td>`
+    )
+    .join("");
+
   const codeBlock = !o.code ? "" : `
   <!-- THE CODE. The single loudest element on the page, because most people
        type it rather than click — especially on a phone.
 
-       ONE SELECTABLE TEXT RUN, not one box per digit. Per-digit chips look
-       sharper in a screenshot, but they put each character in its own table
-       cell, so a long-press selection copies "1 2 3 4 5 6" with the cell
-       whitespace baked in and the paste fails validation. Beauty that breaks
-       the paste is a downgrade: this is the one string in the whole message
-       the reader has to physically move somewhere else.
+       PER-DIGIT CHIPS, and the reason they are safe. Each digit sits in its
+       own cell, which is far easier to read off a screen and to transcribe by
+       eye than one long run — but it means a long-press selection returns
+       "4 8 2 9 1 3" with the cell separators included.
 
-       The accent rule above the code carries the brand instead, which costs
-       nothing and cannot fragment the text. -->
+       That would break the paste, and nearly cost us this design. It does not,
+       because the APP tolerates it: the code field runs
+       FilteringTextInputFormatter.digitsOnly, so a manual paste is normalised,
+       and the "Paste code from email" button parses through extractOtpCode(),
+       which accepts spaces, non-breaking spaces, newlines and dashes between
+       digits while still refusing to slice six digits out of a longer number.
+       See test/otp_code_test.dart — the `4 8 2 9 1 3` case is pinned there
+       precisely so nobody tightens that parser and silently breaks this mail.
+
+       The fix belonged in the parser, not in the design: there is one parser
+       and it is testable, while the mail is seen by every applicant. -->
   <tr><td class="afos-pad" style="padding:26px 40px 0 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="afos-panel afos-rise" style="background:${PANEL};border:1px solid ${HAIRLINE};border-radius:14px;">
       <tr><td style="padding:0;font-size:0;line-height:0;">
@@ -108,9 +134,13 @@ function shell(o: Shell): string {
         </tr></table>
       </td></tr>
       <tr><td align="center" style="padding:24px 16px 22px 16px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
-        <div class="afos-muted" style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:${INK_MUTED};font-weight:600;margin-bottom:14px;">Your confirmation code</div>
-        <div class="afos-code afos-ink afos-shimmer" style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:40px;font-weight:700;letter-spacing:12px;color:${INK};line-height:1.15;padding-left:12px;">${escapeHtml(o.code)}</div>
-        <div class="afos-muted" style="font-size:12px;color:${INK_MUTED};margin-top:14px;">Tap and hold the code to copy it</div>
+        <div class="afos-muted" style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:${INK_MUTED};font-weight:600;margin-bottom:16px;">Your confirmation code</div>
+        <!-- A centred table, not inline-blocks: Outlook's Word engine drops
+             inline-block entirely and would stack the digits vertically. -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr>
+          ${digitCells}
+        </tr></table>
+        <div class="afos-muted" style="font-size:12px;color:${INK_MUTED};margin-top:16px;">Tap and hold to copy, then press <strong style="color:${INK};">Paste code from email</strong> in the app</div>
         <div class="afos-muted" style="font-size:12px;color:${INK_MUTED};margin-top:4px;">Expires in ${o.expiresMinutes} minutes · works once</div>
       </td></tr>
     </table>
@@ -137,6 +167,10 @@ function shell(o: Shell): string {
   @media (max-width:620px){
     .afos-pad{padding-left:24px!important;padding-right:24px!important}
     .afos-code{font-size:30px!important;letter-spacing:8px!important}
+    /* Six 46px chips plus five 6px gaps is 306px, which overflows a 320px
+       screen once the card's own padding is counted. Narrowing the chips keeps
+       the row on one line rather than wrapping three digits onto a second. */
+    .afos-chip{width:40px!important;height:52px!important;font-size:26px!important}
   }
 
   /* MOTION, AND THE RULE THAT MAKES IT SAFE.
@@ -174,6 +208,7 @@ function shell(o: Shell): string {
     .afos-ink{color:#E8EFF9!important}
     .afos-muted{color:#94A7C2!important}
     .afos-panel{background:#122032!important;border-color:#25384F!important}
+    .afos-chip{background:#0B1626!important;border-color:#2B4160!important;color:#E8EFF9!important}
   }
 </style>
 </head>
