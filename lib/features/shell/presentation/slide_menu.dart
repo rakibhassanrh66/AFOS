@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart' show listEquals;
 
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -22,6 +21,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/logout_tile.dart';
+import '../../../shared/widgets/profile_identity_header.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
 
 /// Re-exported from the capability model so the two cannot drift.
@@ -352,39 +352,37 @@ class _SlideMenuState extends State<SlideMenu> {
         border: Border(bottom: BorderSide(color: AppColors.borderOf(ctx), width: 0.5)),
       ),
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-        Row(children:[
-          GestureDetector(
-            onTap: () {
-              if (!widget.permanent) ctx.read<ShellBloc>().add(CloseMenu());
-              ctx.push('/complete-profile');
-            },
-            child: _Avatar(url:_user?.avatarUrl, initials:_user?.initials??'?', isSuperAdmin: isSuperAdmin)),
-          const Spacer(),
-          // A permanent rail has nothing to close.
-          if (!widget.permanent)
-            IconButton(icon:Icon(AppIcons.close,color:textSecondary),
-              onPressed:()=>ctx.read<ShellBloc>().add(CloseMenu())),
-        ]),
-        const SizedBox(height:14),
-        Text(_user?.fullName??'Loading...', style:AppTextStyles.titleLarge.copyWith(color: textPrimary),
-          maxLines:1, overflow:TextOverflow.ellipsis),
-        const SizedBox(height:3),
-        Text(_user?.studentId??'', style:AppTextStyles.monoSmall.copyWith(color: textSecondary),
-          maxLines:1, overflow:TextOverflow.ellipsis),
-        const SizedBox(height:10),
-        Row(children:[
-          // Only drawn when there is something to say. This was
-          // `_Chip(_user?.department ?? '')` — unconditional — and staff rows
-          // carried department = '' (an empty STRING, so `??` never fired).
-          // The result was a chip with padding, a background and no text: a
-          // small blank blob parked next to the user's name. A field with no
-          // value should occupy no space, not draw an empty container.
-          if (_user?.affiliation != null) ...[
-            Flexible(child: _Chip(_user!.affiliation!, AppColors.holoBlue)),
-            const SizedBox(width:8),
-          ],
-          _Chip(_secondaryChipLabel, AppColors.green),
-        ]),
+        // The close button now sits on its own line above the identity, so
+        // the portrait can own the right-hand side. It used to share a Row
+        // with the avatar, which is what pinned the photo to the left and
+        // left the whole right half of the drawer empty.
+        if (!widget.permanent)
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: IconButton(
+              icon: Icon(AppIcons.close, color: textSecondary),
+              onPressed: () => ctx.read<ShellBloc>().add(CloseMenu()),
+            ),
+          ),
+        // ONE header for every role. Which second label appears is decided by
+        // `_secondaryChipLabel` (semester for a student, designation for a
+        // teacher or staff member, the title itself for an administrator),
+        // and a blank department simply is not drawn — staff rows carry
+        // department = '' , an empty STRING, so `??` never fires and the old
+        // unconditional chip rendered as a small blank blob beside the name.
+        ProfileIdentityHeader(
+          name: _user?.fullName ?? 'Loading...',
+          identifier: _user?.studentId,
+          affiliation: _user?.affiliation,
+          roleLabel: _secondaryChipLabel,
+          avatarUrl: _user?.avatarUrl,
+          initials: _user?.initials ?? '?',
+          isSuperAdmin: isSuperAdmin,
+          onTapAvatar: () {
+            if (!widget.permanent) ctx.read<ShellBloc>().add(CloseMenu());
+            ctx.push('/complete-profile');
+          },
+        ),
         const SizedBox(height:14),
         GestureDetector(
           onTap:()=>ctx.go('/vr-id'),
@@ -563,68 +561,6 @@ class _MenuTileState extends State<_MenuTile> {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  final String? url; final String initials; final bool isSuperAdmin;
-  const _Avatar({this.url, required this.initials, this.isSuperAdmin = false});
-  @override
-  Widget build(BuildContext context) {
-    final ringColor = isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue;
-    return Container(
-      width:52,height:52,
-      decoration:BoxDecoration(shape:BoxShape.circle,
-        border:Border.all(color:ringColor.withValues(alpha:0.6),width: isSuperAdmin ? 3 : 2),
-        boxShadow:[BoxShadow(color:ringColor.withValues(alpha:0.25),blurRadius:12,spreadRadius:-2)]),
-      child: ClipOval(child: url!=null && url!.isNotEmpty
-        ? CachedNetworkImage(imageUrl:url!,fit:BoxFit.cover,memCacheWidth:128,
-            errorWidget:(_,__,___)=>_initials(context, initials))
-        : _initials(context, initials)),
-    );
-  }
-  Widget _initials(BuildContext context, String i) => Container(color:AppColors.surfaceOf(context),
-    child:Center(child:Text(i,style:const TextStyle(color:AppColors.holoBlue,fontSize:18,fontWeight:FontWeight.bold))));
-}
-
-class _Chip extends StatelessWidget {
-  final String label; final Color color;
-  const _Chip(this.label,this.color);
-  @override
-  // Container's own `alignment` was tried here first -- it fixed the text's
-  // vertical centering, but this chip is used both bare in a Row AND wrapped
-  // in Flexible (the department chip); a Container with alignment but no
-  // explicit size EXPANDS to fill all available space once its parent's
-  // constraints are bounded (which Flexible imposes), so the Flexible-wrapped
-  // department chip ballooned to fill most of the row's width. Centering the
-  // text's own line box instead (height:1.0 + textHeightBehavior) fixes the
-  // same vertical-centering issue without touching how the Container sizes
-  // itself, so both the bare and Flexible-wrapped usages stay tightly
-  // wrapped around their text.
-  //
-  // TEXT IS SOLID INK, NOT `color` -- reported live as "CSE"/"Sem 8" reading
-  // faded. The 0.15-alpha tint behind the text is barely off the surface
-  // colour, so painting the label in the full-strength accent on top of that
-  // near-neutral tint is a low-contrast combination almost by construction;
-  // `foregroundOn` does not apply either, since that answers for a SOLID
-  // accent fill, not a tint this light. The accent still carries the chip's
-  // identity via the tint and the border -- the label does not also need to
-  // repeat it in a harder-to-read colour.
-  Widget build(BuildContext context) => Container(
-    padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),
-    decoration:BoxDecoration(color:color.withValues(alpha:0.15),borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
-      border:Border.all(color:color.withValues(alpha:0.3))),
-    child:Text(label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
-      style:TextStyle(color:AppColors.textPrimaryOf(context),fontSize:11,height: 1.0,fontWeight:FontWeight.w600),
-      maxLines:1,overflow:TextOverflow.ellipsis),
-  );
-}
-
-// _MenuItem is gone. It was a fourth definition of "a thing you can navigate
-// to" -- alongside the dashboard's _Module, the palette's NavDestination and
-// the router's own table -- and the one that carried a colour disagreeing with
-// AppColors.moduleColors. AppCapability replaces it; `.color` became `.accent`
-// because the value is an accent, not the widget's colour.
-
-/// A pinned quick-access tile for the web rail: highlights by the active route
-/// and navigates with `go` (no ShellBloc index side effects).
 class _QuickRailTile extends StatelessWidget {
   final AppCapability item;
   final bool active;

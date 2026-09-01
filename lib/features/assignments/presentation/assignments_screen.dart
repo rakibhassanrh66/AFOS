@@ -126,7 +126,26 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   }
 
   Future<void> _submit() async {
-    if (_selectedSection == null || _titleCtrl.text.trim().isEmpty || _deadline == null) return;
+    // This used to be a bare `return` on all three: press Post Assignment
+    // with no deadline picked and the button did NOTHING — no message, no
+    // highlight, no clue which of the fields was the problem. A teacher
+    // pressing a button and getting silence reasonably concludes the app is
+    // broken, and the one field most easily missed (the deadline is a
+    // dialog, not a text box) is the one that failed silently.
+    //
+    // Named in the order they appear on the form, so the message points at a
+    // place on screen rather than describing a concept.
+    final missing = <String>[
+      if (_selectedSection == null) 'the class',
+      if (_titleCtrl.text.trim().isEmpty) 'a title',
+      if (_deadline == null) 'a deadline',
+    ];
+    if (missing.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Still needed: ${missing.join(', ')}.'),
+          backgroundColor: AppColors.amber));
+      return;
+    }
     final maxMarks = double.tryParse(_maxMarksCtrl.text.trim());
     if (maxMarks == null || maxMarks <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -185,7 +204,13 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
             const SizedBox(height: 12),
             AfosTextField(hint: 'Title', controller: _titleCtrl),
             const SizedBox(height: 12),
-            AfosTextField(hint: 'Description / question', controller: _descCtrl, maxLines: 3),
+            // A hint that asks for what a student actually needs. "Description
+            // / question" invited a one-line prompt; the students reading it
+            // then have no idea what to hand in or how it is marked.
+            AfosTextField(
+                hint: 'Instructions — what to do, what to hand in, how it is marked',
+                controller: _descCtrl,
+                maxLines: 5),
             const SizedBox(height: 12),
             // The mark ceiling is per-assignment because a weekly problem sheet
             // and a term paper are not worth the same; a DB trigger rejects a

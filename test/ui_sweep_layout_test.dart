@@ -16,6 +16,7 @@ import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.
 
 import 'package:afos_v7/features/dashboard/presentation/widgets/my_completeness_ring.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/weather_dress_card.dart';
+import 'package:afos_v7/shared/widgets/profile_identity_header.dart';
 import 'package:afos_v7/shared/widgets/shimmer_card.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/admin_insights_panel.dart';
 import 'package:afos_v7/features/web/presentation/consoles/admin_overview.dart';
@@ -189,6 +190,35 @@ void main() {
             BarDatum('68', 12),
           ],
           total: 542,
+        ),
+
+    // The redesigned drawer identity, in the widest and narrowest role
+    // shapes it has to hold: a long student name with department + semester,
+    // and an administrator with a title but no department and no id.
+    'ProfileIdentityHeader (student, long name)': () =>
+        const ProfileIdentityHeader(
+          name: 'Mohammad Shariar Ahamed Ripon Chowdhury',
+          identifier: '241-15-1491',
+          affiliation: 'CSE',
+          roleLabel: 'Sem 8',
+          initials: 'MS',
+        ),
+
+    'ProfileIdentityHeader (super admin, no dept or id)': () =>
+        const ProfileIdentityHeader(
+          name: 'Rakib Hassan',
+          roleLabel: 'Super Admin',
+          initials: 'RH',
+          isSuperAdmin: true,
+        ),
+
+    'ProfileIdentityHeader (teacher, long designation)': () =>
+        const ProfileIdentityHeader(
+          name: 'Md. Aktaruzzaman',
+          identifier: '201-15-3132',
+          affiliation: 'CSE',
+          roleLabel: 'Assistant Professor',
+          initials: 'MA',
         ),
 
     // --- the last unprobed public widgets -------------------------------

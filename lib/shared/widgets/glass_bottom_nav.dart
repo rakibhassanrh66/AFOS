@@ -35,11 +35,18 @@ class GlassBottomNav extends StatefulWidget {
   /// one of the tabs (the planet then rests on Home but a tap still navigates).
   final int currentIndex;
   final ValueChanged<int> onTap;
+
+  /// Double-tap on a tab, when that tab has a second gesture worth offering.
+  /// Optional: a destination with nothing extra to do simply does not pass it,
+  /// and a double tap there still registers as the two ordinary taps it is.
+  final ValueChanged<int>? onDoubleTap;
+
   const GlassBottomNav({
     super.key,
     required this.destinations,
     required this.currentIndex,
     required this.onTap,
+    this.onDoubleTap,
   });
 
   static const double barHeight = 75;
@@ -208,6 +215,12 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
                         dest: widget.destinations[i],
                         active: i == _display,
                         onTap: () => _handleTap(i),
+                        onDoubleTap: widget.onDoubleTap == null
+                            ? null
+                            : () {
+                                HapticFeedback.selectionClick();
+                                widget.onDoubleTap!(i);
+                              },
                       )),
                   ]),
                 ),
@@ -272,13 +285,24 @@ class _NavItem extends StatelessWidget {
   final BottomNavDest dest;
   final bool active;
   final VoidCallback onTap;
-  const _NavItem({required this.dest, required this.active, required this.onTap});
+
+  /// Optional shortcut on the same target. Search uses it to open ALREADY
+  /// typing, the way the Play Store's search does, so nobody has to land on
+  /// the screen and then reach up to the field to start.
+  final VoidCallback? onDoubleTap;
+
+  const _NavItem(
+      {required this.dest,
+      required this.active,
+      required this.onTap,
+      this.onDoubleTap});
 
   @override
   Widget build(BuildContext context) {
     final iconColor = AppColors.textSecondaryOf(context);
     return GestureDetector(
       onTap: onTap,
+      onDoubleTap: onDoubleTap,
       behavior: HitTestBehavior.opaque,
       child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
         const SizedBox(height: 12),

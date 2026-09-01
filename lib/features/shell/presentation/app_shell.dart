@@ -359,6 +359,20 @@ class _ShellBody extends StatelessWidget {
                           // top-level tabs, so re-selecting one should replace, not
                           // stack Home on top of Home.
                           onTap: (i) => context.go(kQuickNavDestinations[i].route),
+                          // Double-tap opens the destination ALREADY typing,
+                          // where that means something. Today only Search
+                          // does: the Play Store behaves this way, and it
+                          // saves landing on the screen and then reaching
+                          // back up to the field. The single tap is
+                          // unchanged, so nobody has to know this exists.
+                          onDoubleTap: (i) {
+                            final route = kQuickNavDestinations[i].route;
+                            if (route == '/search') {
+                              context.go('$route?focus=1');
+                            } else {
+                              context.go(route);
+                            }
+                          },
                         ),
                       ),
                     ),
