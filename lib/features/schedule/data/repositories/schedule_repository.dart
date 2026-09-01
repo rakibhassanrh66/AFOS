@@ -327,6 +327,38 @@ class ScheduleRepository {
     },
   );
 
+  /// Whether this routine timetables ANYTHING against [initial], on any day.
+  ///
+  /// A teacher's day view is matched purely on `teacher_initial`, so three
+  /// very different situations all render as an empty day and the screen used
+  /// to call all three "Nothing is scheduled for you today":
+  ///
+  ///   * the teacher has no initial set at all;
+  ///   * they have one, but this routine never mentions it (checked live on
+  ///     2026-09-01: the CSE routine carries 221 distinct initials, and one
+  ///     teacher's stored 'FNB' is not among them — FFN and FNN are, so it
+  ///     reads like a typo);
+  ///   * they are genuinely free today.
+  ///
+  /// Only the third is "enjoy your day". This tells the screen which it is
+  /// looking at, so the other two can say something a teacher can act on.
+  /// Counted with a HEAD request — the answer is a yes/no, not a list.
+  Future<bool> routineMentionsTeacher(String initial) async {
+    if (initial.trim().isEmpty) return false;
+    try {
+      final n = await _client
+          .from('schedule_slots')
+          .count()
+          .eq('teacher_initial', initial.trim());
+      return n > 0;
+    } catch (_) {
+      // Unknown is treated as "yes" so a failed check degrades to the old,
+      // neutral message rather than accusing a correctly-configured teacher
+      // of having a bad initial.
+      return true;
+    }
+  }
+
   /// The semester break for [department], or null if classes are still on.
   ///
   /// THE RULE, and why each half of it is needed.
