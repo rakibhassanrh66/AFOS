@@ -38,6 +38,48 @@ jobs:
       - name: Audit UI bounds (text fit at 2.0x, 48dp touch targets)
         run: python3 .github/scripts/check_ui_bounds.py
 
+      # Nothing in this repo type-checked the edge functions until now, and the
+      # gap was not theoretical: a stray backtick inside a template literal in
+      # _shared/email_templates.ts made ALL THREE mail functions fail to bundle.
+      # `flutter analyze` cannot see TypeScript and the Dart test suite never
+      # loads it, so the only thing that noticed was `supabase functions
+      # deploy` — which runs AFTER the commit is already on main. That is a
+      # window in which registration mail is broken and the repo looks green.
+      #
+      # `deno check` parses and type-checks without deploying, so the same
+      # class of error fails the PR instead. Every function is listed rather
+      # than globbed, so adding one is a deliberate act that shows up in review.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # SCOPED, and the exclusions are a decision rather than an oversight.
+      # Every auth and mail function is covered — the whole registration path,
+      # which is where a bundle failure costs someone an account. Five others
+      # are left out because they ALREADY fail type-checking, measured:
+      #
+      #   send-notification   1   'err' is of type 'unknown'
+      #   trigger-sos-alert   1   'err' is of type 'unknown'
+      #   delete-user         1   'authData.user' is possibly 'null'
+      #   check-push-status   1   'err' is of type 'unknown'
+      #   parse-routine       3   same two shapes
+      #
+      # Those are real latent bugs, not noise: `err.message` on a non-Error
+      # throw gives "undefined" instead of a reason, and the null user is a
+      # genuine dereference. But they are in functions this change never
+      # touched, and fixing them means redeploying working code that nothing
+      # here tests. Fix them deliberately, then move the file into this list —
+      # the list is the todo.
+      - name: Type-check Supabase edge functions (auth + mail path)
+        run: |
+          deno check --no-lock \
+            supabase/functions/register-request/index.ts \
+            supabase/functions/register-verify/index.ts \
+            supabase/functions/register-review-request/index.ts \
+            supabase/functions/register-admin-approve/index.ts \
+            supabase/functions/password-reset/index.ts \
+            supabase/functions/email-dispatch/index.ts \
+            supabase/functions/announce-release/index.ts
+
   # Standing assertion that no SECURITY DEFINER function is reachable by
   # `anon`. CREATE FUNCTION grants EXECUTE to PUBLIC by default, so a new
   # definer RPC is exposed unless its author remembers to REVOKE — which has
