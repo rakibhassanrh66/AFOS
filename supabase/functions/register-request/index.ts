@@ -263,6 +263,28 @@ serve(async (req) => {
         mailFailed = true;
         mailReason = "provider";
         lane = "failed";
+        // STAGE THEM, exactly as the quota path does.
+        //
+        // This was missing, and it stranded a real applicant. When the
+        // provider rejects — an unverified sending domain, a refused address —
+        // the signup is saved but the code can never arrive, and leaving
+        // review_state at 'none' keeps them OUT of the admin queue, which
+        // selects on 'needs_review'. So they were invisible: no mail, no
+        // listing, and nothing to tell an admin they existed. The only way in
+        // was for the applicant to notice the fallback and press it
+        // themselves, which is a lot to ask of someone who has just been told
+        // to check an inbox.
+        //
+        // Whether mail failed because of OUR quota or the PROVIDER makes no
+        // difference to the person waiting; both mean a human has to finish
+        // it. Only the copy they are shown differs.
+        await supabase.from("pending_registrations")
+          .update({
+            review_state: "needs_review",
+            review_reason: "Verification email was rejected by the mail provider",
+          })
+          .eq("email_norm", email)
+          .is("consumed_at", null);
       }
     }
 
