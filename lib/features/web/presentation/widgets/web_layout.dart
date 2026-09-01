@@ -207,9 +207,29 @@ class WebStatStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (ctx, box) {
-      // Never fewer than 2 across, never more than 5: one long row of tiny
-      // figures is as unreadable as a single column of huge ones.
-      final perRow = (box.maxWidth ~/ 240).clamp(2, 5);
+      // Never more than 5: one long row of tiny figures is as unreadable as a
+      // single column of huge ones.
+      //
+      // The FLOOR used to be 2 as well, for the same stated reason — but on a
+      // narrow window that floor produced exactly the unreadability it was
+      // meant to prevent. At 320dp it forced two cells of ~154px, leaving
+      // "Incomplete profiles" 64px of text space and rendering 16px of it:
+      // "In…", at the DEFAULT text size. The probe caught all three labels
+      // truncated that way.
+      //
+      // The floor is now 1, because 240 ALREADY encodes the minimum readable
+      // cell width — flooring at 2 contradicted it, forcing two 194px cells
+      // into a 400dp window and truncating every label. Honour the 240 and
+      // the count falls out correctly: one column under 480dp, two up to
+      // 720dp, and so on to the cap of five.
+      //
+      // And 240 itself scales with the reader's text, because it is a budget
+      // for TEXT: a cell that comfortably holds "Incomplete profiles" at the
+      // default size holds a quarter of it at 2.0x. Without this the strip
+      // kept three columns at any scale and clipped the caption that gives
+      // each figure its meaning.
+      final minCell = MediaQuery.textScalerOf(ctx).scale(240);
+      final perRow = (box.maxWidth ~/ minCell).clamp(1, 5);
       final width = (box.maxWidth - (perRow - 1) * AppSpace.md) / perRow;
       return Wrap(
         spacing: AppSpace.md,
@@ -279,8 +299,14 @@ class _StatCell extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     )),
+                // Two lines, not one. This line is what the figure MEANS —
+                // "13" says nothing without "Incomplete profiles" — and at
+                // one line it was being ellipsised inside a perfectly roomy
+                // 164px cell on a 768dp tablet, at the default text size.
+                // Clipping the caption to protect a fixed row height is the
+                // wrong trade: the cells sit in a Wrap that grows happily.
                 Text(stat.note ?? stat.label,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelSmall
                         .copyWith(color: AppColors.textSecondaryOf(context))),
