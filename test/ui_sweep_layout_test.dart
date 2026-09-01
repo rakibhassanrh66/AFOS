@@ -12,6 +12,7 @@ import 'package:afos_v7/features/admin/presentation/widgets/user_card.dart';
 // which is itself not probeable (see the note at its case below).
 import 'package:afos_v7/features/admin/presentation/widgets/user_group_tree.dart';
 import 'package:afos_v7/features/auth/presentation/login_screen.dart' show logoLetter;
+import 'package:afos_v7/features/auth/presentation/verify_email_screen.dart';
 import 'package:afos_v7/features/auth/presentation/widgets/auth_brand_panel.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.dart';
 
@@ -300,6 +301,42 @@ void main() {
     // A copy of it here could not regress.
     'logoLetter (login wordmark tile)': () =>
         Builder(builder: (ctx) => logoLetter('A', AppColors.holoBlue, ctx)),
+
+    // The screen an applicant lands on when the day's mail allowance is gone.
+    // It is the densest state this screen has — a headline, an explanation, the
+    // manual-approval button, and two contact buttons carrying a full email
+    // address and a Telegram handle — and it is seen ONLY by people already
+    // having a bad time, so it is the last place a layout fault should surface.
+    // The PANE, not the screen: VerifyEmailScreen's State builds an
+    // AuthRepository, which needs a live Supabase the harness has no business
+    // starting. The pane is where all the layout actually is — pure data and
+    // callbacks in, widgets out — so this probes the real thing without
+    // standing up a backend to look at a column of text.
+    'VerifyEmailPane (mail quota exhausted)': () => VerifyEmailPane(
+          isLinkPath: false,
+          email: 'shahriar.rahman.chowdhury@diu.edu.bd',
+          lane: 'quota_exhausted',
+          error: null,
+          busy: false,
+          resendIn: 0,
+          codeCtrl: TextEditingController(),
+          codeFocus: FocusNode(),
+          textPrimary: AppColors.textPrimary,
+          textSecondary: AppColors.textSecondary,
+          onSubmit: () {},
+          onResend: null,
+          onRetryToken: () {},
+          manualFallback: true,
+          mailFailed: true,
+          mailReason: 'quota',
+          supportEmail: 'rakibhassan.rh66@protonmail.com',
+          supportTelegram: '@deadbrat',
+          reviewBusy: false,
+          reviewRequested: false,
+          onRequestReview: () {},
+          onBackToCode: () {},
+          cardMaxWidth: double.infinity,
+        ),
 
     // The semester-break card, new this phase. It replaces the routine
     // entirely for a whole department, so it has to survive every size and

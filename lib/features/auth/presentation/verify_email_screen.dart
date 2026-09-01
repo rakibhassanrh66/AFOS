@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -32,7 +33,8 @@ import 'widgets/auth_brand_panel.dart';
 /// the student ever clicks.
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({super.key, this.email, this.token, this.resendAfterSeconds = 60,
-      this.lane = 'inline', this.manualFallback = true, this.mailFailed = false});
+      this.lane = 'inline', this.manualFallback = true, this.mailFailed = false,
+      this.mailReason, this.supportEmail, this.supportTelegram});
 
   final String? email;
   final String? token;
@@ -50,6 +52,18 @@ class VerifyEmailScreen extends StatefulWidget {
   /// an error — so the screen leads with manual approval instead of telling
   /// someone to check an inbox nothing was sent to.
   final bool mailFailed;
+
+  /// Why there is no mail: 'quota' (our daily allowance is spent) or
+  /// 'provider' (this address was refused). Drives which copy is shown, because
+  /// the two need opposite reassurance — one is entirely our fault and
+  /// temporary, the other may be a typo in their address.
+  final String? mailReason;
+
+  /// Support contacts, supplied by the server so they can change without an
+  /// app release. Null falls back to showing no contact block at all rather
+  /// than a stale address nobody reads.
+  final String? supportEmail;
+  final String? supportTelegram;
 
   @override
   State<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -215,7 +229,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         ),
       ),
       body: LayoutBuilder(builder: (context, outer) {
-        final pane = _Pane(
+        final pane = VerifyEmailPane(
           isLinkPath: _isLinkPath,
           email: widget.email,
           lane: widget.lane,
@@ -231,6 +245,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           onRetryToken: _verifyWithToken,
           manualFallback: widget.manualFallback,
           mailFailed: widget.mailFailed,
+          mailReason: widget.mailReason,
+          supportEmail: widget.supportEmail,
+          supportTelegram: widget.supportTelegram,
           reviewBusy: _reviewBusy,
           reviewRequested: _reviewRequested,
           onRequestReview: _requestManualApproval,
@@ -250,8 +267,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 }
 
-class _Pane extends StatelessWidget {
-  const _Pane({
+class VerifyEmailPane extends StatelessWidget {
+  const VerifyEmailPane({
     required this.isLinkPath,
     required this.email,
     required this.lane,
@@ -267,6 +284,9 @@ class _Pane extends StatelessWidget {
     required this.onRetryToken,
     required this.manualFallback,
     required this.mailFailed,
+    required this.mailReason,
+    required this.supportEmail,
+    required this.supportTelegram,
     required this.reviewBusy,
     required this.reviewRequested,
     required this.onRequestReview,
@@ -289,6 +309,9 @@ class _Pane extends StatelessWidget {
   final VoidCallback onRetryToken;
   final bool manualFallback;
   final bool mailFailed;
+  final String? mailReason;
+  final String? supportEmail;
+  final String? supportTelegram;
   final bool reviewBusy;
   final bool reviewRequested;
   final VoidCallback onRequestReview;
@@ -546,25 +569,44 @@ class _Pane extends StatelessWidget {
   /// code field would be furniture. The signup IS staged, so this is not an
   /// error page — it is the same fallback the code state offers, promoted to
   /// the primary action because it is now the only one that can work.
+  /// True when the mail is missing because OUR daily allowance ran out.
+  ///
+  /// Worth branching on rather than showing one message for both: a quota is
+  /// entirely our doing and clears by itself, while a rejected address might
+  /// genuinely be a typo. Telling someone their address looks wrong when it was
+  /// our allowance that ran out is how you lose an applicant who did nothing
+  /// wrong — and they cannot fix it by trying again, so an unqualified "we
+  /// couldn't email you" invites exactly the retry that will also fail.
+  bool get _quotaExhausted => mailReason == 'quota';
+
   List<Widget> _mailFailedBody(BuildContext context) => [
-        _badge(context, Icons.unsubscribe_outlined, AppColors.amber),
+        _badge(context, _quotaExhausted ? Icons.schedule_send_outlined : Icons.unsubscribe_outlined,
+            AppColors.amber),
         const SizedBox(height: 24),
-        Text('We couldn\'t email you',
+        Text(_quotaExhausted ? 'Our email limit is reached for today' : 'We couldn\'t email you',
             style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
         const SizedBox(height: 8),
-        RichText(
-          text: TextSpan(
+        if (_quotaExhausted)
+          Text(
+            'This is our end, not you — nothing is wrong with your address or '
+            'your details, and your sign-up is saved. An administrator has '
+            'already been alerted automatically and will approve you shortly.',
             style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
-            children: [
-              const TextSpan(text: 'Our mail service wouldn\'t accept '),
-              TextSpan(text: email ?? '', style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
-              const TextSpan(
-                text: ', so no code is on its way. This is a problem on our side, not '
-                    'yours — and your sign-up details are saved.',
-              ),
-            ],
+          )
+        else
+          RichText(
+            text: TextSpan(
+              style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
+              children: [
+                const TextSpan(text: 'Our mail service wouldn\'t accept '),
+                TextSpan(text: email ?? '', style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
+                const TextSpan(
+                  text: ', so no code is on its way. This is a problem on our side, not '
+                      'yours — and your sign-up details are saved.',
+                ),
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 24),
         if (manualFallback) ...[
           AfosButton(
@@ -578,11 +620,14 @@ class _Pane extends StatelessWidget {
             'account. You\'ll be able to sign in with the password you just chose.',
             style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
           ),
-        ] else
+          ..._supportBlock(context),
+        ] else ...[
           Text(
             'Please contact AFOS support so someone can set your account up manually.',
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.amber),
           ),
+          ..._supportBlock(context),
+        ],
 
         if (error != null) ...[
           const SizedBox(height: 10),
@@ -601,6 +646,59 @@ class _Pane extends StatelessWidget {
           ),
         ),
       ];
+
+  /// Where to go if waiting is not good enough.
+  ///
+  /// TAPPABLE, not printed. An applicant reading this is already stuck, and
+  /// asking them to memorise an address and retype it into another app is the
+  /// point where most people simply stop. The email opens a composer with the
+  /// subject pre-filled; Telegram opens the chat.
+  ///
+  /// Renders nothing at all when the server sent no contacts — an empty
+  /// "Contact:" label is worse than silence, and an OLD deployed function
+  /// omits these fields entirely.
+  List<Widget> _supportBlock(BuildContext context) {
+    final mail = (supportEmail ?? '').trim();
+    final tg = (supportTelegram ?? '').trim();
+    if (mail.isEmpty && tg.isEmpty) return const [];
+
+    // Telegram handles are given as @name but the link needs the bare name.
+    final tgUser = tg.startsWith('@') ? tg.substring(1) : tg;
+
+    return [
+      const SizedBox(height: 16),
+      Divider(color: AppColors.borderOf(context), height: 1),
+      const SizedBox(height: 12),
+      Text('Need it sooner?',
+          style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
+      const SizedBox(height: 6),
+      Text(
+        'Message us and we will approve you by hand — usually within minutes.',
+        style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+      ),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        if (mail.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: () => launchUrl(Uri(
+              scheme: 'mailto',
+              path: mail,
+              query: 'subject=AFOS sign-up needs approval'
+                  '&body=My email: ${email ?? ''}\n\n(Sent from the AFOS app)',
+            )),
+            icon: const Icon(Icons.mail_outline_rounded, size: 16),
+            label: Text(mail, overflow: TextOverflow.ellipsis),
+          ),
+        if (tgUser.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: () => launchUrl(Uri.parse('https://t.me/$tgUser'),
+                mode: LaunchMode.externalApplication),
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: Text(tg, overflow: TextOverflow.ellipsis),
+          ),
+      ]),
+    ];
+  }
 
   /// After the hand is raised. Says only what is actually true: the request
   /// was sent. The server answers identically whether or not a staged signup

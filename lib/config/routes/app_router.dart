@@ -288,6 +288,9 @@ class AppRouter {
             lane: extra?['lane'] as String? ?? 'inline',
             manualFallback: extra?['manualFallback'] as bool? ?? true,
             mailFailed: extra?['mailFailed'] as bool? ?? false,
+            mailReason: extra?['mailReason'] as String?,
+            supportEmail: extra?['supportEmail'] as String?,
+            supportTelegram: extra?['supportTelegram'] as String?,
           ), s);
         }),
       // Code-first password reset. Distinct from /reset-password below, which
