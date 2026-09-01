@@ -120,8 +120,11 @@ function shell(o: Shell): string {
        and the "Paste code from email" button parses through extractOtpCode(),
        which accepts spaces, non-breaking spaces, newlines and dashes between
        digits while still refusing to slice six digits out of a longer number.
-       See test/otp_code_test.dart — the `4 8 2 9 1 3` case is pinned there
+       See test/otp_code_test.dart — the "4 8 2 9 1 3" case is pinned there
        precisely so nobody tightens that parser and silently breaks this mail.
+       (Double quotes, not backticks: this comment sits INSIDE a template
+       literal, so a backtick here terminates the string and the function fails
+       to bundle. The deploy rejects it, but only after the commit.)
 
        The fix belonged in the parser, not in the design: there is one parser
        and it is testable, while the mail is seen by every applicant. -->
