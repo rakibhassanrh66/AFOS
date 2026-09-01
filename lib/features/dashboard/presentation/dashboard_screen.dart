@@ -25,6 +25,8 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../schedule/data/models/class_slot.dart';
+import '../../schedule/data/repositories/schedule_repository.dart';
+import '../../schedule/presentation/widgets/semester_break_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/utils/responsive.dart';
@@ -181,6 +183,16 @@ class _DashboardState extends State<DashboardScreen> {
   Future<void> _loadQuickStats(Map<String,dynamic> p, String uid) async {
     final role = p['role'] as String? ?? 'student';
     final dept = p['department'] as String?;
+
+    // Once the department's finals are over, "your next class" is a sentence
+    // about last semester: those slots are still in the table until the next
+    // routine is uploaded. Loaded here so the card can say the term is done
+    // instead of quoting a class that will not happen.
+    if (dept != null && dept.isNotEmpty) {
+      ScheduleRepository().semesterBreak(dept).then((b) {
+        if (mounted) setState(() => _semesterBreak = b);
+      });
+    }
 
     if (role == 'student') {
       final students = p['students'];
@@ -499,6 +511,10 @@ class _DashboardState extends State<DashboardScreen> {
   /// actually is. Null (no card) until resolved, and stays null forever for
   /// anyone without location available -- never an error state.
   WeatherSnapshot? _weather;
+
+  /// Non-null once this department's finals are over and no newer routine has
+  /// arrived. Replaces the class card while it lasts.
+  SemesterBreak? _semesterBreak;
   Future<WeatherSnapshot?>? _weatherFuture;
 
   /// Read straight off the raw profile row rather than adding a field to the
@@ -598,7 +614,12 @@ class _DashboardState extends State<DashboardScreen> {
                 ],
                 if ((_user?.role == 'student' || _user?.role == 'teacher')) ...[
                   const SizedBox(height: 16),
-                  _ClassStatusCard(status: _classStatus),
+                  // The break wins over the class card. Both cannot be true,
+                  // and the class card would be reading last term's routine.
+                  if (_semesterBreak != null)
+                    SemesterBreakCard(brk: _semesterBreak!, compact: true)
+                  else
+                    _ClassStatusCard(status: _classStatus),
                 ],
                 if (_adminTierRoles.contains(_user?.role) && _adminFeatured != null) ...[
                   const SizedBox(height: 16),

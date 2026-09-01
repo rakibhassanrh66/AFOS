@@ -16,6 +16,8 @@ import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.
 
 import 'package:afos_v7/features/dashboard/presentation/widgets/my_completeness_ring.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/weather_dress_card.dart';
+import 'package:afos_v7/features/schedule/data/repositories/schedule_repository.dart';
+import 'package:afos_v7/features/schedule/presentation/widgets/semester_break_card.dart';
 import 'package:afos_v7/features/web/presentation/widgets/chart_primitives.dart';
 import 'package:afos_v7/features/web/presentation/widgets/console_grid.dart';
 
@@ -183,6 +185,20 @@ void main() {
             BarDatum('68', 12),
           ],
           total: 542,
+        ),
+
+    // The semester-break card, new this phase. It replaces the routine
+    // entirely for a whole department, so it has to survive every size and
+    // scale the routine itself does.
+    'SemesterBreakCard (routine screen)': () => SemesterBreakCard(
+          brk: SemesterBreak(
+              season: 'summer', year: 2026, endedOn: DateTime(2026, 8, 27)),
+        ),
+
+    'SemesterBreakCard (dashboard, compact)': () => SemesterBreakCard(
+          compact: true,
+          brk: SemesterBreak(
+              season: 'summer', year: 2026, endedOn: DateTime(2026, 8, 27)),
         ),
 
     // --- widgets that take a whole data object --------------------------
