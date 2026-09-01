@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -91,6 +92,10 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   List<Map<String, String>> _sections = [];
   Map<String, String>? _selectedSection;
   DateTime? _deadline;
+  /// The question paper / handout, held in memory until Post. Uploaded only
+  /// on a successful post, so cancelling the sheet leaves no orphan file in
+  /// the bucket.
+  PlatformFile? _brief;
   bool _loading = true, _saving = false;
 
   @override
@@ -125,6 +130,30 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
     setState(() => _deadline = DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 
+  /// Size-capped, unlike the student submission picker: a brief is pulled
+  /// down by every student in the section, most of them on mobile data, so a
+  /// 200 MB video attached by accident is their bandwidth, not the teacher's.
+  static const _briefMaxBytes = 25 * 1024 * 1024;
+
+  Future<void> _pickBrief() async {
+    final res = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'zip', 'txt'],
+        withData: true);
+    // The picker is a full-screen system UI the user can sit in, and can be
+    // dismissed by backing out of the whole sheet.
+    if (res == null || !mounted) return;
+    final file = res.files.first;
+    if (file.size > _briefMaxBytes) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${file.name} is ${(file.size / 1024 / 1024).toStringAsFixed(1)} MB — '
+              'the limit is 25 MB so students can download it on mobile data.'),
+          backgroundColor: AppColors.amber));
+      return;
+    }
+    setState(() => _brief = file);
+  }
+
   Future<void> _submit() async {
     // This used to be a bare `return` on all three: press Post Assignment
     // with no deadline picked and the button did NOTHING — no message, no
@@ -154,6 +183,15 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
     }
     setState(() => _saving = true);
     try {
+      // Uploaded before the row is written: if the upload fails, the catch
+      // below reports it and NO assignment is posted, rather than posting one
+      // whose "attached" brief silently isn't there.
+      String? briefPath;
+      final brief = _brief;
+      if (brief?.bytes != null) {
+        briefPath = await widget.repo
+            .uploadBriefFile(filename: brief!.name, bytes: brief.bytes!);
+      }
       final deptRow = await SupabaseConfig.client.from('departments').select('id').eq('code', _selectedSection!['department']!).maybeSingle();
       await widget.repo.createAssignment(
         departmentId: deptRow?['id'] as String,
@@ -167,6 +205,7 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
         description: _descCtrl.text.trim(),
         deadline: _deadline!,
         maxMarks: maxMarks,
+        attachmentPath: briefPath,
       );
       widget.onCreated();
       AppHaptics.success();
@@ -222,6 +261,30 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
             const SizedBox(height: 12),
             OutlinedButton.icon(onPressed: _pickDeadline, icon: const Icon(Icons.event_outlined),
                 label: Text(_deadline == null ? 'Pick deadline' : AppFormatters.dateTime(_deadline!))),
+            const SizedBox(height: 12),
+            // The brief itself — a question paper, a spec, a dataset. Until
+            // now the only way to set an assignment was to type it into the
+            // box above, so anything that was already a PDF had to be
+            // described rather than handed over. Same picker config and same
+            // bucket the students' own submissions use.
+            OutlinedButton.icon(
+              onPressed: _saving ? null : _pickBrief,
+              icon: const Icon(Icons.attach_file_rounded, size: 16),
+              label: Text(_brief?.name ?? 'Attach the question paper (optional)',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            // Removable: picking the wrong file otherwise meant closing the
+            // sheet and re-entering everything.
+            if (_brief != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: _saving ? null : () => setState(() => _brief = null),
+                  icon: const Icon(Icons.close_rounded, size: 14),
+                  label: const Text('Remove attachment'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.red),
+                ),
+              ),
             const SizedBox(height: 20),
             AfosButton(label: 'Post Assignment', loading: _saving, onTap: _submit),
           ],
@@ -358,6 +421,20 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
     if (mounted) setState(() => _loading = false);
   }
 
+  /// Opens the teacher's brief. The bucket is private, so the stored value is
+  /// a PATH that has to be signed on demand — same flow the teacher already
+  /// uses to open a submission.
+  Future<void> _openBrief(String path) async {
+    final url = await widget.repo.signedAttachmentUrl(path);
+    if (!mounted) return;
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not open that file'), backgroundColor: AppColors.red));
+      return;
+    }
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
   Future<void> _submit(BuildContext context, Map<String, dynamic> a) async {
     final existing = a['my_submission'] as Map<String, dynamic>?;
     final ctrl = TextEditingController(text: existing?['content'] as String? ?? '');
@@ -449,6 +526,21 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
                     if ((a['description'] as String?)?.isNotEmpty == true)
                       Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(a['description'],
                           style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))),
+                    // The question paper, when the teacher attached one. Sits
+                    // ABOVE the status line and the submit button because it
+                    // is what you read before you do the work, not after.
+                    if ((a['attachment_url'] as String?)?.isNotEmpty == true)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _openBrief(a['attachment_url'] as String),
+                            icon: const Icon(Icons.description_outlined, size: 16),
+                            label: const Text('Open the question paper'),
+                          ),
+                        ),
+                      ),
                     Text(submitted ? 'Submitted' : expired ? 'Deadline passed' : 'Due ${deadline != null ? AppFormatters.dateTime(deadline) : ''}',
                         style: TextStyle(color: submitted ? AppColors.green : expired ? AppColors.red : AppColors.amber,
                             fontSize: 12, fontWeight: FontWeight.w600)),

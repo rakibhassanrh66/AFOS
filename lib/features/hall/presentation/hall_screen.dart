@@ -159,9 +159,15 @@ class _MyApplicationTab extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: done ? AppColors.green : AppColors.surfaceOf(context),
                     border: Border.all(color: done ? AppColors.green : AppColors.borderOf(context))),
+                // The step number yields, not the circle: the circles are a
+                // 28dp column with a connector line between them, so they must
+                // stay round and equal. A 12px digit needs 28.8px of line box
+                // at the 2.0x text scale, which burst this circle from 1.94x.
                 child: Center(child: done
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
-                    : Text('${i+1}', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12)))),
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('${i+1}', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12))))),
               if (!isLast) Container(width: 2, height: 40,
                   color: i < stepIndex ? AppColors.green : AppColors.borderOf(context)),
             ]),

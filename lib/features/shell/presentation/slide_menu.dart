@@ -21,6 +21,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/logout_tile.dart';
+import '../../../shared/widgets/pressable.dart';
 import '../../../shared/widgets/profile_identity_header.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
 
@@ -345,23 +346,35 @@ class _SlideMenuState extends State<SlideMenu> {
     final isSuperAdmin = _user?.role == 'super_admin';
     final ringColor = isSuperAdmin ? AppColors.holoviolet : AppColors.holoBlue;
     return Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 20, 22),
+      // THE PADDING IS DOING ARITHMETIC, not taste. The collapse button sits
+      // on its own line above the identity, and that line is dead weight on
+      // the right-hand side — it pushed the portrait below the header's true
+      // centre and made a photo that IS centred in its Row read as sitting
+      // low. Balancing it costs one number: the space above the Row
+      // (top + the 40dp button line) has to equal the space below it.
+      //   collapsed : 8 + 40 == 48   ->  portrait centre 90 of 180
+      //   permanent : 24      == 24   ->  portrait centre 66 of 132
+      // Both sides land on the spacing scale, and both centre exactly. Change
+      // one of these and you have to change its partner.
+      padding: widget.permanent
+          ? const EdgeInsetsDirectional.fromSTEB(20, 24, 20, 24)
+          : const EdgeInsetsDirectional.fromSTEB(20, 8, 20, 48),
       decoration: BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [ringColor.withValues(alpha:0.14), Colors.transparent]),
         border: Border(bottom: BorderSide(color: AppColors.borderOf(ctx), width: 0.5)),
       ),
       child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-        // The close button now sits on its own line above the identity, so
-        // the portrait can own the right-hand side. It used to share a Row
-        // with the avatar, which is what pinned the photo to the left and
-        // left the whole right half of the drawer empty.
+        // Collapse sits at the START edge — the same edge the drawer slides
+        // out of and folds back into, so the control is where the motion
+        // goes. On the END edge it was arguing with the portrait for the
+        // right-hand side, and pointed nowhere.
         if (!widget.permanent)
           Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: IconButton(
-              icon: Icon(AppIcons.close, color: textSecondary),
-              onPressed: () => ctx.read<ShellBloc>().add(CloseMenu()),
+            alignment: AlignmentDirectional.centerStart,
+            child: _CollapseButton(
+              accent: ringColor,
+              onTap: () => ctx.read<ShellBloc>().add(CloseMenu()),
             ),
           ),
         // ONE header for every role. Which second label appears is decided by
@@ -648,6 +661,50 @@ class _NoAreasNotice extends StatelessWidget {
               style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
             ),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// The drawer's collapse control.
+///
+/// A left-pointing chevron, not an X. The drawer slides out FROM the start
+/// edge and folds back INTO it, so a glyph that points that way names the
+/// motion the button actually performs; an X names a dismissal that is not
+/// what happens. It also stops the header from carrying two competing round
+/// shapes, since the portrait opposite it is already the loud one — this is
+/// deliberately the quieter of the two: a hairline ring and a tinted glyph,
+/// borrowing the accent that the portrait's own ring uses so the pair reads
+/// as one piece of furniture rather than two unrelated controls.
+///
+/// 40dp drawn inside a 48dp target, which is the constitution's floor — the
+/// visible circle is smaller than the region that answers a thumb, and that
+/// is on purpose. [Pressable] supplies the 0.97 press and the commit haptic,
+/// so neither is hand-rolled here.
+class _CollapseButton extends StatelessWidget {
+  final Color accent;
+  final VoidCallback onTap;
+  const _CollapseButton({required this.accent, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.surfaceOf(context).withValues(alpha: 0.55),
+              border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+            ),
+            child: Icon(Icons.chevron_left_rounded, size: 24, color: accent),
+          ),
         ),
       ),
     );

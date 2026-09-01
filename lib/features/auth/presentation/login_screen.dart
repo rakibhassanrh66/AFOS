@@ -339,13 +339,13 @@ class _FormPane extends StatelessWidget {
                       // ships to, so it is still pixel-sharp at ~0.3 MB.
                       Center(child: Image.asset('assets/images/diu_logo.png', height:88, cacheWidth: 264,
                           errorBuilder: (_, __, ___) => Row(mainAxisSize:MainAxisSize.min, children:[
-                            _logoLetter('A', AppColors.holoBlue, context),
+                            logoLetter('A', AppColors.holoBlue, context),
                             const SizedBox(width:8),
-                            _logoLetter('F', AppColors.gold, context),
+                            logoLetter('F', AppColors.gold, context),
                             const SizedBox(width:8),
-                            _logoLetter('O', AppColors.teal, context),
+                            logoLetter('O', AppColors.teal, context),
                             const SizedBox(width:8),
-                            _logoLetter('S', AppColors.holoTeal, context),
+                            logoLetter('S', AppColors.holoTeal, context),
                           ])))
                         .animate()
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
@@ -471,7 +471,16 @@ class _FormPane extends StatelessWidget {
   }
 }
 
-Widget _logoLetter(String l, Color c, BuildContext context) => Container(
+/// One tile of the AFOS wordmark.
+///
+/// The 44dp tile is a fixed geometric element — four of them sit in a row and
+/// must stay square and equal — so the GLYPH yields, not the box. Without the
+/// FittedBox a 22px letter at the 2.0x accessibility text scale needs 52.8px of
+/// line box in 44px and overflows at 1.67x, which meant anyone running large
+/// text met a broken wordmark on the login screen before they could sign in.
+/// Same answer as `_Initials` in profile_identity_header and `_CountdownRing`
+/// in exam_pulse_band.
+Widget logoLetter(String l, Color c, BuildContext context) => Container(
     width:44, height:44,
     decoration:BoxDecoration(
       borderRadius: AppDepth.radius(1),
@@ -479,7 +488,10 @@ Widget _logoLetter(String l, Color c, BuildContext context) => Container(
       color:c.withValues(alpha: 0.12),
     ),
     alignment:Alignment.center,
-    child:Text(l,style:TextStyle(color:c,fontSize:22,fontWeight:FontWeight.w900)),
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child:Text(l,style:TextStyle(color:c,fontSize:22,fontWeight:FontWeight.w900)),
+    ),
   );
 
 class _GridPainter extends CustomPainter {

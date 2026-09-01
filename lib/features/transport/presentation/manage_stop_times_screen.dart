@@ -232,9 +232,15 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
                           decoration: BoxDecoration(
                               color: AppColors.holoTeal.withValues(alpha: 0.15),
                               borderRadius: AppDepth.radius(0)),
-                          child: Center(child: Text('${i + 1}',
+                          // A 12px index in a 26dp square needs 28.8px of line
+                          // box at the 2.0x text scale, so it burst from 1.81x.
+                          // The square is a fixed element in a list of equal
+                          // rows, so the digit scales down instead.
+                          child: Center(child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('${i + 1}',
                               style: const TextStyle(
-                                  color: AppColors.holoTeal, fontSize: 12, fontWeight: FontWeight.bold))),
+                                  color: AppColors.holoTeal, fontSize: 12, fontWeight: FontWeight.bold)))),
                         ),
                         const SizedBox(width: 10),
                         Expanded(child: Text(widget.stops[i],

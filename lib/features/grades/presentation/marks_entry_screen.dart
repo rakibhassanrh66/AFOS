@@ -240,8 +240,16 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           .slideY(begin: -0.06, curve: AppMotion.standard),
 
       if (_offerings.length > 1)
+        // The strip GROWS rather than shrinking its labels — the opposite of
+        // the badge fix elsewhere in this pass, and deliberately so. These are
+        // course-code chips a teacher has to read and tap, not decoration, so
+        // scaling the glyph down would defeat the accessibility setting that
+        // asked for bigger text. 38px holds a 12px label with 9px of padding
+        // each side at 1.0x, and burst at 1.67x; it grows from there.
+        // Same idiom as ExamPulseBand's strip height.
         SizedBox(
-          height: 38,
+          height: (38 + (MediaQuery.textScalerOf(context).scale(1) - 1) * 24)
+              .clamp(38.0, 62.0),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
