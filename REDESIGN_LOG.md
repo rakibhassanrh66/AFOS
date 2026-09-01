@@ -5419,3 +5419,83 @@ None.
   unreproduced.
 - `AdminInsightsPanel`, `ExamPulseBand` and `AuthBrandPanel` take whole data
   objects rather than simple values and were not probed this pass.
+
+---
+
+## Phase X — the exam band, four faults deep · 2026-09-01
+
+Took on the widgets Phase W listed as unprobed because they need a model
+built rather than a string passed — a poor reason to leave the dashboard's
+largest surface unrendered. 19 cases now, 456 render checks.
+
+`AuthBrandPanel` and `MyCompletenessRing` passed untouched. `ExamPulseBand`
+had **four separate faults**, each hidden behind the last.
+
+### 1. The term name, starved by a status label
+
+`Row(Expanded(termName), Text('in progress'))` — the status is non-flex, so it
+claimed its width first and left the title the remainder: "Final Summer 2026"
+rendering 40px of 600px at 2.0x, and the teacher variant overflowing by 42px.
+Status is now `Flexible` (loose — it still takes only what it needs when there
+is room), and the title may use a second line, because at 2.0x it needs 600px
+and no phone line can hold that.
+
+### 2. A fixed 148px strip full of text
+
+Overflowed the bottom by 42px at 1.3x. Now grows with the text scale — but
+deliberately still exactly 148 at the normal size: scaling the BASE would have
+made the strip 22px taller for every reader who never changed their text
+setting, to fix something only large-text readers hit.
+
+### 3. A card fixed at 250px while its contents scaled
+
+"Exam today" showed 31px of 62px at 2.0x — half the label gone. A card in a
+horizontally scrolling strip has no reason to hold one width; it now widens
+with the text and the strip scrolls.
+
+### 4. The one that took the longest: a constant 6px
+
+After the first three, a 6.0px bottom overflow remained at 1.6x and would not
+move — not when the strip grew to 286px, not at 340px, not at 460px. **That
+constancy was the clue**: a fault that ignores the space available is not
+about the space available. It was `_CountdownRing`'s inner `SizedBox(74, 74)`,
+sized to match the arc painted behind it, holding two texts that scale. At
+1.6x they needed 80. Now `scaleDown`s — the same fix, and the same cause, as
+the web console's ring centre in Phase V.
+
+### Two wrong turns, both worth recording
+
+An `IntrinsicHeight` version was tried and still overflowed by 6px: intrinsic
+height measures wrapping text at its INTRINSIC width, not the width it is laid
+out at. Removing the bounded height entirely then threw "RenderFlex children
+have non-zero flex but incoming height constraints are unbounded" — because
+the countdown ring paints through `Expanded(CustomPaint(size: Size.infinite))`
+and the duty card lays out with Spacers. Both genuinely need a definite
+height. The bounded box was never the mistake; the fixed NUMBER was.
+
+And before committing, the scaled height was reverted to a flat 148 to check
+it was still carrying its weight now that the ring was fixed. It was: 19px
+over at 1.3x, 60px at 2.0x. Restored. A fix kept because it was re-tested,
+not because it was already written.
+
+### Verified
+
+`flutter analyze`: 0 issues. `flutter test`: **579 passing** (576 + 3).
+
+### Migrations applied
+
+None.
+
+### STILL OPEN
+
+- `UserGroupTree` cannot be probed: it builds a `ListView.builder`, and
+  walking a viewport's children throws inside Flutter's own
+  `_ViewportElement.debugVisitOnstageChildren` during the probe's traversal.
+  A harness limit, not a widget fault; its header is covered separately by the
+  `GroupSectionHeader` case.
+- `OfflineBanner` still needs an open Hive box.
+- The exam cards' truncation on wide viewports is declared via
+  `expectTruncated` — they are deliberately fixed-width cards in a scrolling
+  strip, and the probe's starve threshold is a fraction of the VIEWPORT. The
+  real faults those cases found were fixed in the widget, not allowed here.
+- The avatar upload remains unreproduced.

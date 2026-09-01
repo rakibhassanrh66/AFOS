@@ -8,7 +8,12 @@ import 'package:afos_v7/shared/widgets/glass_card.dart';
 import 'package:afos_v7/shared/widgets/surface_card.dart';
 import 'package:afos_v7/core/services/weather_service.dart';
 import 'package:afos_v7/features/admin/presentation/widgets/user_card.dart';
+// GroupSectionHeader lives in user_group_tree.dart alongside UserGroupTree,
+// which is itself not probeable (see the note at its case below).
 import 'package:afos_v7/features/admin/presentation/widgets/user_group_tree.dart';
+import 'package:afos_v7/features/auth/presentation/widgets/auth_brand_panel.dart';
+import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.dart';
+
 import 'package:afos_v7/features/dashboard/presentation/widgets/my_completeness_ring.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/weather_dress_card.dart';
 import 'package:afos_v7/features/web/presentation/widgets/chart_primitives.dart';
@@ -30,7 +35,21 @@ import 'support/layout_probe.dart';
 ///
 /// Real widgets only. A copy in a test cannot regress.
 void main() {
-  runLayoutSweep('ui sweep', {
+  runLayoutSweep('ui sweep', expectTruncated: {
+    // The exam cards are a horizontal strip of DELIBERATELY fixed-width
+    // (250px) cards, and the course title is coded maxLines: 2 + ellipsis on
+    // purpose. On a 768px+ viewport the probe's starve threshold is a
+    // fraction of the VIEWPORT, so a 250px card trips it no matter how well
+    // it behaves — the calibration caveat its own doc describes.
+    //
+    // Allowed only because the truncation is the design, not a starve being
+    // hidden: the real faults these cases found (a 42px bottom overflow and
+    // a starved term name) were fixed in the widget rather than allowed here.
+    'ExamPulseBand (live term, today + next exam)': {
+      'Computer Architecture and Organisation',
+      'Seat plan not published yet',
+    },
+  }, {
     // The exact five tabs Manage Users renders for a super_admin now, counts
     // and all. This is the configuration this session created.
     'GlassTabBar (5 tabs, the real Manage Users set)': () => GlassTabBar(
@@ -165,6 +184,78 @@ void main() {
           ],
           total: 542,
         ),
+
+    // --- widgets that take a whole data object --------------------------
+    // Flagged as unprobed at the end of Phase W. They were skipped because
+    // they need a model built rather than a string passed, which is a poor
+    // reason to leave the dashboard's largest surfaces unrendered.
+    'ExamPulseBand (live term, today + next exam)': () => ExamPulseBand(
+          data: ExamPulseData(
+            role: 'student',
+            term: {
+              'id': 't1',
+              'type': 'final',
+              'season': 'summer',
+              'year': 2026,
+              'isLive': true,
+              'isOver': false,
+              'endsOn':
+                  DateTime.now().add(const Duration(days: 9)).toIso8601String(),
+            },
+            exams: [
+              {
+                'code': 'CSE314',
+                'title': 'Computer Architecture and Organisation',
+                'date': DateTime.now().toIso8601String(),
+                'slot': 'Morning (09:00 AM - 12:00 PM)',
+                'room': 'KT-701',
+                'start': '09:00',
+              },
+              {
+                'code': 'ACT327',
+                'title': 'Financial and Managerial Accounting',
+                'date': DateTime.now()
+                    .add(const Duration(days: 2))
+                    .toIso8601String(),
+                'slot': 'Afternoon (02:00 PM - 05:00 PM)',
+                'room': 'AB4-1203',
+                'start': '14:00',
+              },
+            ],
+          ),
+        ),
+
+    'ExamPulseBand (teacher with invigilation duties)': () => ExamPulseBand(
+          data: ExamPulseData(
+            role: 'teacher',
+            term: {
+              'id': 't1',
+              'type': 'final',
+              'season': 'summer',
+              'year': 2026,
+              'isLive': true,
+              'isOver': false,
+              'endsOn':
+                  DateTime.now().add(const Duration(days: 3)).toIso8601String(),
+            },
+            duties: [
+              {
+                'date': DateTime.now().toIso8601String(),
+                'slot': 'Morning (09:00 AM - 12:00 PM)',
+                'rooms': ['KT-701', 'KT-702', 'AB4-1203'],
+              },
+            ],
+          ),
+        ),
+
+    'AuthBrandPanel (login/register side panel)': () => const AuthBrandPanel(),
+
+    // UserGroupTree is NOT probed: it builds a ListView.builder, and walking a
+    // viewport's children throws "Null check operator used on a null value"
+    // inside Flutter's own _ViewportElement.debugVisitOnstageChildren during
+    // the probe's tree traversal. A harness limitation, not a widget fault —
+    // its header row is covered by the GroupSectionHeader case below, which is
+    // the part of it that can starve.
 
     // --- feature widgets carrying real database text --------------------
     // Names, emails and weather sentences are the least controlled strings in
