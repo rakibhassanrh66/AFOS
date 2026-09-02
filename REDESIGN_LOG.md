@@ -5851,3 +5851,92 @@ geometry, not a type error. That gap is the whole reason this script exists.
   registry, reached through a `Builder` as the REAL function, not a copy).
 - `check_ui_bounds.py`: 12/12 self-tests pass, then **0 violations** across 234
   files.
+
+## Phase O — the mail sent fine and led nowhere · 2026-09-02
+
+Sending was never the problem. `afos.srown.com` was verified, `MAIL_FROM` was
+correct to the character, and every send returned 2xx. The confirmation button
+still went nowhere a student could follow.
+
+### Root cause
+
+`PUBLIC_APP_URL` was set to a Vercel **git-branch** URL —
+`afos-git-main-rakib-hassans-projects-0d2556b6.vercel.app` — not the production
+alias. That host has Deployment Protection on, so tapping *Confirm my account*
+redirected to `vercel.com/login` and asked the student to sign in to a Vercel
+account they do not have. Measured, not inferred: `curl -L` on it ends at
+`vercel.com/login?next=%2Fsso-api…`, two redirects, 200.
+
+Nothing errored. `mail-domain-status` reported the sender and the domain as
+healthy, because until today it did not report the link.
+
+The fallback beneath it was worse than useless: `appOrigin()` fell back to
+`https://afos.vercel.app`, which resolves, returns 200, and serves an unrelated
+third party's commercetools storefront. `mailFrom()` fell back to
+`no-reply@afos.app`, a domain nobody here owns. Both now name the real values,
+so an unset secret degrades to something that works.
+
+### The inert quota guard
+
+`email_provider_resend_daily` was defined in 20260902070000, read by
+`mail_budget_status()`, and alerted on by `mail_check_and_alert()` — and
+**never consumed anywhere**. `rate_limit_buckets` had no row for it, so the
+status function always took its "never used, therefore full" branch,
+`can_send` was permanently true, and the low/last_one/exhausted admin alerts
+could not fire. Meanwhile the only bucket being consumed is 100 per *minute*,
+1,400x the real daily allowance. The system could spend a day's mail in a
+minute and report a full tank.
+
+`reserveDailyBudget()` now reserves one token immediately before each real
+Resend call, in both lanes, so each send is counted exactly once. It fails
+OPEN, unlike `consumeRateLimit()` — following the stance this bucket already
+documents: *"A missing row must never be read as 'stop sending'."*
+
+`email-dispatch` sizes its claim to the remaining allowance, because
+`claim_email_batch` increments `attempts` on the way out, and discovering the
+budget is gone after claiming twenty rows would charge an attempt for a send
+never made. If the inline lane spends the last token mid-batch, the remainder
+is returned to `queued` with `attempts` decremented — required, not tidiness:
+`claim_email_batch` selects `state = 'queued'` only, and there is no reaper, so
+a row abandoned in `sending` is stranded permanently.
+
+`password-reset` never asked the budget at all. It now does — it still cannot
+tell the caller (GENERIC is load-bearing anti-enumeration) but it raises the
+admin alert, and it returns rather than queueing: the bucket refills one token
+per ~14 minutes and the code dies in 10, so a queued reset arrives expired.
+
+### The emailed link bounced a signed-in user
+
+`app_router.dart` sends any `/auth/*` route to `/home` when a session exists.
+`/reset-password` and `/auth/unlock` were each explicitly exempted; the two
+routes the emailed buttons actually land on were not, so their token was
+discarded in silence. Now exempt, gated on the token being present so plain
+navigation still goes home.
+
+### Files
+
+- `supabase/functions/_shared/identity.ts` — `appOrigin()` fallback
+- `supabase/functions/_shared/mailer.ts` — `mailFrom()` fallback; `reserveDailyBudget()`
+- `supabase/functions/email-dispatch/index.ts` — allowance-sized claim, per-row reserve, `returnUnattempted()`
+- `supabase/functions/password-reset/index.ts` — `mail_check_and_alert()` pre-check
+- `supabase/functions/mail-domain-status/index.ts` — reports `appOrigin`/`appOriginIsFallback`; dead imports dropped
+- `lib/config/routes/app_router.dart` — third `/auth` exemption, token-gated
+- `.github/workflows/main.yml` — `deno check` now covers `mail-domain-status`
+- `docs/MAIL_SETUP.md` — new; the runbook that did not exist
+
+No migration. The quota defect was a missing call site, not a missing schema
+object.
+
+### Verification
+
+- `deno check --no-lock` over all eight mail-path functions: **exit 0**.
+- `flutter analyze`: **No issues found!**
+- `flutter test test/otp_code_test.dart`: **15 passing**.
+- Secret set, functions deployed, then `mail-domain-status` live:
+  `appOrigin: "https://diu-afos.vercel.app"`, `appOriginIsFallback: false`,
+  `mailFrom: "AFOS <no-reply@afos.srown.com>"`, domain **verified**.
+- New link target serves the app unauthenticated: `200`, **0 redirects**.
+- Real end-to-end send to an allowlisted address: `lane: "inline"`,
+  `mailFailed: false`.
+- Daily bucket, before: **no row**, `mail_budget_status()` a constant 100/100.
+  After: row present at 99 tokens, `remaining: 99.007`. The guard is live.

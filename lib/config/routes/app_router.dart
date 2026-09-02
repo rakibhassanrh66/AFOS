@@ -99,6 +99,28 @@ class AppRouter {
       // "logged-in, /auth/* bounces to /home" rule below — same reasoning as
       // /reset-password above.
       if (loc == '/auth/unlock') return null;
+      // The two routes the EMAILED buttons land on. Same reasoning as the two
+      // exemptions above, and they were missed for the same reason both of
+      // those needed writing down: the rule below is about a signed-in user
+      // wandering back to the login screen, and these are not that.
+      //
+      // A live session is not evidence the link is unwanted. Someone signed in
+      // on this browser can still be holding a reset link for the account they
+      // have forgotten the password to, and register-verify's token is proof
+      // in its own right — the account it confirms need not be the one the
+      // session belongs to. Bouncing to /home threw the token away in
+      // silence: no error, no screen, nothing to retry, and the mail was
+      // single-use.
+      //
+      // Gated on the token actually being present so the original rule still
+      // holds for plain navigation: a signed-in user who opens /auth/verify
+      // with nothing in the query string still goes home. `state.uri` rather
+      // than `loc`, because matchedLocation drops the query — the same
+      // distinction the route builders below rely on.
+      if ((loc == '/auth/verify' || loc == '/auth/reset') &&
+          (state.uri.queryParameters['token'] ?? '').isNotEmpty) {
+        return null;
+      }
       if (session == null) {
         RoleSession.clear();
         PermissionSession.clear();
