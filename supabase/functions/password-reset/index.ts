@@ -94,6 +94,32 @@ serve(async (req) => {
         return json(GENERIC); // still generic — never leak via error shape
       }
 
+      // ASK BEFORE SENDING — the half of this that CAN be fixed here.
+      //
+      // register-request has checked the daily allowance since 20260902070000;
+      // this endpoint never did, so a reset requested with the day's mail gone
+      // sent nothing, told nobody, and alerted nobody. The applicant path at
+      // least stages a human; this one had no equivalent.
+      //
+      // What cannot change: the caller still gets GENERIC either way. That
+      // response is load-bearing anti-enumeration — it must be byte-identical
+      // whether or not the account exists — so it cannot carry a "we couldn't
+      // mail you" the way register-request's can. What CAN change is that
+      // mail_check_and_alert() also raises the admin alert, and that half
+      // leaks nothing at all.
+      //
+      // Returning instead of queueing is deliberate. dispatch() would now park
+      // this in the outbox, but the daily bucket refills at capacity/1440 per
+      // minute — about one token every fourteen minutes — while the code dies
+      // in EXPIRES_MINUTES (10). A queued reset code therefore arrives already
+      // expired, which is worse than not arriving: it looks like the system
+      // works and wastes the one send it was saving up for.
+      const { data: budget } = await supabase.rpc("mail_check_and_alert");
+      if (budget?.[0]?.can_send === false) {
+        console.error("[password-reset] daily mail allowance exhausted; reset code not sent");
+        return json(GENERIC);
+      }
+
       await dispatch(supabase, {
         to: email,
         template: "reset_password",

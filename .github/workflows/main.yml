@@ -78,6 +78,7 @@ jobs:
             supabase/functions/register-admin-approve/index.ts \
             supabase/functions/password-reset/index.ts \
             supabase/functions/email-dispatch/index.ts \
+            supabase/functions/mail-domain-status/index.ts \
             supabase/functions/announce-release/index.ts
 
   # Standing assertion that no SECURITY DEFINER function is reachable by
