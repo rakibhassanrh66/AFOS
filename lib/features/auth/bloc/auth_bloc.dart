@@ -69,6 +69,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         mailReason: res['mailReason'] as String?,
         supportEmail: res['supportEmail'] as String?,
         supportTelegram: res['supportTelegram'] as String?,
+        expiresInSeconds: (res['expiresInSeconds'] as num?)?.toInt() ?? 600,
       ));
     } catch(err) {
       emit(AuthError(friendlyError(err)));

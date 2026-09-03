@@ -148,6 +148,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
             'mailReason': state.mailReason,
             'supportEmail': state.supportEmail,
             'supportTelegram': state.supportTelegram,
+            'expiresInSeconds': state.expiresInSeconds,
           });
         }
         if(state is AuthError) ctx.showSnack(state.message, isError:true);

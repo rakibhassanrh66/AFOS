@@ -263,18 +263,29 @@ jobs:
           fi
           echo "No scratch directories or credential files are tracked."
 
-      - run: flutter build apk --release
+      # --obfuscate/--split-debug-info are worth 3.2 MB per ABI, measured:
+      # v2.9.9 shipped arm64 at 36.70 MB and the identical tree with these two
+      # flags builds at 32.95 MB. They move the Dart symbol table out of
+      # libapp.so and into build/symbols instead of shipping it to every phone
+      # — which also stops the compiled app from naming every class and method
+      # in it, now that this repository is public.
+      #
+      # The trade: a Dart stack trace from a release build comes back
+      # obfuscated. Nothing here collects those today, and if that changes the
+      # symbol files are the input `flutter symbolize` needs — keep the ones
+      # for a version you have shipped.
+      - run: flutter build apk --release --obfuscate --split-debug-info=build/symbols
 
       # And the per-ABI splits, for people downloading by hand.
       #
       # WHY BOTH. The universal APK carries native code for all three ABIs and
-      # weighs ~92 MB; the arm64-v8a split is ~34 MB for the identical app —
-      # a 63% smaller download, which matters a great deal to a student on
+      # weighs ~92 MB; the arm64-v8a split is ~33 MB for the identical app —
+      # a 64% smaller download, which matters a great deal to a student on
       # mobile data. But a split only installs on a matching device, so it
       # cannot be the file the in-app updater blindly fetches, and it must not
       # be the one an unsure first-timer picks. Universal stays the default and
       # keeps its name; the splits are the informed choice.
-      - run: flutter build apk --split-per-abi --release
+      - run: flutter build apk --split-per-abi --release --obfuscate --split-debug-info=build/symbols
 
       # Proves the APK is NOT debug-signed before it is published. Without
       # this, a mistyped secret would silently produce a debug-signed release
