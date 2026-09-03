@@ -57,6 +57,13 @@ class _RegisterBodyState extends State<_RegisterBody> {
 
   AccountType _accountType = AccountType.student;
   String? _gender;
+
+  /// Set when Next is pressed on step 1 with no gender chosen, so the control
+  /// itself can say so. It used to be a snackbar and nothing else: a message
+  /// at the BOTTOM of the screen naming a control the user could not see,
+  /// which is how people ended up pressing Next twice and hunting for what
+  /// was wrong.
+  bool _genderMissing = false;
   double _sem = 1;
 
   bool _loadingDepts = true;
@@ -211,7 +218,8 @@ class _RegisterBodyState extends State<_RegisterBody> {
                               accountType:_accountType,
                               onAccountType:(t){ setState(()=>_accountType=t); },
                               gender:_gender,
-                              onGender:(g){ setState(()=>_gender=g); },
+                              genderMissing:_genderMissing,
+                              onGender:(g){ setState((){ _gender=g; _genderMissing=false; }); },
                             ))
                           : _step == 1
                             ? Form(key:_formKeys[1], child:_Step2(
@@ -253,10 +261,22 @@ class _RegisterBodyState extends State<_RegisterBody> {
                     label: _step==2?'Create Account':'Next →',
                     loading: state is AuthLoading,
                     onTap:(){
+                      // EVERYTHING AT ONCE, not gender first.
+                      //
+                      // This check used to run BEFORE validate(), so someone
+                      // who left the whole step blank was told about the last
+                      // control on it and nothing about the two empty fields
+                      // above. They fixed the gender, pressed Next, and only
+                      // then learned the name was required. validate() runs
+                      // first now so every fault on the step is on screen
+                      // together.
+                      final formOk = _formKeys[_step].currentState!.validate();
                       if(_step==0 && _gender==null) {
+                        setState(()=>_genderMissing = true);
                         ctx.showSnack('Select your gender', isError:true);
                         return;
                       }
+                      if(!formOk) return;
                       // Staff no longer sees the department dropdown at all
                       // (see _Step2 above) — their designation-required check
                       // right below already covers them.
@@ -268,7 +288,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
                         ctx.showSnack('Select a designation', isError:true);
                         return;
                       }
-                      if(_formKeys[_step].currentState!.validate()) {
+                      {
                         // Advancing a step is a discrete choice landing. The
                         // final submit gets `success` instead, on the
                         // AuthRegistrationSuccess listener above, because that
@@ -411,10 +431,11 @@ class _Step1 extends StatelessWidget {
   final AccountType accountType;
   final ValueChanged<AccountType> onAccountType;
   final String? gender;
+  final bool genderMissing;
   final ValueChanged<String?> onGender;
   const _Step1({required this.nameCtrl, required this.idCtrl,
     required this.accountType, required this.onAccountType,
-    required this.gender, required this.onGender});
+    required this.gender, required this.genderMissing, required this.onGender});
   @override
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimaryOf(context);
@@ -426,6 +447,18 @@ class _Step1 extends StatelessWidget {
       const SizedBox(height:24),
       _AccountTypeToggle(value:accountType, onChanged:onAccountType),
       const SizedBox(height:24),
+      // MOVED UP, and given a name.
+      //
+      // This sat LAST on the step, below two text fields, with no label of any
+      // kind -- two unmarked pills reading "Male" and "Female". By the time
+      // someone had typed their ID the keyboard was up and the row was off the
+      // bottom of the screen entirely, so the first they knew of it was a
+      // snackbar refusing to let them continue. Both segmented choices now sit
+      // together above the typing, where the step opens.
+      Text('Gender', style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+      const SizedBox(height:8),
+      _GenderToggle(value:gender, onChanged:onGender, hasError:genderMissing),
+      const SizedBox(height:24),
       AfosTextField(hint:'Full Name', controller:nameCtrl, prefixIcon:Icons.person_outline,
         validator:(v)=>AppValidators.required(v,f:'Full name')),
       const SizedBox(height:16),
@@ -435,8 +468,6 @@ class _Step1 extends StatelessWidget {
         prefixIcon:Icons.badge_outlined,
         validator:(v)=>AppValidators.studentId(v, type:accountType),
         keyboardType: accountType==AccountType.student ? TextInputType.number : TextInputType.text),
-      const SizedBox(height:16),
-      _GenderToggle(value:gender, onChanged:onGender),
     ]);
   }
 }
@@ -444,11 +475,16 @@ class _Step1 extends StatelessWidget {
 class _GenderToggle extends StatelessWidget {
   final String? value;
   final ValueChanged<String?> onChanged;
-  const _GenderToggle({required this.value, required this.onChanged});
+
+  /// Draws the unchosen state as an ERROR rather than leaving it looking
+  /// exactly like a state nobody has got to yet. Set only after Next is
+  /// pressed, so the form does not shout at someone still filling it in.
+  final bool hasError;
+  const _GenderToggle({required this.value, required this.onChanged, this.hasError = false});
   @override
   Widget build(BuildContext context) {
     final textSecondary = AppColors.textSecondaryOf(context);
-    final border = AppColors.borderOf(context);
+    final border = hasError ? AppColors.red : AppColors.borderOf(context);
     Widget option(String label, String v) {
       final selected = value == v;
       return Expanded(child: GestureDetector(
@@ -470,10 +506,17 @@ class _GenderToggle extends StatelessWidget {
         ),
       ));
     }
-    return Row(children: [
-      option('Male', 'male'),
-      const SizedBox(width:12),
-      option('Female', 'female'),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        option('Male', 'male'),
+        const SizedBox(width:12),
+        option('Female', 'female'),
+      ]),
+      if (hasError) ...[
+        const SizedBox(height:6),
+        Text('Choose one to continue',
+            style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
+      ],
     ]);
   }
 }
@@ -552,6 +595,15 @@ class _Step2 extends StatelessWidget {
             items: departments.map((d)=>DropdownMenuItem(value:d,
               child:Text(d.name, overflow:TextOverflow.ellipsis))).toList(),
             onChanged: onDept,
+            // The Form already knows how to say "required" UNDER the control
+            // it belongs to; this was a snackbar at the foot of the screen
+            // instead, naming a field rather than marking it. The staff
+            // designation dropdown below has had a validator all along -- this
+            // one just never got one. The snackbar gate in the Next handler
+            // stays as the backstop for the one case this cannot cover: while
+            // `departments` is still loading the dropdown is not built at all,
+            // so there is no validator to run.
+            validator: (v) => v == null ? 'Select your department' : null,
           ),
         const SizedBox(height:16),
       ],

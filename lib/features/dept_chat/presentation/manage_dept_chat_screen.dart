@@ -89,9 +89,11 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                           const SizedBox(width: 12),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${ch['department'] ?? ''} · #${ch['channel_name'] ?? ''}',
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
                             Text(audienceLabel, style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
                           ])),
+                          const SizedBox(width: 8),
                           Icon(Icons.chevron_right_rounded, color: textSecondary),
                         ]),
                       ),
