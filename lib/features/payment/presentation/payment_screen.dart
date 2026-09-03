@@ -210,6 +210,12 @@ class _PayCardState extends State<_PayCard> {
               // inside the outer silhouette, so its radius has to be the card
               // rung minus that pixel — not a rung of its own.
               borderRadius: LiquidGlass.signatureRadius(LiquidGlass.radiusCard - 1)),
+            // The label had NO horizontal inset, so it ran to the card's own
+            // edge. At 320px the grid gives each tile about 133px, and
+            // "Admission Fee" ellipsised flush against both borders -- the
+            // truncation marks sitting exactly on the hairline, which reads as
+            // a rendering fault rather than a deliberate cut.
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Container(
                 width: 52, height: 52,
@@ -226,6 +232,7 @@ class _PayCardState extends State<_PayCard> {
                   textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
               Text('Check balance →',
+                  textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyMedium.copyWith(color: cat.color, fontSize: 11)),
             ]),
           ),
@@ -264,6 +271,15 @@ class _HistoryTab extends StatelessWidget {
     );
   }
 
+  /// DateTime.parse THROWS, and this is called from build() -- a single row
+  /// with an unparseable payment_date took the whole history tab down with it
+  /// rather than showing one odd line. tryParse falls back to the same copy an
+  /// absent date already gets.
+  static String _whenLabel(Object? raw) {
+    final parsed = raw is String ? DateTime.tryParse(raw) : null;
+    return parsed == null ? 'Pending' : AppFormatters.date(parsed);
+  }
+
   Widget _buildRow(BuildContext ctx, Map<String, dynamic> p) {
     final status = p['status'] as String? ?? 'pending';
     final statusColor = status == 'paid' ? AppColors.green
@@ -284,13 +300,20 @@ class _HistoryTab extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Both lines were unbounded. A long category wrapped under the
+            // amount column instead of ending, and with no gap between the two
+            // (see the SizedBox below) the last word sat against the figure.
             Text(p['category'] ?? '',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx))),
-            Text(p['payment_date'] != null
-                ? AppFormatters.date(DateTime.parse(p['payment_date']))
-                : 'Pending',
+            Text(_whenLabel(p['payment_date']),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),
           ])),
+          // The row went Expanded -> amount with nothing in between, so the
+          // category ran straight into the money. Everything else on this
+          // screen keeps 12.
+          const SizedBox(width: 12),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             // A right-aligned column of money. Proportional digits make the
             // amounts fail to line up down the list; same face, same size,
