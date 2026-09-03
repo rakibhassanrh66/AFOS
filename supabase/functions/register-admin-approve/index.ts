@@ -69,9 +69,37 @@ serve(async (req) => {
     try {
       plainPassword = await decryptSecret(enc_password);
     } catch (_) {
-      await supabase.from("pending_registrations").delete().eq("id", row.id);
+      // MARK, NEVER DELETE.
+      //
+      // This used to DELETE the row. One click, and the applicant ceased to
+      // exist: name, address, account type, the fact they ever applied — gone,
+      // with no audit row, no confirmation, and no way for anyone to learn who
+      // had been erased or that they should be contacted. The person most
+      // likely to trigger it is an administrator trying to HELP them.
+      //
+      // And the trigger is not exotic. decryptSecret() derives its key from
+      // IDENTITY_PEPPER, and pepper() THROWS when that env var is missing or
+      // short — so one bad deploy of this function turns every approval click
+      // into a permanent deletion of a real person's application. The failure
+      // is in our configuration; the cost was paid by the applicant.
+      //
+      // Marking instead keeps them in the admin queue with a reason a human
+      // can act on. The row is recoverable the moment the pepper is restored,
+      // and if it truly cannot be recovered an admin can still read their
+      // email and contact them. Deleting foreclosed both.
+      console.error(`[register-admin-approve] decrypt failed for ${row.email}; marking, not deleting`);
+      await supabase.from("pending_registrations")
+        .update({
+          review_state: "needs_review",
+          review_reason:
+            "Stored credentials could not be decrypted — check IDENTITY_PEPPER, then retry. " +
+            "If it stays unreadable, contact the applicant and ask them to sign up again.",
+        })
+        .eq("id", row.id);
       return json({
-        error: "This registration's stored credentials are unreadable — ask the applicant to sign up again.",
+        error:
+          "This registration's stored credentials are unreadable. It has been kept in the queue, " +
+          "not deleted — check the IDENTITY_PEPPER secret and try again, or contact the applicant.",
       }, 400);
     }
 
