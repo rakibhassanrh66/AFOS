@@ -770,7 +770,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                           ]),
                           const SizedBox(height: 6),
                           Text(
-                            '${r['review_reason'] ?? 'Code not matched'} · asked ${AppFormatters.relativeTime(DateTime.parse('${r['created_at']}'))}',
+                            '${r['review_reason'] ?? 'Code not matched'}${_askedAgo(r['created_at'])}',
                             style: AppTextStyles.labelSmall
                                 .copyWith(color: AppColors.textSecondaryOf(ctx)),
                           ),
@@ -841,9 +841,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                           ]),
                           const SizedBox(height: 6),
                           Text(
-                            r['avatar_submitted_at'] != null
-                                ? 'submitted ${AppFormatters.relativeTime(DateTime.parse('${r['avatar_submitted_at']}'))}'
-                                : 'submitted time unknown',
+                            _submittedAgo(r['avatar_submitted_at']),
                             style: AppTextStyles.labelSmall
                                 .copyWith(color: AppColors.textSecondaryOf(ctx)),
                           ),
@@ -1036,4 +1034,26 @@ class _StatDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
       width: 0.5, height: 32, color: AppColors.borderOf(context));
+}
+
+/// Relative time, or null when the value cannot be read as one.
+///
+/// Both call sites below used `DateTime.parse('${raw}')` inline, and string
+/// interpolation turns a null into the literal "null" -- which parse throws
+/// on, from inside build(), on the one screen an administrator opens to
+/// rescue a stuck applicant. An unreadable timestamp should cost the phrase,
+/// not the screen.
+String? _relativeOrNull(Object? raw) {
+  final at = raw is String ? DateTime.tryParse(raw) : null;
+  return at == null ? null : AppFormatters.relativeTime(at);
+}
+
+String _askedAgo(Object? raw) {
+  final rel = _relativeOrNull(raw);
+  return rel == null ? '' : ' · asked $rel';
+}
+
+String _submittedAgo(Object? raw) {
+  final rel = _relativeOrNull(raw);
+  return rel == null ? 'submitted time unknown' : 'submitted $rel';
 }
