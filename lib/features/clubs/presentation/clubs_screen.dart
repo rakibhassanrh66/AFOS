@@ -738,6 +738,8 @@ class _MyClubsTab extends StatelessWidget {
                     Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ])),
+                  // Same gap this row already keeps on the icon side.
+                  const SizedBox(width: 12),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: AppDepth.radius(0)),
                       child: Text(role.replaceAll('_', ' ').toUpperCase(),

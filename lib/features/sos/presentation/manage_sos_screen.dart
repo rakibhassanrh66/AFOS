@@ -184,6 +184,9 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                                   Text('${a['zone_type'] == 'campus' ? 'Campus' : 'Zila'} · ${a['recipient_count'] ?? 0} notified',
                                       style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
                                 ])),
+                                // 12 on the left of this Expanded, nothing on the right — a long
+                                // name ellipsised straight into the status pill.
+                                const SizedBox(width: 12),
                                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                         color: (status == 'active' ? AppColors.red : AppColors.green).withValues(alpha: 0.15),

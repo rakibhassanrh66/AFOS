@@ -1859,6 +1859,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
             Expanded(child: Text(subtitle,style:AppTextStyles.bodyMedium.copyWith(color:AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
         ])),
+        const SizedBox(width: 8),
         Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
       ]),
     );
