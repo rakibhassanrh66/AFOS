@@ -136,10 +136,9 @@ skills-lock.json
 #                          no value, but it told a reader exactly which secret
 #                          to go looking for.
 #
-# What stays public, deliberately: README.md, SECURITY.md and RELEASING.md are
-# written FOR outsiders, and supabase/migrations/ is the schema's source of
-# truth -- hiding it would be hiding the security model reviewers are invited
-# to check.
+# What stays public, deliberately: README.md is written FOR outsiders, and
+# supabase/migrations/ is the schema's source of truth -- hiding it would be
+# hiding the security model reviewers are invited to check.
 CLAUDE.md
 AGENTS.md
 audit/
@@ -176,10 +175,42 @@ docs/superpowers/
 #
 # Untracked 2026-09-03, both kept on disk. This is the answer to "hide the docs
 # that could harm" that does NOT require the repository to be private: the code,
-# the 230 migrations and the 60 tests stay public, because SECURITY.md invites
-# people to check the security model and hiding it would be hiding what they
-# are asked to review. Authorization lives in Postgres, not in secrecy --
+# the 230 migrations and the 60 tests stay public. Authorization lives in
+# Postgres, not in secrecy --
 # verified anonymously against the live API: profiles returns [],
 # pending_registrations and email_outbox return 401, app_secrets 404.
 REDESIGN_LOG.md
 docs/MAIL_SETUP.md
+
+# --- Untracked 2026-09-03, second pass -------------------------------------
+# All three still exist on disk. Removed from the repository, not from the
+# machine, for the same reason as everything above: the repo is going back to
+# public and these are either operational or an enumeration aid.
+#
+# SECURITY.md        the disclosure policy. Read on its own it is fine -- it is
+#                    the inventory that is not: it names the exact tables and
+#                    mechanisms holding the line (user_permissions,
+#                    permission_audit, VR-ID token issuing, the APK signing
+#                    path) and states which client-side checks are decorative.
+#                    Private vulnerability reporting still works with no file
+#                    present; GitHub offers it from the Security tab.
+# RELEASING.md       the release runbook, and operational rather than
+#                    explanatory: the signing steps, the CI secrets the tag job
+#                    consumes, the app_releases row that makes every installed
+#                    phone offer an update, and a machine path
+#                    (C:\RakibFlutter\bin\flutter.bat). A reader who wants to
+#                    know how a build is produced is not the reader it is for.
+# integration_test/  overflow_smoke_test.dart runs against PRODUCTION Supabase
+#                    with five persistent QA accounts and names every one of
+#                    them, including a super_admin. No passwords -- they come
+#                    from --dart-define -- but publishing the list hands a
+#                    reader the five addresses worth guessing at, and the file
+#                    also carries a maintainer machine path. The dev_dependency
+#                    in pubspec.yaml stays, so the suite still runs here.
+# docs/              ignored wholesale now rather than file by file. Everything
+#                    that has ever been in it (superpowers/ plans, MAIL_SETUP)
+#                    was internal, and the next thing written there will be too.
+SECURITY.md
+RELEASING.md
+integration_test/
+docs/
