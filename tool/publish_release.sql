@@ -43,6 +43,36 @@
 --  Nothing else is required. Do not also send a manual broadcast.
 
 -- ---------------------------------------------------------------------
+--  v2.10.1 - run this ONCE the v2.10.1 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.10.1
+--
+--  ANNOUNCING 2.10.1 AND NOT 2.10.0, on purpose. 2.10.0 was tagged and
+--  published an hour earlier and is a real build; 2.10.1 adds the Create
+--  Account and layout fixes on top of it. Announcing both would put two
+--  update banners in front of every student in one afternoon for one set of
+--  work, so 2.10.0 stays published and unannounced and this row covers both.
+--
+--  (2.9.9 is also published and was never announced -- superseded by this.)
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.10.1',
+  current_date,
+  'The Link That Would Not Let Go',
+  ARRAY[
+    'A link someone shared in a group chat could leave the app permanently stuck. If the link pointed at a page that no longer exists, the app remembered it as the place to open next time - so every launch after that landed on "Page not found", and nothing inside the app could clear it. Reinstalling was the only way out. It cannot happen now.',
+    'The confirmation button in your sign-up email works even if you are already signed in on that browser. It used to be thrown away in silence: no error, no screen, and the link only ever works once, so people were left waiting for a second email that was never coming. The same was true of password reset links.',
+    'Your verification code now lasts thirty minutes instead of ten. University mail is not instant, and codes were expiring before they arrived - two of the last three people who signed up lost their code that way. The screen tells you the real number rather than a figure written into the app.',
+    'Create Account asks for your gender where you can see it. The choice used to sit at the very bottom of the first step, unlabelled, below the keyboard - so people filled in the form, pressed Next, and were refused by a message about something they had never seen. It is now at the top with the account type, and if you miss it the control itself says so.',
+    'Payments looks like it was laid out on purpose. The fee tiles were printing their labels right up against their own border, and in your payment history a long fee name ran straight into the amount beside it. Seven other screens had the same fault - a name or a status badge with nothing between them - and all of them are fixed.',
+    'The app is about 4 MB smaller to download, on every phone.',
+    'Behind the scenes: a signed-in account could have switched off the university''s email - no verification codes and no password resets for anybody - for a day at a time. That is closed, and there is now an automatic check that fails our build if it is ever reopened.'
+  ],
+  ARRAY['android','web']
+);
+
+
+-- ---------------------------------------------------------------------
 --  v2.9.0 - run this ONCE the v2.9.0 release job has published the APK.
 --  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.9.0
 --
