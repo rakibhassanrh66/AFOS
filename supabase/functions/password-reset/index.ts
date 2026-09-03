@@ -37,7 +37,20 @@ import { dispatch } from "../_shared/mailer.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
 
-const EXPIRES_MINUTES = 10;
+// Thirty minutes, not ten.
+//
+// Ten was the original guess and two of the three signups still open in
+// pending_registrations died on it -- one of them flagged in so many words,
+// "Code expired before it was used". University mailboxes are not instant:
+// the send is queued behind a provider rate limit, then a campus mail server
+// greylists it, and the applicant is often not sitting on the screen when it
+// finally lands.
+//
+// It costs almost nothing. The code is six digits against a bucket of 8
+// attempts refilling at 0.25/min, so a thirty-minute window allows about 15
+// guesses instead of 10 -- against a million possibilities. The attempt
+// counter is the defence here, not the clock.
+const EXPIRES_MINUTES = 30;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -92,6 +105,36 @@ serve(async (req) => {
       if (insErr) {
         console.error("[password-reset] staging failed:", insErr.message);
         return json(GENERIC); // still generic — never leak via error shape
+      }
+
+      // ASK BEFORE SENDING — the half of this that CAN be fixed here.
+      //
+      // register-request has checked the daily allowance since 20260902070000;
+      // this endpoint never did, so a reset requested with the day's mail gone
+      // sent nothing, told nobody, and alerted nobody. The applicant path at
+      // least stages a human; this one had no equivalent.
+      //
+      // What cannot change: the caller still gets GENERIC either way. That
+      // response is load-bearing anti-enumeration — it must be byte-identical
+      // whether or not the account exists — so it cannot carry a "we couldn't
+      // mail you" the way register-request's can. What CAN change is that
+      // mail_check_and_alert() also raises the admin alert, and that half
+      // leaks nothing at all.
+      //
+      // Returning instead of queueing is deliberate. dispatch() would now park
+      // this in the outbox, but the daily bucket refills at capacity/1440 per
+      // minute — about one token every fourteen minutes — and until the window
+      // was widened the code died in ten, so a queued reset arrived already
+      // expired: worse than not arriving, because it looks like the system
+      // works and wastes the one send it was saving up for. At thirty minutes
+      // a queued code can now survive the wait, but this still returns rather
+      // than queueing — an exhausted allowance means the NEXT sends are also
+      // starved, and a reset that maybe arrives in fourteen minutes is not a
+      // reset anyone can use.
+      const { data: budget } = await supabase.rpc("mail_check_and_alert");
+      if (budget?.[0]?.can_send === false) {
+        console.error("[password-reset] daily mail allowance exhausted; reset code not sent");
+        return json(GENERIC);
       }
 
       await dispatch(supabase, {

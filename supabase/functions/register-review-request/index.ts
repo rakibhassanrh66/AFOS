@@ -93,11 +93,29 @@ serve(async (req) => {
     // Idempotent: pressing twice must not produce two queue entries or two
     // notifications. The guard is the WHERE on review_state, not a read —
     // concurrent presses would both pass a read.
+    // ACCEPTS A ROW THAT IS ALREADY 'needs_review'. This guard used to be
+    // `.eq("review_state", "none")`, and that single word is what stranded a
+    // real applicant.
+    //
+    // The common case is not a fresh row. register-request stages people on
+    // mail failure — so by the time the applicant sees "Ask an administrator
+    // to approve me" and presses it, they are ALREADY 'needs_review'. The
+    // update matched zero rows, the early return below fired, and the screen
+    // told them administrators had been asked while nobody was told anything.
+    // The one button offered to a person with no other route forward did
+    // nothing at all, silently, every single time it mattered.
+    //
+    // Still idempotent where it counts: 'rejected' is refused above, a
+    // consumed row never reaches here, and the registration_review_request
+    // bucket (capacity 2, refill 0.02/min) is what stops repeat presses from
+    // becoming repeat pages to the approvers — a rate limit, which is the
+    // right tool for that, rather than a state guard that also swallows the
+    // legitimate first press.
     const { data: updated } = await supabase
       .from("pending_registrations")
       .update({ review_state: "needs_review", review_reason: REASON })
       .eq("id", row.id)
-      .eq("review_state", "none")
+      .in("review_state", ["none", "needs_review"])
       .select("id");
 
     if (!updated || updated.length === 0) return OK;
