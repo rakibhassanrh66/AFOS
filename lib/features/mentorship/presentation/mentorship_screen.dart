@@ -330,6 +330,8 @@ class _SessionsTab extends StatelessWidget {
                   Text(mentor['full_name'] ?? 'Faculty', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                   Text(s['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ])),
+                // Same gap this row already keeps on the icon side.
+                const SizedBox(width: 12),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _statusColor(status).withValues(alpha:0.12), borderRadius: AppDepth.radius(1)),
                     child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),

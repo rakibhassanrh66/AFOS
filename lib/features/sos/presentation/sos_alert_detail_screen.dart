@@ -236,6 +236,8 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
+        // The registered address can be long and ran into the status pill.
+        const SizedBox(width: 12),
         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
                 color: (status == 'active' ? AppColors.red : AppColors.green).withValues(alpha: 0.15),

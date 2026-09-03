@@ -185,6 +185,8 @@ class _ChannelTileState extends State<_ChannelTile> {
                   decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: AppDepth.radius(0)),
                   child: Text(audienceLabel, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
             ])),
+            // The chevron sat flush against the audience pill.
+            const SizedBox(width: 8),
             Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
           ]),
         ),
