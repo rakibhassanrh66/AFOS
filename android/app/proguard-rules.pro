@@ -10,7 +10,8 @@
 # strip one with zero signal from `flutter analyze` or the test suite.
 # A manual smoke test (login, QR scan, GPS, biometric unlock, background
 # SOS, push) is still required before a shrunk build is trusted in a tagged
-# release -- see RELEASING.md.
+# release -- see the release runbook (kept on the maintainer's machine,
+# not published with this repo).
 
 # --- Flutter framework ---
 -keep class io.flutter.app.** { *; }
