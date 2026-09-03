@@ -33,7 +33,12 @@ serve(async (req) => {
     if (authErr || !authData?.user) {
       return new Response(JSON.stringify({ error: "Invalid or expired session." }), { status: 401, headers: corsHeaders })
     }
-    const { data: callerProfile } = await supabase.from("profiles").select("role, department").eq("id", authData.user.id).maybeSingle()
+    // Pinned here, immediately after the guard above, because TypeScript's
+    // narrowing of authData.user does not reach inside the nested functions
+    // below — callerCan() and the routine_uploads writer both dereferenced it
+    // and both were a null-deref away from a 500 with no explanation.
+    const callerId = authData.user.id
+    const { data: callerProfile } = await supabase.from("profiles").select("role, department").eq("id", callerId).maybeSingle()
     if (!callerProfile) {
       return new Response(JSON.stringify({ error: "No profile found for caller." }), { status: 403, headers: corsHeaders })
     }
@@ -120,7 +125,7 @@ serve(async (req) => {
     const deptUploadRoles = ["super_admin", "admin", "dept_admin", "teacher"]
     async function callerCan(resource: string, action: string): Promise<boolean> {
       const { data, error } = await supabase.rpc("caller_can", {
-        p_resource: resource, p_action: action, p_user_id: authData.user.id,
+        p_resource: resource, p_action: action, p_user_id: callerId,
       })
       return !error && data === true
     }
@@ -149,7 +154,7 @@ serve(async (req) => {
     // under the service-role client and would be denied outright.
     {
       const { data: rlOk, error: rlErr } = await supabase.rpc("consume_rate_limit", {
-        p_bucket: "routine_upload", p_key: authData.user.id, p_cost: 1,
+        p_bucket: "routine_upload", p_key: callerId, p_cost: 1,
       })
       // Fails open on a limiter error — a broken limiter must not block a
       // legitimate routine publish — but a genuine denial is enforced.
@@ -425,7 +430,7 @@ serve(async (req) => {
       await supabase.from("routine_uploads").upsert({
         department, routine_type: routineType,
         version_label: meta.versionLabel, effective_from_text: meta.effectiveFromText, prepared_by: meta.preparedBy,
-        uploaded_by: authData.user.id, uploaded_at: new Date().toISOString(),
+        uploaded_by: callerId, uploaded_at: new Date().toISOString(),
       }, { onConflict: "department,routine_type" })
     }
 
@@ -494,7 +499,11 @@ serve(async (req) => {
       "Your class schedule has been updated.", "/schedule")
     return new Response(JSON.stringify({ success: true, slotsInserted: inserted, slotsRemoved: removed, totalParsed: slots.length, type: "schedule", batchErrors }), { headers: corsHeaders })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders })
+    // `err` is `unknown`: a non-Error throw (a string, a rejected fetch value)
+    // used to render as "undefined" here, which tells the caller nothing and
+    // tells us nothing in the log either.
+    const message = err instanceof Error ? err.message : String(err)
+    return new Response(JSON.stringify({ error: message }), { status: 500, headers: corsHeaders })
   }
 })
 
