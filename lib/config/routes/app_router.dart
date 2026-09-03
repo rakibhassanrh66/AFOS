@@ -283,7 +283,20 @@ class AppRouter {
       // Fire-and-forget: remembers where the user actually is so a force-
       // close (not a real logout) resumes here instead of always dropping
       // back to the dashboard — see splash_screen.dart's cold-start read.
-      saveLastRoute(loc);
+      //
+      // ONLY IF THE ROUTE ACTUALLY EXISTS. This redirect also runs for
+      // locations that matched NOTHING — go_router logs the error and still
+      // calls the top-level redirect — so an unmatched path used to be saved
+      // as the resume target like any other.
+      //
+      // That bricks the app on launch, permanently. Open a stale shared link
+      // like /#/exam-seats (the route is /manage-exam-seats), see "Page not
+      // found", tap Go Home — and /exam-seats is now in Hive. Every cold start
+      // from then on reads it, routes there, and lands back on the 404. There
+      // is no way out from inside the app; only clearing storage or
+      // reinstalling fixes it. A stale link somebody pasted in a group chat
+      // should not be able to do that.
+      if (state.topRoute != null) saveLastRoute(loc);
       return null;
     },
 
