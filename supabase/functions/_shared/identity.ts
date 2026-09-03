@@ -31,8 +31,28 @@ function pepper(): string {
 
 /// Where the emailed links point. Must be the deployed web origin, because the
 /// link has to open somewhere a browser can reach.
+///
+/// THE FALLBACK IS NOT COSMETIC, and it was wrong for months. It read
+/// `https://afos.vercel.app` — a host that is not this project at all. It
+/// resolves, returns HTTP 200, and serves an unrelated third party's
+/// storefront. So whenever PUBLIC_APP_URL was unset or mistyped, every
+/// registration and reset mail sent a student to a stranger's web server with
+/// a live single-use token in the query string. Nothing failed loudly: the
+/// mail sent, the link worked, it simply arrived at the wrong company.
+///
+/// The token survives that (the link is deliberately prefetch-safe — it is
+/// only spent when the app POSTs to register-verify, and it expires in ten
+/// minutes), but it is disclosed to somebody else's access log, and the
+/// student lands on a page that is not AFOS.
+///
+/// This has now been the same failure twice: REDESIGN_LOG.md:1960 records
+/// PUBLIC_APP_URL once being the literal string `https://<your-vercel-domain>`.
+/// A fallback that is merely absent fails visibly; a fallback that points
+/// somewhere real and wrong does not. So it now names the actual deployment,
+/// and the env var still wins — changing the domain stays a secret change
+/// with no redeploy.
 export function appOrigin(): string {
-  return (Deno.env.get("PUBLIC_APP_URL") ?? "https://afos.vercel.app").replace(/\/+$/, "");
+  return (Deno.env.get("PUBLIC_APP_URL") ?? "https://diu-afos.vercel.app").replace(/\/+$/, "");
 }
 
 const enc = new TextEncoder();

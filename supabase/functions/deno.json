@@ -1,0 +1,17 @@
+{
+  "//": "Marks this directory as a Deno project. Without it an editor's built-in TypeScript service claims the 14 index.ts files here, and every one of them reports 'Cannot find module https://deno.land/...' — 14 phantom problems for code that type-checks clean under `deno check` (which CI runs over all thirteen live functions on every push).",
+  "compilerOptions": {
+    "strict": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false
+  }
+}

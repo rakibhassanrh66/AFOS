@@ -99,6 +99,28 @@ class AppRouter {
       // "logged-in, /auth/* bounces to /home" rule below — same reasoning as
       // /reset-password above.
       if (loc == '/auth/unlock') return null;
+      // The two routes the EMAILED buttons land on. Same reasoning as the two
+      // exemptions above, and they were missed for the same reason both of
+      // those needed writing down: the rule below is about a signed-in user
+      // wandering back to the login screen, and these are not that.
+      //
+      // A live session is not evidence the link is unwanted. Someone signed in
+      // on this browser can still be holding a reset link for the account they
+      // have forgotten the password to, and register-verify's token is proof
+      // in its own right — the account it confirms need not be the one the
+      // session belongs to. Bouncing to /home threw the token away in
+      // silence: no error, no screen, nothing to retry, and the mail was
+      // single-use.
+      //
+      // Gated on the token actually being present so the original rule still
+      // holds for plain navigation: a signed-in user who opens /auth/verify
+      // with nothing in the query string still goes home. `state.uri` rather
+      // than `loc`, because matchedLocation drops the query — the same
+      // distinction the route builders below rely on.
+      if ((loc == '/auth/verify' || loc == '/auth/reset') &&
+          (state.uri.queryParameters['token'] ?? '').isNotEmpty) {
+        return null;
+      }
       if (session == null) {
         RoleSession.clear();
         PermissionSession.clear();
@@ -261,7 +283,20 @@ class AppRouter {
       // Fire-and-forget: remembers where the user actually is so a force-
       // close (not a real logout) resumes here instead of always dropping
       // back to the dashboard — see splash_screen.dart's cold-start read.
-      saveLastRoute(loc);
+      //
+      // ONLY IF THE ROUTE ACTUALLY EXISTS. This redirect also runs for
+      // locations that matched NOTHING — go_router logs the error and still
+      // calls the top-level redirect — so an unmatched path used to be saved
+      // as the resume target like any other.
+      //
+      // That bricks the app on launch, permanently. Open a stale shared link
+      // like /#/exam-seats (the route is /manage-exam-seats), see "Page not
+      // found", tap Go Home — and /exam-seats is now in Hive. Every cold start
+      // from then on reads it, routes there, and lands back on the 404. There
+      // is no way out from inside the app; only clearing storage or
+      // reinstalling fixes it. A stale link somebody pasted in a group chat
+      // should not be able to do that.
+      if (state.topRoute != null) saveLastRoute(loc);
       return null;
     },
 
@@ -291,6 +326,7 @@ class AppRouter {
             mailReason: extra?['mailReason'] as String?,
             supportEmail: extra?['supportEmail'] as String?,
             supportTelegram: extra?['supportTelegram'] as String?,
+            expiresInSeconds: (extra?['expiresInSeconds'] as num?)?.toInt() ?? 600,
           ), s);
         }),
       // Code-first password reset. Distinct from /reset-password below, which

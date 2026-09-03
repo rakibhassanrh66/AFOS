@@ -72,7 +72,18 @@ function mailFrom(): string {
   // Must be an address on a domain verified with the provider, or every
   // message is rejected at the API. Kept in env so changing the sending domain
   // never needs a redeploy.
-  return Deno.env.get("MAIL_FROM") ?? "AFOS <no-reply@afos.app>";
+  //
+  // The fallback used to be `no-reply@afos.app` — a THIRD domain, belonging to
+  // nobody on this project and verified with nobody. Every send against it
+  // returns Resend `validation_error` 403 "The afos.app domain is not
+  // verified", which is the same symptom as a missing key, an unverified
+  // domain, and a key in the wrong account. Four different causes, one
+  // message: that ambiguity is what mail-domain-status was written to break.
+  //
+  // It now names the domain actually verified for this project, so an unset
+  // MAIL_FROM degrades to something that works rather than to a fresh
+  // mystery. MAIL_FROM still wins.
+  return Deno.env.get("MAIL_FROM") ?? "AFOS <no-reply@afos.srown.com>";
 }
 
 export interface ProviderResult {
@@ -155,6 +166,50 @@ async function enqueue(supabase: any, i: DispatchInput, sendAfter = new Date()):
   return "queued";
 }
 
+/// Reserves one unit of the provider's DAILY allowance, immediately before a
+/// real call to the Resend API.
+///
+/// WHY THIS FUNCTION HAD TO EXIST. The daily bucket was fully built and never
+/// once decremented. 20260902070000 defines `email_provider_resend_daily`
+/// (capacity 100, Resend's free-plan day), mail_budget_status() reads it, and
+/// mail_check_and_alert() raises admin alerts off it — but nothing anywhere
+/// called consume_rate_limit() for that bucket. So rate_limit_buckets never
+/// got a row, mail_budget_status() always took its "never used => full"
+/// branch, `can_send` was permanently true, and the low / last_one /
+/// exhausted alerts could never fire once.
+///
+/// The guard was therefore decorative at exactly the moment it mattered: the
+/// only bucket actually being consumed, `email_provider_resend`, is 100 per
+/// MINUTE — 1,400x the real daily allowance, as its own migration says. The
+/// system could spend a whole day's mail in sixty seconds and report a full
+/// tank while doing it.
+///
+/// Called from the two places that genuinely hand a message to Resend —
+/// dispatch() for the inline lane, email-dispatch for the drained lane — so
+/// each send is counted exactly once and a message that queues and later
+/// drains is not counted twice.
+///
+/// FAILS OPEN, unlike consumeRateLimit() in identity.ts, and the difference is
+/// deliberate. That one stands between a script and a real student's inbox, so
+/// silence must mean no. This one only tracks how much of our own paid-for
+/// allowance is left; if the limiter cannot answer, refusing would convert a
+/// limiter hiccup into a total mail outage. It follows the stance this very
+/// bucket already takes in mail_budget_status(): "A missing row must never be
+/// read as 'stop sending'."
+// deno-lint-ignore no-explicit-any
+export async function reserveDailyBudget(supabase: any): Promise<boolean> {
+  const { data, error } = await supabase.rpc("consume_rate_limit", {
+    p_bucket: "email_provider_resend_daily",
+    p_key: "global",
+    p_cost: 1,
+  });
+  if (error) {
+    console.error("[mailer] daily budget check failed, allowing:", error.message);
+    return true;
+  }
+  return data !== false;
+}
+
 /// The hot path. Returns which lane carried the message so the caller can
 /// adjust the copy it shows ("check your inbox" vs "we'll ping you when it
 /// lands"), but never fails the user's request over a provider hiccup.
@@ -171,6 +226,22 @@ export async function dispatch(supabase: any, i: DispatchInput): Promise<Dispatc
 
   // Budget spent (or the limiter is unavailable) → straight to the queue.
   if (budgetErr || hasBudget === false) return await enqueue(supabase, i);
+
+  // The DAY's allowance, checked after the minute's and for a different
+  // reason: the minute bucket paces a burst, this one is the ceiling the
+  // provider will actually enforce.
+  //
+  // Queueing rather than failing is the right move for a rolling budget. The
+  // bucket refills at capacity/1440 per minute, so a message parked here goes
+  // out as allowance returns instead of being lost — which is the behaviour
+  // the rolling window was chosen for in the first place. Callers that need to
+  // tell a human "no mail today" ask mail_check_and_alert() BEFORE dispatching
+  // (see register-request); by the time we are here, queueing is strictly
+  // better than throwing.
+  if (!await reserveDailyBudget(supabase)) {
+    console.error("[mailer] daily provider allowance exhausted — queueing for refill");
+    return await enqueue(supabase, i);
+  }
 
   const mail = renderTemplate(i.template, i.payload);
   const result = await sendViaResend(i.to, mail);

@@ -1,0 +1,22 @@
+-- profile_search_text() is IMMUTABLE and is the expression behind
+-- profiles_search_trgm_idx (the GIN trigram index the whole user search runs
+-- on), and it had no pinned search_path -- the last function in this database
+-- without one.
+--
+-- Why that matters for an INDEX expression specifically, rather than as a
+-- generic hardening nit: an IMMUTABLE function is a promise that the same
+-- inputs always give the same output, and that promise is what lets Postgres
+-- store the result in an index and never recompute it. A search_path that can
+-- differ between the session that INSERTED a row and the session that QUERIES
+-- it breaks the promise -- lower()/concat_ws()/coalesce() could resolve to
+-- different functions -- and the failure mode is not an error. It is a user who
+-- simply does not appear in search results, with the index quietly holding a
+-- value no query will ever match.
+--
+-- Body unchanged, so existing index entries stay valid and no REINDEX is
+-- needed; this only fixes how the names inside it are resolved from now on.
+--
+-- Verified: identical EXPLAIN before and after (Bitmap Index Scan on
+-- profiles_search_trgm_idx), and the same 4 rows still match through it.
+alter function public.profile_search_text(text, text, text, text, text, text, text)
+  set search_path = public, pg_catalog;

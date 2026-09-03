@@ -40,6 +40,55 @@ export async function resolveApprovers(
   return [...recipients];
 }
 
+/// Tells the approvers that a specific applicant is stuck.
+///
+/// WHY THIS EXISTS, AND THE REAL PERSON IT WAS WRITTEN FOR.
+///
+/// Flagging `review_state = 'needs_review'` and NOTIFYING somebody were two
+/// separate steps, and only one of them was ever wired up. register-request
+/// staged applicants on quota exhaustion and on provider rejection;
+/// register-verify staged them on an expired code and on spent attempts. Not
+/// one of those four paths told a human. The row simply appeared in a tab
+/// nobody had a reason to open.
+///
+/// The failure that exposed it: a real applicant signed up on 2026-09-01 while
+/// the sending domain was unverified. register-request staged her and notified
+/// nobody. The app then showed her "Ask an administrator to approve me" — she
+/// pressed it — and register-review-request's update was guarded on
+/// `review_state = 'none'`, which she no longer was, so it matched zero rows,
+/// returned ok, and notified nobody a SECOND time. The screen told her
+/// administrators had been asked. They had not. She waited a day in a queue
+/// no one knew had anything in it.
+///
+/// Two individually reasonable mechanisms composing into total silence is
+/// exactly the failure mode this file's header warns about: "nobody is
+/// notified that nobody was notified." So staging now goes through here.
+///
+/// NEVER THROWS — notifyApprovers swallows its own failures, and the
+/// resolveApprovers lookup is wrapped for the same reason: this always runs
+/// after the applicant's real work is done, and a notification problem must
+/// not become an error they see.
+// deno-lint-ignore no-explicit-any
+export async function alertStuckApplicant(
+  supabase: any,
+  o: { email: string; name?: string | null; role?: string | null; reason: string },
+): Promise<void> {
+  try {
+    const ids = await resolveApprovers(supabase);
+    const who = o.name ? `${o.name} (${o.role ?? "student"})` : o.email;
+    await notifyApprovers(supabase, ids, {
+      // Deliberately does NOT say the person is verified. Nobody has proved
+      // anything here; the approver is being asked to make a judgement, and
+      // the review screen repeats that before they can act.
+      title: "An applicant needs manual approval",
+      body: `${who} signed up as ${o.email} but could not finish. ${o.reason}`,
+      route: "/admin/users",
+    });
+  } catch (e) {
+    console.error("[approvers] stuck-applicant alert failed (non-fatal):", e);
+  }
+}
+
 /// Writes the in-app notification and fires the push.
 ///
 /// NEVER THROWS. Every caller runs this after the user's real work has already

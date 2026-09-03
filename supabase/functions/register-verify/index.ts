@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { notifyApprovers, resolveApprovers } from "../_shared/approvers.ts";
+import { alertStuckApplicant, notifyApprovers, resolveApprovers } from "../_shared/approvers.ts";
 import {
   consumeRateLimit,
   corsHeaders,
@@ -71,10 +71,24 @@ serve(async (req) => {
     // Before this, a stuck signup sat in a service-role-only table where
     // nobody could see it and the applicant had no route forward.
     const flagForReview = async (reason: string) => {
-      await supabase.from("pending_registrations")
+      const { data: flagged } = await supabase.from("pending_registrations")
         .update({ review_state: "needs_review", review_reason: reason })
         .eq("id", row.id)
-        .eq("review_state", "none");
+        .eq("review_state", "none")
+        .select("id");
+      // Only on the transition, so a user retrying an expired code five times
+      // raises one alert rather than five. The `review_state = 'none'` guard
+      // is what makes that true, and the .select() is what lets us SEE that it
+      // was true — without it the update returns nothing and the caller cannot
+      // tell "I flagged them" from "they were already flagged".
+      if (!flagged || flagged.length === 0) return;
+      const p = row.payload ?? {};
+      await alertStuckApplicant(supabase, {
+        email: row.email,
+        name: p.full_name ?? null,
+        role: p.account_type ?? null,
+        reason,
+      });
     };
 
     if (new Date(row.expires_at).getTime() < Date.now()) {
