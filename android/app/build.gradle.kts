@@ -103,7 +103,8 @@ android {
             // test suite. proguard-rules.pro keeps every one of them; a
             // manual smoke test (login, QR scan, GPS, biometric unlock,
             // background SOS, push) is still required before this is trusted
-            // in a tagged release -- see RELEASING.md.
+            // in a tagged release -- see the release runbook (kept on the
+            // maintainer's machine, not published with this repo).
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
