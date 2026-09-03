@@ -1,0 +1,18 @@
+{
+  "//": "Deno owns supabase/functions; everything else in this repo is Dart. Without enablePaths the built-in TypeScript service claims those files and reports one 'Cannot find module https://deno.land/...' per file — 14 phantom errors against code CI type-checks clean with `deno check`.",
+  "deno.enable": false,
+  "deno.enablePaths": ["supabase/functions"],
+  "deno.lint": true,
+  "deno.unstable": false,
+
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
+
+  "//dart": "Matches analysis_options.yaml, so the IDE and `flutter analyze` agree.",
+  "dart.lineLength": 100,
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true
+  }
+}

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:afos_v7/config/theme/app_colors.dart';
 import 'package:afos_v7/config/theme/dark_theme.dart';
 import 'package:afos_v7/config/theme/light_theme.dart';
+import 'package:afos_v7/features/settings/bloc/theme_bloc.dart';
 import 'package:afos_v7/shared/widgets/glass_chip.dart';
 
 /// Pins the accent-colour setting to something a user can actually see.
@@ -92,5 +93,38 @@ void main() {
         reason: 'the selected chip should carry the user accent');
     expect(mentions(AppColors.blue), isFalse,
         reason: 'the old hardcoded blue fallback should be gone');
+  });
+
+  /// The stored accent is read on every cold start, and the read used to be
+  /// two unguarded throws in a fire-and-forget method: `as String?` on a Hive
+  /// value that an older build may have written as an int, and `int.parse` on
+  /// whatever came back. Nothing catches either, so the symptom was not an
+  /// error — it was the theme silently never loading.
+  group('ThemeBloc.parseAccent tolerates every stored shape', () {
+    test('AARRGGBB, the shape Hive holds', () {
+      expect(ThemeBloc.parseAccent('FF2196F3')?.toARGB32(), 0xFF2196F3);
+    });
+
+    test('#RRGGBB, the shape user_settings.accent_color holds', () {
+      expect(ThemeBloc.parseAccent('#2196F3')?.toARGB32(), 0xFF2196F3);
+    });
+
+    test('RRGGBB without the hash', () {
+      expect(ThemeBloc.parseAccent('2196F3')?.toARGB32(), 0xFF2196F3);
+    });
+
+    test('a bare int, which an older local write could leave behind', () {
+      expect(ThemeBloc.parseAccent(0xFF2196F3)?.toARGB32(), 0xFF2196F3);
+    });
+
+    test('surrounding whitespace', () {
+      expect(ThemeBloc.parseAccent('  #2196F3 ')?.toARGB32(), 0xFF2196F3);
+    });
+
+    test('returns null instead of throwing on junk', () {
+      for (final bad in <Object?>[null, '', 'blue', 'GGGGGG', '#12', 12.5, [1, 2]]) {
+        expect(ThemeBloc.parseAccent(bad), isNull, reason: 'input was $bad');
+      }
+    });
   });
 }

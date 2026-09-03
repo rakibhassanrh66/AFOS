@@ -326,6 +326,7 @@ class AppRouter {
             mailReason: extra?['mailReason'] as String?,
             supportEmail: extra?['supportEmail'] as String?,
             supportTelegram: extra?['supportTelegram'] as String?,
+            expiresInSeconds: (extra?['expiresInSeconds'] as num?)?.toInt() ?? 600,
           ), s);
         }),
       // Code-first password reset. Distinct from /reset-password below, which

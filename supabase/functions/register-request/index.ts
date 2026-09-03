@@ -33,7 +33,20 @@ import { dispatch } from "../_shared/mailer.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
 
-const EXPIRES_MINUTES = 10;
+// Thirty minutes, not ten.
+//
+// Ten was the original guess and two of the three signups still open in
+// pending_registrations died on it -- one of them flagged in so many words,
+// "Code expired before it was used". University mailboxes are not instant:
+// the send is queued behind a provider rate limit, then a campus mail server
+// greylists it, and the applicant is often not sitting on the screen when it
+// finally lands.
+//
+// It costs almost nothing. The code is six digits against a bucket of 8
+// attempts refilling at 0.25/min, so a thirty-minute window allows about 15
+// guesses instead of 10 -- against a million possibilities. The attempt
+// counter is the defence here, not the clock.
+const EXPIRES_MINUTES = 30;
 
 // Where an applicant is told to go when we cannot mail them. Env-overridable
 // so support contacts can change without shipping an app release — the phone

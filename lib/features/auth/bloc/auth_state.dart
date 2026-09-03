@@ -39,8 +39,18 @@ class AuthRegistrationCodeSent extends AuthState {
   final String? mailReason;
   final String? supportEmail;
   final String? supportTelegram;
+
+  /// How long the code is actually good for, straight from the server.
+  ///
+  /// The verify screen used to state "expires in 10 minutes" as a literal
+  /// while the server had been sending expiresInSeconds all along. Two copies
+  /// of one number, and only one of them was ever going to be updated -- the
+  /// server window is now 30 minutes and the sentence would have been a lie
+  /// to every applicant reading it. Defaults to the old 600 so an older
+  /// deployed function still produces the sentence it always did.
+  final int expiresInSeconds;
   AuthRegistrationCodeSent(this.email, {this.resendAfterSeconds = 60, this.lane = 'inline',
       this.manualFallback = true, this.mailFailed = false, this.mailReason,
-      this.supportEmail, this.supportTelegram});
+      this.supportEmail, this.supportTelegram, this.expiresInSeconds = 600});
 }
 class AuthPasswordResetSent  extends AuthState {}

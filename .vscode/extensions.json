@@ -1,0 +1,8 @@
+{
+  "//": "denoland.vscode-deno is what stops supabase/functions from showing phantom 'Cannot find module' errors; the settings.json here scopes it to that folder only.",
+  "recommendations": [
+    "dart-code.dart-code",
+    "dart-code.flutter",
+    "denoland.vscode-deno"
+  ]
+}
