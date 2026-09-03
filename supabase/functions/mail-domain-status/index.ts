@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, json } from "../_shared/identity.ts";
+import { appOrigin, corsHeaders, json } from "../_shared/identity.ts";
 
 // Asks the mail provider what IT thinks is verified.
 //
@@ -28,9 +27,6 @@ import { corsHeaders, json } from "../_shared/identity.ts";
 //
 // Admin-only. Domain names are not dangerous, but "what does our provider
 // account contain" is operational detail with no reason to be public.
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -102,9 +98,25 @@ serve(async (req) => {
     }
   }
 
+  // BOTH HALVES OF THE ANSWER, in one call.
+  //
+  // The domain list says whether we can send. It says nothing about whether
+  // the mail is any use, and that is the half that actually broke: with
+  // PUBLIC_APP_URL unset, appOrigin() fell back to a host belonging to a
+  // different company entirely, so a perfectly delivered confirmation mail
+  // pointed every student at a stranger's website. Sending was green the whole
+  // time. Reporting the sender without the link would leave exactly the blind
+  // spot this endpoint exists to remove.
+  //
+  // `appOriginIsFallback` is the distinction that matters when triaging: a
+  // correct-looking origin that is merely the built-in default is one
+  // mistyped secret away from being wrong again, and it should not read as
+  // configured.
   return json({
     ok: true,
-    mailFrom: Deno.env.get("MAIL_FROM") ?? "(unset)",
+    mailFrom: Deno.env.get("MAIL_FROM") ?? "(unset — using the built-in fallback)",
+    appOrigin: appOrigin(),
+    appOriginIsFallback: !Deno.env.get("PUBLIC_APP_URL"),
     domainCount: domains.length,
     domains,
     ...(wantVerify ? { verifyTriggered: verified } : {}),

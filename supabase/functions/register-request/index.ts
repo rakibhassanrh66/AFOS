@@ -13,6 +13,7 @@ import {
   json,
   normaliseEmail,
 } from "../_shared/identity.ts";
+import { alertStuckApplicant } from "../_shared/approvers.ts";
 import { dispatch } from "../_shared/mailer.ts";
 
 // Step 1 of proving a DIU mailbox.
@@ -32,7 +33,20 @@ import { dispatch } from "../_shared/mailer.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
 
-const EXPIRES_MINUTES = 10;
+// Thirty minutes, not ten.
+//
+// Ten was the original guess and two of the three signups still open in
+// pending_registrations died on it -- one of them flagged in so many words,
+// "Code expired before it was used". University mailboxes are not instant:
+// the send is queued behind a provider rate limit, then a campus mail server
+// greylists it, and the applicant is often not sitting on the screen when it
+// finally lands.
+//
+// It costs almost nothing. The code is six digits against a bucket of 8
+// attempts refilling at 0.25/min, so a thirty-minute window allows about 15
+// guesses instead of 10 -- against a million possibilities. The attempt
+// counter is the defence here, not the clock.
+const EXPIRES_MINUTES = 30;
 
 // Where an applicant is told to go when we cannot mail them. Env-overridable
 // so support contacts can change without shipping an app release — the phone
@@ -118,6 +132,7 @@ serve(async (req) => {
       // hold an account for it.
       let lane = "inline";
       let mailFailed = false;
+      let mailReason: "quota" | "provider" | null = null;
       try {
         lane = await dispatch(supabase, {
           to: email,
@@ -129,14 +144,30 @@ serve(async (req) => {
       } catch (e) {
         console.error("[register-request] account_exists dispatch failed:", e);
         mailFailed = true;
+        mailReason = "provider";
         lane = "failed";
       }
 
+      // EVERY KEY THE REAL BRANCH SENDS, or this is an enumeration oracle.
+      //
+      // The comment above promises this "mirrors the real path's shape
+      // EXACTLY". It did not: mailReason, supportEmail and supportTelegram
+      // were sent only on the real branch. Three keys present in one response
+      // and absent in the other distinguishes a registered DIU address from an
+      // unregistered one on a single unauthenticated POST — which is precisely
+      // the oracle the identical shapes exist to close, left open by the code
+      // asserting it was closed.
+      //
+      // Keep this object and the one at the end of the handler key-for-key
+      // identical. If you add a field there, add it here in the same commit.
       return json({
         ok: true,
         lane,
         mailFailed,
+        mailReason,
         manualFallback,
+        supportEmail: SUPPORT_EMAIL,
+        supportTelegram: SUPPORT_TELEGRAM,
         expiresInSeconds: EXPIRES_MINUTES * 60,
         resendAfterSeconds: 60,
       });
@@ -243,6 +274,15 @@ serve(async (req) => {
         .eq("email_norm", email)
         .is("consumed_at", null);
       console.error("[register-request] daily mail quota exhausted; staged for manual approval");
+      // Staging without telling anyone is the same as not staging. See
+      // alertStuckApplicant — this exact branch put a real applicant into a
+      // queue nobody knew to open.
+      await alertStuckApplicant(supabase, {
+        email,
+        name: fullName,
+        role: accountType,
+        reason: "The daily email limit was reached, so their code could not be sent.",
+      });
     }
 
     // Skipped entirely when the quota is gone — not attempted and caught,
@@ -285,6 +325,17 @@ serve(async (req) => {
           })
           .eq("email_norm", email)
           .is("consumed_at", null);
+        // THE BRANCH THAT STRANDED A REAL PERSON. It staged her correctly and
+        // then told nobody, and the "ask an administrator" button she pressed
+        // afterwards was silently swallowed too. Both halves are fixed; this
+        // is the half that should have fired first, without her having to do
+        // anything at all.
+        await alertStuckApplicant(supabase, {
+          email,
+          name: fullName,
+          role: accountType,
+          reason: "The mail provider rejected their verification email, so no code could be sent.",
+        });
       }
     }
 

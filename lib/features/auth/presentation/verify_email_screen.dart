@@ -35,12 +35,19 @@ import 'widgets/auth_brand_panel.dart';
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({super.key, this.email, this.token, this.resendAfterSeconds = 60,
       this.lane = 'inline', this.manualFallback = true, this.mailFailed = false,
-      this.mailReason, this.supportEmail, this.supportTelegram});
+      this.mailReason, this.supportEmail, this.supportTelegram,
+      this.expiresInSeconds = 600});
 
   final String? email;
   final String? token;
   final int resendAfterSeconds;
   final String lane;
+
+  /// The server's own window, not a second copy of it. See
+  /// AuthRegistrationCodeSent.expiresInSeconds -- the sentence below the code
+  /// field used to hardcode "10 minutes" while the server decided the real
+  /// number, so raising the window would have left the screen lying.
+  final int expiresInSeconds;
 
   /// Mirrors app_config.manual_approval_fallback. While mail delivery is
   /// unreliable this offers the only route an applicant has when no code ever
@@ -288,6 +295,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           mailReason: widget.mailReason,
           supportEmail: widget.supportEmail,
           supportTelegram: widget.supportTelegram,
+          expiresInSeconds: widget.expiresInSeconds,
           reviewBusy: _reviewBusy,
           reviewRequested: _reviewRequested,
           onRequestReview: _requestManualApproval,
@@ -328,6 +336,7 @@ class VerifyEmailPane extends StatelessWidget {
     required this.mailReason,
     required this.supportEmail,
     required this.supportTelegram,
+    required this.expiresInSeconds,
     required this.reviewBusy,
     required this.reviewRequested,
     required this.onRequestReview,
@@ -354,6 +363,7 @@ class VerifyEmailPane extends StatelessWidget {
   final String? mailReason;
   final String? supportEmail;
   final String? supportTelegram;
+  final int expiresInSeconds;
   final bool reviewBusy;
   final bool reviewRequested;
   final VoidCallback onRequestReview;
@@ -592,7 +602,7 @@ class VerifyEmailPane extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Center(
-          child: Text('The code expires in 10 minutes and works once.',
+          child: Text('The code expires in $_expiryText and works once.',
               textAlign: TextAlign.center,
               style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
         ),
@@ -640,6 +650,16 @@ class VerifyEmailPane extends StatelessWidget {
   /// wrong — and they cannot fix it by trying again, so an unqualified "we
   /// couldn't email you" invites exactly the retry that will also fail.
   bool get _quotaExhausted => mailReason == 'quota';
+
+  /// The window in words, from the server's number rather than a second
+  /// copy of it. Rounds to whole minutes because that is how the email
+  /// phrases it too, and falls back to seconds below a minute so a short
+  /// window never renders as "0 minutes".
+  String get _expiryText {
+    if (expiresInSeconds < 60) return '$expiresInSeconds seconds';
+    final minutes = (expiresInSeconds / 60).round();
+    return minutes == 1 ? '1 minute' : '$minutes minutes';
+  }
 
   List<Widget> _mailFailedBody(BuildContext context) => [
         _badge(context, _quotaExhausted ? Icons.schedule_send_outlined : Icons.unsubscribe_outlined,
