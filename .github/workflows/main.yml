@@ -52,24 +52,27 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      # SCOPED, and the exclusions are a decision rather than an oversight.
-      # Every auth and mail function is covered — the whole registration path,
-      # which is where a bundle failure costs someone an account. Five others
-      # are left out because they ALREADY fail type-checking, measured:
+      # EVERY function, with no exclusions left. The list used to carry five
+      # names in a comment instead of in the command, because they already
+      # failed type-checking:
       #
       #   send-notification   1   'err' is of type 'unknown'
       #   trigger-sos-alert   1   'err' is of type 'unknown'
-      #   delete-user         1   'authData.user' is possibly 'null'
+      #   delete-user         1   'err' is of type 'unknown'
       #   check-push-status   1   'err' is of type 'unknown'
-      #   parse-routine       3   same two shapes
+      #   parse-routine       3   the same two shapes
       #
-      # Those are real latent bugs, not noise: `err.message` on a non-Error
-      # throw gives "undefined" instead of a reason, and the null user is a
-      # genuine dereference. But they are in functions this change never
-      # touched, and fixing them means redeploying working code that nothing
-      # here tests. Fix them deliberately, then move the file into this list —
-      # the list is the todo.
-      - name: Type-check Supabase edge functions (auth + mail path)
+      # All seven are fixed (2026-09-03) and all thirteen functions are checked
+      # here now. They were real defects, not noise: `err.message` on a
+      # non-Error throw renders as "undefined", which tells the caller nothing
+      # and leaves nothing useful in the log; and parse-routine dereferenced
+      # `authData.user` inside two nested functions where TypeScript's
+      # narrowing does not reach, one null away from an unexplained 500 on the
+      # routine upload path.
+      #
+      # KEEP IT EXHAUSTIVE. A new function that is not added here is unchecked,
+      # and that is exactly how the original five drifted out of coverage.
+      - name: Type-check Supabase edge functions (all of them)
         run: |
           deno check --no-lock \
             supabase/functions/register-request/index.ts \
@@ -79,7 +82,12 @@ jobs:
             supabase/functions/password-reset/index.ts \
             supabase/functions/email-dispatch/index.ts \
             supabase/functions/mail-domain-status/index.ts \
-            supabase/functions/announce-release/index.ts
+            supabase/functions/announce-release/index.ts \
+            supabase/functions/send-notification/index.ts \
+            supabase/functions/trigger-sos-alert/index.ts \
+            supabase/functions/delete-user/index.ts \
+            supabase/functions/check-push-status/index.ts \
+            supabase/functions/parse-routine/index.ts
 
   # Standing assertion that no SECURITY DEFINER function is reachable by
   # `anon`. CREATE FUNCTION grants EXECUTE to PUBLIC by default, so a new
