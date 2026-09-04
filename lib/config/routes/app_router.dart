@@ -133,7 +133,18 @@ class AppRouter {
       // admin-created account) — force completion before anything else,
       // rather than letting the app run with a half-filled profile.
       final completed = await RoleSession.ensureProfileCompletedLoaded();
-      if (!completed) return '/complete-profile';
+      // Incomplete no longer means locked out on the spot. Every account gets
+      // ONE 48-hour window, started by the database the first time the row
+      // reads incomplete and never restarted, during which the app is usable
+      // and the completion screen offers to be skipped.
+      //
+      // This replaced a hard redirect that had locked 13 of 19 accounts. The
+      // photo rule inside profile_is_complete() measures its 48 hours from
+      // verified_at, so for anyone approved before that rule shipped the
+      // window had already closed — they were never given 48 hours, they were
+      // locked retroactively, and the redirect meant they could not reach a
+      // screen that explained why.
+      if (!completed && !RoleSession.insideGrace) return '/complete-profile';
       // New signups need super_admin approval before "full active mode" —
       // accounts that existed before this gate was introduced were
       // grandfathered to verified=true, so this only ever blocks brand new
