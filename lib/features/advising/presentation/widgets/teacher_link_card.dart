@@ -57,6 +57,7 @@ class _TeacherLinkCardState extends State<TeacherLinkCard> {
   TeacherLink? _link;
   TeacherCard? _teacher;
   TeacherCard? _preview;
+  List<Map<String, dynamic>> _hours = const [];
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -81,10 +82,14 @@ class _TeacherLinkCardState extends State<TeacherLinkCard> {
       final link = await _repo.myLink(widget.kind);
       TeacherCard? teacher;
       if (link != null) {
-        // The link names a teacher_id, but a student may not read the teacher
-        // directory — so the card comes back through the same resolver, keyed
-        // on the initial the student themselves typed.
-        teacher = await _repo.resolveInitial(_initialCtrl.text);
+        // NOT resolveInitial: that only answers while the student still has
+        // the initial typed in, so reopening the app showed a live link with
+        // no teacher on it. teacher_for_link is scoped server-side to a link
+        // the caller is party to.
+        teacher = await _repo.teacherForLink(link.id);
+        if (teacher != null) {
+          _hours = await _repo.officeHours(teacher.teacherId);
+        }
       }
       if (!mounted) return;
       setState(() {
@@ -206,6 +211,20 @@ class _TeacherLinkCardState extends State<TeacherLinkCard> {
     );
   }
 
+  /// 0 = Sunday, matching teacher_office_hours.day_of_week and the week as it
+  /// starts in Bangladesh.
+  static String _dayName(Object? dow) {
+    const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final i = dow is int ? dow : int.tryParse('$dow') ?? 0;
+    return names[i.clamp(0, 6)];
+  }
+
+  /// Postgres hands back 'HH:MM:SS'. Nobody needs the seconds.
+  static String _hhmm(Object? raw) {
+    final parts = (raw?.toString() ?? '').split(':');
+    return parts.length >= 2 ? '${parts[0]}:${parts[1]}' : '${raw ?? ''}';
+  }
+
   Widget _header(BuildContext context) {
     final status = _link?.status;
     return Row(children: [
@@ -250,8 +269,25 @@ class _TeacherLinkCardState extends State<TeacherLinkCard> {
         key: ValueKey('live-${link.id}'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_teacher != null)
-            TeacherSummary(teacher: _teacher!)
+          if (_teacher != null) ...[
+            TeacherSummary(teacher: _teacher!),
+            if (_hours.isNotEmpty) ...[
+              AppSpace.vGapSm,
+              Text('Free to talk',
+                  style: AppTextStyles.labelSmall
+                      .copyWith(color: AppColors.textSecondaryOf(context))),
+              for (final h in _hours)
+                Text(
+                  '${_dayName(h['day_of_week'])}  '
+                  '${_hhmm(h['start_time'])} – ${_hhmm(h['end_time'])}'
+                  '${(h['note'] as String?)?.isNotEmpty == true ? '  ·  ${h['note']}' : ''}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyMedium
+                      .copyWith(color: AppColors.textPrimaryOf(context)),
+                ),
+            ],
+          ]
           else
             Text(
               link.status == LinkStatus.pending

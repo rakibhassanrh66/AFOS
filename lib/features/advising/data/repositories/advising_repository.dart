@@ -60,6 +60,19 @@ class AdvisingRepository {
     return null;
   }
 
+  /// The teacher on one of the caller's own links.
+  ///
+  /// [resolveInitial] can only answer while the student still has the initial
+  /// typed in front of them; this answers after the app has been reopened,
+  /// which is when an advisor card is actually read. Scoped server-side to a
+  /// link the caller is party to.
+  Future<TeacherCard?> teacherForLink(String linkId) async {
+    final rows = await _client
+        .rpc('teacher_for_link', params: {'p_link_id': linkId}) as List;
+    if (rows.isEmpty) return null;
+    return TeacherCard.fromJson(rows.first as Map<String, dynamic>);
+  }
+
   /// Withdraw a request that has not been answered, or release an active one.
   Future<void> end(String linkId) async {
     await _client.from('teacher_links').update({'status': 'ended'}).eq('id', linkId);
@@ -118,6 +131,27 @@ class AdvisingRepository {
         'sender_id': senderId,
         'body': body.trim(),
       });
+
+  // -------------------------------------------------------------- oversight
+
+  /// Every pairing in the university, for a super-admin.
+  ///
+  /// Reachable only because `teacher_links_admin_reads_all` admits
+  /// `can_browse_users()`; for anyone else the same call returns just their
+  /// own rows rather than an error, which is the policy doing its job.
+  ///
+  /// Both sides are embedded through their EXPLICIT foreign keys. Two columns
+  /// on this table point at `profiles`, so an unqualified `profiles(...)`
+  /// embed is ambiguous and PostgREST rejects the whole select.
+  Future<List<Map<String, dynamic>>> allLinks({LinkKind? kind}) async {
+    var q = _client.from('teacher_links').select(
+        'id, kind, status, requested_at, decided_at, '
+        'student:profiles!teacher_links_student_id_fkey(full_name, university_id, batch), '
+        'teacher:profiles!teacher_links_teacher_id_fkey(full_name, teacher_initial)');
+    if (kind != null) q = q.eq('kind', kind.wire);
+    final rows = await q.order('requested_at', ascending: false) as List;
+    return rows.cast<Map<String, dynamic>>();
+  }
 
   // ----------------------------------------------------------- availability
 
