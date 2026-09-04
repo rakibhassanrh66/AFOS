@@ -11,7 +11,6 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
-import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/label_value_row.dart';
 import '../../../shared/widgets/pill_badge.dart';
@@ -19,6 +18,7 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
 import '../data/models/teacher_link.dart';
 import '../data/repositories/advising_repository.dart';
+import 'link_thread_screen.dart';
 
 /// The teacher's side: everyone who has asked for them, and everyone they
 /// took on.
@@ -28,14 +28,20 @@ import '../data/repositories/advising_repository.dart';
 /// and not in terms of two databases. What differs between them is only how
 /// much of each student this screen is allowed to show, and that is decided
 /// by the server, not here.
-class MyStudentsScreen extends StatefulWidget {
-  const MyStudentsScreen({super.key});
+/// Rendered as a tab inside Mentorship rather than as its own screen.
+///
+/// Advising belongs beside mentorship rather than in its own corner of the
+/// menu: both are a teacher and a student paired up, and a teacher looking for
+/// "the students I am responsible for" should not have to know which of two
+/// features owns that word.
+class MyStudentsBody extends StatefulWidget {
+  const MyStudentsBody({super.key});
 
   @override
-  State<MyStudentsScreen> createState() => _MyStudentsScreenState();
+  State<MyStudentsBody> createState() => _MyStudentsBodyState();
 }
 
-class _MyStudentsScreenState extends State<MyStudentsScreen> {
+class _MyStudentsBodyState extends State<MyStudentsBody> {
   final _repo = AdvisingRepository();
 
   int _tab = 0;
@@ -123,32 +129,20 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
   Widget build(BuildContext context) {
     final rows = _tab == 0 ? _pending : _active;
 
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(children: [
-          const FeatureHeader(
-            title: 'My Students',
-            subtitle: 'Advisees and final year projects',
-            icon: Icons.groups_rounded,
-            accent: AppColors.holoBlue,
-          ),
-          AppSpace.vGapMd,
-          GlassTabBar(
-            tabs: [
-              GlassTab('Requests (${_pending.length})',
-                  icon: Icons.mark_email_unread_rounded),
-              GlassTab('Active (${_active.length})',
-                  icon: Icons.people_alt_rounded),
-            ],
-            currentIndex: _tab,
-            onChanged: (i) => setState(() => _tab = i),
-          ),
-          AppSpace.vGapMd,
-          Expanded(child: _list(rows)),
-        ]),
+    return Column(children: [
+      AppSpace.vGapMd,
+      GlassTabBar(
+        tabs: [
+          GlassTab('Requests (${_pending.length})',
+              icon: Icons.mark_email_unread_rounded),
+          GlassTab('Active (${_active.length})', icon: Icons.people_alt_rounded),
+        ],
+        currentIndex: _tab,
+        onChanged: (i) => setState(() => _tab = i),
       ),
-    );
+      AppSpace.vGapMd,
+      Expanded(child: _list(rows)),
+    ]);
   }
 
   Widget _list(List<Map<String, dynamic>> rows) {
@@ -183,9 +177,23 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
           onAccept: () => _decide(rows[i]['id'] as String, true),
           onDecline: () => _decide(rows[i]['id'] as String, false),
           onOpen: () => _openProfile(rows[i]),
+          onMessage: () => _openThread(rows[i]),
         ),
       ),
     );
+  }
+
+  void _openThread(Map<String, dynamic> row) {
+    final raw = row['profiles'];
+    final p = (raw is List)
+        ? (raw.isEmpty ? const <String, dynamic>{} : raw.first as Map<String, dynamic>)
+        : (raw as Map<String, dynamic>? ?? const {});
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LinkThreadScreen(
+        linkId: row['id'] as String,
+        title: (p['full_name'] as String?) ?? 'Student',
+      ),
+    ));
   }
 
   Future<void> _openProfile(Map<String, dynamic> row) async {
@@ -215,6 +223,7 @@ class _StudentRow extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onDecline;
   final VoidCallback onOpen;
+  final VoidCallback onMessage;
 
   const _StudentRow({
     super.key,
@@ -223,6 +232,7 @@ class _StudentRow extends StatelessWidget {
     required this.onAccept,
     required this.onDecline,
     required this.onOpen,
+    required this.onMessage,
   });
 
   @override
@@ -267,6 +277,15 @@ class _StudentRow extends StatelessWidget {
             ),
           ),
         ]),
+        if (!pending) ...[
+          AppSpace.vGapMd,
+          AfosButton(
+            label: 'Message',
+            icon: Icons.forum_rounded,
+            outlined: true,
+            onTap: onMessage,
+          ),
+        ],
         if (pending) ...[
           AppSpace.vGapMd,
           Row(children: [

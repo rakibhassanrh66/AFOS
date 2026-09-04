@@ -14,6 +14,7 @@ import '../../../../shared/widgets/afos_text_field.dart';
 import '../../../../shared/widgets/pill_badge.dart';
 import '../../../../shared/widgets/surface_card.dart';
 import '../../data/models/teacher_link.dart';
+import '../link_thread_screen.dart';
 import '../../data/repositories/advising_repository.dart';
 
 /// The student's side of one pairing — advisor or final-year supervisor.
@@ -261,6 +262,21 @@ class _TeacherLinkCardState extends State<TeacherLinkCard> {
             ),
           AppSpace.vGapMd,
           Row(children: [
+            if (link.status == LinkStatus.active) ...[
+              Expanded(
+                child: AfosButton(
+                  label: 'Message',
+                  icon: Icons.forum_rounded,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => LinkThreadScreen(
+                      linkId: link.id,
+                      title: _teacher?.fullName ?? widget.kind.teacherNoun,
+                    ),
+                  )),
+                ),
+              ),
+              AppSpace.gapSm,
+            ],
             Expanded(
               child: AfosButton(
                 label: link.status == LinkStatus.pending ? 'Withdraw' : 'Release',
