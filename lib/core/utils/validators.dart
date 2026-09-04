@@ -48,22 +48,60 @@ class AppValidators {
     if(!v.contains(RegExp(r'[0-9]'))) return 'Need one number';
     return null;
   }
+  /// Cleans up a university ID the way a person actually types one, before it
+  /// is judged or stored: trims, removes the spaces people put around the
+  /// dashes ("253 - 33 - 105"), and folds the several dash-like characters a
+  /// phone keyboard can emit — en/em dash, non-breaking hyphen, minus sign —
+  /// down to ASCII '-'. A student who long-presses '-' on a soft keyboard can
+  /// get U+2013 without ever knowing it, and their ID would then mismatch
+  /// every other copy of itself in the database.
+  static String normalizeUniversityId(String v) => v
+      .trim()
+      .replaceAll(RegExp(r'[‐-―−]'), '-')
+      .replaceAll(RegExp(r'\s+'), '');
+
+  /// Letters, digits and single interior dashes, and at least one digit
+  /// somewhere. Deliberately NOT a university-format rule — see [studentId].
+  static final RegExp _universityIdShape =
+      RegExp(r'^(?=.*\d)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$');
+
+  /// A SANITY BOUND, NOT A FORMAT RULE — and that distinction is the whole
+  /// point of this function.
+  ///
+  /// This used to demand `^\d{3}-\d{2}-\d{4,6}$` (or 6-20 bare digits), on the
+  /// belief that a DIU ID is always `batch-department-roll` with a four-digit
+  /// roll. It is not. **The registrar issues the ID; the student has no say in
+  /// its shape**, and roll numbers are only as long as the department is big —
+  /// so a smaller or newer department produces perfectly valid IDs like
+  /// `253-33-105`, which the old rule rejected outright with "Invalid ID
+  /// format (e.g. 221-15-5678)". Those students could not create an account at
+  /// all.
+  ///
+  /// That was not a hypothetical. `profiles` still carries the workaround:
+  /// `25315550` is `253-15-550` with the dashes stripped, and several 13-16
+  /// digit entries are phone or NID numbers — people typing anything that
+  /// would get them past the form. Every one of those is a corrupted identity
+  /// record caused by this validator.
+  ///
+  /// So the rule is now the same one the employee branch always used: reject
+  /// what cannot be an ID (empty, absurdly short or long, characters no
+  /// registrar issues, no digit anywhere), and accept everything else. The
+  /// server does not second-guess it either — there is no CHECK constraint on
+  /// `profiles.student_id` and no edge function that re-validates the shape,
+  /// so this function is the ONLY gate. Tightening it locks people out of the
+  /// university's own app; leaving it loose costs a typo.
   static String? studentId(String? v, {AccountType type = AccountType.student}) {
-    if(v==null||v.trim().isEmpty) {
-      return type==AccountType.student ? 'Student ID required' : 'Employee ID required';
+    final isStudent = type == AccountType.student;
+    if (v == null || v.trim().isEmpty) {
+      return isStudent ? 'Student ID required' : 'Employee ID required';
     }
-    final s = v.trim();
-    if(type==AccountType.teacher || type==AccountType.staff) {
-      // Employee/staff IDs have no fixed university format — just a sanity bound.
-      final ok = RegExp(r'^[A-Za-z0-9-]{4,25}$').hasMatch(s);
-      if(!ok) return 'Invalid ID format';
-      return null;
+    final s = normalizeUniversityId(v);
+    final noun = isStudent ? 'Student ID' : 'Employee ID';
+    if (s.length < 4) return '$noun looks too short — copy it from your ID card';
+    if (s.length > 25) return '$noun looks too long — copy it from your ID card';
+    if (!_universityIdShape.hasMatch(s)) {
+      return 'Use only letters, digits and dashes, as printed on your ID card';
     }
-    // Accept dashed format (e.g. 221-15-5678) or plain digits (6-20 chars,
-    // wide enough to cover both short and long-form university IDs).
-    final ok = RegExp(r'^\d{3}-\d{2}-\d{4,6}$').hasMatch(s) ||
-               RegExp(r'^\d{6,20}$').hasMatch(s);
-    if(!ok) return 'Invalid ID format (e.g. 221-15-5678)';
     return null;
   }
   static String? required(String? v,{String f='Field'}) {
