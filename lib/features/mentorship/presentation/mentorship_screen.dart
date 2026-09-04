@@ -16,6 +16,9 @@ import '../../../core/services/outbox_service.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
+import '../../advising/data/models/teacher_link.dart';
+import '../../advising/presentation/my_students_screen.dart';
+import '../../advising/presentation/widgets/teacher_link_card.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../notifications/data/repositories/notification_service.dart';
@@ -42,7 +45,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
   bool get _isStudent => RoleSession.role == 'student';
 
   @override
-  void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _load(); }
+  void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); _load(); }
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
 
@@ -153,10 +156,21 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
             subtitle: 'Mentorship is for students and teachers only'),
       );
     }
-    final tabLabels = _isTeacher ? const ['Requests', 'My Profile'] : const ['Find Mentor', 'My Sessions'];
+    // Advising lives here rather than in its own menu entry. Mentorship is
+    // already "a teacher and a student paired up"; a permanent advisor and a
+    // final-year supervisor are the same relationship with a longer term, and
+    // splitting them across two features would make a teacher guess which one
+    // owns the word "my students".
+    final tabLabels = _isTeacher
+        ? const ['Requests', 'My Profile', 'My Students']
+        : const ['Find Mentor', 'My Sessions', 'My Advisor'];
     final tabIcons = _isTeacher
-        ? const [Icons.inbox_rounded, Icons.badge_rounded]
-        : const [Icons.explore_rounded, Icons.event_available_rounded];
+        ? const [Icons.inbox_rounded, Icons.badge_rounded, Icons.groups_rounded]
+        : const [
+            Icons.explore_rounded,
+            Icons.event_available_rounded,
+            Icons.support_agent_rounded,
+          ];
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'Mentorship'),
@@ -186,12 +200,14 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                         : _IncomingRequestsTab(requests: _incomingRequests, onRefresh: _load),
                     _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 1, itemHeight: 260))
                         : _MyMentorProfileTab(profile: _myMentorProfile, onSaved: _load),
+                    const MyStudentsBody(),
                   ]
                 : [
                     _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4, itemHeight: 130))
                         : _MentorList(mentors: _mentors, onBook: (m) => _showBookingDialog(context, m)),
                     _loading ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
                         : _SessionsTab(sessions: _sessions, onRefresh: _load),
+                    const _MyAdvisorTab(),
                   ])),
       ]),
     );
@@ -579,5 +595,75 @@ class _OversightTab extends StatelessWidget {
                 ],
               ]));
         });
+  }
+}
+
+/// The student's side of advising, hosted inside Mentorship.
+///
+/// Only the semester is fetched here, and only to decide whether the
+/// final-year card is shown at all — everything else the two cards need they
+/// fetch themselves through the advising repository.
+class _MyAdvisorTab extends StatefulWidget {
+  const _MyAdvisorTab();
+
+  @override
+  State<_MyAdvisorTab> createState() => _MyAdvisorTabState();
+}
+
+class _MyAdvisorTabState extends State<_MyAdvisorTab> {
+  int? _semester;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    try {
+      final row = await SupabaseConfig.client
+          .from('profiles')
+          .select('semester')
+          .eq('id', uid)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _semester = row?['semester'] as int?;
+        _loading = false;
+      });
+    } catch (_) {
+      // A missing semester only decides whether the FYDP card appears, and
+      // the server re-checks it on request anyway. Failing to read it must
+      // not take the advisor card down with it.
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Padding(
+          padding: EdgeInsets.all(16), child: ShimmerList(count: 2, itemHeight: 180));
+    }
+    return ListView(
+      padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
+      children: [
+        const TeacherLinkCard(kind: LinkKind.advisor),
+        // DIU runs three semesters to a year, so years 3 and 4 are semesters
+        // 7 to 12. Below that the card is not shown at all rather than shown
+        // and then refused after the student has typed into it.
+        TeacherLinkCard(
+          kind: LinkKind.fydp,
+          ineligibleReason:
+              (_semester ?? 0) >= 7 ? null : 'Final year students only',
+        ),
+      ],
+    );
   }
 }

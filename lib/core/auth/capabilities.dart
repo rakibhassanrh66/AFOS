@@ -257,6 +257,12 @@ class Caps {
       accent: AppColors.red, group: CapabilityGroup.operations, hint: 'Live alerts');
 
   // -- oversight -----------------------------------------------------------
+  /// The whole advising map, for a super-admin. Read-only: revoking someone
+  /// else's advisor is a decision with a conversation attached.
+  static const advisingOversight = AppCapability(
+      label: 'Advising', route: '/admin/advising',
+      icon: Icons.hub_rounded, accent: AppColors.holoBlue,
+      group: CapabilityGroup.oversight, hint: 'Who advises whom');
   static const manageUsers = AppCapability(
       label: 'Manage Users', route: '/admin/users', icon: AppIcons.manageUsers,
       accent: AppColors.holoviolet, group: CapabilityGroup.oversight,
@@ -383,7 +389,7 @@ List<AppCapability> capabilitiesFor({
   ];
   const superAdminTools = [
     Caps.manageUsers, Caps.manageClubs, Caps.conferenceRoomsAdmin,
-    Caps.feedbackTriage, Caps.activityLog,
+    Caps.feedbackTriage, Caps.activityLog, Caps.advisingOversight,
   ];
 
   switch (role) {
