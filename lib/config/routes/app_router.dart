@@ -37,6 +37,7 @@ import '../../features/hall/presentation/manage_hall_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
 import '../../features/library/presentation/manage_library_screen.dart';
 import '../../features/lost_found/presentation/lost_found_screen.dart';
+import '../../features/advising/presentation/advising_oversight_screen.dart';
 import '../../features/mentorship/presentation/mentorship_screen.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
 import '../../features/portal/presentation/diu_portal_hub_screen.dart';
@@ -366,6 +367,7 @@ class AppRouter {
           GoRoute(path: '/lost-found',    pageBuilder: (c,s) => slideRightPage(const LostFoundScreen(), s)),
           GoRoute(path: '/clubs',         pageBuilder: (c,s) => slideRightPage(const ClubsScreen(), s)),
           GoRoute(path: '/mentorship',    pageBuilder: (c,s) => slideRightPage(const MentorshipScreen(), s)),
+          GoRoute(path: '/admin/advising', pageBuilder: (c,s) => slideRightPage(const AdvisingOversightScreen(), s)),
           GoRoute(path: '/exam-seat',     pageBuilder: (c,s) => slideRightPage(const ExamSeatScreen(), s)),
           GoRoute(path: '/grades',        pageBuilder: (c,s) => slideRightPage(const GradesScreen(), s)),
           GoRoute(path: '/assignments',   pageBuilder: (c,s) => slideRightPage(const AssignmentsScreen(), s)),

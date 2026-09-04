@@ -124,7 +124,9 @@ class _AfosTextFieldState extends State<AfosTextField> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
-        duration: AppMotion.tight,
+        // Bare constant, so the focus glow animated regardless of the reduce
+        // motion setting. Every form in the app is built from this field.
+        duration: AppMotion.durationOf(context, AppMotion.tight),
         curve: AppMotion.standard,
         decoration: BoxDecoration(
           borderRadius: AppDepth.radius(1),
@@ -152,7 +154,7 @@ class _AfosTextFieldState extends State<AfosTextField> {
             hintText: widget.hint,
             prefixIcon: widget.prefixIcon != null
               ? AnimatedScale(
-                  duration: AppMotion.tight,
+                  duration: AppMotion.durationOf(context, AppMotion.tight),
                   curve: AppMotion.standard,
                   scale: active ? 1.1 : 1.0,
                   child: Icon(widget.prefixIcon,

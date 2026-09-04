@@ -96,7 +96,9 @@ class _CommandPaletteState extends State<CommandPalette> {
     if (_scroll.hasClients) {
       _scroll.animateTo(
         (_selected * 44.0).clamp(0, _scroll.position.maxScrollExtent),
-        duration: AppMotion.instant,
+        // State.context is valid here: the scroll controller only has clients
+        // while this widget is mounted, which is what hasClients above tests.
+        duration: AppMotion.durationOf(context, AppMotion.instant),
         curve: AppMotion.standard,
       );
     }
