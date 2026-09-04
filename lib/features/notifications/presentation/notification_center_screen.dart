@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
-import '../../../config/theme/app_icons.dart';
+import 'notification_visuals.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
@@ -110,38 +110,6 @@ class _NotifState extends State<NotificationCenterScreen> {
     if (route != null && route.isNotEmpty) context.push(route);
   }
 
-  static IconData _catIcon(String? cat) => switch (cat) {
-    'schedule'    => AppIcons.schedule,
-    'transport'   => AppIcons.transport,
-    'payment'     => AppIcons.payment,
-    'library'     => AppIcons.library,
-    'lost_found'  => AppIcons.lostFound,
-    'club'        => AppIcons.clubs,
-    'message'     => AppIcons.deptChat,
-    'exam'        => AppIcons.examSeat,
-    // Emitted by CourseOfferingRepository (approve/reject/new-course) and by
-    // the course group chat. Both previously fell through to the generic
-    // bell, so a course notification was indistinguishable from any other.
-    'course_offering' => AppIcons.schedule,
-    'course_message'  => AppIcons.deptChat,
-    'assignment'  => AppIcons.assignments,
-    _             => AppIcons.notifications,
-  };
-
-  static Color _catColor(String? cat) => switch (cat) {
-    'schedule'    => AppColors.red,
-    'transport'   => AppColors.amber,
-    'payment'     => AppColors.gold,
-    'library'     => AppColors.indigo,
-    'lost_found'  => AppColors.coral,
-    'club'        => AppColors.pink,
-    'message'     => AppColors.blue,
-    'exam'        => AppColors.orange,
-    'course_offering' => AppColors.green,
-    'course_message'  => AppColors.blue,
-    'assignment'  => AppColors.purple,
-    _             => AppColors.blue,
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +167,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                       final n = _notifs[i];
                       final isRead = n['is_read'] as bool? ?? false;
                       final cat = n['category'] as String?;
-                      final color = _catColor(cat);
+                      final color = NotificationVisuals.colorOf(cat);
                       final time = n['received_at'] != null
                           ? DateTime.tryParse(n['received_at']) : null;
                       return Dismissible(
@@ -253,7 +221,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                                 decoration: BoxDecoration(
                                     color: color.withValues(alpha:0.15),
                                     borderRadius: AppDepth.radius(1)),
-                                child: Icon(_catIcon(cat), color: color, size: 20),
+                                child: Icon(NotificationVisuals.iconOf(cat), color: color, size: 20),
                               ),
                               const SizedBox(width: 12),
                               Expanded(child: Column(
