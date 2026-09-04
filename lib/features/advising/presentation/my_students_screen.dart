@@ -19,6 +19,7 @@ import '../../web/presentation/widgets/adaptive_list.dart';
 import '../data/models/teacher_link.dart';
 import '../data/repositories/advising_repository.dart';
 import 'link_thread_screen.dart';
+import 'widgets/availability_editor.dart';
 
 /// The teacher's side: everyone who has asked for them, and everyone they
 /// took on.
@@ -130,6 +131,41 @@ class _MyStudentsBodyState extends State<MyStudentsBody> {
     final rows = _tab == 0 ? _pending : _active;
 
     return Column(children: [
+      AppSpace.vGapMd,
+      // Availability opens in a sheet rather than sitting above the list: a
+      // teacher with eight office-hour rows would otherwise push the students
+      // off the screen, and this Column has no scroll of its own.
+      Padding(
+        padding: AppSpace.screenH,
+        child: AfosButton(
+          label: 'When you are free',
+          icon: Icons.schedule_rounded,
+          outlined: true,
+          onTap: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.4,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (ctx, scroll) => Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceOf(context),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: ListView(
+                  controller: scroll,
+                  padding: AppSpace.allLg,
+                  children: const [AvailabilityEditor()],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
       AppSpace.vGapMd,
       GlassTabBar(
         tabs: [
