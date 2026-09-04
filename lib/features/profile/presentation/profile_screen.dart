@@ -9,6 +9,8 @@ import '../../../shared/widgets/avatar_picker.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/label_value_row.dart';
 import '../../../shared/widgets/shimmer_card.dart';
+import '../../advising/data/models/teacher_link.dart';
+import '../../advising/presentation/widgets/teacher_link_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
@@ -80,6 +82,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ]),
                 ),
               ),
+              if (_user?.isStudent == true) ...[
+                const SizedBox(height: 16),
+                TeacherLinkCard(
+                    kind: LinkKind.advisor, onChanged: _load),
+                // Final year project belongs to the last two years. DIU runs
+                // three semesters to a year, so years 3 and 4 are semesters 7
+                // to 12 — and a student below that is shown nothing rather
+                // than a card that refuses them after they have typed into it.
+                TeacherLinkCard(
+                  kind: LinkKind.fydp,
+                  ineligibleReason: (_user?.semester ?? 0) >= 7
+                      ? null
+                      : 'Final year students only',
+                  onChanged: _load,
+                ),
+              ],
             ]),
     );
   }
