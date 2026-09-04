@@ -82,4 +82,30 @@ class AppSpace {
   /// The audit found stop markers painted at 14px acting as their own tap
   /// target, which is less than a third of this.
   static const double minTouchTarget = 48;
+
+  /// Cross-axis height for a horizontal strip of chips, grown against the
+  /// reader's text scale.
+  ///
+  /// A horizontally-scrolling ListView has to be given a fixed cross-axis
+  /// extent, so every chip strip in the app hard-codes one — and a hard-coded
+  /// height is a clipped label the moment someone turns text size up. Measured
+  /// on the real widgets rather than reasoned about: the attendance course
+  /// chip (12px label, 9px vertical padding) lays out at 30.0px at 1.0x and
+  /// 42.0px at 2.0x, and [GlassChip] at 35.0px and 45.0px. Both had been
+  /// wrapped in a bare `SizedBox(height: 38)` and `height: 44`, so both
+  /// overflowed at the largest accessibility scale — by 4.0px and 1.0px.
+  ///
+  /// The 24-per-scale-step growth and the 62px cap are NOT new numbers: they
+  /// are the formula `marks_entry_screen` already carried, whose own comment
+  /// records that 38px "burst at 1.67x". Passing that screen's `base` of 38
+  /// through here reproduces its current height exactly, which is the point —
+  /// the fix unifies three call sites without re-rendering the one that was
+  /// already right.
+  ///
+  /// [base] is what the strip measures at 1.0x; [max] stops a 3.0x system
+  /// scale from handing a phone a 100px band of chips.
+  static double chipStrip(BuildContext context, double base,
+          {double max = 62}) =>
+      (base + (MediaQuery.textScalerOf(context).scale(1) - 1) * 24)
+          .clamp(base, max);
 }
