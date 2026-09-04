@@ -30,7 +30,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.afos_v7"
+    namespace = "bd.edu.diu.afos"
     // This Flutter channel's flutter.compileSdkVersion still defaults to 33, but
     // several transitive androidx deps now require newer: flutter_displaymode
     // (BUG 5) pulls fragment:1.7.1/window:1.2.0 (need 34), androidx.camera 1.5.0
@@ -54,7 +54,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.afos_v7"
+        applicationId = "bd.edu.diu.afos"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

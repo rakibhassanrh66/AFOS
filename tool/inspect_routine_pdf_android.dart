@@ -10,7 +10,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final bytes = File('/data/data/com.example.afos_v7/files/routine_v5.pdf').readAsBytesSync();
+  final bytes = File('/data/data/bd.edu.diu.afos/files/routine_v5.pdf').readAsBytesSync();
   final doc = PdfDocument(inputBytes: bytes);
   final out = StringBuffer();
   try {
@@ -24,7 +24,7 @@ void main() async {
     doc.dispose();
   }
 
-  final outFile = File('/data/data/com.example.afos_v7/files/routine_dump_android.txt');
+  final outFile = File('/data/data/bd.edu.diu.afos/files/routine_dump_android.txt');
   await outFile.writeAsString(out.toString());
   // ignore: avoid_print
   print('WROTE_DUMP_OK: ${await outFile.length()} bytes');
