@@ -180,6 +180,14 @@ class Caps {
       label: 'Teaching Load', route: '/schedule/teaching-load',
       icon: Icons.assignment_ind_rounded, accent: AppColors.indigo,
       group: CapabilityGroup.academics);
+  /// Advisees and final-year students in ONE screen. Deliberately not two
+  /// capabilities: a teacher thinks in terms of "my students", and the only
+  /// difference between the two kinds is how much of each student the server
+  /// will return.
+  static const myStudents = AppCapability(
+      label: 'My Students', route: '/my-students',
+      icon: Icons.groups_rounded, accent: AppColors.holoBlue,
+      group: CapabilityGroup.academics, hint: 'Advisees and FYDP');
   static const browseCourses = AppCapability(
       label: 'Browse Courses', route: '/schedule/browse-courses',
       icon: Icons.menu_book_rounded, accent: AppColors.blue,
@@ -404,7 +412,7 @@ List<AppCapability> capabilitiesFor({
       // toolset (routine upload, faculty/department registry).
       return withExtras([
         ...common, Caps.myOfferings, Caps.joinRequests, Caps.attendance,
-        Caps.teachingLoad, Caps.notices, Caps.conferenceRoom,
+        Caps.teachingLoad, Caps.myStudents, Caps.notices, Caps.conferenceRoom,
         Caps.roomAvailability, Caps.feedback,
       ]);
 
