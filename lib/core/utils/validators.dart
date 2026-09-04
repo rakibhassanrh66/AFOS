@@ -60,10 +60,17 @@ class AppValidators {
       .replaceAll(RegExp(r'[‐-―−]'), '-')
       .replaceAll(RegExp(r'\s+'), '');
 
-  /// Letters, digits and single interior dashes, and at least one digit
-  /// somewhere. Deliberately NOT a university-format rule — see [studentId].
+  /// Blocks of letters and digits joined by single separators, with at least
+  /// one digit somewhere. Deliberately NOT a university-format rule — see
+  /// [studentId].
+  ///
+  /// The separator class is `- / . _` rather than just `-`. A registrar's ID
+  /// scheme is whatever that office decided years ago, and slash-separated
+  /// (`2021/CSE/105`) and dot-separated (`221.15.5678`) schemes are both
+  /// ordinary in this region. Accepting only the dash would have been the same
+  /// mistake as accepting only a four-digit roll, one character narrower.
   static final RegExp _universityIdShape =
-      RegExp(r'^(?=.*\d)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$');
+      RegExp(r'^(?=.*\d)[A-Za-z0-9]+(?:[-/._][A-Za-z0-9]+)*$');
 
   /// A SANITY BOUND, NOT A FORMAT RULE — and that distinction is the whole
   /// point of this function.
@@ -97,10 +104,14 @@ class AppValidators {
     }
     final s = normalizeUniversityId(v);
     final noun = isStudent ? 'Student ID' : 'Employee ID';
-    if (s.length < 4) return '$noun looks too short — copy it from your ID card';
-    if (s.length > 25) return '$noun looks too long — copy it from your ID card';
+    // 3..32 rather than 4..25. Both ends were guesses, and the whole lesson of
+    // this function is that guesses about somebody else's numbering scheme get
+    // people locked out. The longest ID already in `profiles` is 16 characters;
+    // 32 leaves room without letting a pasted paragraph through.
+    if (s.length < 3) return '$noun looks too short — copy it from your ID card';
+    if (s.length > 32) return '$noun looks too long — copy it from your ID card';
     if (!_universityIdShape.hasMatch(s)) {
-      return 'Use only letters, digits and dashes, as printed on your ID card';
+      return 'Type it exactly as printed on your ID card';
     }
     return null;
   }

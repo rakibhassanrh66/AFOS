@@ -25,6 +25,11 @@ void main() {
       '0242220005101554', // long institutional number already in profiles
       'BBA-221-15-5678', // a department that prefixes with letters
       '221-15-5678-A', // a trailing section suffix
+      '2021/CSE/105', // slash-separated, ordinary in this region
+      '221.15.5678', // dot-separated
+      '221_15_5678', // underscore-separated
+      'A12', // a very short employee number
+      '12345678901234567890123456789012', // 32 chars, the longest accepted
     ]) {
       test(id, () => expect(AppValidators.studentId(id), isNull));
     }
@@ -55,7 +60,7 @@ void main() {
 
     test('too short or too long', () {
       expect(AppValidators.studentId('12'), contains('too short'));
-      expect(AppValidators.studentId('1' * 26), contains('too long'));
+      expect(AppValidators.studentId('1' * 33), contains('too long'));
     });
 
     test('a name typed into the ID box', () {
@@ -63,11 +68,18 @@ void main() {
       expect(AppValidators.studentId('Rakibul Islam'), isNotNull);
     });
 
-    test('punctuation no registrar issues', () {
-      expect(AppValidators.studentId('253/33/105'), isNotNull);
+    test('a separator that is dangling or doubled', () {
+      // These are typos rather than schemes: no registrar issues an ID that
+      // starts, ends, or runs two separators together.
       expect(AppValidators.studentId('253--33-105'), isNotNull);
       expect(AppValidators.studentId('-253-33-105'), isNotNull);
       expect(AppValidators.studentId('253-33-105-'), isNotNull);
+      expect(AppValidators.studentId('253-/33-105'), isNotNull);
+    });
+
+    test('characters no ID scheme uses', () {
+      expect(AppValidators.studentId('253@33#105'), isNotNull);
+      expect(AppValidators.studentId(r'253\33\105'), isNotNull);
     });
   });
 
