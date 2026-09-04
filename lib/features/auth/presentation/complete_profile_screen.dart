@@ -38,6 +38,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _batchCtrl = TextEditingController();
   final _sectionCtrl = TextEditingController();
   final _designationCtrl = TextEditingController();
+  final _initialCtrl = TextEditingController();
 
   bool _isTeacher = false;
   bool _isStaff = false;
@@ -123,6 +124,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   void dispose() {
     _nameCtrl.dispose(); _phoneCtrl.dispose(); _emergencyCtrl.dispose();
     _batchCtrl.dispose(); _sectionCtrl.dispose(); _designationCtrl.dispose();
+    _initialCtrl.dispose();
     _admissionYearCtrl.dispose();
     super.dispose();
   }
@@ -181,6 +183,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           try { _emergencyCtrl.text = p['emergency_contact'] as String? ?? ''; } catch (_) {}
           try {
             _isTeacher = p['role'] == 'teacher';
+            _initialCtrl.text = (p['teacher_initial'] as String?) ?? '';
             _isStaff = p['role'] == 'staff';
             _isAdminTier = const ['admin', 'dept_admin', 'super_admin'].contains(p['role']);
           } catch (_) {}
@@ -366,6 +369,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           'batch': _batchCtrl.text.trim(),
         if (!_isTeacher && !_isStaff && !_isAdminTier && _sectionCtrl.text.trim().isNotEmpty)
           'section': _sectionCtrl.text.trim(),
+        // The initial lives on profiles, where a UNIQUE constraint makes it
+        // an identity rather than the free text schedule_slots carries.
+        // Upper-cased on the way in so 'fnb' and 'FNB' cannot become two
+        // different teachers. Guarded by isNotEmpty so revisiting this
+        // screen cannot blank an initial students have already linked to.
+        if (_isTeacher && _initialCtrl.text.trim().isNotEmpty)
+          'teacher_initial': _initialCtrl.text.trim().toUpperCase(),
       }).eq('id', uid);
 
       if (_isTeacher) {
@@ -626,6 +636,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         validator: (v) => v == null ? 'Select a department' : null,
                       ),
                       const SizedBox(height: 16),
+                    ],
+                    if (_isTeacher) ...[
+                      AfosTextField(
+                        hint: 'Your initial (e.g. FNB)',
+                        controller: _initialCtrl,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Students find you by this. Set it and they can name you '
+                        'as their advisor or project supervisor.',
+                        style: AppTextStyles.labelSmall.copyWith(
+                            color: AppColors.textSecondaryOf(context)),
+                      ),
+                      const SizedBox(height: 12),
                     ],
                     if (_isTeacher)
                       AfosTextField(hint: 'Designation (e.g. Lecturer)', controller: _designationCtrl,

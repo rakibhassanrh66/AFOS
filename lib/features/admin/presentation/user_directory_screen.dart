@@ -7,6 +7,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
+import '../../../config/theme/spacing.dart';
 import '../../../core/auth/permission_session.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -427,7 +428,11 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 0, 8),
       child: SizedBox(
-        height: 44,
+        // Was a bare `height: 44`. GlassChip measures 35.0px at 1.0x and
+        // 45.0px at 2.0x, so these filter chips overflowed by 1.0px at the
+        // largest accessibility scale — small, but it is a real clip and the
+        // strip is how an admin narrows a user list.
+        height: AppSpace.chipStrip(context, 44),
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsetsDirectional.only(end: 16),

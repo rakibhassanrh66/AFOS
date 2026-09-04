@@ -54,7 +54,10 @@ class _OfflineBannerState extends State<OfflineBanner> {
         ),
         secondChild: const SizedBox.shrink(),
         crossFadeState: _offline ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-        duration: AppMotion.base,
+        // The banner still appears and disappears under reduce motion — it
+        // just stops cross-fading to get there. Losing connectivity is
+        // information, not decoration, so only the transition is suppressed.
+        duration: AppMotion.durationOf(context, AppMotion.base),
       ),
       if (pendingCount > 0 || failedCount > 0)
         GestureDetector(

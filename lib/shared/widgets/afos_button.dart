@@ -56,10 +56,14 @@ class _AfosButtonState extends State<AfosButton> {
         onTapCancel: () => _setPressed(false),
         child: AnimatedScale(
           scale: _pressed ? 0.97 : (_hover ? 1.015 : 1.0),
-          duration: AppMotion.instant,
+          // Both durations were bare constants, so the app's most-touched
+          // widget was the one place "reduce motion" never reached — the press
+          // scale and the surface both kept moving. durationOf collapses them
+          // to zero, leaving the 0.97 press state instant rather than absent.
+          duration: AppMotion.durationOf(context, AppMotion.instant),
           curve: AppMotion.standard,
           child: AnimatedContainer(
-            duration: AppMotion.base,
+            duration: AppMotion.durationOf(context, AppMotion.base),
             curve: AppMotion.standard,
             height: 52,
             decoration: BoxDecoration(

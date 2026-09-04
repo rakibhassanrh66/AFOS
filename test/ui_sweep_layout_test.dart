@@ -14,6 +14,8 @@ import 'package:afos_v7/features/admin/presentation/widgets/user_group_tree.dart
 import 'package:afos_v7/features/auth/presentation/login_screen.dart' show logoLetter;
 import 'package:afos_v7/features/auth/presentation/verify_email_screen.dart';
 import 'package:afos_v7/features/auth/presentation/widgets/auth_brand_panel.dart';
+import 'package:afos_v7/features/advising/data/models/teacher_link.dart';
+import 'package:afos_v7/features/advising/presentation/widgets/teacher_link_card.dart';
 import 'package:afos_v7/features/dashboard/presentation/widgets/exam_pulse_band.dart';
 
 import 'package:afos_v7/features/dashboard/presentation/widgets/my_completeness_ring.dart';
@@ -83,6 +85,36 @@ void main() {
             GlassTab('CR Requests (4)', icon: Icons.badge_rounded),
             GlassTab('Users', icon: Icons.groups_2_outlined),
           ],
+        ),
+
+    // The advising card a student meets while choosing an advisor. Worst
+    // realistic case: the longest designation DIU issues, a full department
+    // name, a three-letter initial badge beside the name, the on-leave line
+    // and both contact details — every part of it real data shapes, on a
+    // 320px phone at a 2.0x text scale.
+    'TeacherSummary (long designation, on leave, full contact)': () =>
+        const TeacherSummary(
+          teacher: TeacherCard(
+            teacherId: 't1',
+            fullName: 'Mohammad Shahriar Kabir Chowdhury',
+            initial: 'MSK',
+            designation: 'Assistant Professor and Associate Head',
+            department: 'Computer Science and Engineering',
+            email: 'shahriar.cse@diu.edu.bd',
+            phone: '+8801712345678',
+            onLeave: true,
+          ),
+        ),
+
+    // The same card at its emptiest — a teacher who has set an initial and
+    // nothing else, which is 2 of the 4 teacher profiles today. Nothing may
+    // collapse or leave a dangling separator.
+    'TeacherSummary (initial only, nothing else set)': () => const TeacherSummary(
+          teacher: TeacherCard(
+            teacherId: 't2',
+            fullName: 'Fahmida Nusrat Binte Rahman',
+            initial: 'FNB',
+          ),
         ),
 
     // SurfaceCard carries this session's Profile Inspection banner: icon,
