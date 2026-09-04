@@ -63,8 +63,15 @@ android/key.properties
 # under its own folder — slipped straight past that: `hostel_house_andoird
 # version/android/app/google-services.json` sat in this PUBLIC repo's history
 # carrying a live API key and OAuth client ids. Match the filename anywhere.
-google-services.json
-GoogleService-Info.plist
+#
+# GLOBBED, not the bare filename. `google-services.json` matched only the exact
+# name, and a browser download of a second copy is called
+# `google-services (2).json` — which sailed past it and sat untracked-but-
+# committable in a PUBLIC repo, carrying a live API key and the project id.
+# That is the same leak described above arriving by a different route, so the
+# pattern now covers every variant a download or an editor backup can produce.
+google-services*.json
+GoogleService-Info*.plist
 .env
 .env.*
 

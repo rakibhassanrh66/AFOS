@@ -1,4 +1,4 @@
-package com.example.afos_v7
+package bd.edu.diu.afos
 
 import android.os.Bundle
 import androidx.core.app.NotificationManagerCompat
