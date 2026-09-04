@@ -291,6 +291,21 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (mounted) setState(() { _capturedPosition = pos; _capturingLocation = false; });
   }
 
+  /// How long is left, in the plainest words available. Deliberately says
+  /// what happens at the end rather than only when it ends.
+  String _graceNotice() {
+    final until = RoleSession.graceUntil;
+    if (until == null) return '';
+    final left = until.difference(DateTime.now());
+    if (left.isNegative) return 'Your time to finish this has run out.';
+    final hours = left.inHours;
+    final when = hours >= 1 ? '$hours hour${hours == 1 ? '' : 's'}'
+                            : '${left.inMinutes} minutes';
+    return 'You have $when left. After that you will need to finish this '
+        'page, including a clear photo of your face, before you can use the '
+        'app again.';
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     // _JoinDateField is an InputDecorator, not a FormField, so validate()
@@ -806,6 +821,25 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       ]),
                     const SizedBox(height: 24),
                     AfosButton(label: 'Save & Continue', loading: _saving, onTap: _save),
+                    // The skip only exists while the window is open, and it
+                    // says when it closes. A grace nobody can see is not a
+                    // grace -- the previous version of this screen was a hard
+                    // wall with no explanation, which is how 13 of 19 accounts
+                    // ended up unable to reach any other screen.
+                    if (RoleSession.insideGrace) ...[
+                      const SizedBox(height: 12),
+                      AfosButton(
+                        label: 'Finish this later',
+                        outlined: true,
+                        onTap: () => context.go('/home'),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _graceNotice(),
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
+                      ),
+                    ],
                   ])),
                 ),
               ),

@@ -11,10 +11,26 @@ class RoleSession {
   static String? _role;
   static bool? _profileCompleted;
   static bool? _isVerified;
+  static DateTime? _graceUntil;
 
   static String? get role => _role;
   static bool? get profileCompleted => _profileCompleted;
   static bool? get isVerified => _isVerified;
+
+  /// When an incomplete profile stops being allowed to skip. Null once the
+  /// profile is complete, and null for a row that could not be read.
+  static DateTime? get graceUntil => _graceUntil;
+
+  /// True while an incomplete profile may still use the app.
+  ///
+  /// Fails CLOSED, like [_profileCompleted]: no deadline means no grace. The
+  /// database sets one the first time a row reads incomplete, so the only way
+  /// to arrive here with null is a row that could not be read — and that must
+  /// not become an open door.
+  static bool get insideGrace {
+    final until = _graceUntil;
+    return until != null && DateTime.now().isBefore(until);
+  }
 
   static void set(String? role, {bool? profileCompleted, bool? isVerified}) {
     _role = role;
@@ -22,13 +38,17 @@ class RoleSession {
     if (isVerified != null) _isVerified = isVerified;
   }
 
-  static void markProfileCompleted() => _profileCompleted = true;
+  static void markProfileCompleted() {
+    _profileCompleted = true;
+    _graceUntil = null;
+  }
   static void markVerified() => _isVerified = true;
 
   static void clear() {
     _role = null;
     _profileCompleted = null;
     _isVerified = null;
+    _graceUntil = null;
   }
 
   static Future<String?> ensureLoaded() async {
@@ -58,7 +78,7 @@ class RoleSession {
     try {
       final row = await Supabase.instance.client
           .from('profiles')
-          .select('role, profile_completed, is_verified')
+          .select('role, profile_completed, is_verified, profile_grace_until')
           .eq('id', uid)
           .maybeSingle();
       _role = row?['role'] as String?;
@@ -70,6 +90,7 @@ class RoleSession {
       // accounts which predate the approval gate.
       _profileCompleted = row?['profile_completed'] as bool? ?? false;
       _isVerified = row?['is_verified'] as bool? ?? true;
+      _graceUntil = DateTime.tryParse('${row?['profile_grace_until'] ?? ''}');
     } catch (_) {
       _role = null;
     }
