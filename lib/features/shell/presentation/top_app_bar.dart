@@ -14,20 +14,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/services/web_title.dart';
-import '../../../core/utils/responsive.dart';
 import '../../notifications/presentation/notification_popover.dart';
-import '../../web/presentation/web_sidebar.dart';
-
-/// The width `_WebPageHeader` should escape out to on desktop web: the true
-/// browser window width minus the sidebar, ignoring app_shell.dart's 1440px
-/// body-readability cap. Pure arithmetic, factored out of the widget so it's
-/// unit-testable without pumping anything -- `_WebPageHeader` never builds
-/// under a non-web `flutter test` run, since `kIsWeb` is a compile-time
-/// constant.
-double webHeaderOverflowWidth({required double windowWidth, required double railWidth}) {
-  final width = windowWidth - railWidth;
-  return width < 0 ? 0 : width;
-}
 
 class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -226,28 +213,37 @@ class _WebPageHeader extends StatelessWidget implements PreferredSizeWidget {
       ]),
     );
 
-    // app_shell.dart caps and centers the ENTIRE routed screen -- this
-    // header included -- at 1440px on desktop web, for body-content
-    // readability (see the comment there). That's the right call for a
-    // scrollable list, but a page header/toolbar reads as web convention
-    // (Gmail, most SaaS apps) only when it's flush against the real browser
-    // edge, not centred with dead space beside it on a wide monitor.
-    // OverflowBox escapes just THIS header back out to the true available
-    // width -- window minus the sidebar -- without touching app_shell.dart's
-    // cap for anything else. Left-aligned so the title stays exactly where
-    // the 1440 column already put it; only the right side (actions/bell)
-    // extends outward. Same desktop test app_shell.dart uses, so the two
-    // never disagree about when this applies.
-    final isDesktop = kIsWeb && Responsive.isExpanded(context);
-    if (!isDesktop) return header;
-    return OverflowBox(
-      minWidth: 0,
-      maxWidth: webHeaderOverflowWidth(
-          windowWidth: MediaQuery.sizeOf(context).width,
-          railWidth: WebSidebar.railWidth),
-      alignment: Alignment.centerLeft,
-      child: header,
-    );
+    // THIS HEADER USED TO ESCAPE ITS COLUMN, AND THAT BROKE IT TWO WAYS.
+    //
+    // app_shell.dart caps and CENTRES the whole routed screen at 1440px on
+    // desktop web. The header wanted to be flush against the browser edge
+    // instead (Gmail-style), so it wrapped itself in an OverflowBox that was
+    // `maxWidth: window - rail` and left-aligned. Both halves of that were
+    // wrong on any window wider than 1704px (= 1440 + the 264 rail):
+    //
+    //  1. WIDTH. `window - rail` is the space either side of the rail, but the
+    //     header does not START at the rail — the 1440 column is centred, so
+    //     it starts a gutter of (window - rail - 1440)/2 further right. On a
+    //     1920px monitor the header was laid out 1656px wide beginning at
+    //     x=372, so it ended at x=2028 and its right-hand end — the actions
+    //     and the notification bell — was 108px PAST the right edge of the
+    //     window. The bell was not misplaced; it was off-screen.
+    //
+    //  2. HIT TESTING, which no width would have fixed. `RenderBox.hitTest`
+    //     starts with `if (_size.contains(position))` and returns false
+    //     otherwise, so a pointer never reaches a child painted outside its
+    //     parent's box. Every ancestor applies that test independently, and
+    //     the 1440 ConstrainedBox above this is one of them — so everything
+    //     the header drew past 1440px was visible and completely dead to the
+    //     mouse. That is the "clicks don't work in some places on web" report,
+    //     and it is why it depended on how wide the window happened to be.
+    //
+    // The header now simply occupies its column. Its right edge lines up with
+    // the content beneath it, the bell is always on screen, and every control
+    // in it is inside the box that hit-tests it. Flush-to-edge cannot be had
+    // this way: it would need the header hoisted out of the capped column in
+    // app_shell.dart, not painted outside of it from in here.
+    return header;
   }
 }
 
@@ -263,13 +259,6 @@ class _NotificationBell extends StatefulWidget {
 class _NotificationBellState extends State<_NotificationBell> {
   int _loadGen = 0;
   RealtimeChannel? _sub;
-  // Anchors the popover to this bell via the compositing layer tree, not
-  // BuildContext ancestry -- so it works regardless of which Navigator/Overlay
-  // the bell itself lives inside (the bell is inside the ShellRoute's nested
-  // navigator; the popover is inserted into the root Overlay). See
-  // notification_popover.dart for why this replaced manual localToGlobal math.
-  final LayerLink _bellLink = LayerLink();
-
   @override
   void initState() {
     super.initState();
@@ -338,9 +327,12 @@ class _NotificationBellState extends State<_NotificationBell> {
 
   Widget _buildBell(BuildContext context, int unread) {
     final hasUnread = unread > 0;
-    return CompositedTransformTarget(
-      link: _bellLink,
-      child: Stack(clipBehavior: Clip.none, children: [
+    // No CompositedTransformTarget any more. The tray measures this widget's
+    // own RenderBox through the context handed to showNotificationPopover,
+    // which gives it the bell's real global rect to clamp against — a
+    // follower layer could anchor to the bell but had no way to know where the
+    // screen edges were, which is how the panel ended up hanging off them.
+    return Stack(clipBehavior: Clip.none, children: [
         IconButton(
           icon: Container(width: 34, height: 34,
               decoration: BoxDecoration(
@@ -351,7 +343,7 @@ class _NotificationBellState extends State<_NotificationBell> {
           // The bell opens a compact floating tray on every platform; the
           // full-window Notification Center stays reachable via the slide
           // menu's Notifications entry (and the tray's "See all" footer).
-          onPressed: () => showNotificationPopover(context, link: _bellLink),
+          onPressed: () => showNotificationPopover(context),
         ),
         if (hasUnread)
           // alignment intentionally omitted -- a Positioned child that doesn't
@@ -383,7 +375,6 @@ class _NotificationBellState extends State<_NotificationBell> {
               .scaleXY(
                   end: AppMotion.isReduced(context) ? 1.0 : 1.15,
                   duration: AppMotion.durationOf(context, AppMotion.hero))))),
-      ]),
-    );
+    ]);
   }
 }

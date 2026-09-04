@@ -42,9 +42,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _particleCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 10));
     _glowCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3));
     _handCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
-    _introCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
-    _revealCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
-    _exitCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
+    // Tokens, and much shorter ones. These were 1300/1100/820 — raw literals
+    // roughly twice the ladder's ceiling, on the one screen standing between
+    // the user and the app. Every one of them is consumed as a normalised
+    // `Interval` fraction of `.value`, so shortening the controller scales the
+    // whole choreography proportionally: the letter pop, the wipe and the
+    // hand-off all keep their shape, they just stop dawdling.
+    _introCtrl = AnimationController(vsync: this, duration: AppMotion.hero);
+    _revealCtrl = AnimationController(vsync: this, duration: AppMotion.hero);
+    _exitCtrl = AnimationController(vsync: this, duration: AppMotion.slow);
     final rng = Random();
     for (int i = 0; i < 60; i++) {
       _particles.add(_Particle(
@@ -160,18 +166,29 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       return;
     }
 
+    // THE HOLDS, AND THE BUDGET THEY HAVE TO FIT IN.
+    //
+    // These were 450+700+300+400 = 1850ms of hard waits, and then an 820ms
+    // exit on top: ~2.67s before the app appeared, on every single launch.
+    // The performance budget in CLAUDE.md is "cold start to first interactive
+    // frame < 1800ms", so the splash alone overran the whole allowance for
+    // starting the app — which is what "the app feels slow" keeps meaning.
+    //
+    // Now 240+380+160+160 = 940ms of holds and a 380ms exit: 1320ms, inside
+    // the budget with room for the frame work either side, and every value is
+    // a motion token rather than a hand-picked number.
     _particleCtrl.repeat();
     _glowCtrl.repeat(reverse: true);
     _handCtrl.repeat();
     _introCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 450));
+    await Future.delayed(AppMotion.base);
     if (!mounted) return;
     _revealCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 700));
+    await Future.delayed(AppMotion.slow);
     if (mounted) setState(() => _showTagline = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(AppMotion.tight);
     if (mounted) setState(() => _showSub = true);
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(AppMotion.tight);
     if (!mounted) return;
 
     // Already in flight since initState — this awaits only whatever is LEFT of

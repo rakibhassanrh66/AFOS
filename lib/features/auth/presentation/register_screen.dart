@@ -298,7 +298,13 @@ class _RegisterBodyState extends State<_RegisterBody> {
                           ctx.read<AuthBloc>().add(AuthRegisterRequested(
                             email:_emailCtrl.text.trim(),
                             password:_passCtrl.text,
-                            studentId:_idCtrl.text.trim(),
+                            // Normalised, not just trimmed: this is the value
+                            // that becomes the student's identity row, and a
+                            // stray space or a soft-keyboard en-dash would
+                            // make it fail to match every other copy of
+                            // itself. Same function the validator judged it
+                            // with, so what was accepted is what is stored.
+                            studentId:AppValidators.normalizeUniversityId(_idCtrl.text),
                             fullName:_nameCtrl.text.trim(),
                             // Still '' when nothing is picked (staff may leave
                             // the department dropdown empty and give an office
@@ -463,11 +469,22 @@ class _Step1 extends StatelessWidget {
         validator:(v)=>AppValidators.required(v,f:'Full name')),
       const SizedBox(height:16),
       AfosTextField(
-        hint: accountType==AccountType.student ? 'Student ID (e.g. 221-15-5678)' : 'Employee ID',
+        // No worked example in the hint any more. "(e.g. 221-15-5678)" read as
+        // the required shape rather than as one instance of it, and the
+        // validator behind it agreed — which is how a student holding a card
+        // that says 253-33-105 was told their own ID was invalid.
+        hint: accountType==AccountType.student
+            ? 'Student ID (as printed on your ID card)'
+            : 'Employee ID',
         controller:idCtrl,
         prefixIcon:Icons.badge_outlined,
         validator:(v)=>AppValidators.studentId(v, type:accountType),
-        keyboardType: accountType==AccountType.student ? TextInputType.number : TextInputType.text),
+        // TextInputType.number here was the other half of the same assumption.
+        // Not every soft keyboard puts '-' on the numeric pad, and department
+        // IDs are not guaranteed to be digits-only, so a student could be
+        // shown a keyboard that cannot type their own ID. The text keyboard
+        // can reach every character the validator accepts.
+        keyboardType: TextInputType.text),
     ]);
   }
 }

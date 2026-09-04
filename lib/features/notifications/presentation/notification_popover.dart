@@ -9,6 +9,7 @@ import '../../../config/theme/liquid_glass_theme.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import 'notification_visuals.dart';
 
 import '../../../core/layout/nav_insets.dart';
 /// Compact floating notification panel, anchored under the app-bar bell.
@@ -28,19 +29,92 @@ import '../../../core/layout/nav_insets.dart';
 /// nested navigator; the tray needs to render above everything, in the root
 /// one) -- exactly the kind of thing that keeps regressing.
 ///
-/// `CompositedTransformTarget`/`Follower` is Flutter's purpose-built answer
-/// to "float this over that widget" (the same mechanism `PopupMenuButton`
-/// uses): the two communicate through the compositing layer tree, not
-/// BuildContext ancestry or manual global-coordinate math, so it does not
-/// matter that the target and the follower live under different Navigators.
-/// No SafeArea interaction, no ancestor mismatch -- structurally immune to
-/// the last two regressions.
-void showNotificationPopover(BuildContext context, {required LayerLink link}) {
+/// The third attempt anchored it with `CompositedTransformTarget`/`Follower`,
+/// which does place the panel under the bell correctly and survives being in
+/// a different Navigator. What it does NOT do -- and what nothing here did --
+/// is keep the panel inside the window. `CompositedTransformFollower` applies
+/// a transform; it has no notion of a screen edge, so the tray simply hung
+/// off the bell wherever the bell happened to be:
+///
+///   * On a phone the panel was `screenWidth - 24` wide, right-aligned to a
+///     bell whose own right edge sits 18px in, leaving **6px on the left and
+///     18px on the right**. Off-centre by exactly the amount that reads as a
+///     mistake rather than a margin.
+///   * Nothing bounded the bottom. `maxHeight` was a fraction of the screen
+///     measured from zero, not from where the panel actually starts, so on a
+///     short browser window the list ran under the bottom edge and the "See
+///     all notifications" footer was unreachable.
+///
+/// So the anchoring is now measured AND clamped: [notificationPopoverRect]
+/// is pure geometry over the anchor and the safe area, unit-tested in
+/// test/notification_popover_anchor_test.dart, and the panel is placed at the
+/// rect it returns. The anchor is re-measured with `localToGlobal` on every
+/// build rather than captured once, so resizing a browser window moves the
+/// tray with the bell instead of stranding it.
+///
+/// There is deliberately no `SafeArea` anywhere in here: it is what broke
+/// attempt two, padding a panel by the device's constant insets regardless of
+/// where the panel actually was. The insets are an INPUT to the geometry
+/// below, applied once, in one place.
+
+/// Where the tray goes: right-aligned under [anchor], pulled back inside the
+/// safe area, flipped above the anchor when there is genuinely more room
+/// there, and never taller than the space it landed in.
+///
+/// Pure function of its arguments so the arithmetic can be tested without
+/// pumping a widget or faking an overlay — the positioning has regressed
+/// three times, each time in a way that only showed up on a device nobody
+/// had to hand.
+@visibleForTesting
+Rect notificationPopoverRect({
+  required Rect anchor,
+  required Size screen,
+  required EdgeInsets viewPadding,
+  required double preferredWidth,
+  required double preferredHeight,
+  double margin = 12,
+  double gap = 8,
+}) {
+  final minX = viewPadding.left + margin;
+  final maxX = screen.width - viewPadding.right - margin;
+  final minY = viewPadding.top + margin;
+  final maxY = screen.height - viewPadding.bottom - margin;
+
+  final available = (maxX - minX).clamp(0.0, double.infinity);
+  final width = preferredWidth < available ? preferredWidth : available;
+
+  // Right edge follows the bell, then the whole panel is pushed back inside
+  // the safe box. Clamping the LEFT edge last matters: on a narrow phone the
+  // panel is as wide as the safe box, so the right-align above would put it
+  // slightly off the left edge, and this is what re-centres it.
+  var left = anchor.right - width;
+  if (left + width > maxX) left = maxX - width;
+  if (left < minX) left = minX;
+
+  final below = maxY - (anchor.bottom + gap);
+  final above = (anchor.top - gap) - minY;
+
+  double top;
+  double height;
+  if (below >= preferredHeight || below >= above) {
+    top = anchor.bottom + gap;
+    height = preferredHeight < below ? preferredHeight : below;
+  } else {
+    height = preferredHeight < above ? preferredHeight : above;
+    top = anchor.top - gap - height;
+  }
+  if (height < 0) height = 0;
+  if (top < minY) top = minY;
+
+  return Rect.fromLTWH(left, top, width, height);
+}
+
+void showNotificationPopover(BuildContext context) {
   final overlay = Navigator.of(context, rootNavigator: true).overlay!;
   late OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _PopoverOverlay(
-      link: link,
+      anchorContext: context,
       onClose: () => entry.remove(),
     ),
   );
@@ -48,9 +122,11 @@ void showNotificationPopover(BuildContext context, {required LayerLink link}) {
 }
 
 class _PopoverOverlay extends StatefulWidget {
-  final LayerLink link;
+  /// The bell's own context, kept (not its coordinates) so the anchor can be
+  /// re-measured every build.
+  final BuildContext anchorContext;
   final VoidCallback onClose;
-  const _PopoverOverlay({required this.link, required this.onClose});
+  const _PopoverOverlay({required this.anchorContext, required this.onClose});
 
   @override
   State<_PopoverOverlay> createState() => _PopoverOverlayState();
@@ -110,11 +186,33 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
     widget.onClose();
   }
 
+  /// The bell's rectangle in global coordinates, or null if it has gone away
+  /// (the route under the tray was popped while it was open).
+  Rect? get _anchor {
+    final box = widget.anchorContext.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final width = size.width < 420 ? size.width - 24.0 : 380.0;
-    final maxHeight = (size.height * 0.66).clamp(280.0, 520.0).toDouble();
+    final media = MediaQuery.of(context);
+    final anchor = _anchor;
+    // Nothing to anchor to any more. Closing is the honest response — a tray
+    // pinned to a control that no longer exists is the "weird place" bug in
+    // its purest form.
+    if (anchor == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _close());
+      return const SizedBox.shrink();
+    }
+
+    final rect = notificationPopoverRect(
+      anchor: anchor,
+      screen: media.size,
+      viewPadding: media.viewPadding,
+      preferredWidth: 380,
+      preferredHeight: (media.size.height * 0.66).clamp(280.0, 520.0).toDouble(),
+    );
 
     return Stack(children: [
       // Full-screen transparent barrier -- tap outside the panel to dismiss,
@@ -126,31 +224,19 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
           child: const SizedBox.expand(),
         ),
       ),
-      CompositedTransformFollower(
-        link: widget.link,
-        targetAnchor: Alignment.bottomRight,
-        followerAnchor: Alignment.topRight,
-        offset: const Offset(0, 8),
-        // No SafeArea here: unlike the old global-coordinate Positioned, this
-        // panel's screen position is never computed by hand -- it's always
-        // anchored just below the bell, which already sits well clear of any
-        // status bar or notch as part of the app's own chrome. A SafeArea
-        // would only pad the panel's own content by the device's constant
-        // top/bottom insets regardless of where it actually renders, wasting
-        // list space for no positional benefit.
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
-          child: FadeTransition(
-            opacity: _curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1)
-                  .animate(_curved),
-              alignment: Alignment.topRight,
-              child: SizedBox(
-                width: width,
-                child: _NotificationPopover(onClose: _close),
-              ),
-            ),
+      Positioned.fromRect(
+        rect: rect,
+        child: FadeTransition(
+          opacity: _curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1)
+                .animate(_curved),
+            // Grows out of the corner nearest the bell, so the motion reads as
+            // coming FROM the thing that was tapped.
+            alignment: rect.top < anchor.top
+                ? Alignment.bottomRight
+                : Alignment.topRight,
+            child: _NotificationPopover(onClose: _close),
           ),
         ),
       ),
@@ -238,30 +324,6 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
     }
   }
 
-  // Kept in sync with NotificationCenterScreen's category visuals.
-  static IconData _catIcon(String? cat) => switch (cat) {
-        'schedule' => AppIcons.schedule,
-        'transport' => AppIcons.transport,
-        'payment' => AppIcons.payment,
-        'library' => AppIcons.library,
-        'lost_found' => AppIcons.lostFound,
-        'club' => AppIcons.clubs,
-        'message' => AppIcons.deptChat,
-        'exam' => AppIcons.examSeat,
-        _ => AppIcons.notifications,
-      };
-
-  static Color _catColor(String? cat) => switch (cat) {
-        'schedule' => AppColors.red,
-        'transport' => AppColors.amber,
-        'payment' => AppColors.gold,
-        'library' => AppColors.indigo,
-        'lost_found' => AppColors.coral,
-        'club' => AppColors.pink,
-        'message' => AppColors.blue,
-        'exam' => AppColors.orange,
-        _ => AppColors.blue,
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +425,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                           final n = _notifs[i];
                           final isRead = n['is_read'] as bool? ?? false;
                           final cat = n['category'] as String?;
-                          final color = _catColor(cat);
+                          final color = NotificationVisuals.colorOf(cat);
                           final time = n['received_at'] != null
                               ? DateTime.tryParse(n['received_at'])
                               : null;
@@ -381,7 +443,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                                       decoration: BoxDecoration(
                                           color: color.withValues(alpha: 0.15),
                                           borderRadius: BorderRadius.circular(9)),
-                                      child: Icon(_catIcon(cat), color: color, size: 16),
+                                      child: Icon(NotificationVisuals.iconOf(cat), color: color, size: 16),
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
