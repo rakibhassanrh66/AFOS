@@ -20,7 +20,13 @@ import '../../../config/theme/app_icons.dart';
 class NotificationVisuals {
   NotificationVisuals._();
 
-  static IconData iconOf(String? category) => switch (category) {
+  /// Lower-cased, because the categories in the table are not consistently
+  /// cased and the old switches were. `ANNOUNCEMENT`, `GENERAL` and `RULE` are
+  /// all really in `user_notifications`, and every one of them missed its case
+  /// in a case-sensitive `switch` and fell through to the generic bell.
+  static String? _key(String? category) => category?.trim().toLowerCase();
+
+  static IconData iconOf(String? category) => switch (_key(category)) {
         'schedule' => AppIcons.schedule,
         'transport' => AppIcons.transport,
         'payment' => AppIcons.payment,
@@ -40,10 +46,24 @@ class NotificationVisuals {
         'hall' => AppIcons.hall,
         'mentorship' => AppIcons.mentorship,
         'cr' => AppIcons.badge,
+        // MEASURED AGAINST THE TABLE, NOT GUESSED. Counting
+        // `user_notifications` by category showed the map covered names
+        // nothing emits (`payment`, `library`, `message`, `course_message`)
+        // while missing the ones that dominate it: `app_update` alone is 225
+        // of the rows, and `routine`, `general`, `sos` and `feedback` together
+        // are most of the rest. Roughly three in five notifications in the app
+        // were drawing the anonymous bell.
+        'app_update' => AppIcons.notifications,
+        'routine' => AppIcons.schedule,
+        'sos' => Icons.emergency_share_rounded,
+        'feedback' => Icons.rate_review_outlined,
+        'announcement' => Icons.campaign_rounded,
+        'rule' => Icons.gavel_rounded,
+        'general' => Icons.info_outline_rounded,
         _ => AppIcons.notifications,
       };
 
-  static Color colorOf(String? category) => switch (category) {
+  static Color colorOf(String? category) => switch (_key(category)) {
         'schedule' => AppColors.red,
         'transport' => AppColors.amber,
         'payment' => AppColors.gold,
@@ -58,6 +78,13 @@ class NotificationVisuals {
         'hall' => AppColors.teal,
         'mentorship' => AppColors.green,
         'cr' => AppColors.purple,
+        'app_update' => AppColors.blue,
+        'routine' => AppColors.red,
+        'sos' => AppColors.red,
+        'feedback' => AppColors.teal,
+        'announcement' => AppColors.amber,
+        'rule' => AppColors.purple,
+        'general' => AppColors.blue,
         _ => AppColors.blue,
       };
 }
