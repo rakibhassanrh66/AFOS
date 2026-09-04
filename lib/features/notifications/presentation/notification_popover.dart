@@ -213,6 +213,9 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
       preferredWidth: 380,
       preferredHeight: (media.size.height * 0.66).clamp(280.0, 520.0).toDouble(),
     );
+    // Placed above the bell rather than below it, which changes which edge is
+    // pinned and which corner the entrance scales out of.
+    final flipped = rect.top < anchor.top;
 
     return Stack(children: [
       // Full-screen transparent barrier -- tap outside the panel to dismiss,
@@ -224,19 +227,35 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
           child: const SizedBox.expand(),
         ),
       ),
-      Positioned.fromRect(
-        rect: rect,
-        child: FadeTransition(
-          opacity: _curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1)
-                .animate(_curved),
-            // Grows out of the corner nearest the bell, so the motion reads as
-            // coming FROM the thing that was tapped.
-            alignment: rect.top < anchor.top
-                ? Alignment.bottomRight
-                : Alignment.topRight,
-            child: _NotificationPopover(onClose: _close),
+      // Width is pinned; HEIGHT IS A CAP, NOT A SIZE. `Positioned.fromRect`
+      // would hand the panel a tight height, so a tray holding two
+      // notifications would still be drawn 520px tall with dead space under
+      // the footer. The rect's height is the most room available, and the
+      // panel takes only what it needs of it.
+      //
+      // Which edge is pinned follows the flip: anchored below the bell the
+      // panel hangs from its top and grows down; flipped above, it hangs from
+      // its bottom — pinned just above the bell — and grows up. Pinning `top`
+      // in the flipped case would leave a gap between a short panel and the
+      // bell it belongs to.
+      Positioned(
+        left: rect.left,
+        width: rect.width,
+        top: flipped ? null : rect.top,
+        bottom: flipped ? media.size.height - rect.bottom : null,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: rect.height),
+          child: FadeTransition(
+            opacity: _curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: LiquidGlass.entranceScaleFrom, end: 1)
+                  .animate(_curved),
+              // Grows out of the corner nearest the bell, so the motion reads
+              // as coming FROM the thing that was tapped.
+              alignment:
+                  flipped ? Alignment.bottomRight : Alignment.topRight,
+              child: _NotificationPopover(onClose: _close),
+            ),
           ),
         ),
       ),
