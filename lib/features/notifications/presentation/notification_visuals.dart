@@ -38,14 +38,12 @@ class NotificationVisuals {
         'course_offering' => AppIcons.schedule,
         'course_message' => AppIcons.deptChat,
         'assignment' => AppIcons.assignments,
-        // Added with the request-decision triggers
-        // (20260904085938_notify_on_request_decisions.sql): a hall seat, a
-        // mentorship session and a class-representative verdict each reach a
-        // student who has been waiting on an answer, so they get their own
-        // mark rather than the anonymous bell.
+        // Real categories that had no mark: 13 hall decisions and 6
+        // mentorship verdicts in the table, both drawing the generic bell.
+        // (A class-representative verdict is sent under 'general', not 'cr' --
+        // see manage_users_screen.dart:466.)
         'hall' => AppIcons.hall,
         'mentorship' => AppIcons.mentorship,
-        'cr' => AppIcons.badge,
         // MEASURED AGAINST THE TABLE, NOT GUESSED. Counting
         // `user_notifications` by category showed the map covered names
         // nothing emits (`payment`, `library`, `message`, `course_message`)
@@ -77,7 +75,6 @@ class NotificationVisuals {
         'assignment' => AppColors.purple,
         'hall' => AppColors.teal,
         'mentorship' => AppColors.green,
-        'cr' => AppColors.purple,
         'app_update' => AppColors.blue,
         'routine' => AppColors.red,
         'sos' => AppColors.red,

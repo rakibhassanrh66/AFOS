@@ -25,8 +25,6 @@ void main() {
     'app_update', 'routine', 'general', 'transport', 'course_offering',
     'club', 'hall', 'lost_found', 'ANNOUNCEMENT', 'GENERAL', 'sos',
     'mentorship', 'exam', 'feedback', 'RULE',
-    // Added by 20260904085938_notify_on_request_decisions.
-    'cr',
   ];
 
   test('every category in the database has its own icon, not the fallback', () {
