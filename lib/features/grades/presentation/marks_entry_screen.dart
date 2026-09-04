@@ -7,6 +7,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -248,8 +249,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         // each side at 1.0x, and burst at 1.67x; it grows from there.
         // Same idiom as ExamPulseBand's strip height.
         SizedBox(
-          height: (38 + (MediaQuery.textScalerOf(context).scale(1) - 1) * 24)
-              .clamp(38.0, 62.0),
+          // The formula this screen carried inline is now AppSpace.chipStrip,
+          // because two other strips had the same geometry and neither had it.
+          // Same base, same growth, same cap — this renders exactly as before.
+          height: AppSpace.chipStrip(context, 38),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),

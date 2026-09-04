@@ -281,7 +281,7 @@ class _Group extends StatelessWidget {
               ),
               AnimatedRotation(
                 turns: open ? 0 : -0.25,
-                duration: AppMotion.tight,
+                duration: AppMotion.durationOf(context, AppMotion.tight),
                 child: Icon(Icons.expand_more_rounded,
                     size: 16, color: AppColors.textMutedOf(context)),
               ),
@@ -326,7 +326,7 @@ class _RowState extends State<_Row> {
       child: GestureDetector(
         onTap: () => context.go(c.route),
         child: AnimatedContainer(
-          duration: AppMotion.instant,
+          duration: AppMotion.durationOf(context, AppMotion.instant),
           margin: const EdgeInsets.symmetric(
               horizontal: AppSpace.sm, vertical: 1),
           padding: const EdgeInsets.symmetric(

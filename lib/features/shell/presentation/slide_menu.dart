@@ -491,7 +491,10 @@ class _MenuTileState extends State<_MenuTile> {
         onExit: (_) => setState(() => _hover = false),
         cursor: SystemMouseCursors.click,
         child: AnimatedContainer(
-          duration: AppMotion.tight,
+          // The entry animation lower in this file already reads through
+          // durationOf; these three hover animations did not, so the menu kept
+          // moving under reduce motion even though its own entrance obeyed it.
+          duration: AppMotion.durationOf(context, AppMotion.tight),
           curve: AppMotion.standard,
           decoration: BoxDecoration(
             borderRadius: AppDepth.radius(1),
@@ -522,7 +525,7 @@ class _MenuTileState extends State<_MenuTile> {
             context.push(item.route);
           },
           child: AnimatedContainer(
-            duration: AppMotion.tight,
+            duration: AppMotion.durationOf(context, AppMotion.tight),
             curve: AppMotion.standard,
             padding: EdgeInsetsDirectional.fromSTEB(
                 _hover && !isActive ? 14 : 12, 10, 12, 10),
@@ -532,7 +535,7 @@ class _MenuTileState extends State<_MenuTile> {
             ):null,
             child: Row(children:[
               AnimatedScale(
-                duration: AppMotion.tight,
+                duration: AppMotion.durationOf(context, AppMotion.tight),
                 curve: AppMotion.standard,
                 scale: _hover && !isActive ? 1.08 : 1.0,
                 child: Container(width:34,height:34, alignment: Alignment.center,

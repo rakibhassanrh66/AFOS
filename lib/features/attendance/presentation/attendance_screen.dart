@@ -6,6 +6,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
+import '../../../config/theme/spacing.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -231,7 +232,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       if (_offerings.length > 1)
         SizedBox(
-          height: 38,
+          // Was a bare `height: 38`, which clipped these course chips by 4.0px
+          // at a 2.0x text scale — the same 12px-label/9px-padding geometry
+          // marks_entry_screen already grows, and whose comment records that
+          // 38px bursts at 1.67x. This strip simply never got that fix.
+          height: AppSpace.chipStrip(context, 38),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
