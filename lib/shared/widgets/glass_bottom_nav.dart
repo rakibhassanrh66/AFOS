@@ -351,7 +351,10 @@ class _NavItem extends StatelessWidget {
         Expanded(
           child: Center(
             child: AnimatedOpacity(
-              duration: AppMotion.tight,
+              // The planet controller above is already gated on
+              // disableAnimations in didUpdateWidget; this fade was not, so
+              // the icon still cross-faded under reduce motion on every screen.
+              duration: AppMotion.durationOf(context, AppMotion.tight),
               // The active tab's icon lives in the planet above, so fade the
               // in-bar copy out as the planet arrives.
               opacity: active ? 0.0 : 0.55,

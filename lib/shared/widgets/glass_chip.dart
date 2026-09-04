@@ -50,7 +50,11 @@ class _GlassChipState extends State<GlassChip> {
         : AppColors.textSecondaryOf(context);
 
     final chip = AnimatedContainer(
-      duration: AppMotion.tight,
+      // Read through durationOf, not as a bare constant: motion.dart states
+      // that reading these directly is a bug, and this is a shared primitive —
+      // a chip that keeps animating is "reduce motion" ignored on every screen
+      // that filters anything.
+      duration: AppMotion.durationOf(context, AppMotion.tight),
       curve: AppMotion.standard,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
