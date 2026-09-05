@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -14,6 +15,7 @@ import 'core/di/injection.dart';
 import 'core/auth/biometric_lock.dart';
 import 'core/auth/secure_session_storage.dart';
 import 'core/haptics/app_haptics.dart';
+import 'core/perf/device_profile.dart';
 import 'core/utils/pending_credentials_store.dart';
 import 'core/services/app_config_service.dart';
 import 'core/services/app_update_service.dart';
@@ -40,6 +42,25 @@ bool get _isMobile =>
 /// the real app, IntegrationTestWidgetsFlutterBinding.ensureInitialized()
 /// for tests) before calling this.
 Future<void> bootstrap() async {
+  // The app's type is in the APK; nothing may be fetched from Google at run
+  // time. Without this the first launch rendered in the platform fallback face
+  // and then re-laid out every screen when DM Sans arrived over the network —
+  // and on a first launch with no connection, it never arrived at all. Now a
+  // missing face is a BUILD error (google_fonts throws when it can neither find
+  // the asset nor fetch), which is the right place to find out.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  // Both faces are OFL-1.1. Bundling them makes us a redistributor, so the
+  // licence has to reach the user — this is what puts it on the app's own
+  // "Licenses" page rather than only in the repo.
+  LicenseRegistry.addLicense(() async* {
+    for (final family in const ['DMSans', 'JetBrainsMono']) {
+      yield LicenseEntryWithLineBreaks(
+        [family],
+        await rootBundle.loadString('assets/fonts/$family-OFL.txt'),
+      );
+    }
+  });
+
   await SystemChrome.setPreferredOrientations(
       [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
 
@@ -69,11 +90,26 @@ Future<void> bootstrap() async {
   // Flutter otherwise caps rendering at 60Hz there even on faster panels.
   // Best-effort (a device without a high-Hz mode just stays at its default);
   // iOS ProMotion is handled by the engine automatically, no call needed.
+  //
+  // THIS OPT-IN IS NOW REVERSIBLE, and that matters more than the opt-in does.
+  // It used to be unconditional. On a budget phone with a 90Hz panel — a very
+  // common pairing, and the kind of device this app was reported as unusable
+  // on — asking for 90Hz cuts the frame budget from 16.6ms to 11.1ms without
+  // making the GPU any faster. Frames that would have been on time become
+  // late, which reads as stutter rather than as a lower frame rate. So we still
+  // ask, because it is genuinely better on hardware that can hold it, and
+  // DeviceProfile hands it back if this device cannot. See device_profile.dart.
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     try {
       await FlutterDisplayMode.setHighRefreshRate();
     } catch (_) {}
   }
+
+  // Starts watching real frame timings to classify this device and, if needed,
+  // undo the line above. NOT awaited: it must never sit between the user and
+  // the first frame, and it has nothing to report until ~240 frames have gone
+  // by anyway.
+  DeviceProfile.instance.start();
 
   // Real installed version, so UI/feedback metadata can't drift from
   // pubspec.yaml. Best-effort: keep the compiled-in fallback on failure.

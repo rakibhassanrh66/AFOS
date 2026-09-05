@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../core/perf/device_profile.dart';
 import 'motion.dart';
 
 /// Liquid Glass design tokens — the single source of numeric truth for the
@@ -129,15 +130,44 @@ class LiquidGlass {
   /// blur + saturate(160%) — saturation keeps content behind the glass
   /// looking liquid instead of washed grey. ColorFilter composes as the
   /// inner filter so the saturation applies to the already-blurred backdrop.
-  static ImageFilter frost(double sigma) => ImageFilter.compose(
-        outer: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        inner: const ColorFilter.matrix(<double>[
-          // Rec.709 luminance-weighted saturation matrix, s = 1.6
-          // (each row sums to 1.0 so greys pass through unchanged).
-          1.47244, -0.42912, -0.04332, 0, 0,
-          -0.12756, 1.17088, -0.04332, 0, 0,
-          -0.12756, -0.42912, 1.55668, 0, 0,
-          0, 0, 0, 1, 0,
-        ]),
-      );
+  ///
+  /// ON A DEVICE THAT CANNOT AFFORD IT, THE SATURATION PASS IS DROPPED AND THE
+  /// BLUR IS SOFTENED. To be explicit, because the decision is recorded in
+  /// CLAUDE.md and must not be silently re-litigated: **this is not retiring
+  /// Liquid Glass.** The glass stays, on every device, in both themes. What
+  /// changes on a phone that is already missing its frame budget is the
+  /// *fidelity* of the effect, and only there.
+  ///
+  /// The two costs are not equal, which is why they degrade differently:
+  ///
+  ///  * `ImageFilter.compose` runs the colour matrix over the whole blurred
+  ///    backdrop — a second full-surface pass. It is the half a weak GPU feels
+  ///    most, and the half a person notices least, since the fill behind the
+  ///    glass is already tinted by `AppColors.glassFill`.
+  ///  * Gaussian blur cost scales with sigma. Two thirds of the radius keeps
+  ///    the material unmistakably frosted at a materially lower fill cost.
+  ///
+  /// Reads [DeviceProfile] directly rather than taking a `BuildContext`: this
+  /// is called from `build()` in several widgets and threading an InheritedWidget
+  /// through them all would change signatures for no benefit. The tier settles a
+  /// few seconds after launch and surfaces pick it up on their next rebuild,
+  /// which is soon and is not worth forcing.
+  static ImageFilter frost(double sigma) {
+    final blur = ImageFilter.blur(
+      sigmaX: DeviceProfile.instance.isLowEnd ? sigma * 0.66 : sigma,
+      sigmaY: DeviceProfile.instance.isLowEnd ? sigma * 0.66 : sigma,
+    );
+    if (DeviceProfile.instance.isLowEnd) return blur;
+    return ImageFilter.compose(
+      outer: blur,
+      inner: const ColorFilter.matrix(<double>[
+        // Rec.709 luminance-weighted saturation matrix, s = 1.6
+        // (each row sums to 1.0 so greys pass through unchanged).
+        1.47244, -0.42912, -0.04332, 0, 0,
+        -0.12756, 1.17088, -0.04332, 0, 0,
+        -0.12756, -0.42912, 1.55668, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+    );
+  }
 }
