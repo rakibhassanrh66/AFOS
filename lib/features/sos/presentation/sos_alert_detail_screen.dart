@@ -9,6 +9,7 @@ import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
+import '../../../core/network/cached_tile_provider.dart';
 import '../../../core/utils/role_labels.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
@@ -257,7 +258,16 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
               // Real app ID, not the Flutter scaffold default: OSM's tile usage
               // policy requires a User-Agent that identifies the app, and
               // com.example.* is exactly the generic value they rate-limit.
-              TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'bd.edu.diu.afos'),
+              // Same disk-cached provider as the Transport map. This one
+              // matters more, not less: it opens during an emergency, on
+              // whatever connection the person has, and a basemap of grey
+              // squares is the wrong thing to hand someone trying to find
+              // where a caller is.
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'bd.edu.diu.afos',
+                tileProvider: CachedTileProvider(),
+              ),
               MarkerLayer(markers: [
                 Marker(point: point, width: 40, height: 40,
                     child: const Icon(Icons.location_on, color: AppColors.red, size: 40)),
