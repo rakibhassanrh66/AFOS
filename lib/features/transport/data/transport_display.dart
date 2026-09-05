@@ -181,9 +181,13 @@ List<String> sampleWaypoints(List<String> middle) {
 
 /// Builds the Google Maps link for a route, given its ordered stop names.
 ///
-/// Name-based rather than coordinate-based on purpose: no stop on an active
-/// route has GPS coordinates (all 183 rows in `transport_stops` belong to the
-/// retired legacy import), so names are the only location data that exists.
+/// Name-based rather than coordinate-based on purpose. The original reason was
+/// that no active stop had coordinates at all; that is no longer true (every
+/// active stop is placed as of migration 20260905120000). The reason it stays
+/// name-based is now the better one: Google routes on place names perfectly
+/// well, and a name survives a re-import that a coordinate historically did
+/// not — this link kept working through the entire period when the drawn map
+/// was pointing at the wrong places.
 /// Returns null when there is nothing to show.
 Uri? googleMapsRouteUrl(List<String> stopNames) {
   final stops = stopNames.map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
