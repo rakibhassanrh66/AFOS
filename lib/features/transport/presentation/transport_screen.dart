@@ -1085,9 +1085,14 @@ class _MyRouteTabState extends State<_MyRouteTab> {
   // an honest, disclosed approximation, not a silent guess dressed up as GPS
   // proximity.
   //
-  // This used to be justified by "no stop has a coordinate", which is no
-  // longer true (every stop on every active route is geocoded). The reason it
-  // stays text-based is now a different and better one: this runs from
+  // This used to be justified by "no stop has a coordinate". That stopped
+  // being true, then quietly became true again: the Fall-2026 import added 168
+  // stops and geocoded none of them, and this comment went on asserting full
+  // coverage for three days. Coverage is now a property the DATABASE keeps
+  // (`transport_stop_geo` + `trg_transport_stops_resolve_geo`, migration
+  // 20260905120000), not a claim a comment makes — so do not restate it here.
+  //
+  // The reason this stays text-based is a different and better one: this runs from
   // initState to pre-select a route the moment the tab opens, and a real
   // nearest-stop calculation would have to raise a location-permission prompt
   // to do it. Ambushing someone with a permission dialog they did not ask for,
@@ -2104,8 +2109,15 @@ class _MapTabState extends State<_MapTab> {
     // `transport_stops` held only the retired legacy import, so `fetchStops`
     // returned nothing for any active route and NO route could be drawn. That
     // has not been true since the importer started mirroring stops
-    // (`_syncStops`) — all 21 active routes now have rows, and as of the
-    // 20260814213849 migration every one of those rows is geocoded.
+    // (`_syncStops`) — all 21 active routes have rows.
+    //
+    // Coverage is NOT asserted here on purpose. An earlier version of this
+    // comment claimed the 20260814213849 migration had geocoded every row, and
+    // it had — on the routes that existed that day. The next import added 168
+    // stops with no coordinates at all and the claim silently went stale, which
+    // is precisely why this branch must keep working rather than be treated as
+    // dead. Coverage is now enforced by the database (migration 20260905120000)
+    // instead of promised by a comment.
     //
     // So this is now the genuine exception rather than the rule: a route with
     // fewer than two plottable stops. The panel below still says so plainly
