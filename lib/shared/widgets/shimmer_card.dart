@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import '../../core/perf/device_profile.dart';
 
 class ShimmerCard extends StatelessWidget {
   /// Height of one standard [InfoCard] list row — icon badge, title, one line
@@ -43,7 +44,15 @@ class ShimmerCard extends StatelessWidget {
       // so freezing the sweep loses nothing. Effectively still under reduced
       // motion (Shimmer has no disable flag; a near-zero-delta period is the
       // supported way to still it).
-      period: AppMotion.isReduced(context)
+      //
+      // FROZEN ON A LOW-END DEVICE FOR THE SAME REASON, arrived at differently.
+      // `Shimmer` paints through a `ShaderMask`, which forces a `saveLayer` per
+      // shimmering widget per frame. A loading list is 4–8 of them at once, and
+      // they run at exactly the moment the device is already busiest: queries in
+      // flight, JSON being decoded, images being fetched. The skeleton meant to
+      // reassure someone that the app is working was itself part of why it was
+      // not. Geometry alone still says "loading", so nothing is lost.
+      period: AppMotion.isReduced(context) || DeviceProfile.instance.isLowEnd
           ? const Duration(days: 1)
           : const Duration(milliseconds: 1400),
       child: Container(

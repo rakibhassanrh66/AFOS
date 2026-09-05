@@ -103,3 +103,30 @@ flutter:
     # icon generator and out of the bundle.
     - assets/images/diu_logo.png
     - assets/sounds/
+    # DM Sans + JetBrains Mono, BUNDLED rather than downloaded at runtime.
+    #
+    # `google_fonts` ships no font data. With nothing bundled it fetches from
+    # fonts.gstatic.com on first launch, so the app opened in the platform
+    # fallback face and then re-laid every screen out when the real font
+    # arrived — and on a first launch with no connection it never arrived at
+    # all. `app_text_styles.dart` had already noticed ("DM Sans is not bundled
+    # as an asset here") without drawing the conclusion.
+    #
+    # Declared under `assets:` and NOT under `fonts:` on purpose: google_fonts
+    # resolves a bundled face by scanning the ASSET MANIFEST for a file whose
+    # name ends in its own `Family-Variant` prefix
+    # (`_findFamilyWithVariantAssetPath`). Registering them as a font family
+    # instead would leave that scan empty and it would go on downloading.
+    #
+    # The six files are byte-identical to what google_fonts would have fetched
+    # — each was verified against the sha256 the package itself carries for
+    # integrity checking. 352 KB total. Both faces are OFL-1.1; the licences
+    # ship beside them and are registered with LicenseRegistry in bootstrap.
+    - assets/fonts/DMSans-Regular.ttf
+    - assets/fonts/DMSans-Medium.ttf
+    - assets/fonts/DMSans-SemiBold.ttf
+    - assets/fonts/DMSans-Bold.ttf
+    - assets/fonts/DMSans-ExtraBold.ttf
+    - assets/fonts/JetBrainsMono-Regular.ttf
+    - assets/fonts/DMSans-OFL.txt
+    - assets/fonts/JetBrainsMono-OFL.txt
