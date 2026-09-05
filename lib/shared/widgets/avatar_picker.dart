@@ -1,12 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../config/supabase_config.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
 import '../../core/haptics/app_haptics.dart';
 import '../../core/network/storage_upload_service.dart';
 import '../../core/utils/error_formatter.dart';
+import '../../core/utils/image_pick_policy.dart';
 import 'glass_sheet.dart';
 import 'pill_badge.dart';
 import 'supernova_loader.dart';
@@ -40,7 +40,10 @@ class _AvatarPickerState extends State<AvatarPicker> {
   bool _saving = false;
 
   Future<void> _pickAndUpload() async {
-    final img = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+    // Capped at 512px by the platform picker before the bytes reach Dart --
+    // this used to upload the raw camera frame (measured: 378 KB average,
+    // 928 KB worst) for a circle that decodes at 256px. See ImagePickPolicy.
+    final img = await ImagePickPolicy.pickAvatar();
     if (img == null) return;
     // BUG_REGISTER P1-01: setState after an awaited platform round-trip with no
     // mounted guard. The gallery picker is exactly the kind of await a user can

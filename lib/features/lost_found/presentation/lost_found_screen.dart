@@ -27,6 +27,7 @@ import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/image_pick_policy.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
@@ -417,7 +418,10 @@ class _PostTabState extends State<_PostTab> {
   bool _loading = false;
 
   Future<void> _pickImage() async {
-    final img = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+    // Capped at 1280px by the platform picker before the bytes reach Dart.
+    // Bigger than an avatar on purpose -- recognising your own lost property
+    // in the photo IS the feature. See ImagePickPolicy.
+    final img = await ImagePickPolicy.pickItemPhoto();
     // BUG_REGISTER P1-01: setState after an await with no mounted guard. The
     // picker is a full platform round-trip, so leaving the tab mid-pick is easy.
     if (img != null && mounted) setState(() => _image = img);
@@ -489,14 +493,15 @@ class _PostTabState extends State<_PostTab> {
                 // path directly. On web, XFile.path is a blob: URL that
                 // Image.network can load directly; only native platforms
                 // get a real filesystem path Image.file can use.
-                // cacheWidth on both: this box is 100px tall, but `pickImage`
-                // only compresses QUALITY (imageQuality: 70), never the
-                // dimensions, so what lands here is a full camera frame —
-                // decoding 4000x3000 into a 100px strip costs ~48MB of bitmap
-                // for a thumbnail. 1080 is a full-width phone screen at 3x,
-                // so the preview is still sharp and the decode is ~13x
-                // cheaper. The constitution bans images without cacheWidth
-                // for exactly this reason; this was the app's only Image.network.
+                // cacheWidth on both, and it still earns its place even though
+                // the picker now caps the source at 1280px (ImagePickPolicy).
+                // This box is 100px tall; without cacheWidth a 1280px frame is
+                // still ~6.5 MB of bitmap for a thumbnail. It used to be far
+                // worse — `imageQuality: 70` compresses QUALITY and never
+                // DIMENSIONS, so what landed here was the raw 4000x3000 camera
+                // frame at ~48 MB. The constitution bans images without
+                // cacheWidth for exactly this reason; this remains the app's
+                // only Image.network.
                 ? ClipRRect(borderRadius: AppDepth.radius(1),
                     child: kIsWeb
                         ? Image.network(_image!.path, fit: BoxFit.cover, cacheWidth: 1080)
