@@ -94,7 +94,13 @@ class TransportImportService {
   /// Writes the validated schedule under the caller's admin RLS
   /// (`admin_write_routes` / `admin_write_transport_meta`). Upserts every route
   /// on the (semester, schedule_type, route_number) key, removes routes for
-  /// this semester that are no longer present, and records the import metadata.
+  /// this semester that are no longer present, RETIRES every other semester,
+  /// and records the import metadata.
+  ///
+  /// THE SEMESTER SWEEP IS NOT OPTIONAL — see `_retireOtherSemesters`. Without
+  /// it, importing Fall-2026 left all 18 Summer-2026 routes `is_active`, and
+  /// the Transport screen listed 39 routes for a 21-route network with route
+  /// numbers meaning different things in each copy.
   static Future<void> write(ParsedTransportSchedule parsed) async {
     final client = SupabaseConfig.client;
     final now = DateTime.now().toIso8601String();
@@ -140,6 +146,9 @@ class TransportImportService {
       await client.from('transport_routes').delete().eq('id', id);
     }
 
+    // Everything that is NOT this semester stops being live.
+    await _retireOtherSemesters(semester);
+
     // Record import metadata; mark this the current schedule.
     await client.from('transport_schedule_meta').update({'is_current': false}).eq('is_current', true);
     await client.from('transport_schedule_meta').insert({
@@ -151,13 +160,54 @@ class TransportImportService {
     });
   }
 
+  /// Retires every route belonging to a semester other than [keep].
+  ///
+  /// WHY THIS EXISTS. The stale-route diff above is scoped `.eq('semester',
+  /// semester)`, so it can only ever clean up within the file being imported.
+  /// A new semester therefore never touched the old one, and BOTH stayed
+  /// `is_active` — `TransportRepository.watchRoutes()` filters on `is_active`
+  /// alone, so students saw every route twice.
+  ///
+  /// That was not merely untidy. Route NUMBERS were reassigned between the two
+  /// imports (R13 was "Uttara Moylar Mor" in one and "Mirpur-1, Sony Cinema
+  /// Hall" in the other), so choosing R13 was a coin flip between two different
+  /// buses — a student could be sent to the wrong stop.
+  ///
+  /// Deactivates rather than deletes: last semester's timetable is still the
+  /// answer to "what did the bus do in August", and `transport_stop_offsets` is
+  /// keyed on route_number, not route_id, so the rows stay useful.
+  static Future<void> _retireOtherSemesters(String keep) async {
+    await SupabaseConfig.client
+        .from('transport_routes')
+        .update({'is_active': false})
+        .neq('semester', keep)
+        .eq('is_active', true);
+  }
+
   /// Mirrors each imported route's ordered stop list into `transport_stops`,
   /// the row-per-stop table the map reads (and the only place latitude /
   /// longitude can live).
   ///
-  /// Deliberately **preserves existing coordinates**: a stop that already has
-  /// lat/long keeps it, because geocoding is expensive and manual corrections
-  /// must survive a routine re-upload. Only the name and ordering are refreshed.
+  /// COORDINATES ARE NOT THIS METHOD'S BUSINESS, and deliberately so.
+  ///
+  /// This used to say it "preserves existing coordinates" by omitting
+  /// latitude/longitude from the payload. That was the bug. The upsert keys on
+  /// (route_id, stop_order) — a POSITION — so omitting the coordinates did not
+  /// preserve a STOP's pin, it preserved a SLOT's pin. Insert, remove or
+  /// reorder a single stop and every coordinate below the edit slid one seat
+  /// down onto the wrong place. Live evidence before the repair: R9's
+  /// "Daffodil Smart City" and R12's "Dhour" held byte-identical coordinates,
+  /// and R9 therefore ended 9.4 km from campus, in Mirpur.
+  ///
+  /// Coordinates now belong to `transport_stop_geo` (name → coordinate, one row
+  /// per physical place) and are applied by the `trg_transport_stops_resolve_geo`
+  /// trigger whenever a row is inserted or its `stop_name` changes. A pin can no
+  /// longer outlive the name it belongs to, regardless of what this file sends.
+  /// An unknown place resolves to NULL, which the map already renders honestly.
+  ///
+  /// To correct a pin, update `transport_stop_geo` — that fixes the place on
+  /// every route that stops there, instead of one row on one route.
+  /// See migration `20260905120000`.
   ///
   /// Rows are keyed on (route_id, stop_order) — the natural key added in
   /// migration `20260722072545`, which is also what makes this upsert idempotent
