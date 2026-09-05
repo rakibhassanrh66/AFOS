@@ -30,6 +30,7 @@ import '../data/transport_display.dart';
 import 'manage_stop_times_screen.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../core/network/cached_tile_provider.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
 /// Reads a route row's per-trip objects ({time, note, status}) for one
 /// direction into typed [Trip]s, dropping blanks.
@@ -1965,6 +1966,46 @@ class _MapTabState extends State<_MapTab> {
   static double _simplifyToleranceFor(double zoom) =>
       zoom >= 15 ? 0 : (zoom <= 11 ? 0.0004 : 0.0004 / (1 << (zoom.round() - 11)));
 
+  // ---- memo for the simplified line -----------------------------------------
+  //
+  // `RouteGeometryService.simplify` was called straight from `build()`. It is
+  // recursive Douglas–Peucker over a list the service's own doc comment calls
+  // "~2,000 points" for a snapped Dhaka route, and it allocates a fresh
+  // `sublist` at every level of the recursion.
+  //
+  // `build()` runs far more often than the inputs change. Opening or closing a
+  // stop callout, the locate button resolving, the one-minute `Timer.periodic`
+  // tick, a parent rebuild — every one of those re-ran the whole simplification
+  // to produce a list identical to the one already on screen.
+  //
+  // The result is a pure function of (route, tolerance), and the tolerance only
+  // changes at integer zoom steps — which is also the only time
+  // `onPositionChanged` calls setState. So one cached value keyed on those two
+  // is exact, not an approximation: a hit returns precisely what recomputing
+  // would have.
+  List<LatLng>? _simplifiedCache;
+  List<LatLng>? _simplifiedFor;
+  double? _simplifiedAtTolerance;
+
+  List<LatLng> _simplifiedForCurrentZoom(List<LatLng> fallback) {
+    final source = _snappedRoute;
+    if (source == null) return fallback;
+    final tolerance = _simplifyToleranceFor(_zoom);
+    // identical(), not ==: comparing two 2,000-element lists element-wise on
+    // every build would cost more than the work being avoided. The field is
+    // only ever replaced wholesale, so reference identity is the right test.
+    if (identical(_simplifiedFor, source) &&
+        _simplifiedAtTolerance == tolerance &&
+        _simplifiedCache != null) {
+      return _simplifiedCache!;
+    }
+    final simplified = RouteGeometryService.simplify(source, tolerance);
+    _simplifiedFor = source;
+    _simplifiedAtTolerance = tolerance;
+    _simplifiedCache = simplified;
+    return simplified;
+  }
+
   String? get _routeId => widget.route?['id'] as String?;
 
   /// Stop names straight off the route row. These always exist, unlike the
@@ -2081,6 +2122,12 @@ class _MapTabState extends State<_MapTab> {
         // policy requires a User-Agent identifying the app, and
         // com.example.* is the generic value they rate-limit.
         userAgentPackageName: 'bd.edu.diu.afos',
+        // Tiles survive the app being closed. flutter_map's default provider
+        // caches only in memory, so every cold open re-downloaded the whole
+        // visible screenful from OSM — grey squares on every launch, worst on
+        // exactly the slow connections that need them most. See
+        // CachedTileProvider.
+        tileProvider: CachedTileProvider(),
       );
 
   /// Asks for the device's live position so the user can see where they
@@ -2101,9 +2148,7 @@ class _MapTabState extends State<_MapTab> {
     // Simplified for the current zoom: a snapped Dhaka route is ~2,000 points
     // and at z11 most of them fall inside one pixel, so drawing them all costs
     // layout and raster time for fidelity nobody can see.
-    final drawnRoute = _snappedRoute == null
-        ? routePoints
-        : RouteGeometryService.simplify(_snappedRoute!, _simplifyToleranceFor(_zoom));
+    final drawnRoute = _simplifiedForCurrentZoom(routePoints);
     final hasRoute = widget.route != null;
     // This used to be the normal case, and the comment here used to say so:
     // `transport_stops` held only the retired legacy import, so `fetchStops`
@@ -2127,7 +2172,20 @@ class _MapTabState extends State<_MapTab> {
     final plotted = _plotted;
     final isDark = AppColors.isDark(context);
     return Stack(children: [
-      FlutterMap(
+      // RepaintBoundary around the map, not around the overlays.
+      //
+      // The map shares this Stack with the stop callout, the info panel, the
+      // locate button and the "approximate path" note — all of which repaint on
+      // ordinary interaction (tapping a stop, the one-minute tick, location
+      // resolving). Without a boundary each of those repaints the map layer too,
+      // and in dark mode that means re-running the full-screen ColorFilter over
+      // every tile for a change that happened in a 40px chip.
+      //
+      // The map is the most expensive thing on this screen and the least likely
+      // to have actually changed, which is exactly the shape a repaint boundary
+      // is for.
+      RepaintBoundary(
+        child: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
           initialCenter: const LatLng(_diuLat, _diuLng),
@@ -2245,6 +2303,7 @@ class _MapTabState extends State<_MapTab> {
             alignment: Alignment.topLeft,
           ),
         ],
+        ),
       ),
 
       // The tapped stop's name. A callout rather than a modal sheet: naming a
