@@ -19,6 +19,7 @@ import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../web/presentation/widgets/adaptive_list.dart';
 import '../data/repositories/course_offering_repository.dart';
 import 'join_request_detail_screen.dart';
 
@@ -443,28 +444,45 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
 
   Widget _list(int matching) {
     final rows = _visible;
-    return ListView(
+    final showBulkBar = _filter == _Filter.waiting && matching >= 2;
+    // Flattened into a fixed header-slot count + one item per row, built via
+    // AdaptiveList rather than ListView(children:) -- for a single teacher's
+    // course-section this list is realistically small, but it's the same
+    // eager-build pattern the admin-wide pending-users queue had (see
+    // manage_users_screen.dart), and there's no reason to special-case one
+    // course section as "small enough" when the lazy version costs nothing
+    // and is what every other list screen in this app already does.
+    final headerCount = showBulkBar ? 2 : 1;
+    final bodyCount = rows.isEmpty ? 1 : rows.length;
+    return AdaptiveList(
       padding: NavInsets.content(context, top: 0),
-      children: [
-        // Always rendered, even when the list is empty. If the count and the
-        // visible rows ever disagree again, that is now readable on the device
-        // instead of being an invisible contradiction.
-        _CountLine(
-            total: _requests.length,
-            pending: _pending.length,
-            who: _whoEmail,
-            offerings: _myOfferings),
-        const SizedBox(height: 10),
-        if (_filter == _Filter.waiting && matching >= 2) ...[
-          BulkAdmitBar(
-              matching: matching,
-              total: _pending.length,
-              busy: _bulkBusy,
-              onTap: _admitAllMatching),
-          const SizedBox(height: 12),
-        ],
-        if (rows.isEmpty)
-          Padding(
+      itemCount: headerCount + bodyCount,
+      itemBuilder: (ctx, i) {
+        if (i == 0) {
+          // Always rendered, even when the list is empty. If the count and
+          // the visible rows ever disagree again, that is now readable on
+          // the device instead of being an invisible contradiction.
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _CountLine(
+                total: _requests.length,
+                pending: _pending.length,
+                who: _whoEmail,
+                offerings: _myOfferings),
+          );
+        }
+        if (showBulkBar && i == 1) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: BulkAdmitBar(
+                matching: matching,
+                total: _pending.length,
+                busy: _bulkBusy,
+                onTap: _admitAllMatching),
+          );
+        }
+        if (rows.isEmpty) {
+          return Padding(
             padding: const EdgeInsets.only(top: 30),
             child: EmptyState(
               icon: switch (_filter) {
@@ -486,31 +504,31 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                   'Requests you turn down stay here so you can put one back',
               },
             ),
-          )
-        else
-          for (final r in rows)
-            // Each row is isolated: in a release build a widget that throws
-            // paints as blank space, which is indistinguishable from "no data"
-            // and is exactly how a rendering fault could hide an entire list.
-            // This turns that into a visible, reportable row.
-            _SafeRow(
-              child: JoinRequestCard(
-                request: r,
-                busy: _busyIds.contains(r['id']) || _bulkBusy,
-                selectable: _filter == _Filter.waiting,
-                selected: _selected.contains(r['id']),
-                onToggleSelected: () => setState(() {
-                  final id = r['id'] as String;
-                  _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
-                }),
-                onOpen: () => _openDetail(r),
-                onAccept: () => _accept(r),
-                onDecline: () => _decline(r),
-                onRemove: () => _remove(r),
-                onReconsider: () => _reconsider(r),
-              ),
-            ),
-      ],
+          );
+        }
+        final r = rows[i - headerCount];
+        // Each row is isolated: in a release build a widget that throws
+        // paints as blank space, which is indistinguishable from "no data"
+        // and is exactly how a rendering fault could hide an entire list.
+        // This turns that into a visible, reportable row.
+        return _SafeRow(
+          child: JoinRequestCard(
+            request: r,
+            busy: _busyIds.contains(r['id']) || _bulkBusy,
+            selectable: _filter == _Filter.waiting,
+            selected: _selected.contains(r['id']),
+            onToggleSelected: () => setState(() {
+              final id = r['id'] as String;
+              _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
+            }),
+            onOpen: () => _openDetail(r),
+            onAccept: () => _accept(r),
+            onDecline: () => _decline(r),
+            onRemove: () => _remove(r),
+            onReconsider: () => _reconsider(r),
+          ),
+        );
+      },
     );
   }
 }

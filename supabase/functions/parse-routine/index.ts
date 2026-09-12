@@ -15,7 +15,19 @@ const MAX_EXCEL_BYTES = 15 * 1024 * 1024   // 15 MB
 const MAX_LINES = 20000
 
 serve(async (req) => {
-  const corsHeaders = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
+  // Access-Control-Allow-Headers/Methods are required, not decorative: this
+  // function is called with `Authorization` and `apikey` headers, neither of
+  // which is CORS-safelisted, so a browser sends a preflight OPTIONS request
+  // first and refuses to send the real POST at all unless those headers are
+  // explicitly allowed here. Without this, the request never leaves the
+  // browser on web -- native Android/iOS have no such preflight step, which
+  // is exactly why this class of bug only ever shows up on web.
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json",
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
 
   try {

@@ -25,7 +25,17 @@ const ONESIGNAL_REST_KEY = Deno.env.get("ONESIGNAL_REST_KEY")!
 // succeeds and creates a fresh one. Self-service (same ownership rule as
 // the read above) since any user's device can hit this, not just admins.
 serve(async (req) => {
-  const corsHeaders = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
+  // Access-Control-Allow-Headers/Methods are required: this function is
+  // called with an `Authorization` header, which forces a browser to send a
+  // CORS preflight (OPTIONS) request first. Without these explicitly
+  // allowed, the browser refuses to send the real request at all -- a
+  // web-only failure mode, since native apps never do a CORS preflight.
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json",
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
 
   try {

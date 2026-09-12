@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- maximum-scale=1.0/user-scalable=no used to disable pinch-zoom entirely,
+       which is a WCAG 2.1 SC 1.4.4 (Resize Text) violation and directly
+       contradicts this app's own accessibility commitments (48dp touch
+       targets, 4.5:1 contrast) by blocking exactly the low-vision users those
+       exist for. Left zoomable; if the original concern was accidental
+       double-tap-zoom on a specific control, that belongs on that control via
+       CSS `touch-action`, not disabled for the whole page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!--
     If you are serving your web app in a path other than the root, change the
