@@ -18,11 +18,15 @@ jobs:
         with:
           flutter-version: '3.41.6'
       - run: flutter pub get
-      # --no-fatal-infos: this codebase carries a known, accepted baseline
-      # of ~330 info-level lints (deprecated withOpacity, prefer_const,
-      # curly-braces style, etc.) with zero warnings/errors — flutter
-      # analyze treats info-level issues as fatal by default, which made
-      # this step fail on every push/PR regardless of real correctness.
+      # --no-fatal-infos: flutter analyze treats info-level issues as fatal by
+      # default. This codebase used to carry a known, accepted baseline of
+      # ~330 info-level lints (deprecated withOpacity, prefer_const,
+      # curly-braces style, etc.); verified 2026-09-12 that baseline is gone —
+      # `flutter analyze` (even without this flag) currently reports zero
+      # issues of any kind. Left in place rather than removed: it's a no-op
+      # while the codebase is this clean, and it's the difference between a
+      # future info-level lint failing the build outright versus just showing
+      # up in the log for a human to actually decide about.
       - run: flutter analyze --no-fatal-infos
 
       # Standing assertion that no fixed-size box holds text it cannot fit at
@@ -72,9 +76,17 @@ jobs:
       #
       # KEEP IT EXHAUSTIVE. A new function that is not added here is unchecked,
       # and that is exactly how the original five drifted out of coverage.
+      #
+      # admin-reset-qa-passwords added 2026-09-12: it existed on disk and was
+      # deployed, but had silently drifted out of this list -- exactly the
+      # failure mode this comment warns about. It's a permanently-disabled
+      # stub (returns 410 unconditionally, see its own file header) so there
+      # was never a real type error, but an unchecked file is an unchecked
+      # file regardless of how trivial it looks today.
       - name: Type-check Supabase edge functions (all of them)
         run: |
           deno check --no-lock \
+            supabase/functions/admin-reset-qa-passwords/index.ts \
             supabase/functions/register-request/index.ts \
             supabase/functions/register-verify/index.ts \
             supabase/functions/register-review-request/index.ts \

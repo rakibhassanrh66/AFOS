@@ -689,21 +689,45 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                     // account outright (auth row, storage, every owned row,
                     // via the delete-user edge function) which is why it stays
                     // super_admin's even though approving does not.
-                    : ListView(
-                        padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
-                        children: [
-                          for (final entry in _pendingByRole.entries) ...[
-                            GroupSectionHeader(
-                                label: roleLabel(entry.key), total: entry.value.length),
-                            for (final u in entry.value)
-                              UserCard(key: ValueKey(u['id']), user: u, pending: true,
-                                  onApprove: () => _approve(u),
-                                  onReject: _isSuperAdmin ? () => rejectAndDelete(u, onDone: _refreshAll) : null,
-                                  onDelete: _isSuperAdmin ? () => confirmDelete(u, onDone: _refreshAll) : null),
-                            const SizedBox(height: 24),
-                          ],
-                        ],
-                      ),
+                    //
+                    // Flattened into one indexed list for AdaptiveList rather
+                    // than a plain ListView(children:) -- the DATA loading is
+                    // unchanged (still the whole queue in one shot, per the
+                    // comment above), but building every UserCard eagerly
+                    // regardless of scroll position is exactly the pattern
+                    // AdaptiveList's own doc comment warns about: "the
+                    // constitution bans unbounded lists for a real reason...
+                    // building 1,854 cards to show twelve is how a screen
+                    // takes four seconds to open." A queue "meant to stay
+                    // short" still spikes at semester start, when hundreds of
+                    // signups can be pending at once -- exactly the moment
+                    // this screen is busiest and can least afford to jank.
+                    : Builder(builder: (context) {
+                        final items = <Object>[];
+                        for (final entry in _pendingByRole.entries) {
+                          items.add(entry);
+                          items.addAll(entry.value);
+                        }
+                        return AdaptiveList(
+                          padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
+                          itemCount: items.length,
+                          itemBuilder: (ctx, i) {
+                            final item = items[i];
+                            if (item is MapEntry<String, List<Map<String, dynamic>>>) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: GroupSectionHeader(
+                                    label: roleLabel(item.key), total: item.value.length),
+                              );
+                            }
+                            final u = item as Map<String, dynamic>;
+                            return UserCard(key: ValueKey(u['id']), user: u, pending: true,
+                                onApprove: () => _approve(u),
+                                onReject: _isSuperAdmin ? () => rejectAndDelete(u, onDone: _refreshAll) : null,
+                                onDelete: _isSuperAdmin ? () => confirmDelete(u, onDone: _refreshAll) : null);
+                          },
+                        );
+                      }),
                 ],
                 // Order here MUST match _visibleTabs exactly.
                 // Condition MUST match _visibleTabs' 'stuck' entry exactly —
