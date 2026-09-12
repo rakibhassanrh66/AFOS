@@ -279,7 +279,10 @@ class _OfficeHourDialogState extends State<_OfficeHourDialog> {
                 outlined: true,
                 onTap: () async {
                   final t = await showTimePicker(context: context, initialTime: _start);
-                  if (t != null) setState(() => _start = t);
+                  // The sheet this lives in (my_students_screen.dart's
+                  // DraggableScrollableSheet) can be dismissed while the time
+                  // picker is open.
+                  if (t != null && mounted) setState(() => _start = t);
                 },
               ),
             ),
@@ -290,7 +293,7 @@ class _OfficeHourDialogState extends State<_OfficeHourDialog> {
                 outlined: true,
                 onTap: () async {
                   final t = await showTimePicker(context: context, initialTime: _end);
-                  if (t != null) setState(() => _end = t);
+                  if (t != null && mounted) setState(() => _end = t);
                 },
               ),
             ),

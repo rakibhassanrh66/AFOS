@@ -162,7 +162,7 @@ class _TeacherLinkCardState extends State<TeacherLinkCard> {
       await _repo.end(link.id);
       AppHaptics.success();
       _initialCtrl.clear();
-      setState(() => _preview = null);
+      if (mounted) setState(() => _preview = null);
       await _load();
       widget.onChanged?.call();
     } catch (e) {

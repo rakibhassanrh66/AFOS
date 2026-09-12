@@ -14,5 +14,8 @@
   "files.exclude": {
     "**/.dart_tool": true,
     "**/build": true
-  }
+  },
+
+  "//cspell": "Real project vocabulary, not typos -- without this cSpell flags every occurrence of these words across the Supabase edge functions as an unknown-word info diagnostic.",
+  "cSpell.words": ["supabase", "apikey", "onesignal", "postgrest"]
 }
