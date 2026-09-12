@@ -504,6 +504,9 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
     if (!approve) {
       reason = await _askReason();
       if (reason == null) return;
+      // _askReason is an awaited showDialog -- the screen can be dismissed
+      // while it's open.
+      if (!mounted) return;
     }
     setState(() => _busy.add(id));
     try {

@@ -115,7 +115,7 @@ class _UploadsHubState extends State<UploadsHubScreen> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
 
     setState(() {
       _bulkBusy = true;
@@ -142,6 +142,10 @@ class _UploadsHubState extends State<UploadsHubScreen> {
       }
     }
 
+    // The loop above is sequential network + storage round trips per batch --
+    // an admin working through a term's worth of uploads can navigate away
+    // mid-run.
+    if (!mounted) return;
     setState(() {
       _bulkBusy = false;
       _selectedIds.clear();
@@ -580,7 +584,7 @@ class _BatchSheetState extends State<_BatchSheet> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
 
     setState(() {
       _busy = true;

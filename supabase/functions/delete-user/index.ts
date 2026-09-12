@@ -43,7 +43,7 @@ serve(async (req) => {
     const callerId = authData.user.id
 
     const { data: callerProfile } = await supabase.from("profiles").select("role").eq("id", callerId).maybeSingle()
-    if (!callerProfile || callerProfile.role !== "super_admin") {
+    if (callerProfile?.role !== "super_admin") {
       return new Response(JSON.stringify({ error: "Only super_admin can delete accounts." }), { status: 403, headers: corsHeaders })
     }
 
