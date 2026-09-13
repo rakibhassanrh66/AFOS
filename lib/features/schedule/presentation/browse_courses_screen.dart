@@ -7,6 +7,8 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -59,11 +61,17 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
     });
     try {
       final uid = SupabaseConfig.uid;
-      final profile = await SupabaseConfig.client
-          .from('profiles')
-          .select('department, batch, section')
-          .eq('id', uid ?? '')
-          .maybeSingle();
+      // Cached (Tier 1, offline policy): gates every already-cached call
+      // below (fetchJoinableOfferings/fetchMyEnrollments/fetchActiveTerm) —
+      // left uncached, an offline student never got past this lookup.
+      final profile = await cachedMapFetch(
+        cacheKey: 'browse_courses_profile_${uid ?? ''}',
+        liveFetch: () async => await SupabaseConfig.client
+            .from('profiles')
+            .select('department, batch, section')
+            .eq('id', uid ?? '')
+            .maybeSingle() ?? const <String, dynamic>{},
+      );
       _department = profile?['department'] as String? ?? '';
       _batch = profile?['batch'] as String? ?? '';
       _section = profile?['section'] as String? ?? '';
@@ -166,6 +174,8 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
             .animate()
             .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
+        if (SupabaseConfig.uid != null)
+          CacheFreshnessBadge(cacheKey: 'browse_courses_profile_${SupabaseConfig.uid}', isMap: true),
         if (_canScopeToSection)
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),

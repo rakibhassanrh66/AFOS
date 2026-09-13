@@ -9,7 +9,9 @@ import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -47,14 +49,23 @@ class _NotifState extends State<NotificationCenterScreen> {
     // an older, slower response overwrite a fresher one with stale data.
     final gen = ++_loadGen;
     try {
-      final res = await SupabaseConfig.client
-          .from('user_notifications')
-          .select(_columns)
-          .eq('user_id', uid)
-          .order('received_at', ascending: false)
-          .range(0, _pageSize - 1) as List;
+      // Cached (Tier 2, offline policy): only the first page — a paginated
+      // "load more" beyond it is a live-only convenience, not something an
+      // offline user is realistically scrolling for.
+      final res = await cachedListFetch(
+        cacheKey: 'notifications_$uid',
+        liveFetch: () async {
+          final rows = await SupabaseConfig.client
+              .from('user_notifications')
+              .select(_columns)
+              .eq('user_id', uid)
+              .order('received_at', ascending: false)
+              .range(0, _pageSize - 1) as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
       if (mounted && gen == _loadGen) {
-        setState(() { _notifs = res.cast(); _error = null; _hasMore = res.length == _pageSize; });
+        setState(() { _notifs = res; _error = null; _hasMore = res.length == _pageSize; });
       }
     } catch (e) {
       // Silent failure looked identical to "no notifications yet".
@@ -137,6 +148,7 @@ class _NotifState extends State<NotificationCenterScreen> {
           margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 4),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
+        if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'notifications_${SupabaseConfig.uid}'),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 6))
           : _error != null

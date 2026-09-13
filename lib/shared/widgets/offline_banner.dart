@@ -70,11 +70,19 @@ class _OfflineBannerState extends State<OfflineBanner> {
               Icon(failedCount > 0 ? Icons.error_outline_rounded : Icons.cloud_upload_outlined,
                   size: 14, color: failedCount > 0 ? AppColors.red : AppColors.blue),
               const SizedBox(width: 6),
-              Text(
-                failedCount > 0
-                    ? '$failedCount action${failedCount == 1 ? '' : 's'} failed to send — tap to review'
-                    : '$pendingCount action${pendingCount == 1 ? '' : 's'} waiting to send',
-                style: TextStyle(color: failedCount > 0 ? AppColors.red : AppColors.blue, fontSize: 11, fontWeight: FontWeight.w600),
+              // Flexible + ellipsis: unbounded text at the end/middle of a Row
+              // with no flex sibling overflows at large accessibility text
+              // scales rather than shortening — the same class of bug already
+              // fixed once in user_card.dart's "Joined" line.
+              Flexible(
+                child: Text(
+                  failedCount > 0
+                      ? '$failedCount action${failedCount == 1 ? '' : 's'} failed to send — tap to review'
+                      : '$pendingCount action${pendingCount == 1 ? '' : 's'} waiting to send',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: failedCount > 0 ? AppColors.red : AppColors.blue, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
               ),
             ]),
           ),

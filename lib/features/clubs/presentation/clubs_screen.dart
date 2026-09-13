@@ -12,7 +12,9 @@ import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/animations/page_transitions.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -97,10 +99,19 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
       var q = SupabaseConfig.client.from('clubs')
           .select('id, name, short_name, tagline, category, president_id');
       if (_filter != 'All') q = q.eq('category', _filter);
+      // Cached (Tier 2, offline policy): the club directory and event list
+      // are the actual browsing content of this screen.
       final [clubs, events] = await Future.wait([
-        q.order('name') as Future,
-        SupabaseConfig.client.from('club_events')
-            .select('id, title, venue, event_date, max_seats').order('event_date') as Future,
+        cachedListFetch(
+          cacheKey: 'clubs_$_filter',
+          liveFetch: () async => (await q.order('name') as List).cast<Map<String, dynamic>>(),
+        ),
+        cachedListFetch(
+          cacheKey: 'club_events',
+          liveFetch: () async => (await SupabaseConfig.client.from('club_events')
+              .select('id, title, venue, event_date, max_seats').order('event_date') as List)
+              .cast<Map<String, dynamic>>(),
+        ),
       ]);
       List myClubs = [], myMembershipRequests = [], myPostRequests = [], presidingRequests = [], myRegistrations = [];
       if (uid != null) {
@@ -481,6 +492,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
             labelColor: AppColors.blue, unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.blue,
             tabs: const [Tab(text: 'Discover'), Tab(text: 'My Clubs'), Tab(text: 'Events')])),
+        CacheFreshnessBadge(cacheKey: 'clubs_$_filter'),
         Expanded(child: TabBarView(controller: _tab, children: [
           Column(children: [
             Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8), child: TextField(

@@ -28,6 +28,8 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/image_pick_policy.dart';
+import '../../../core/utils/offline_cache.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
@@ -126,8 +128,15 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
         q = q.neq('status', 'returned');
         if (_filter != 'all') q = q.eq('type', _filter);
       }
-      final res = await q.order('created_at', ascending: false).limit(50) as List;
-      if (mounted) setState(() => _posts = res.cast());
+      // Cached (Tier 2, offline policy): the browse listing itself.
+      final res = await cachedListFetch(
+        cacheKey: 'lost_found_posts_$_filter',
+        liveFetch: () async {
+          final rows = await q.order('created_at', ascending: false).limit(50) as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
+      if (mounted) setState(() => _posts = res);
     } catch (e) {
       // Previously swallowed silently — a real load failure rendered
       // identically to "nothing posted", same class of bug already found
@@ -167,6 +176,7 @@ class _LFState extends State<LostFoundScreen> with SingleTickerProviderStateMixi
             ],
           ),
         ),
+        CacheFreshnessBadge(cacheKey: 'lost_found_posts_$_filter'),
         const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
           _FeedTab(posts: _posts, loading: _loading, error: _error, filter: _filter,

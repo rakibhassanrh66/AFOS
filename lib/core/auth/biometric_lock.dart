@@ -150,6 +150,13 @@ class BiometricAuth {
 
   /// Prompts the OS biometric check. Returns true on success, false on
   /// cancel/failure/unavailable (never throws to the caller).
+  ///
+  /// NEVER call this alone to gate access to an already-signed-in session
+  /// (unlock, account switch). On a device with no biometric enrolled AND no
+  /// device PIN/pattern/password set, `local_auth` can resolve this `true`
+  /// with no OS challenge shown at all -- there is nothing to check against,
+  /// so it treats "no security configured" as trivially passed. Use
+  /// [authenticateStrict] for anything that hands over a session.
   static Future<bool> authenticate(String reason) async {
     if (kIsWeb) return false;
     try {
@@ -160,5 +167,17 @@ class BiometricAuth {
     } catch (_) {
       return false;
     }
+  }
+
+  /// The gate every quick-login flow that hands over a live session MUST use
+  /// instead of [authenticate] directly. Confirms the device actually has a
+  /// working secure check (biometric enrolled, or device credential set)
+  /// before ever trusting the OS result -- closing the bypass where "Use a
+  /// different account" (or cold-start unlock) let a bare tap straight into
+  /// another remembered account's session on a device with no lock screen
+  /// configured, no fingerprint or PIN prompt shown at all.
+  static Future<bool> authenticateStrict(String reason) async {
+    if (!await canUse()) return false;
+    return authenticate(reason);
   }
 }

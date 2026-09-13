@@ -234,17 +234,24 @@ class ScheduleRepository {
   /// Pages through every schedule_slots row for a department, `select`ing
   /// only the given columns — see fetchDistinctRooms's comment for why this
   /// can't be a single unbounded .select().
-  Future<List<Map<String, dynamic>>> _fetchAllRows(String columns, String department) async {
-    final all = <Map<String, dynamic>>[];
-    const pageSize = 1000;
-    for (var from = 0; ; from += pageSize) {
-      final page = await _client.from('schedule_slots').select(columns)
-          .eq('department', department).range(from, from + pageSize - 1) as List;
-      all.addAll(page.cast<Map<String, dynamic>>());
-      if (page.length < pageSize) break;
-    }
-    return all;
-  }
+  ///
+  /// Cached (Tier 1, offline policy): the room/period axis for a department's
+  /// routine changes only on a re-upload, and this is the one place a room-
+  /// availability lookup previously went blank with no signal at all offline.
+  Future<List<Map<String, dynamic>>> _fetchAllRows(String columns, String department) => cachedListFetch(
+    cacheKey: 'schedule_rows_${columns}_$department',
+    liveFetch: () async {
+      final all = <Map<String, dynamic>>[];
+      const pageSize = 1000;
+      for (var from = 0; ; from += pageSize) {
+        final page = await _client.from('schedule_slots').select(columns)
+            .eq('department', department).range(from, from + pageSize - 1) as List;
+        all.addAll(page.cast<Map<String, dynamic>>());
+        if (page.length < pageSize) break;
+      }
+      return all;
+    },
+  );
 
   /// Every distinct (building, room_number) in this department's routine —
   /// the room axis for the empty-room-availability view.
@@ -289,17 +296,31 @@ class ScheduleRepository {
     return periods;
   }
 
+  /// Cached (Tier 1): the room-availability grid's other axis — same
+  /// offline-blank problem as _fetchAllRows before it was wrapped.
   Future<List<ClassSlot>> fetchSlotsForDay(String department, int dayOfWeek) async {
-    final res = await _client.from('schedule_slots').select()
-        .eq('department', department).eq('day_of_week', dayOfWeek) as List;
-    return res.map((s) => ClassSlot.fromJson(Map<String, dynamic>.from(s))).toList();
+    final rows = await cachedListFetch(
+      cacheKey: 'schedule_day_${department}_$dayOfWeek',
+      liveFetch: () async {
+        final res = await _client.from('schedule_slots').select()
+            .eq('department', department).eq('day_of_week', dayOfWeek) as List;
+        return res.cast<Map<String, dynamic>>();
+      },
+    );
+    return rows.map((s) => ClassSlot.fromJson(s)).toList();
   }
 
-  Future<List<Map<String, dynamic>>> fetchEmptyRoomRequests(String department, int dayOfWeek) async {
-    final res = await _client.from('empty_room_requests').select('*, profiles!requester_id(full_name)')
-        .eq('department', department).eq('day_of_week', dayOfWeek) as List;
-    return res.cast<Map<String, dynamic>>();
-  }
+  /// Tier 2 (cache-then-serve): who's requested a room stays useful a few
+  /// minutes stale, but should still render something offline rather than
+  /// blanking the whole availability screen's request list.
+  Future<List<Map<String, dynamic>>> fetchEmptyRoomRequests(String department, int dayOfWeek) => cachedListFetch(
+    cacheKey: 'empty_room_requests_${department}_$dayOfWeek',
+    liveFetch: () async {
+      final res = await _client.from('empty_room_requests').select('*, profiles!requester_id(full_name)')
+          .eq('department', department).eq('day_of_week', dayOfWeek) as List;
+      return res.cast<Map<String, dynamic>>();
+    },
+  );
 
   Future<void> requestEmptyRoom({
     required String department, required String building, required String roomNumber,

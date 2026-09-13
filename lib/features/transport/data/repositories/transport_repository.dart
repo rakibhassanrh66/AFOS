@@ -1,4 +1,5 @@
 import '../../../../config/supabase_config.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/utils/offline_cache.dart';
 
 /// Mirrors the realtime pattern used by ScheduleRepository.watchSchedule —
@@ -65,17 +66,49 @@ class TransportRepository {
 
   /// The current import's metadata (semester + imported_at) for the "Schedule
   /// for <semester> · Updated <date>" header. Null if nothing imported yet.
-  Future<Map<String, dynamic>?> fetchCurrentMeta() async {
+  ///
+  /// Cached (Tier 1, offline policy): this was the one piece of the Map tab
+  /// left uncached when fetchStops was fixed — the header blanked offline
+  /// even though the stops it labels did not.
+  Future<Map<String, dynamic>?> fetchCurrentMeta() => cachedMapFetch(
+        cacheKey: 'transport_current_meta',
+        liveFetch: () async {
+          final res = await _client
+              .from('transport_schedule_meta')
+              .select()
+              .eq('is_current', true)
+              .order('imported_at', ascending: false)
+              .limit(1) as List;
+          if (res.isEmpty) throw StateError('no transport meta yet');
+          return Map<String, dynamic>.from(res.first);
+        },
+      );
+
+  /// Bulk offline prefetch (Phase C, offline policy): after this device has
+  /// been online once, warms the per-route stop cache for EVERY active
+  /// route, not only the one a user happened to open. Before this, a route
+  /// nobody had tapped while online simply had nothing cached — "only the
+  /// route someone loaded is available offline". Fire-and-forget by design:
+  /// a slow or failing route must never block opening Transport, and one
+  /// route's failure must not stop the rest from warming.
+  Future<void> prefetchAllStops() async {
+    if (!ConnectivityService.instance.isOnline.value) return;
     try {
-      final res = await _client
-          .from('transport_schedule_meta')
-          .select()
-          .eq('is_current', true)
-          .order('imported_at', ascending: false)
-          .limit(1) as List;
-      return res.isNotEmpty ? Map<String, dynamic>.from(res.first) : null;
+      final routes = await _client
+          .from('transport_routes')
+          .select('id')
+          .eq('is_active', true) as List;
+      for (final r in routes) {
+        final id = (r as Map)['id'] as String?;
+        if (id == null) continue;
+        try {
+          await fetchStops(id);
+        } catch (_) {
+          // Best-effort per route — one bad route must not stop the rest.
+        }
+      }
     } catch (_) {
-      return null;
+      // Best-effort overall — this is a background warmer, not a load path.
     }
   }
 }

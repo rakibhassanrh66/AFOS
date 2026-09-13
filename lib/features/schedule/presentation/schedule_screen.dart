@@ -13,7 +13,9 @@ import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
@@ -103,8 +105,16 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
     // fine without the profile (the routine tabs still render), so swallow and
     // let the load finish rather than blocking on it.
     try {
-      final p = await SupabaseConfig.client.from('profiles').select().eq('id',uid).single();
-      if(mounted) {
+      // Cached (Tier 1, offline policy): this profile lookup gates EVERY
+      // downstream cached call on this screen (routine header, semester
+      // break, the class-list streams themselves) — leaving it uncached
+      // meant Schedule's own already-cached routine data was unreachable
+      // offline because the screen never got past this first fetch.
+      final p = await cachedMapFetch(
+        cacheKey: 'schedule_own_profile_$uid',
+        liveFetch: () => SupabaseConfig.client.from('profiles').select().eq('id',uid).single(),
+      );
+      if(p != null && mounted) {
         setState(() {
         _user = UserModel.fromJson(p);
         _myBatch = p['batch'] as String?;
@@ -304,6 +314,7 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
             ],
           ),
         ),
+        if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'schedule_own_profile_${SupabaseConfig.uid}', isMap: true),
         const SizedBox(height: 10),
         if (!_loading && !hasRoutineInfo) Container(
             width: double.infinity, color: AppColors.gold.withValues(alpha: 0.08),

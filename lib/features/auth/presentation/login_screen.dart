@@ -102,7 +102,7 @@ class _LoginBodyState extends State<_LoginBody> {
   /// failure it shows an inline message and leaves the password form usable.
   Future<void> _runBiometric(BuildContext ctx) async {
     setState(() => _biometricMsg = null);
-    final ok = await BiometricAuth.authenticate('Sign in to AFOS');
+    final ok = await BiometricAuth.authenticateStrict('Sign in to AFOS');
     if (!ctx.mounted) return;
     if (!ok) {
       setState(() => _biometricMsg = "Fingerprint didn't match — try again or enter your password");

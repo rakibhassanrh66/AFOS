@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
 
 import '../../../../config/supabase_config.dart';
+import '../../../../core/utils/offline_cache.dart';
 import '../../../notifications/data/repositories/notification_service.dart';
 
 class AssignmentsRepository {
@@ -57,13 +58,17 @@ class AssignmentsRepository {
     } catch (_) {}
   }
 
-  Future<List<Map<String, dynamic>>> getMyAssignments() async {
-    final res = await _client.from('assignments')
-        .select('*, assignment_submissions(count)')
-        .eq('teacher_id', SupabaseConfig.uid ?? '')
-        .order('deadline', ascending: false) as List;
-    return res.cast<Map<String, dynamic>>();
-  }
+  /// Cached (Tier 2, offline policy): a teacher's own posted assignments.
+  Future<List<Map<String, dynamic>>> getMyAssignments() => cachedListFetch(
+    cacheKey: 'my_assignments_${SupabaseConfig.uid ?? ''}',
+    liveFetch: () async {
+      final res = await _client.from('assignments')
+          .select('*, assignment_submissions(count)')
+          .eq('teacher_id', SupabaseConfig.uid ?? '')
+          .order('deadline', ascending: false) as List;
+      return res.cast<Map<String, dynamic>>();
+    },
+  );
 
   /// Deletes the assignment and the brief attached to it.
   ///
@@ -120,9 +125,18 @@ class AssignmentsRepository {
     }
   }
 
+  /// Cached (Tier 1, offline policy): a student's own assignments + deadlines
+  /// — exactly the kind of reference data that must survive with no signal.
   Future<List<Map<String, dynamic>>> getMyClassAssignments() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return [];
+    return cachedListFetch(
+      cacheKey: 'my_class_assignments_$uid',
+      liveFetch: () => _fetchMyClassAssignments(uid),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchMyClassAssignments(String uid) async {
     // RLS (student_read_own_section_assignments) already scopes this to only
     // the caller's own department/batch/section — narrowing the column list
     // (not adding a redundant filter) is the real saving here, since the row

@@ -12,6 +12,8 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/glass_sheet.dart';
@@ -65,12 +67,19 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
     if (uid == null) { setState(() => _loading = false); return; }
     setState(() => _error = null);
     try {
-      final res = await SupabaseConfig.client
-          .from('borrowed_books')
-          .select('*, books(*)')
-          .eq('student_id', uid)
-          .eq('status', 'borrowed') as List;
-      if (mounted) setState(() => _borrowed = res.cast());
+      // Cached (Tier 2, offline policy): your own borrowed books/due dates.
+      final res = await cachedListFetch(
+        cacheKey: 'borrowed_books_$uid',
+        liveFetch: () async {
+          final rows = await SupabaseConfig.client
+              .from('borrowed_books')
+              .select('*, books(*)')
+              .eq('student_id', uid)
+              .eq('status', 'borrowed') as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
+      if (mounted) setState(() => _borrowed = res);
       _calcFines();
     } catch (e) {
       // Previously swallowed silently — a real load failure rendered
@@ -185,6 +194,7 @@ class _LibraryState extends State<LibraryScreen> with SingleTickerProviderStateM
             ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard),
           ),
         ),
+        if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'borrowed_books_${SupabaseConfig.uid}'),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(

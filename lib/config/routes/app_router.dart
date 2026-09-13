@@ -26,6 +26,7 @@ import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/auth/presentation/unlock_screen.dart';
 import '../../features/clubs/presentation/clubs_screen.dart';
 import '../../features/conference_room/presentation/conference_room_screen.dart';
+import '../../features/consent/presentation/data_consent_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/dept_chat/presentation/dept_chat_screen.dart';
 import '../../features/dept_chat/presentation/manage_dept_chat_screen.dart';
@@ -88,6 +89,13 @@ class AppRouter {
       final session = Supabase.instance.client.auth.currentSession;
       final loc = state.matchedLocation;
       if (loc == '/splash') return null;
+      // The first-launch data notice must be reachable with NO session at
+      // all -- it is shown to a brand-new user before they have ever signed
+      // in. Without this exemption the `session == null` rule below fires
+      // first and bounces every attempt to open it straight to /auth/login,
+      // so the notice a new user is supposed to see before anything else
+      // never actually renders.
+      if (loc == '/consent') return null;
       // Reachable regardless of session/profile/verification state -- a
       // Supabase password-recovery link establishes a real session (so the
       // `session == null` branch below wouldn't apply), but this route
@@ -314,6 +322,8 @@ class AppRouter {
 
     routes: [
       GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
+      GoRoute(path: '/consent',
+        pageBuilder: (c, s) => fadeScalePage(const DataConsentScreen(), s)),
       GoRoute(path: '/auth/login',
         pageBuilder: (c, s) => fadeScalePage(const LoginScreen(), s)),
       GoRoute(path: '/auth/unlock',

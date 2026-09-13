@@ -3,9 +3,11 @@ import 'package:go_router/go_router.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/avatar_picker.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/label_value_row.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -33,9 +35,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final uid = SupabaseConfig.uid;
     if (uid == null) { if (mounted) setState(() => _loading = false); return; }
     try {
-      final p = await SupabaseConfig.client.from('profiles')
-          .select('*, teachers(*), staff(*)').eq('id', uid).single();
-      if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
+      // Cached (Tier 1, offline policy): your own profile is the single most
+      // reference-y read in the app — must render with no signal at all.
+      final p = await cachedMapFetch(
+        cacheKey: 'own_profile_$uid',
+        liveFetch: () => SupabaseConfig.client.from('profiles')
+            .select('*, teachers(*), staff(*)').eq('id', uid).single(),
+      );
+      if (mounted) setState(() { if (p != null) _user = UserModel.fromJson(p); _loading = false; });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -49,6 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList(count: 4))
           : ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
+              if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'own_profile_${SupabaseConfig.uid}', isMap: true),
               RepaintBoundary(
                 child: GlassCard(
                   glowColor: AppColors.blue,

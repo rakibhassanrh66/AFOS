@@ -5,7 +5,9 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -66,12 +68,25 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
     super.dispose();
   }
 
+  /// Cached (Tier 1, offline policy): faculties/departments barely ever
+  /// change and are referenced from forms all over the app — reference data
+  /// exactly like the offline policy's definition of Tier 1.
   Future<void> _load() async {
     try {
-      final res = await Supabase.instance.client.from(widget.tableName).select('*').order('name') as List;
+      final res = await cachedListFetch(
+        cacheKey: 'registry_${widget.tableName}',
+        liveFetch: () async {
+          final rows = await Supabase.instance.client.from(widget.tableName).select('*').order('name') as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
       List<Map<String, dynamic>> faculties = _faculties;
       if (_isDepartments) {
-        faculties = (await Supabase.instance.client.from('faculties').select('id,name').order('name') as List).cast();
+        faculties = await cachedListFetch(
+          cacheKey: 'registry_faculties',
+          liveFetch: () async => (await Supabase.instance.client.from('faculties')
+              .select('id,name').order('name') as List).cast<Map<String, dynamic>>(),
+        );
       }
       if (mounted) {
         setState(() {
@@ -191,6 +206,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
               colors: [AppColors.indigo, AppColors.blue]),
           margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
+        CacheFreshnessBadge(cacheKey: 'registry_${widget.tableName}'),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
           : _error != null

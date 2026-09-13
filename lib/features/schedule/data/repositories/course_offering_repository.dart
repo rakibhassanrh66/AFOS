@@ -598,13 +598,20 @@ class CourseOfferingRepository {
     );
   }
 
+  /// Cached (Tier 1, same as fetchMyOfferings): a student's own enrolled
+  /// courses are reference data they may need to check with no signal.
   Future<List<Map<String, dynamic>>> fetchMyEnrollments() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) return [];
-    final res = await _client.from('enrollments')
-        .select('*, course_offerings(*, courses(code, title), course_offering_meetings(*))')
-        .eq('student_id', uid).order('created_at', ascending: false) as List;
-    return res.cast<Map<String, dynamic>>();
+    return cachedListFetch(
+      cacheKey: 'my_enrollments_$uid',
+      liveFetch: () async {
+        final res = await _client.from('enrollments')
+            .select('*, course_offerings(*, courses(code, title), course_offering_meetings(*))')
+            .eq('student_id', uid).order('created_at', ascending: false) as List;
+        return res.cast<Map<String, dynamic>>();
+      },
+    );
   }
 
   /// The offering's teacher is notified by `trg_notify_enrollment_requested`,

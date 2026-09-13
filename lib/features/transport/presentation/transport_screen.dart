@@ -21,6 +21,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../data/models/transport_schedule.dart';
 import '../data/repositories/transport_repository.dart';
 import '../data/route_geometry_service.dart';
@@ -321,6 +322,10 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
       }
     });
     _repo.fetchCurrentMeta().then((m) { if (mounted) setState(() => _meta = m); });
+    // Phase C offline prefetch: warms every active route's stops in the
+    // background so the whole transport system — not just the route someone
+    // happened to view — works with no signal next time.
+    unawaited(_repo.prefetchAllStops());
   }
 
   String _scheduleSubtitle(bool loading, int routeCount) {
@@ -393,6 +398,7 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
                         : null,
                   ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)).slideY(begin: -0.06, curve: AppMotion.standard),
                   )),
+                  const CacheFreshnessBadge(cacheKey: 'transport_routes'),
                   AnimatedBuilder(
                     animation: _tab,
                     builder: (ctx3, _) => GlassTabBar(

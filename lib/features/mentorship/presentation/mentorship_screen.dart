@@ -9,7 +9,9 @@ import '../../../config/theme/motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../core/services/outbox_service.dart';
@@ -79,8 +81,15 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
         // whole faculty roster. Matched by department for now (the
         // mentors/teachers schema doesn't yet record per-semester/course
         // availability, so that's as fine-grained as this can go today).
-        final myProfile = await SupabaseConfig.client.from('profiles')
-            .select('department').eq('id', SupabaseConfig.uid ?? '').maybeSingle();
+        // Cached (Tier 1, offline policy): gates the already-cached mentor
+        // directory below — left uncached, an offline student never got
+        // past this lookup to reach data that was otherwise available.
+        final myProfile = await cachedMapFetch(
+          cacheKey: 'mentorship_my_profile_${SupabaseConfig.uid ?? ''}',
+          liveFetch: () async => await SupabaseConfig.client.from('profiles')
+              .select('department').eq('id', SupabaseConfig.uid ?? '').maybeSingle() ??
+              const <String, dynamic>{},
+        );
         final myDept = myProfile?['department'] as String?;
 
         var mentorsQuery = SupabaseConfig.client.from('mentors')
@@ -89,15 +98,26 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
           mentorsQuery = mentorsQuery.eq('profiles.department', myDept);
         }
 
+        // Cached (Tier 2, offline policy): the mentor directory + a
+        // student's own booked sessions.
+        final uid = SupabaseConfig.uid ?? '';
         final results = await Future.wait([
-          mentorsQuery as Future,
-          SupabaseConfig.client.from('mentorship_bookings').select('*, mentors(*, profiles(full_name))')
-              .eq('student_id', SupabaseConfig.uid ?? '').order('created_at', ascending: false) as Future,
+          cachedListFetch(
+            cacheKey: 'mentors_${myDept ?? 'all'}',
+            liveFetch: () async => (await mentorsQuery as List).cast<Map<String, dynamic>>(),
+          ),
+          cachedListFetch(
+            cacheKey: 'mentorship_sessions_$uid',
+            liveFetch: () async => (await SupabaseConfig.client.from('mentorship_bookings')
+                .select('*, mentors(*, profiles(full_name))')
+                .eq('student_id', uid).order('created_at', ascending: false) as List)
+                .cast<Map<String, dynamic>>(),
+          ),
         ]);
         if (mounted) {
           setState(() {
-          _mentors = (results[0] as List).cast();
-          _sessions = (results[1] as List).cast();
+          _mentors = results[0];
+          _sessions = results[1];
         });
         }
       }
@@ -191,6 +211,8 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
             ],
           ),
         ),
+        if (!_isTeacher && SupabaseConfig.uid != null)
+          CacheFreshnessBadge(cacheKey: 'mentorship_sessions_${SupabaseConfig.uid}'),
         const SizedBox(height: 10),
         Expanded(child: _error != null
             ? _errorView(context)
