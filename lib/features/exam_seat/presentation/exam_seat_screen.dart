@@ -10,6 +10,7 @@ import '../../../config/theme/motion.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/offline_cache.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -131,6 +132,7 @@ class _ExamSeatState extends State<ExamSeatScreen> {
           margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
+        if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'exam_schedule_${SupabaseConfig.uid}'),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _error != null

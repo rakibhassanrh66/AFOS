@@ -14,7 +14,7 @@ import 'glass_sheet.dart';
 /// reactive sign-out listener to skip forgetting the departing account
 /// (an intentional switch, not a logout).
 Future<bool> switchToAccount(BuildContext context, RememberedAccount target) async {
-  final ok = await BiometricAuth.authenticate(
+  final ok = await BiometricAuth.authenticateStrict(
       'Switch to ${target.fullName ?? target.email}');
   if (!ok) return false;
   try {

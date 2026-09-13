@@ -14,6 +14,7 @@ import '../../../core/auth/permission_session.dart';
 import '../../../core/navigation/nav_destinations.dart';
 import '../../../core/navigation/router_location.dart';
 import '../../../core/services/app_config_service.dart';
+import '../../../core/utils/offline_cache.dart';
 import 'dart:ui' show ImageFilter;
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_icons.dart';
@@ -83,8 +84,14 @@ class _SlideMenuState extends State<SlideMenu> {
     final uid = SupabaseConfig.uid;
     if(uid==null) return;
     try {
-      final p = await SupabaseConfig.client.from('profiles')
-          .select('*, teachers(designation), staff(designation, office), students(is_cr)').eq('id',uid).single();
+      // Cached (Tier 1, offline policy): the menu's own avatar/name chip is
+      // shown on every screen, so it must never blank out offline.
+      final p = await cachedMapFetch(
+        cacheKey: 'slide_menu_profile_$uid',
+        liveFetch: () => SupabaseConfig.client.from('profiles')
+            .select('*, teachers(designation), staff(designation, office), students(is_cr)').eq('id',uid).single(),
+      );
+      if (p == null) return;
       final isCr = (p['students'] as Map?)?['is_cr'] as bool? ?? false;
       // Loaded alongside the profile rather than in its own effect so the menu
       // never renders once with the role's items and then visibly grows a

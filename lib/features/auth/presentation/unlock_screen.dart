@@ -38,7 +38,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
     // the others instead of only ever unlocking the first one ever enabled.
     final account = await BiometricTokenStore.lastActiveAccount();
     if (account == null) { await _fallbackToPassword(); return; }
-    final ok = await BiometricAuth.authenticate('Unlock AFOS');
+    final ok = await BiometricAuth.authenticateStrict('Unlock AFOS');
     if (!mounted) return;
     if (!ok) { setState(() { _busy = false; _failed = true; }); return; }
 

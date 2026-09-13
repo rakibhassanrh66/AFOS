@@ -13,6 +13,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_text_field.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/feature_header.dart';
@@ -504,7 +505,10 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
       return const EmptyState(icon: AppIcons.assignments,
         title: 'No assignments yet', subtitle: 'Assignments from your teachers will show up here');
     }
-    return RefreshIndicator(onRefresh: _load, color: AppColors.blue,
+    final uid = SupabaseConfig.uid;
+    return Column(children: [
+      if (uid != null) CacheFreshnessBadge(cacheKey: 'my_class_assignments_$uid'),
+      Expanded(child: RefreshIndicator(onRefresh: _load, color: AppColors.blue,
         child: AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _assignments.length,
             itemBuilder: (ctx, i) {
               final a = _assignments[i];
@@ -559,7 +563,8 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
                             onPressed: () => _submit(context, a),
                             child: Text(submitted ? 'Update submission' : 'Submit')))),
                   ]));
-            }));
+            }))),
+    ]);
   }
 }
 

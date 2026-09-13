@@ -21,6 +21,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/offline_cache.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/layout/nav_insets.dart';
@@ -212,17 +213,33 @@ class _DashboardState extends State<DashboardScreen> {
           // .ilike() (not .eq()) on batch/section to preserve the original
           // case-insensitive match — batch/section casing isn't guaranteed
           // consistent between profiles.batch and schedule_slots.batch.
-          final rows = await SupabaseConfig.client.from('schedule_slots')
-              .select().eq('department', dept).ilike('batch', batch).ilike('section', section) as List;
+          //
+          // Cached (Tier 2, offline policy): "this week's classes" degrades
+          // fine a few minutes stale, but blanking it entirely offline is the
+          // dashboard's single most-checked card.
+          final rows = await cachedListFetch(
+            cacheKey: 'dashboard_week_slots_${dept}_${batch}_$section',
+            liveFetch: () async {
+              final res = await SupabaseConfig.client.from('schedule_slots')
+                  .select().eq('department', dept).ilike('batch', batch).ilike('section', section) as List;
+              return res.cast<Map<String, dynamic>>();
+            },
+          );
           final mine = rows.where((s) => s['is_cancelled'] != true)
-              .map((s) => ClassSlot.fromJson(s as Map<String, dynamic>)).toList();
+              .map((s) => ClassSlot.fromJson(s)).toList();
           if (mounted) setState(() => _weekSlots = mine);
         } catch (_) {}
       }
 
       try {
-        final rows = await SupabaseConfig.client.from('borrowed_books')
-            .select('due_date').eq('student_id', uid).eq('status', 'borrowed') as List;
+        final rows = await cachedListFetch(
+          cacheKey: 'dashboard_borrowed_books_$uid',
+          liveFetch: () async {
+            final res = await SupabaseConfig.client.from('borrowed_books')
+                .select('due_date').eq('student_id', uid).eq('status', 'borrowed') as List;
+            return res.cast<Map<String, dynamic>>();
+          },
+        );
         final now = DateTime.now();
         final dueSoon = rows.where((b) {
           final due = DateTime.tryParse(b['due_date'] as String? ?? '');
@@ -232,13 +249,19 @@ class _DashboardState extends State<DashboardScreen> {
       } catch (_) {}
 
       try {
-        final rows = await SupabaseConfig.client.from('hall_applications')
-            .select('status,assigned_room,assigned_building,assigned_floor').eq('student_id', uid)
-            .order('created_at', ascending: false).limit(1) as List;
+        final rows = await cachedListFetch(
+          cacheKey: 'dashboard_hall_app_$uid',
+          liveFetch: () async {
+            final res = await SupabaseConfig.client.from('hall_applications')
+                .select('status,assigned_room,assigned_building,assigned_floor').eq('student_id', uid)
+                .order('created_at', ascending: false).limit(1) as List;
+            return res.cast<Map<String, dynamic>>();
+          },
+        );
         if (mounted) {
           setState(() {
           _hallStatus = rows.isNotEmpty ? rows.first['status'] as String? : null;
-          _hallApp = rows.isNotEmpty ? rows.first as Map<String, dynamic> : null;
+          _hallApp = rows.isNotEmpty ? rows.first : null;
         });
         }
       } catch (_) {}
@@ -264,12 +287,18 @@ class _DashboardState extends State<DashboardScreen> {
       final dept = p['department'] as String?;
       if (initial != null && initial.isNotEmpty) {
         try {
-          var q = SupabaseConfig.client.from('schedule_slots')
-              .select().eq('teacher_initial', initial);
-          if (dept != null && dept.isNotEmpty) q = q.eq('department', dept);
-          final rows = await q as List;
+          final rows = await cachedListFetch(
+            cacheKey: 'dashboard_teacher_slots_${initial}_${dept ?? 'all'}',
+            liveFetch: () async {
+              var q = SupabaseConfig.client.from('schedule_slots')
+                  .select().eq('teacher_initial', initial);
+              if (dept != null && dept.isNotEmpty) q = q.eq('department', dept);
+              final res = await q as List;
+              return res.cast<Map<String, dynamic>>();
+            },
+          );
           final mine = rows.where((s) => s['is_cancelled'] != true)
-              .map((s) => ClassSlot.fromJson(s as Map<String, dynamic>)).toList();
+              .map((s) => ClassSlot.fromJson(s)).toList();
           if (mounted) setState(() => _weekSlots = mine);
         } catch (_) {}
       }
@@ -569,6 +598,8 @@ class _DashboardState extends State<DashboardScreen> {
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (SupabaseConfig.uid != null)
+                CacheFreshnessBadge(cacheKey: 'dashboard_profile_${SupabaseConfig.uid}', isMap: true),
               RepaintBoundary(
                 child: GlassCard(
                   borderRadius: 20,

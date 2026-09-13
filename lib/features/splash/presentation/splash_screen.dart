@@ -9,6 +9,7 @@ import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/auth/biometric_lock.dart';
+import '../../../core/services/consent_service.dart';
 import '../../../core/utils/last_route.dart';
 
 /// Splash motion concept: a clock-style sweep reveals the wordmark
@@ -95,6 +96,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<String> _resolveDestination() async {
+    // Gate BEFORE any session/biometric lookup — a returning user on a device
+    // that has never shown this notice still needs to see it once, and a
+    // brand-new install must see it before login/register, not after.
+    if (!await ConsentService.hasAccepted()) return '/consent';
+
     final session = Supabase.instance.client.auth.currentSession;
 
     // TIMED, NEVER UNBOUNDED. This is exactly the shape that once froze the

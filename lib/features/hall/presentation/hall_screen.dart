@@ -8,7 +8,9 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/connectivity_service.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -50,10 +52,17 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
       // rejected/cancelled application plus a new one) — take the most
       // recent instead of .maybeSingle(), which throws (PGRST116) the
       // moment more than one row matches.
-      final res = await SupabaseConfig.client
-          .from('hall_applications').select().eq('student_id', uid)
-          .order('created_at', ascending: false).limit(1) as List;
-      if (mounted) setState(() => _application = res.isNotEmpty ? res.first as Map<String, dynamic> : null);
+      // Cached (Tier 2, offline policy): your own hall application status.
+      final res = await cachedListFetch(
+        cacheKey: 'hall_application_$uid',
+        liveFetch: () async {
+          final rows = await SupabaseConfig.client
+              .from('hall_applications').select().eq('student_id', uid)
+              .order('created_at', ascending: false).limit(1) as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
+      if (mounted) setState(() => _application = res.isNotEmpty ? res.first : null);
     } catch (e) {
       // A failed load must not render as "No application yet" — that
       // invites a duplicate application.
@@ -81,6 +90,7 @@ class _HallState extends State<HallScreen> with SingleTickerProviderStateMixin {
               colors: [AppColors.amber, AppColors.gold]),
           margin: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 12),
         ),
+        if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'hall_application_${SupabaseConfig.uid}'),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(

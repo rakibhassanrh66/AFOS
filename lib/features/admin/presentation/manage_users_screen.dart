@@ -754,6 +754,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       }
                       if (i == 0) {
                         return SurfaceCard(
+                          margin: const EdgeInsets.only(bottom: 10),
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             const Icon(Icons.info_outline, color: AppColors.amber, size: 18),
                             const SizedBox(width: 10),
@@ -773,6 +774,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       final r = _stuck[i - 1];
                       return SurfaceCard(
                         key: ValueKey(r['id']),
+                        margin: const EdgeInsets.only(bottom: 10),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('${r['full_name'] ?? 'Unnamed'}',
                               style: AppTextStyles.titleMedium
@@ -830,6 +832,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       }
                       if (i == 0) {
                         return SurfaceCard(
+                          margin: const EdgeInsets.only(bottom: 10),
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             const Icon(Icons.info_outline, color: AppColors.amber, size: 18),
                             const SizedBox(width: 10),
@@ -846,6 +849,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       }
                       final r = _pendingAvatars[i - 1];
                       return SurfaceCard(
+                        margin: const EdgeInsets.only(bottom: 10),
                         key: ValueKey(r['id']),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [

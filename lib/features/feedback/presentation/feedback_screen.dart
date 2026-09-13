@@ -10,7 +10,9 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/outbox_service.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -45,9 +47,16 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
     try {
-      final res = await SupabaseConfig.client.from('feedback')
-          .select().eq('user_id', uid).order('created_at', ascending: false) as List;
-      if (mounted) setState(() { _mine = res.cast(); _loading = false; });
+      // Cached (Tier 2, offline policy): your own feedback history.
+      final res = await cachedListFetch(
+        cacheKey: 'my_feedback_$uid',
+        liveFetch: () async {
+          final rows = await SupabaseConfig.client.from('feedback')
+              .select().eq('user_id', uid).order('created_at', ascending: false) as List;
+          return rows.cast<Map<String, dynamic>>();
+        },
+      );
+      if (mounted) setState(() { _mine = res; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
@@ -156,6 +165,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text('Your submissions', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
+                if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'my_feedback_${SupabaseConfig.uid}'),
                 const SizedBox(height: 10),
                 if (_error != null)
                   ErrorView(message: _error!, onRetry: _load)

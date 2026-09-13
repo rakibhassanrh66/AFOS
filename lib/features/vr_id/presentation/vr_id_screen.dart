@@ -21,9 +21,11 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/glass_tab_bar.dart';
 import '../../../shared/widgets/supernova_loader.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../data/vr_id_pdf_generator.dart';
 
 import '../../../core/layout/nav_insets.dart';
@@ -37,6 +39,11 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
   late TabController _tab;
   UserModel? _user;
   String _token = '';
+  // True only once a live-issued token has landed THIS session — the badge
+  // can render an old token immediately (below) but must never claim it's
+  // live when it isn't. See docs/OFFLINE_POLICY.md Tier 3: the token itself
+  // stays online-only by design, this just tells the UI which one it has.
+  bool _tokenLive = false;
   int _countdown = 60;
   Timer? _timer;
   bool _loading = true;
@@ -51,10 +58,21 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
   Future<void> _init() async {
     final uid = SupabaseConfig.uid;
     if (uid == null) { setState(() => _loading = false); return; }
+    // Show the last-issued token immediately, before anything else resolves
+    // — offline, this is the difference between an instant (if possibly
+    // stale) badge and a blank screen for however long the live call hangs.
+    final lastToken = await _storage.read(key: 'last_vrid');
+    if (lastToken != null && mounted) setState(() => _token = lastToken);
     try {
-      final p = await SupabaseConfig.client.from('profiles')
-          .select('*, teachers(designation), staff(designation)').eq('id', uid).single();
-      if (mounted) setState(() { _user = UserModel.fromJson(p); _loading = false; });
+      // Cached (Tier 1, offline policy): the badge's display fields — name,
+      // photo, department, role — must render with no signal at all. The
+      // live rotating token stays online-only on purpose (see _generateToken).
+      final p = await cachedMapFetch(
+        cacheKey: 'vr_id_profile_$uid',
+        liveFetch: () => SupabaseConfig.client.from('profiles')
+            .select('*, teachers(designation), staff(designation)').eq('id', uid).single(),
+      );
+      if (mounted) setState(() { if (p != null) _user = UserModel.fromJson(p); _loading = false; });
       await _generateToken();
       _startTimer();
     } catch (_) { if (mounted) setState(() => _loading = false); }
@@ -80,12 +98,15 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
         'uid': issued['uid'], 'vrid': issued['vrid'], 'exp': issued['exp'],
       });
       final token = base64Encode(utf8.encode(payload));
-      if (mounted) setState(() => _token = token);
+      if (mounted) setState(() { _token = token; _tokenLive = true; });
       await _storage.write(key: 'last_vrid', value: token);
       await _storage.write(key: 'last_vrid_time', value: DateTime.now().toIso8601String());
     } catch (e) {
       // Keep whatever token is already on screen rather than blanking the
-      // QR — the previous one stays valid for its remaining window.
+      // QR — the previous one stays valid for its remaining window. Not
+      // live-issued this round, so the badge says so instead of implying a
+      // fresh code it does not have.
+      if (mounted) setState(() => _tokenLive = false);
       debugPrint('[VrId] token issue failed: $e');
     }
   }
@@ -124,7 +145,7 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
         ),
         const SizedBox(height: 10),
         Expanded(child: TabBarView(controller: _tab, children: [
-          _MyVrIdTab(user: _user, token: _token, countdown: _countdown, loading: _loading),
+          _MyVrIdTab(user: _user, token: _token, countdown: _countdown, loading: _loading, tokenLive: _tokenLive),
           kIsWeb ? _WebScanPlaceholder() : _ScanTab(),
           _AccessLogTab(),
         ])),
@@ -149,8 +170,8 @@ String _secondaryLabel(UserModel user) {
 }
 
 class _MyVrIdTab extends StatelessWidget {
-  final UserModel? user; final String token; final int countdown; final bool loading;
-  const _MyVrIdTab({this.user, required this.token, required this.countdown, required this.loading});
+  final UserModel? user; final String token; final int countdown; final bool loading; final bool tokenLive;
+  const _MyVrIdTab({this.user, required this.token, required this.countdown, required this.loading, required this.tokenLive});
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +189,7 @@ class _MyVrIdTab extends StatelessWidget {
               const SizedBox(width: 8),
               Text('DIU · AFOS VR-ID', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12, letterSpacing: 1)),
             ]),
+            CacheFreshnessBadge(cacheKey: 'vr_id_profile_${user!.id}', isMap: true),
             const SizedBox(height: 16),
             Container(width: 64, height: 64, decoration: BoxDecoration(
                 shape: BoxShape.circle, color: AppColors.blue.withValues(alpha:0.1),
@@ -194,6 +216,20 @@ class _MyVrIdTab extends StatelessWidget {
               const SizedBox(width: 6),
               Text('Refreshes in ${countdown}s', style: TextStyle(color: countdownColor, fontSize: 12, fontWeight: FontWeight.w600)),
             ]),
+            // The rotating token is deliberately online-only (server-signed,
+            // see _generateToken's doc comment) — when it can't be refreshed,
+            // say so rather than silently showing a code that looks current
+            // but may not verify.
+            if (!tokenLive && token.isNotEmpty) const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.wifi_off_rounded, size: 13, color: AppColors.amber),
+                SizedBox(width: 6),
+                Flexible(child: Text('Offline — showing your last badge, reconnect to refresh',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.amber, fontSize: 11, fontWeight: FontWeight.w600))),
+              ]),
+            ),
             const SizedBox(height: 12),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Flexible(child: _Badge(user!.department, AppColors.blue)),

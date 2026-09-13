@@ -10,7 +10,9 @@ import '../../../config/theme/spacing.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../shared/widgets/cache_freshness_badge.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
@@ -51,8 +53,14 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
       final uid = SupabaseConfig.uid;
       var department = _department;
       if (department == null && uid != null) {
-        final p = await SupabaseConfig.client.from('profiles').select('department').eq('id', uid).single();
-        department = p['department'] as String?;
+        // Cached (Tier 1, offline policy): same gating problem as
+        // schedule_screen.dart — an uncached profile lookup here blocked
+        // reaching the already-cached room/period/day-slot calls below.
+        final p = await cachedMapFetch(
+          cacheKey: 'room_avail_profile_$uid',
+          liveFetch: () => SupabaseConfig.client.from('profiles').select('department').eq('id', uid).single(),
+        );
+        department = p?['department'] as String?;
       }
       if (department == null) { if (mounted) setState(() => _loading = false); return; }
       final results = await Future.wait([
@@ -204,6 +212,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
           ),
         ).animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideY(begin: -0.06, curve: AppMotion.standard),
+        if (SupabaseConfig.uid != null) CacheFreshnessBadge(cacheKey: 'room_avail_profile_${SupabaseConfig.uid}', isMap: true),
         // 44 before, i.e. under the 48dp touch floor the constitution sets.
         SizedBox(height: AppSpace.minTouchTarget, child: ListView.builder(
           scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12),
