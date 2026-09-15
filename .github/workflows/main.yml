@@ -407,11 +407,63 @@ jobs:
           done
           ls -la dist/
 
+      # The release page is the ONLY place a person who is not already running
+      # AFOS can get it, and until now it handed them four near-identically
+      # named APKs with nothing saying which one to take. The commit list that
+      # `generate_release_notes` produces is appended BELOW this block, so the
+      # first thing on the page answers the only question a downloader has.
+      #
+      # `name:` is the bare tag on purpose — "v2.13.1" and nothing else. Not
+      # "AFOS v2.13.1", not a title after a dash. The version is the name.
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*.apk
+          name: ${{ github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          body: |
+            ## Already have AFOS installed?
+
+            **Do nothing here.** Open the app and it will offer the update
+            itself — Settings → Check for Updates, or wait for the banner. The
+            app picks the right file for your phone and installs over your
+            existing one, so you stay signed in and keep biometric login.
+
+            Download from this page only if you do not have AFOS yet, or the
+            in-app updater cannot reach GitHub.
+
+            ## Which file do I download?
+
+            | File | Size | Take this one if |
+            |---|---|---|
+            | `AFOS-${{ github.ref_name }}-arm64-v8a.apk` | ~33 MB | **Almost certainly this one.** Every Android phone sold since roughly 2017. |
+            | `AFOS-${{ github.ref_name }}-armeabi-v7a.apk` | ~31 MB | An older or very low-end 32-bit phone, if the one above refuses to install. |
+            | `AFOS-${{ github.ref_name }}.apk` | ~91 MB | You do not know which of the above you need, or you are passing one file to several different phones. Works everywhere, three times the download. |
+            | `AFOS-${{ github.ref_name }}-x86_64.apk` | ~36 MB | An emulator. Not a phone. |
+
+            All four are the same AFOS and the same version. They differ only
+            in which processor's code they carry: the per-ABI files drop the
+            code your phone cannot run, which is the entire size difference.
+
+            ## Installing
+
+            Android will warn about installing outside the Play Store — AFOS is
+            not distributed there, so allow it for your browser or file manager
+            and continue.
+
+            **If you see "App not installed" or "package conflicts with an
+            existing package":** a differently-signed AFOS is already on the
+            phone. Uninstall it first, including from Secure Folder, Vault or
+            Second Space if you use one, then install again. Every release from
+            v2.10.8 onward is signed with the same key and updates cleanly over
+            the one before it.
+
+            ## Web
+
+            No download needed — <https://afos.vercel.app> runs the same
+            version in a browser.
+
+            ---
 
       # NOTE: the in-app "What's New" row (app_releases table) is written BY
       # HAND after each release — deliberately, do not automate it again.

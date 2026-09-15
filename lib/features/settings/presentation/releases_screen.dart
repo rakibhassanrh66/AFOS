@@ -89,12 +89,112 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
                                   .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                                   .slideY(begin: 0.06, curve: AppMotion.standard),
                             ),
+                          const SizedBox(height: AppSpace.xl),
+                          const _HowUpdatingWorks(),
                           const SizedBox(height: AppSpace.md),
                         ]),
                       ),
                     )),
                   ),
                 ),
+    );
+  }
+}
+
+/// What actually happens when a new AFOS ships, said once, where someone is
+/// already looking at release history.
+///
+/// WHY THIS IS IN THE APP AND NOT ONLY ON THE RELEASE PAGE. AFOS is not on the
+/// Play Store, so every user has at some point installed an APK by hand and
+/// has no reason to assume the app can update itself. The GitHub release page
+/// lists four similarly-named files, and someone who goes looking there will
+/// pick one and sideload it — which works, but is slower, is the path that
+/// produces "App not installed" signature conflicts, and is entirely
+/// unnecessary for anyone already running the app.
+///
+/// The one thing worth telling them is that they never have to do that. The
+/// rest of this card answers the questions that follow from it.
+class _HowUpdatingWorks extends StatelessWidget {
+  const _HowUpdatingWorks();
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppColors.textPrimaryOf(context);
+    final textSecondary = AppColors.textSecondaryOf(context);
+
+    Widget point(IconData icon, String title, String body) => Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.lg),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, size: 18, color: AppColors.holoBlue),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                        color: textPrimary, fontWeight: FontWeight.w700)),
+                const SizedBox(height: AppSpace.xs),
+                Text(body,
+                    style: AppTextStyles.bodyMedium
+                        .copyWith(color: textSecondary, height: 1.45)),
+              ]),
+            ),
+          ]),
+        );
+
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.lg),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('How updating works',
+              style: AppTextStyles.headlineMed.copyWith(color: textPrimary)),
+          const SizedBox(height: AppSpace.lg),
+          point(
+            Icons.system_update_outlined,
+            'The app updates itself',
+            'You never need to download a file or visit a website. When a '
+                'release goes out, AFOS offers it here and in Settings. Tap '
+                'Update and it downloads and installs over the copy you '
+                'already have.',
+          ),
+          point(
+            Icons.notifications_active_outlined,
+            'You are told when there is one',
+            'A new release reaches you whether the app is open or closed. If '
+                'AFOS is open, the update card appears on its own; if it is '
+                'closed, you get a notification.',
+          ),
+          point(
+            Icons.sim_card_download_outlined,
+            'It downloads only what your phone needs',
+            'AFOS picks the build matching your phone rather than the '
+                'universal one, which is roughly a third of the size. On '
+                'campus mobile data that is the difference between an update '
+                'that completes and one that does not.',
+          ),
+          point(
+            Icons.lock_outline_rounded,
+            'You stay signed in',
+            'Updating keeps your session and your fingerprint or face login. '
+                'You are not asked to sign in again afterwards.',
+          ),
+          point(
+            Icons.language_rounded,
+            'On the web there is nothing to do',
+            'The browser version is always the current release. Reload the '
+                'page and you have it.',
+          ),
+          // Last, and deliberately hedged: this is the fallback, not the
+          // route anyone should be taking. Naming the file pattern is what
+          // stops someone downloading the 91 MB universal build by default.
+          Text(
+            'If the in-app update cannot reach GitHub, the release page has '
+                'the same build to install by hand. Take the file ending in '
+                'arm64-v8a unless you know your phone is 32-bit.',
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: textSecondary, height: 1.45),
+          ),
+        ]),
+      ),
     );
   }
 }

@@ -19,3 +19,14 @@ linter:
     prefer_const_literals_to_create_immutables: false
     avoid_print: false
     use_key_in_widget_constructors: false
+
+    # Added 2026-09-15 after a full-codebase sweep. Every rule below guards a
+    # class of fault that the sweep had to check BY HAND because nothing in the
+    # toolchain could see it, and that a future session would have to re-check
+    # by hand all over again.
+    #
+    # The sweep found no live leaks. That is exactly when to add the rule --
+    # a clean baseline means these cost nothing today and fail loudly the first
+    # time someone regresses one.
+    cancel_subscriptions: true
+    close_sinks: true
