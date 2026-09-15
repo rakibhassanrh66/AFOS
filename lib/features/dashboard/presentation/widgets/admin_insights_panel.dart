@@ -92,7 +92,7 @@ class AdminInsightsPanel extends StatelessWidget {
                   .clamp(224.0, 360.0);
           final panels = <Widget>[
             if (d.liveSlots > 0)
-              _RingPanel(
+              RingPanel(
                 title: 'Labs and theory',
                 centerValue: '${d.liveSlots}',
                 centerLabel: 'timetabled',
@@ -108,7 +108,7 @@ class AdminInsightsPanel extends StatelessWidget {
                 ],
               ),
             if (d.beds > 0)
-              _RingPanel(
+              RingPanel(
                 title: 'Hall occupancy',
                 centerValue: '${d.beds}',
                 centerLabel: 'total beds',
@@ -177,31 +177,3 @@ class AdminInsightsPanel extends StatelessWidget {
   }
 }
 
-class _RingPanel extends StatelessWidget {
-  final String title;
-  final String centerValue;
-  final String centerLabel;
-  final List<RingSlice> slices;
-
-  const _RingPanel({
-    required this.title,
-    required this.centerValue,
-    required this.centerLabel,
-    required this.slices,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GridPanel(
-      title: title,
-      child: Column(children: [
-        Expanded(
-          child: RingChart(
-              slices: slices, centerValue: centerValue, centerLabel: centerLabel),
-        ),
-        const SizedBox(height: AppSpace.sm),
-        ChartLegend(slices: slices),
-      ]),
-    );
-  }
-}

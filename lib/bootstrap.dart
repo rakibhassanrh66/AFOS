@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -170,7 +172,13 @@ Future<void> bootstrap() async {
   // self-initializes via its script tag instead of the native plugin.
   // Desktop targets get no push at all -- best-effort, no plugin backs it.
   if (kIsWeb) {
-    await OneSignalWebBridge.requestPermission();
+    // NOT awaited. This raises the BROWSER's own notification permission
+    // dialog, which blocks until the person answers it — and awaiting it here
+    // meant the app painted nothing behind that dialog, so the first thing a
+    // web visitor saw was a permission prompt floating over a blank page with
+    // no context for what was asking. Letting it resolve in the background
+    // paints the app first and asks over a screen that explains itself.
+    unawaited(OneSignalWebBridge.requestPermission());
   } else if (_isMobile) {
     OneSignal.initialize(AppConfig.oneSignalAppId);
     OneSignal.Notifications.requestPermission(true);
@@ -185,7 +193,18 @@ Future<void> bootstrap() async {
     });
   }
 
-  await SosLocationService.initialize();
+  // Bounded and non-fatal. This calls FlutterBackgroundService.configure(),
+  // a platform-channel round trip that sits between the user and the first
+  // frame; a plugin that never answers used to hang launch outright with no
+  // error and no screen. SOS location sharing is started explicitly by
+  // `start()` and never by this call, so a slow or failed configure costs a
+  // later retry, not a feature.
+  try {
+    await SosLocationService.initialize()
+        .timeout(const Duration(seconds: 3));
+  } catch (e) {
+    debugPrint('[bootstrap] SOS location service configure skipped: $e');
+  }
   // Best-effort, opt-out ambient layer for the SOS system's "who's nearby"
   // resolution -- defaults to on (matches user_locations.sharing_enabled's
   // DB default) unless the user explicitly disabled it in Settings. A

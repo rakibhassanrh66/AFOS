@@ -77,10 +77,14 @@ void main() {
         ),
 
     // --- A stat tile's number must never be the thing that wraps. ---------
-    'StatTile (long label)': () => const StatTile(
-        value: '128', label: 'Pending approvals', icon: Icons.inbox_outlined),
+    'StatTile (long label)': () =>
+        const StatTile(value: 128, label: 'Pending approvals'),
     'StatTile (long value)': () =>
-        const StatTile(value: '1,284,000', label: 'Total', icon: Icons.numbers),
+        const StatTile(value: 1284000, label: 'Total'),
+    // The tappable variant is the one the admin header actually uses, and the
+    // one carrying the 48dp floor.
+    'StatTile (long label, tappable)': () => StatTile(
+        value: 1284000, label: 'Total users in the directory', onTap: () {}),
 
     // --- Full-width buttons have to fit their own label. -------------------
     'AfosButton (long label)': () =>

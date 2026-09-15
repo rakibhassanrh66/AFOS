@@ -20,6 +20,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../shared/widgets/stat_tile.dart';
 class ManageConferenceRoomsScreen extends StatefulWidget {
   const ManageConferenceRoomsScreen({super.key});
   @override State<ManageConferenceRoomsScreen> createState() => _ManageConferenceRoomsScreenState();
@@ -163,13 +164,13 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
               glowColor: AppColors.holoviolet,
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(children: [
-                Expanded(child: _StatTile(label: 'Pending',
+                Expanded(child: StatTile(label: 'Pending',
                     value: _requests.where((r) => r['status'] == 'pending').length)),
-                Container(width: 0.5, height: 32, color: AppColors.borderOf(context)),
-                Expanded(child: _StatTile(label: 'Approved',
+                const StatDivider(),
+                Expanded(child: StatTile(label: 'Approved',
                     value: _requests.where((r) => r['status'] == 'approved').length)),
-                Container(width: 0.5, height: 32, color: AppColors.borderOf(context)),
-                Expanded(child: _StatTile(label: 'Total', value: _requests.length)),
+                const StatDivider(),
+                Expanded(child: StatTile(label: 'Total', value: _requests.length)),
               ]),
             ),
           ),
@@ -228,15 +229,3 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
   }
 }
 
-class _StatTile extends StatelessWidget {
-  final String label; final int value;
-  const _StatTile({required this.label, required this.value});
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        Text('$value', style: AppTextStyles.displayMedium.copyWith(
-            color: AppColors.holoviolet, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(label, style: AppTextStyles.labelSmall.copyWith(
-            color: AppColors.textSecondaryOf(context))),
-      ]);
-}

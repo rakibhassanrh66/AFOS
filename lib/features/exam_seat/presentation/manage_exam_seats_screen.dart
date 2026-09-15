@@ -100,14 +100,31 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
       final replacedKeys = _parsedRows
           .map((r) => '${r.examDate.toIso8601String().split('T').first}|${r.batch}|${r.section}')
           .toSet();
-      for (final key in replacedKeys) {
-        final parts = key.split('|');
-        await SupabaseConfig.client
-            .from('exam_room_allocations')
-            .delete()
-            .eq('exam_date', parts[0])
-            .eq('batch', parts[1])
-            .eq('section', parts[2]);
+      // Issued in parallel, in bounded chunks, rather than one after another.
+      // A full routine upload produces one key per (date, batch, section) —
+      // dozens to low hundreds — and serially that was dozens to low hundreds
+      // of sequential round trips to Seoul before the insert could even start,
+      // which is most of why a re-upload felt like it had hung.
+      //
+      // The queries themselves are UNCHANGED: still one scoped delete per key,
+      // same three .eq() filters. Only the scheduling differs. Deliberately not
+      // collapsed into a single .or(and(...),and(...)) — that would be one
+      // round trip, but it puts batch/section values inside PostgREST filter
+      // syntax, and an escaping slip in a DELETE is unrecoverable. Chunked at
+      // 8 so a 200-key upload cannot open 200 concurrent sockets.
+      final keyList = replacedKeys.toList();
+      for (var i = 0; i < keyList.length; i += 8) {
+        final chunk = keyList.sublist(
+            i, i + 8 > keyList.length ? keyList.length : i + 8);
+        await Future.wait(chunk.map((key) {
+          final parts = key.split('|');
+          return SupabaseConfig.client
+              .from('exam_room_allocations')
+              .delete()
+              .eq('exam_date', parts[0])
+              .eq('batch', parts[1])
+              .eq('section', parts[2]);
+        }));
       }
 
       // Stamp the term these dates fall in. Without this every upload files

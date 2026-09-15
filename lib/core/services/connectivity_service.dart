@@ -17,7 +17,23 @@ class ConnectivityService {
   Timer? _pollTimer;
 
   Future<void> init() async {
-    isOnline.value = await _checkReal(await Connectivity().checkConnectivity());
+    // NOT awaited, deliberately. This runs in bootstrap before `runApp`, and
+    // the probe below can legitimately take its full 4s budget on exactly the
+    // network it exists to detect — a connected-but-dead uplink. Awaiting it
+    // meant the app painted NOTHING for four seconds on that network, against
+    // a 1800ms cold-start budget, to answer a question the whole app is
+    // already built to re-ask (`recheck()`).
+    //
+    // `isOnline` starts optimistic (true), which is the same default the
+    // empty-transport case resolves to, so nothing reads a wrong value in the
+    // gap — a cached fetch that needs certainty calls `recheck()` itself.
+    // The listener and poll below are registered synchronously either way, so
+    // a slow first probe can no longer leave this service unwired.
+    unawaited(Connectivity()
+        .checkConnectivity()
+        .then(_checkReal)
+        .then((value) => isOnline.value = value)
+        .catchError((_) => isOnline.value));
     Connectivity().onConnectivityChanged.listen((results) async {
       final value = await _checkReal(results);
       if (value != isOnline.value) isOnline.value = value;

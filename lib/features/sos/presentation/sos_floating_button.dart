@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +9,7 @@ import 'package:record/record.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/app_config_service.dart';
 import '../../../shared/widgets/glass_sheet.dart';
 import '../../../config/theme/app_text_styles.dart';
@@ -66,7 +66,12 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
   void dispose() { _armController.dispose(); super.dispose(); }
 
   void _onHoldStart() {
-    HapticFeedback.mediumImpact();
+    // Through AppHaptics, not HapticFeedback directly: these two were the last
+    // calls in the app that ignored the user's haptics switch, so turning
+    // haptics off in Settings still let the SOS button buzz. The hold has a
+    // full visual answer (the arming ring), so honouring the preference costs
+    // no safety signal.
+    AppHaptics.selection();
     _armController.forward(from: 0);
     _armController.addStatusListener(_onArmStatus);
   }
@@ -78,7 +83,7 @@ class _SosFloatingButtonState extends State<SosFloatingButton> with SingleTicker
   void _onArmStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed) {
       _armController.removeStatusListener(_onArmStatus);
-      HapticFeedback.heavyImpact();
+      AppHaptics.warning();
       _armController.value = 0;
       _showConfirmSheet();
     }

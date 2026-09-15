@@ -424,7 +424,10 @@ class AdminOverview extends StatelessWidget {
         ),
         ConsolePanel(
           span: PanelSpan.tall,
-          child: _RingPanel(
+          child: RingPanel(
+            // Carried over from the private _RingPanel this replaced: the web
+            // console groups legend counts, the mobile dashboard does not.
+            format: (n) => _grouped(n.toInt()),
             title: 'Labs and theory',
             centerValue: _grouped(d.liveSlots),
             centerLabel: 'timetabled',
@@ -443,7 +446,8 @@ class AdminOverview extends StatelessWidget {
         ),
         ConsolePanel(
           span: PanelSpan.tall,
-          child: _RingPanel(
+          child: RingPanel(
+            format: (n) => _grouped(n.toInt()),
             title: 'Hall occupancy',
             centerValue: _grouped(d.beds),
             centerLabel: 'total beds',
@@ -546,41 +550,6 @@ class AdminOverview extends StatelessWidget {
 }
 
 /// A ring with its legend underneath, sized for a grid cell.
-class _RingPanel extends StatelessWidget {
-  final String title;
-  final String centerValue;
-  final String centerLabel;
-  final List<RingSlice> slices;
-  final String? empty;
-
-  const _RingPanel({
-    required this.title,
-    required this.centerValue,
-    required this.centerLabel,
-    required this.slices,
-    this.empty,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GridPanel(
-      title: title,
-      child: empty != null
-          ? _Empty(empty!)
-          : Column(children: [
-              Expanded(
-                child: RingChart(
-                  slices: slices,
-                  centerValue: centerValue,
-                  centerLabel: centerLabel,
-                ),
-              ),
-              const SizedBox(height: AppSpace.sm),
-              ChartLegend(slices: slices, format: (n) => _grouped(n.toInt())),
-            ]),
-    );
-  }
-}
 
 class _SeeAll extends StatelessWidget {
   final String to;

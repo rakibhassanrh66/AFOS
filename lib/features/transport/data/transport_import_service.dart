@@ -252,9 +252,20 @@ class TransportImportService {
 
     // Drop stops left over from a previous, longer version of a route —
     // upserting alone would leave the tail of the old list orphaned in place.
-    for (final routeId in routeIds) {
-      final count = stopRows.where((s) => s['route_id'] == routeId).length;
-      await client.from('transport_stops').delete().eq('route_id', routeId).gt('stop_order', count);
+    //
+    // Counted once into a map instead of re-scanning `stopRows` per route
+    // (that was O(routes x stops) over the whole import), and the deletes go
+    // out together rather than one route at a time. Each delete is the same
+    // scoped statement it always was.
+    final stopCounts = <String, int>{};
+    for (final s in stopRows) {
+      final id = s['route_id'] as String;
+      stopCounts[id] = (stopCounts[id] ?? 0) + 1;
     }
+    await Future.wait(routeIds.map((routeId) => client
+        .from('transport_stops')
+        .delete()
+        .eq('route_id', routeId)
+        .gt('stop_order', stopCounts[routeId] ?? 0)));
   }
 }

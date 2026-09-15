@@ -6,6 +6,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/app_text_styles.dart';
 import '../../../../config/theme/chart_palette.dart';
 import '../../../../config/theme/spacing.dart';
+import 'console_grid.dart';
 
 /// The marks every console chart is drawn from.
 ///
@@ -485,5 +486,69 @@ class HeatGrid extends StatelessWidget {
         ),
       ]),
     ]);
+  }
+}
+
+/// A [GridPanel] holding a [RingChart] over its [ChartLegend] — the standard
+/// "one ring, its centre figure, its key" composition.
+///
+/// Was a private `_RingPanel` in BOTH `admin_insights_panel.dart` (the mobile
+/// dashboard) and `admin_overview.dart` (the web console), 91% identical, with
+/// the web copy the superset: it could also show an empty-state message
+/// instead of a ring, and it formatted legend counts with a thousands
+/// separator. Two copies of one panel meant the ring on web and the ring on
+/// mobile could drift apart without anyone touching both files.
+///
+/// The superset is the one that survives. [empty] and [format] are optional,
+/// so the mobile call site reads exactly as it did.
+class RingPanel extends StatelessWidget {
+  final String title;
+  final String centerValue;
+  final String centerLabel;
+  final List<RingSlice> slices;
+
+  /// Shown INSTEAD of the ring when there is nothing to plot. A ring with no
+  /// slices is not an empty chart, it is a chart that looks broken.
+  final String? empty;
+
+  /// Applied to the legend's counts. Null keeps the plain `$n` the legend
+  /// already defaults to.
+  final String Function(num)? format;
+
+  const RingPanel({
+    super.key,
+    required this.title,
+    required this.centerValue,
+    required this.centerLabel,
+    required this.slices,
+    this.empty,
+    this.format,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridPanel(
+      title: title,
+      child: empty != null
+          ? Center(
+              child: Text(
+                empty!,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyMedium
+                    .copyWith(color: AppColors.textSecondaryOf(context)),
+              ),
+            )
+          : Column(children: [
+              Expanded(
+                child: RingChart(
+                  slices: slices,
+                  centerValue: centerValue,
+                  centerLabel: centerLabel,
+                ),
+              ),
+              const SizedBox(height: AppSpace.sm),
+              ChartLegend(slices: slices, format: format),
+            ]),
+    );
   }
 }

@@ -32,6 +32,7 @@ import '../../web/presentation/widgets/adaptive_list.dart';
 import 'widgets/user_admin_actions_mixin.dart';
 import 'widgets/user_card.dart';
 import 'widgets/user_group_tree.dart';
+import '../../../shared/widgets/stat_tile.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -601,11 +602,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
               // with no role filter.
               child: Row(children: _isSuperAdmin
                   ? [
-                      Expanded(child: _StatTile(label: 'Pending', value: _pending.length)),
-                      _StatDivider(),
-                      Expanded(child: _StatTile(label: 'CR Requests', value: _crRequests.length)),
-                      _StatDivider(),
-                      Expanded(child: _StatTile(
+                      Expanded(child: StatTile(label: 'Pending', value: _pending.length)),
+                      const StatDivider(),
+                      Expanded(child: StatTile(label: 'CR Requests', value: _crRequests.length)),
+                      const StatDivider(),
+                      Expanded(child: StatTile(
                           label: 'Total Users', value: _totalUsers,
                           onTap: () => context.push('/admin/users/all'))),
                     ]
@@ -618,13 +619,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                       // how many people they have PERSONALLY handed an area
                       // to, straight from the grants RLS already scoped to
                       // them — never a count of some other page's rows.
-                      Expanded(child: _StatTile(
+                      Expanded(child: StatTile(
                           label: 'In your areas',
                           value: grantsByUser.entries
                               .where((e) => e.value.any((id) => id != delegatePermId))
                               .length)),
-                      _StatDivider(),
-                      Expanded(child: _StatTile(
+                      const StatDivider(),
+                      Expanded(child: StatTile(
                           label: 'Total Users', value: _totalUsers,
                           onTap: () => context.push('/admin/users/all'))),
                     ]),
@@ -1040,29 +1041,7 @@ class _InspectionBanner extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
-  final String label; final int value;
-  final VoidCallback? onTap;
-  const _StatTile({required this.label, required this.value, this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final content = Column(children: [
-        Text('$value', style: AppTextStyles.displayMedium.copyWith(
-            color: AppColors.holoviolet, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(label, style: AppTextStyles.labelSmall.copyWith(
-            color: AppColors.textSecondaryOf(context))),
-      ]);
-    if (onTap == null) return content;
-    return InkWell(borderRadius: AppDepth.radius(0), onTap: onTap, child: content);
-  }
-}
 
-class _StatDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) => Container(
-      width: 0.5, height: 32, color: AppColors.borderOf(context));
-}
 
 /// Relative time, or null when the value cannot be read as one.
 ///

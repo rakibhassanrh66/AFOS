@@ -18,6 +18,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../shared/widgets/stat_tile.dart';
 /// Super-admin-only: approve/reject club membership requests and officer
 /// post (secretary/vice_president/president) requests. Regular admins have
 /// no route here — clubs.president_id carries real notification-broadcast
@@ -235,9 +236,9 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
               glowColor: AppColors.holoviolet,
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(children: [
-                Expanded(child: _StatTile(label: 'Membership', value: _membershipRequests.length)),
-                Container(width: 0.5, height: 32, color: AppColors.borderOf(context)),
-                Expanded(child: _StatTile(label: 'Post Requests', value: _postRequests.length)),
+                Expanded(child: StatTile(label: 'Membership', value: _membershipRequests.length)),
+                const StatDivider(),
+                Expanded(child: StatTile(label: 'Post Requests', value: _postRequests.length)),
               ]),
             ),
           ),
@@ -322,15 +323,3 @@ class _RequestCard extends StatelessWidget {
       ]));
 }
 
-class _StatTile extends StatelessWidget {
-  final String label; final int value;
-  const _StatTile({required this.label, required this.value});
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        Text('$value', style: AppTextStyles.displayMedium.copyWith(
-            color: AppColors.holoviolet, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(label, style: AppTextStyles.labelSmall.copyWith(
-            color: AppColors.textSecondaryOf(context))),
-      ]);
-}

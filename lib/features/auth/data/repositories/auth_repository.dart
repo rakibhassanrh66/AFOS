@@ -19,55 +19,19 @@ class AuthRepository {
     return UserModel.fromJson(profile);
   }
 
-  /// Returns the freshly-registered user if a session was issued immediately
-  /// (accounts auto-confirm server-side), or null if email confirmation is
-  /// still pending for some reason.
-  Future<UserModel?> signUp({
-    required String email,
-    required String password,
-    required String fullName,
-    required String studentId,
-    required String department,
-    required int semester,
-    required String accountType,
-    required String gender,
-    String? programId,
-    String? batch,
-    String? section,
-    String? designation,
-    String? staffCategory,
-    /// Free-text office/section for a staff member with no ACADEMIC
-    /// department — "Registrar Office", "Accounts", "IT Support".
-    /// handle_new_user() writes it to staff.office.
-    String? office,
-  }) async {
-    final res = await _client.auth.signUp(
-      email: email,
-      password: password,
-      data: {
-        'full_name': fullName,
-        'university_id': studentId,
-        'department': department,
-        'semester': semester,
-        'account_type': accountType,
-        'gender': gender,
-        if(programId != null) 'program_id': programId,
-        if(batch != null) 'batch': batch,
-        if(section != null) 'section': section,
-        if(designation != null) 'designation': designation,
-        if(staffCategory != null) 'staff_category': staffCategory,
-        if(office != null) 'office': office,
-      },
-    );
-    if(res.user==null) throw Exception('Sign up failed');
-    if(res.session==null) return null;
-
-    final profile = await _client.from('profiles')
-        .select('*, roles!role_id(name), students(*), teachers(*), staff(*)')
-        .eq('id', res.user!.id)
-        .single();
-    return UserModel.fromJson(profile);
-  }
+  // REMOVED 2026-09-15: `signUp()`.
+  //
+  // It called `auth.signUp`, which creates a real auth user immediately — and
+  // because `auto_confirm_email` stamps `email_confirmed_at` on every insert,
+  // that account was confirmed WITHOUT anyone ever proving they own the
+  // mailbox. Registration has gone through requestRegistration ->
+  // emailed code/link -> verifyRegistration since (see below), which creates
+  // the auth user server-side only after the mailbox is proven.
+  //
+  // The method had no callers for several releases but still compiled, so
+  // wiring a screen back to it was a one-line change that would have silently
+  // reinstated the bypass. Deleting it is the only thing that makes that
+  // impossible. `auth.signUp` must not reappear in this file.
 
   // ---------------------------------------------------------------------
   // Mailbox-proof registration.

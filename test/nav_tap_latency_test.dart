@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:afos_v7/core/haptics/app_haptics.dart';
 import 'package:afos_v7/shared/widgets/glass_bottom_nav.dart';
 
 /// A nav tap must act on the FIRST frame, never after the double-tap window.
@@ -25,6 +26,22 @@ import 'package:afos_v7/shared/widgets/glass_bottom_nav.dart';
 /// So these tests pump ONE frame and assert the callback already ran. Restore
 /// `onDoubleTap:` onto the GestureDetector and the first test fails.
 void main() {
+  // The nav's tap haptic goes through AppHaptics, which COALESCES on a 60ms
+  // trailing timer so one gesture cannot buzz twice. These tests deliberately
+  // pump a SINGLE frame and stop, so that timer is still pending when the test
+  // body ends and the framework fails it for leaking a timer — an failure
+  // about haptics, in tests that are about gesture arbitration.
+  //
+  // Switched off rather than reset: `_fire` checks `enabled` first and returns
+  // without scheduling anything, so no timer is ever created. A tearDown reset
+  // does not work here, because the pending-timer check runs when the test body
+  // completes, BEFORE tearDown gets to run.
+  setUp(() {
+    AppHaptics.enabled.value = false;
+    AppHaptics.reset();
+  });
+  tearDown(() => AppHaptics.enabled.value = true);
+
   const dests = [
     BottomNavDest(label: 'Home', icon: Icons.home, route: '/home'),
     BottomNavDest(label: 'Search', icon: Icons.search, route: '/search'),

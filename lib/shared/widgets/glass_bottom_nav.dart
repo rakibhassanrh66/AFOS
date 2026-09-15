@@ -7,9 +7,9 @@ import 'dart:ui';
 // without putting that recogniser in the arena. See the note there.
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import '../../core/haptics/app_haptics.dart';
 
 /// One destination in the floating bottom nav.
 class BottomNavDest {
@@ -155,7 +155,7 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
       // shortcut again on every subsequent tap.
       _lastTapIndex = null;
       _lastTapAt = null;
-      HapticFeedback.selectionClick();
+      AppHaptics.selection();
       widget.onDoubleTap!(i);
       return;
     }
@@ -164,7 +164,7 @@ class _GlassBottomNavState extends State<GlassBottomNav> with SingleTickerProvid
     // already on is a no-op, but double-tapping it must still reach the
     // shortcut — that is the main way anyone uses it.
     if (i == widget.currentIndex) return;
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     widget.onTap(i);
   }
 

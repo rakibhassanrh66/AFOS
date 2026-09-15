@@ -26,9 +26,10 @@ import 'package:image_picker/image_picker.dart';
 /// ---------------------------------------------------------------------------
 /// WHY `pickImage`'s OWN maxWidth/maxHeight, AND NOT `flutter_image_compress`
 ///
-/// `flutter_image_compress` is already in `pubspec.yaml` and imported by
-/// nothing — it has been shipping as dead weight in every APK. It would work,
-/// but it is the wrong tool here: `pickImage` already accepts `maxWidth` /
+/// `flutter_image_compress` USED to be in `pubspec.yaml`, imported by nothing,
+/// shipping its native plugin as dead weight in every APK. It was removed on
+/// 2026-09-15 rather than adopted, because it is the wrong tool here even
+/// though it would work: `pickImage` already accepts `maxWidth` /
 /// `maxHeight`, applies them on Android, iOS AND web, and does the downscale
 /// inside the platform picker BEFORE the bytes ever reach Dart. Compressing
 /// afterwards would mean decoding the full frame into memory first — the exact

@@ -133,12 +133,17 @@ void main() {
         title: 'Change role for this account',
         subtitle: 'Super admin only — this takes effect immediately',
         trailing: PillBadge(label: 'DANGER', color: AppColors.red)),
-    'StatTile (long label)': () => const StatTile(
-        value: '1632', label: 'Exam room allocations', icon: Icons.event_seat_rounded),
+    'StatTile (long label)': () =>
+        const StatTile(value: 1632, label: 'Exam room allocations'),
+    // The real admin summary bar: three tiles with the shared hairline between
+    // them, which is exactly how manage_users/clubs/conference_rooms lay it out
+    // now that all three use this one component.
     'Row of 3 StatTiles (admin summary bar)': () => const Row(children: [
-          Expanded(child: StatTile(value: '12', label: 'Pending')),
-          Expanded(child: StatTile(value: '148', label: 'Approved')),
-          Expanded(child: StatTile(value: '3', label: 'Cancel Requested')),
+          Expanded(child: StatTile(value: 12, label: 'Pending')),
+          StatDivider(),
+          Expanded(child: StatTile(value: 148, label: 'Approved')),
+          StatDivider(),
+          Expanded(child: StatTile(value: 3, label: 'Cancel Requested')),
         ]),
     // Deliberately a horizontally-scrolling ListView, NOT a Row -- that is how
     // manage_hall_screen actually lays its status filters out. An earlier
