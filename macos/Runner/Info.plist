@@ -28,5 +28,41 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- REQUIRED, and their absence is not a warning. On Apple platforms an app
+	     that requests camera, microphone or location without a usage string is
+	     TERMINATED at the moment of the request, with no prompt and no dialog.
+	     This file had none of them, so a macOS AFOS would have died the first
+	     time anyone opened the QR scanner or triggered SOS.
+	
+	     Kept word-for-word identical to ios/Runner/Info.plist. The same feature
+	     asking the same person for the same permission should not be explained
+	     two different ways because it is a different build. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AFOS uses your location to show nearby transport routes and to attach your position to an emergency SOS alert.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AFOS can record a short voice note to attach to an emergency SOS alert.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>AFOS uses your camera to scan QR codes for VR-ID verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AFOS uses your photo library to set a profile picture and attach photos to Lost &amp; Found posts.</string>
+	<!-- Touch ID on a Mac, Face ID on iOS. One string covers both on macOS. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>AFOS uses Touch ID to quickly and securely unlock your account on this device.</string>
+	<!-- The afos:// scheme carries the Supabase auth redirect back into the app
+	     after sign-in and password reset. Not coupled to the bundle identifier,
+	     so it was unaffected by the rename to bd.edu.diu.afos. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>bd.edu.diu.afos</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>afos</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

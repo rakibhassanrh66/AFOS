@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = afos_v7
+PRODUCT_NAME = AFOS
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.afosV7
+PRODUCT_BUNDLE_IDENTIFIER = bd.edu.diu.afos
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Daffodil International University. All rights reserved.

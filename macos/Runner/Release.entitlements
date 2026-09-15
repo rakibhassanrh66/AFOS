@@ -4,5 +4,20 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- See DebugProfile.entitlements for why this is the entry that matters.
+	     Without it a sandboxed release build has NO outbound network at all.
+	     Note there is deliberately no network.server here: hot reload does not
+	     exist in a release build, and a shipped app should not accept inbound
+	     connections. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
 </dict>
 </plist>

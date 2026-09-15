@@ -6,7 +6,34 @@
 	<true/>
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
+	<!-- Incoming connections. Debug/profile ONLY: this is how the Flutter tooling
+	     attaches to the running app for hot reload and DevTools. It is deliberately
+	     absent from Release.entitlements, because a shipped AFOS never needs to
+	     accept a connection from anything. -->
 	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- OUTGOING connections. This was missing from BOTH entitlement files, and it
+	     is the one that matters: a sandboxed macOS app cannot open any outbound
+	     socket without it. Every Supabase call, the Storage uploads, the OSRM
+	     route geometry fetch and the update check all failed silently, so the app
+	     launched, drew its shell, and then looked broken rather than offline.
+	     network.server does NOT cover this. Server is inbound, client is
+	     outbound, and having only the first is why this was easy to miss. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- The sandbox gates hardware separately from Info.plist's usage strings, and
+	     BOTH are required: the entitlement decides whether the app may ever ask,
+	     the usage string is what the prompt says. Miss the entitlement and the
+	     device is simply unavailable; miss the string and the process is killed. -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
+	<!-- Read/write only to files the user themselves picked in a panel, which is
+	     what file_picker and image_picker hand back. Not broad disk access. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 </dict>
 </plist>
