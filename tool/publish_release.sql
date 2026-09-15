@@ -33,6 +33,33 @@
 -- ---------------------------------------------------------------------
 --  1. PUBLISH a new release. This one announces.
 -- ---------------------------------------------------------------------
+--  v2.13.1 — run this ONCE the v2.13.1 release job has published the APK.
+--  Check: https://github.com/rakibhassanrh66/AFOS/releases/tag/v2.13.1
+--  (verified in-session: all 4 assets published, download URLs return 200)
+--
+--  ANNOUNCING 2.13.1 AND NOT 2.13.0, on purpose. 2.13.0 was tagged and
+--  published but its pubspec.yaml was never bumped past 2.12.2+5027 — an
+--  existing inconsistency, not touched retroactively since that release is
+--  already out. 2.13.1 is the first version after it that is unambiguously
+--  newer by every measure (tag, pubspec version, build number), so it is
+--  what gets announced; 2.13.0 stays published and unannounced.
+--
+--  Kept as a SEPARATE file (tool/announce_v2.13.1.sql) so it can be run on
+--  its own without re-running every historical INSERT below, which have no
+--  ON CONFLICT guard and would fail on duplicate version.
+-- ---------------------------------------------------------------------
+INSERT INTO app_releases (version, release_date, title, highlights, platforms)
+VALUES (
+  '2.13.1',
+  current_date,
+  'Updates That Can''t Be Broken Anymore',
+  ARRAY[
+    'Updating the app is now safe no matter what you do while it is downloading. Minimizing AFOS, closing the update screen, or tapping Update again partway through could previously leave you with an install that silently failed or behaved oddly - the app now tracks one download at a time correctly, so nothing you do after tapping Update can break it.',
+    'Searching for a student or book while issuing a library loan is noticeably faster and no longer sends a request on every keystroke.',
+    'Small behind-the-scenes cleanups to keep the app fast and lean.'
+  ],
+  ARRAY['android','web']
+);
 --  Inserting this row does all of the following, in one transaction:
 --    * writes an in-app notification for every account (trigger);
 --    * queues the OneSignal push so phones with AFOS CLOSED get a banner
