@@ -161,7 +161,7 @@ class UserCard extends StatelessWidget {
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ])),
           if (onDelete != null && !pending)
-            IconButton(icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20), onPressed: onDelete),
+            IconButton(tooltip: 'Delete this account', icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 20), onPressed: onDelete),
         ]),
         const SizedBox(height: 10),
         // BADGES ON THEIR OWN LINE, not in the row with the department and the

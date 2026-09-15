@@ -300,6 +300,6 @@ class _SelectedChip extends StatelessWidget {
           border: Border.all(color: AppColors.purple.withValues(alpha: 0.3))),
       child: Row(children: [
         Expanded(child: Text(label, style: const TextStyle(color: AppColors.purple, fontWeight: FontWeight.w600))),
-        IconButton(icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.purple), onPressed: onClear),
+        IconButton(tooltip: 'Clear selection', icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.purple), onPressed: onClear),
       ]));
 }

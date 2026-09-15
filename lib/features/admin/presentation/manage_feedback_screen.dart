@@ -254,7 +254,7 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
                                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                                           style: const TextStyle(color: AppColors.holoviolet, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                                   if (_isSuperAdmin)
-                                    IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red), onPressed: () => _delete(item)),
+                                    IconButton(tooltip: 'Delete this report', icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red), onPressed: () => _delete(item)),
                                 ]),
                                 Row(children: [
                                   Expanded(child: Text('${profile['full_name'] ?? 'Unknown'} · ${profile['email'] ?? ''}',

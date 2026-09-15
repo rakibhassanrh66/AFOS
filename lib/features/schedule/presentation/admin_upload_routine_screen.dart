@@ -496,7 +496,7 @@ class _PendingCard extends StatelessWidget {
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             Text('${(pending.file.size / 1024).toStringAsFixed(1)} KB', style: TextStyle(color: textSecondary, fontSize: 11)),
           ])),
-          IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: onRemove),
+          IconButton(tooltip: 'Remove this row', icon: const Icon(Icons.close_rounded, size: 18), onPressed: onRemove),
         ]),
         const SizedBox(height: 8),
         SizedBox(width: double.infinity, child: DropdownButtonFormField<String>(

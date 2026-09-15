@@ -126,19 +126,31 @@ class _GlassCardState extends State<GlassCard> {
     );
 
     if (widget.onTap != null) {
-      glassBody = GestureDetector(
-        onTap: widget.onTap,
-        onTapDown: (_) => _setPressed(true),
-        onTapUp: (_) => _setPressed(false),
-        onTapCancel: () => _setPressed(false),
-        child: reduceMotion
-            ? glassBody
-            : AnimatedScale(
-                scale: _pressed ? LiquidGlass.pressScale : 1.0,
-                duration: LiquidGlass.pressDuration,
-                curve: AppMotion.standard,
-                child: glassBody,
-              ),
+      // A tappable card is a control, and has to say so. The GestureDetector
+      // gives the semantics tree a tap action but no role, so every card that
+      // navigates announced itself to TalkBack as a plain group of text — the
+      // one thing a user driving the app by ear needs to know about it (that
+      // it does something) was the part that was missing.
+      //
+      // No label here on purpose: a card's name is the content it already
+      // contains, which the screen reader reads from the child. Declaring one
+      // would REPLACE that with a shorter, worse version.
+      glassBody = Semantics(
+        button: true,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          onTapDown: (_) => _setPressed(true),
+          onTapUp: (_) => _setPressed(false),
+          onTapCancel: () => _setPressed(false),
+          child: reduceMotion
+              ? glassBody
+              : AnimatedScale(
+                  scale: _pressed ? LiquidGlass.pressScale : 1.0,
+                  duration: LiquidGlass.pressDuration,
+                  curve: AppMotion.standard,
+                  child: glassBody,
+                ),
+        ),
       );
     }
 

@@ -1052,7 +1052,7 @@ class _LeadersTabState extends State<_LeadersTab> {
                                           .copyWith(color: AppColors.textSecondaryOf(ctx))),
                                 ]),
                               ),
-                              IconButton(
+                              IconButton(tooltip: 'Remove this teacher', 
                                 icon: const Icon(Icons.person_remove_outlined,
                                     size: 18, color: AppColors.red),
                                 onPressed: () => _revoke(l['id'] as String),

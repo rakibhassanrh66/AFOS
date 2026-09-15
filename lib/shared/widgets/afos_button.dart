@@ -43,7 +43,25 @@ class _AfosButtonState extends State<AfosButton> {
     final bgDeep = Color.lerp(bg, AppColors.background, 0.35)!;
     // Light hues (the brand teal included) need ink text, not white.
     final fg = AppColors.foregroundOn(bg);
-    return MouseRegion(
+    // ANNOUNCED AS A BUTTON. The press state below is built on a raw
+    // GestureDetector, which contributes a tap ACTION to the semantics tree
+    // but never the button ROLE — so TalkBack read this control as plain text
+    // and gave it none of a button's affordances. `enabled` is what makes a
+    // loading or disabled button announce itself as unavailable instead of
+    // silently doing nothing when activated.
+    //
+    // THE LABEL IS SET ONLY WHILE LOADING, and that asymmetry is deliberate.
+    // Normally the child `Text(widget.label)` already contributes the name, so
+    // declaring it here as well merges the two and a screen reader says the
+    // label TWICE ("Submit result Submit result" — caught by
+    // accessibility_semantics_test). While `loading`, the child is a spinner
+    // and nothing else carries a name, so without this the busy button would
+    // announce as an unnamed, disabled control.
+    return Semantics(
+      button: true,
+      enabled: !widget.loading && widget.onTap != null,
+      label: widget.loading ? widget.label : null,
+      child: MouseRegion(
       // No-op on touch (Android/iOS) -- this only ever fires with an
       // actual mouse on web/desktop.
       onEnter: (_) => setState(() => _hover = true),
@@ -106,6 +124,6 @@ class _AfosButtonState extends State<AfosButton> {
           ),
         ),
       ),
-    );
+    ));
   }
 }

@@ -382,7 +382,7 @@ class _SearchTab extends StatelessWidget {
             hintText: 'Search by title, author or ISBN',
             prefixIcon: Icon(Icons.search, color: textSecondary, size: 20),
             suffixIcon: ctrl.text.isNotEmpty
-                ? IconButton(icon: Icon(Icons.clear, size: 18, color: textSecondary),
+                ? IconButton(tooltip: 'Clear search', icon: Icon(Icons.clear, size: 18, color: textSecondary),
                     onPressed: () { ctrl.clear(); onSearch(''); }) : null,
             filled: true, fillColor: AppColors.glassFill(context),
             border: OutlineInputBorder(borderRadius: AppDepth.radius(1),

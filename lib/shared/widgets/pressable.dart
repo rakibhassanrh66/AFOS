@@ -52,6 +52,12 @@ class Pressable extends StatefulWidget {
   /// Pointer cursor on web/desktop. No effect on touch.
   final bool cursor;
 
+  /// Spoken name for the control. Optional: when the child is already text a
+  /// screen reader can read, the role alone is the missing half and this can
+  /// stay null. Pass it when the child is an icon, a number, or a decorated
+  /// surface whose meaning is not in its text.
+  final String? semanticLabel;
+
   const Pressable({
     super.key,
     required this.child,
@@ -60,6 +66,7 @@ class Pressable extends StatefulWidget {
     this.pressedScale = AppMotion.pressScale,
     this.haptic = true,
     this.cursor = true,
+    this.semanticLabel,
   });
 
   @override
@@ -93,7 +100,15 @@ class _PressableState extends State<Pressable> {
   @override
   Widget build(BuildContext context) {
     final scale = _pressed ? widget.pressedScale : 1.0;
-    return MouseRegion(
+    // The GestureDetector below contributes a tap ACTION but not the button
+    // ROLE, so everything wrapped in a Pressable — GlassChip included — read
+    // to TalkBack as inert decoration that happened to be tappable. Declaring
+    // the role here is what makes every one of those a button at once.
+    return Semantics(
+      button: true,
+      enabled: _enabled,
+      label: widget.semanticLabel,
+      child: MouseRegion(
       cursor: widget.cursor && _enabled
           ? SystemMouseCursors.click
           : MouseCursor.defer,
@@ -113,6 +128,6 @@ class _PressableState extends State<Pressable> {
           child: widget.child,
         ),
       ),
-    );
+    ));
   }
 }

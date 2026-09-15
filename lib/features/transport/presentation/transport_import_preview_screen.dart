@@ -603,17 +603,17 @@ class _StopRow extends StatelessWidget {
         // down" and "remove" silently deletes a stop from the import. The
         // field keeps Expanded and lands at ~114px on a 320px screen, which
         // still holds a stop name.
-        IconButton(
+        IconButton(tooltip: 'Move this stop up', 
           onPressed: onMoveUp, icon: const Icon(Icons.arrow_upward_rounded, size: 16),
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           color: AppColors.textSecondaryOf(context), visualDensity: VisualDensity.compact,
         ),
-        IconButton(
+        IconButton(tooltip: 'Move this stop down', 
           onPressed: onMoveDown, icon: const Icon(Icons.arrow_downward_rounded, size: 16),
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           color: AppColors.textSecondaryOf(context), visualDensity: VisualDensity.compact,
         ),
-        IconButton(
+        IconButton(tooltip: 'Remove this stop', 
           onPressed: onRemove, icon: const Icon(Icons.close_rounded, size: 16),
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           color: AppColors.red, visualDensity: VisualDensity.compact,
@@ -673,7 +673,7 @@ class _TripEditRowState extends State<_TripEditRow> {
               border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
             ),
           )),
-          IconButton(
+          IconButton(tooltip: 'Remove this trip', 
             onPressed: widget.onRemove, icon: const Icon(Icons.close_rounded, size: 16),
             padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             color: AppColors.red, visualDensity: VisualDensity.compact,

@@ -262,8 +262,8 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
             maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: _canWrite
             ? Row(mainAxisSize: MainAxisSize.min, children: [
-                IconButton(icon: const Icon(Icons.edit_outlined, size: 20), onPressed: () => _openForm(existing: item)),
-                IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.red), onPressed: () => _delete(item)),
+                IconButton(tooltip: 'Edit this entry', icon: const Icon(Icons.edit_outlined, size: 20), onPressed: () => _openForm(existing: item)),
+                IconButton(tooltip: 'Delete this entry', icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.red), onPressed: () => _delete(item)),
               ])
             : null,
       ),

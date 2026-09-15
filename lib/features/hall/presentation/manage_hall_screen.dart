@@ -454,7 +454,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                               Expanded(child: Text(profile['full_name'] ?? 'Unknown',
                                   style: AppTextStyles.titleMedium.copyWith(color: textPrimary))),
                               _StatusPill(status),
-                              IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                              IconButton(tooltip: 'Delete this complaint', icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
                                   onPressed: () => _deleteApplication(a)),
                             ]),
                             Text('${profile['university_id'] ?? ''} · ${profile['department'] ?? ''}',

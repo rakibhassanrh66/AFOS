@@ -265,9 +265,9 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                 decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: AppDepth.radius(1)),
                 child: Text(category.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
             const Spacer(),
-            IconButton(icon: const Icon(Icons.edit_outlined, size: 18),
+            IconButton(tooltip: 'Edit this notice', icon: const Icon(Icons.edit_outlined, size: 18),
                 onPressed: () => _openForm(existing: n)),
-            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+            IconButton(tooltip: 'Delete this notice', icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
                 onPressed: () => _delete(n['id'])),
           ]),
           // Previously unbounded — a long title wrapped to as many lines as

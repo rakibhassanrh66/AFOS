@@ -758,7 +758,7 @@ class _MyClubsTab extends StatelessWidget {
                           textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: isPresident ? AppColors.gold : AppColors.blue, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                   if (user != null)
-                    IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.pink, size: 20),
+                    IconButton(tooltip: 'Open club chat', icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.pink, size: 20),
                         onPressed: () => Navigator.push(context,
                             appPageRoute(ClubChatScreen(clubId: clubId, clubName: clubName, user: user!)))),
                 ]),
@@ -807,9 +807,9 @@ class _MyClubsTab extends StatelessWidget {
                           if (busy)
                             const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
                           else ...[
-                            IconButton(icon: const Icon(Icons.check_circle_outline, color: AppColors.green, size: 22),
+                            IconButton(tooltip: 'Approve this request', icon: const Icon(Icons.check_circle_outline, color: AppColors.green, size: 22),
                                 onPressed: () => onApproveRequest(requestId)),
-                            IconButton(icon: const Icon(Icons.cancel_outlined, color: AppColors.red, size: 22),
+                            IconButton(tooltip: 'Reject this request', icon: const Icon(Icons.cancel_outlined, color: AppColors.red, size: 22),
                                 onPressed: () => onRejectRequest(requestId)),
                           ],
                         ]));

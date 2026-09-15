@@ -174,7 +174,7 @@ class _ModerateChatRoomState extends State<_ModerateChatRoomScreen> {
                           const SizedBox(height: 4),
                           Text(m['content'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
                         ])),
-                        IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                        IconButton(tooltip: 'Delete this message', icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
                             onPressed: () => _delete(m['id'])),
                       ]),
                     );

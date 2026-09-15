@@ -145,7 +145,7 @@ class _PayWebViewState extends State<PaymentWebViewScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.surfaceOf(scaffoldCtx),
           title: Text(widget.category, style: TextStyle(color: AppColors.textPrimaryOf(scaffoldCtx))),
-          leading: IconButton(
+          leading: IconButton(tooltip: 'Close payment', 
             icon: Icon(Icons.close, color: AppColors.textPrimaryOf(scaffoldCtx)),
             onPressed: _confirmAndLeave,
           ),

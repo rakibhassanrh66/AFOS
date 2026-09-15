@@ -58,7 +58,7 @@ class _ForgotBodyState extends State<_ForgotBody> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading:IconButton(
+          leading:IconButton(tooltip: 'Back', 
             icon:Icon(Icons.arrow_back, color: textPrimary),
             onPressed:()=>context.pop()),
         ),

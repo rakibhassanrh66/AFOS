@@ -100,7 +100,7 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           child: Row(children: [
             const SizedBox(width: 4),
-            IconButton(
+            IconButton(tooltip: 'Menu', 
               icon: BlocBuilder<ShellBloc,ShellState>(
                 builder:(_,state) => AnimatedSwitcher(
                   duration: LiquidGlass.motionFast,
@@ -333,7 +333,7 @@ class _NotificationBellState extends State<_NotificationBell> {
     // follower layer could anchor to the bell but had no way to know where the
     // screen edges were, which is how the panel ended up hanging off them.
     return Stack(clipBehavior: Clip.none, children: [
-        IconButton(
+        IconButton(tooltip: 'Your profile', 
           icon: Container(width: 34, height: 34,
               decoration: BoxDecoration(
                   shape: BoxShape.circle,

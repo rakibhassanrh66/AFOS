@@ -46,7 +46,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AfosAppBar(title: 'Assignments', actions: _isTeacher
-          ? [IconButton(icon: const Icon(Icons.add_circle_outline_rounded), onPressed: () => _openCreate(context))]
+          ? [IconButton(tooltip: 'New assignment', icon: const Icon(Icons.add_circle_outline_rounded), onPressed: () => _openCreate(context))]
           : null),
       body: Column(children: [
         FeatureHeader(
@@ -380,7 +380,7 @@ class _TeacherAssignmentsTabState extends State<_TeacherAssignmentsTab> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(child: Text(a['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx)))),
-                if (!expired) IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
+                if (!expired) IconButton(tooltip: 'Delete this assignment', icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),
                     onPressed: () => _delete(a['id'])),
                 Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textSecondaryOf(ctx)),
               ]),

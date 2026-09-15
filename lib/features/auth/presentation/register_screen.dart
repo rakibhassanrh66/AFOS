@@ -166,7 +166,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           title:Text('Create Account', style: AppTextStyles.headlineMed.copyWith(color: textPrimary)),
-          leading:IconButton(icon:Icon(Icons.arrow_back, color: textPrimary),onPressed:()=>context.pop())),
+          leading:IconButton(tooltip: 'Back', icon:Icon(Icons.arrow_back, color: textPrimary),onPressed:()=>context.pop())),
         body: LayoutBuilder(
           builder: (context, outer) {
             final wizard = SafeArea(
