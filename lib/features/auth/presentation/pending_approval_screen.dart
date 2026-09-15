@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,6 +21,7 @@ class PendingApprovalScreen extends StatefulWidget {
 
 class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   RealtimeChannel? _sub;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -32,16 +34,47 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: uid),
             callback: (payload) {
               final isVerified = payload.newRecord['is_verified'] as bool? ?? false;
-              if (isVerified && mounted) {
-                RoleSession.markVerified();
-                context.go('/home');
-              }
+              if (isVerified) _approve();
             })
         .subscribe();
+    // The channel only reports a CHANGE, so it never fires for someone
+    // approved between registering and this screen ever mounting -- they
+    // would otherwise wait here forever for an update that already happened.
+    // It also silently misses an event on a channel that drops mid-wait
+    // (killed connection, backgrounded app) with nothing to notice or
+    // reconnect it. A direct check now, then every 15s, catches both without
+    // depending on the realtime channel actually being healthy.
+    _checkNow();
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _checkNow());
+  }
+
+  Future<void> _checkNow() async {
+    final uid = SupabaseConfig.uid;
+    if (uid == null) return;
+    try {
+      final row = await SupabaseConfig.client.from('profiles')
+          .select('is_verified').eq('id', uid).maybeSingle();
+      if ((row?['is_verified'] as bool?) ?? false) _approve();
+    } catch (_) {
+      // Offline or a transient error -- the next poll (or a live event, if
+      // the channel is actually connected) will catch it. Nothing to show
+      // for this: it isn't the user's account that's wrong, just this one
+      // check, and the screen already explains what it's waiting for.
+    }
+  }
+
+  void _approve() {
+    if (!mounted) return;
+    RoleSession.markVerified();
+    context.go('/home');
   }
 
   @override
-  void dispose() { _sub?.unsubscribe(); super.dispose(); }
+  void dispose() {
+    _sub?.unsubscribe();
+    _pollTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut(scope: SignOutScope.global);

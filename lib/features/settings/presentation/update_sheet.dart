@@ -49,10 +49,28 @@ class _UpdateSheetState extends State<_UpdateSheet> {
   double _progress = 0;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    // The user may have minimized the app, swiped this sheet away, or just
+    // reopened Settings and tapped Update again while a download from an
+    // earlier sheet instance is still running — AppUpdateService dedupes that
+    // into one shared download, so this only needs to resume watching it
+    // rather than let the idle button invite a second, now-harmless tap.
+    if (AppUpdateService.isDownloading) {
+      _progress = AppUpdateService.lastProgress;
+      _stage = _progress >= 1.0 ? _Stage.verifying : _Stage.downloading;
+      _start();
+    }
+  }
+
   Future<void> _start() async {
+    final resuming = AppUpdateService.isDownloading;
     setState(() {
-      _stage = _Stage.downloading;
-      _progress = 0;
+      _stage = resuming
+          ? (AppUpdateService.lastProgress >= 1.0 ? _Stage.verifying : _Stage.downloading)
+          : _Stage.downloading;
+      _progress = resuming ? AppUpdateService.lastProgress : 0;
       _error = null;
     });
     try {

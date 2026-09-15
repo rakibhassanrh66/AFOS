@@ -1,7 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 2.12.2+5027
+version: 2.13.1+5028
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
@@ -14,6 +14,9 @@ dependencies:
   go_router: ^14.6.2
   get_it: ^8.0.2
   dio: ^5.7.0
+  # Already in the tree transitively via supabase_flutter; declared directly
+  # because timeout_http_client.dart wraps it to bound every Supabase call.
+  http: ^1.2.0
   hive_flutter: ^1.1.0
   flutter_secure_storage: ^9.2.2
   # Already in the tree via supabase_flutter; declared directly because
@@ -33,7 +36,6 @@ dependencies:
   image_picker: ^1.1.2
   flutter_image_compress: ^2.3.0
   pdf: ^3.11.1
-  printing: ^5.13.2
   open_file: ^3.5.8
   path_provider: ^2.1.4
   connectivity_plus: ^6.1.1
@@ -41,9 +43,7 @@ dependencies:
   intl: ^0.19.0
   timeago: ^3.7.0
   rxdart: ^0.28.0
-  crypto: ^3.0.5
   file_picker: ^8.1.2
-  json_annotation: ^4.9.0
   syncfusion_flutter_pdf: ^27.2.5
   excel: ^4.0.6
   # More tolerant .xlsx reader — the `excel` package (v4) throws
@@ -67,8 +67,6 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.4.13
-  json_serializable: ^6.8.0
   flutter_launcher_icons: ^0.14.3
 
 flutter_launcher_icons:

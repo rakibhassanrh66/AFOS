@@ -365,6 +365,20 @@ class _ScheduleState extends State<ScheduleScreen> with SingleTickerProviderStat
                         return const Padding(padding:EdgeInsets.all(16),child:ShimmerList());
                       }
                       final slots = snap.data??[];
+                      // cachedListStream only ever errors when there was no
+                      // cache to fall back on (see offline_cache.dart), so a
+                      // non-empty `slots` here means cached rows already
+                      // arrived before the connection failed -- show those
+                      // instead of an error the user has no reason to see.
+                      if (snap.hasError && slots.isEmpty) {
+                        return EmptyState(
+                          icon: Icons.wifi_off_rounded,
+                          title: 'Could not load your schedule',
+                          subtitle: friendlyError(snap.error!),
+                          actionLabel: 'Retry',
+                          onAction: () => setState(() {}),
+                        );
+                      }
                       // BEFORE the slots are considered, not after. Last
                       // term's routine is still in schedule_slots once the
                       // finals end, so `slots.isEmpty` is false and the day

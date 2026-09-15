@@ -303,6 +303,44 @@ class AppUpdateService {
     }
   }
 
+  /// The download in progress, if any — shared across every caller.
+  ///
+  /// WHY THIS EXISTS. `downloadAndInstall` used to start a brand-new download
+  /// on every call, with no memory of one already running. The update sheet
+  /// is a dismissible modal over a StatefulWidget: minimize the app, swipe the
+  /// sheet away, or just come back to Settings and tap Update again while the
+  /// first download is still in flight, and a SECOND `downloadAndInstall`
+  /// starts — both writing to the same `afos_update_<version>.apk.part` path.
+  /// One rename can land while the other is mid-write, or the installer can
+  /// be handed a file that is being replaced out from under it. That is what
+  /// "sometimes it errors, sometimes the install is defective" looks like
+  /// from outside: it depended entirely on the exact timing of what the user
+  /// did after tapping, which is unreproducible on purpose.
+  ///
+  /// Now every call for the same in-flight attempt is handed the SAME future
+  /// and the same progress stream — the app no longer cares whether the user
+  /// minimized, backgrounded, closed and reopened the sheet, or tapped twice.
+  /// Only killing the whole process can interrupt a download, and a fresh
+  /// process starts clean (the `.part` file is always cleared before a new
+  /// attempt), so there is no state a restart can leave corrupted.
+  static Future<void>? _activeDownload;
+  static double _lastProgress = 0;
+  static final List<void Function(double)> _progressListeners = [];
+
+  /// Whether a download is currently in flight — so a freshly built update
+  /// sheet (e.g. after the previous one was dismissed) can resume showing
+  /// real progress instead of resetting to the idle "Download & install"
+  /// button and inviting a duplicate tap.
+  static bool get isDownloading => _activeDownload != null;
+  static double get lastProgress => _lastProgress;
+
+  static void _notifyProgress(double p) {
+    _lastProgress = p;
+    for (final listener in List<void Function(double)>.of(_progressListeners)) {
+      listener(p);
+    }
+  }
+
   /// Downloads the APK for [update] with progress (0.0–1.0 via [onProgress])
   /// and opens Android's package installer on it. Throws with a message meant
   /// for the user on any failure — a silent one here reads as "tap Update,
@@ -326,7 +364,19 @@ class AppUpdateService {
   static Future<void> downloadAndInstall(
     AppUpdateInfo update, {
     void Function(double progress)? onProgress,
-  }) async {
+  }) {
+    if (onProgress != null) {
+      _progressListeners.add(onProgress);
+      onProgress(_lastProgress);
+    }
+    return _activeDownload ??= _downloadAndInstall(update).whenComplete(() {
+      _activeDownload = null;
+      _lastProgress = 0;
+      _progressListeners.clear();
+    });
+  }
+
+  static Future<void> _downloadAndInstall(AppUpdateInfo update) async {
     await _cleanupOldDownloads(keep: update.version);
     final path = await _apkPath(update.version);
     final part = File('$path.part');
@@ -386,7 +436,7 @@ class AppUpdateService {
               url,
               part.path,
               onReceiveProgress: (received, total) {
-                if (total > 0 && onProgress != null) onProgress(received / total);
+                if (total > 0) _notifyProgress(received / total);
               },
             );
             // Dio lower-cases response header names.

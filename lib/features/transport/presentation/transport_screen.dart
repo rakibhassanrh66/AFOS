@@ -11,6 +11,7 @@ import '../../../config/theme/depth.dart';
 import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/auth/role_session.dart';
+import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -297,7 +298,10 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
   // teardown against the new one's setup and could throw "Bad state: Stream
   // has already been listened to." (same root cause fixed in
   // schedule_screen.dart's _classesStream()).
-  late final Stream<List<Map<String,dynamic>>> _routesStream = _repo.watchRoutes();
+  // Not `final`: the Retry action on a load error needs to swap in a
+  // genuinely new stream, which every OTHER setState in this State must
+  // keep not doing, for the exact reason above.
+  late Stream<List<Map<String,dynamic>>> _routesStream = _repo.watchRoutes();
   late final Stream<Map<String, Map<String, dynamic>>> _liveStatusStream = _repo.watchLiveStatus();
 
   // Import metadata for the "Schedule for <semester> · Updated <date>" header.
@@ -362,6 +366,19 @@ class _TransportState extends State<TransportScreen> with SingleTickerProviderSt
           builder: (ctx, snap) {
             final loading = snap.connectionState==ConnectionState.waiting;
             final routes = snap.data ?? const <Map<String,dynamic>>[];
+            // cachedListStream only errors when there was no cache to fall
+            // back on (see offline_cache.dart), so non-empty routes here
+            // means cached rows already arrived -- show those instead of an
+            // error the user has no reason to see.
+            if (snap.hasError && routes.isEmpty) {
+              return EmptyState(
+                icon: Icons.wifi_off_rounded,
+                title: 'Could not load routes',
+                subtitle: friendlyError(snap.error!),
+                actionLabel: 'Retry',
+                onAction: () => setState(() => _routesStream = _repo.watchRoutes()),
+              );
+            }
             return StreamBuilder<Map<String, Map<String, dynamic>>>(
               stream: _liveStatusStream,
               builder: (ctx2, statusSnap) {

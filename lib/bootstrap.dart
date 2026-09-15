@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +16,7 @@ import 'core/di/injection.dart';
 import 'core/auth/biometric_lock.dart';
 import 'core/auth/secure_session_storage.dart';
 import 'core/haptics/app_haptics.dart';
+import 'core/network/timeout_http_client.dart';
 import 'core/perf/device_profile.dart';
 import 'core/utils/pending_credentials_store.dart';
 import 'core/services/app_config_service.dart';
@@ -129,6 +131,12 @@ Future<void> bootstrap() async {
   await Supabase.initialize(
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
+    // Bounds every Postgrest/Storage/Functions call this client ever makes --
+    // see timeout_http_client.dart for why this exists: a third of this
+    // app's screens query Supabase directly with no cache/timeout wrapper of
+    // their own, and none of them should be able to hang forever on a dead
+    // WiFi uplink.
+    httpClient: TimeoutHttpClient(http.Client()),
     // The session (including the long-lived refresh token) goes in the
     // platform keystore rather than the default SharedPreferences file. Web
     // keeps the default: flutter_secure_storage still lands in localStorage

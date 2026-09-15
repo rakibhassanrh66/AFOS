@@ -61,6 +61,37 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
   late List<RememberedAccount> _accounts = widget.accounts;
   bool _busy = false;
 
+  /// This sheet only exists on the pre-auth lock screen (unlock_screen.dart),
+  /// so this button was the actual bypass: it used to go straight to
+  /// `/auth/login` with NO check at all, and since it never signed the still-
+  /// live session out, app_router.dart's "session exists -> bounce /auth/*
+  /// to /home" rule fired first and dropped the tap straight into the
+  /// CURRENT account's /home -- a stranger picking up a locked phone needed
+  /// no fingerprint, PIN, or password, just this one tap. Gated behind the
+  /// same authenticateStrict() as switchToAccount above, and now actually
+  /// signs the live session out (local scope -- the remembered account
+  /// itself is left alone via switchingAccounts) so /auth/login is reachable
+  /// instead of being redirected past.
+  Future<void> _addAnotherAccount() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final ok = await BiometricAuth.authenticateStrict('Add another account');
+    if (!mounted) return;
+    if (!ok) { setState(() => _busy = false); return; }
+    try {
+      BiometricTokenStore.switchingAccounts = true;
+      if (Supabase.instance.client.auth.currentSession != null) {
+        await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      }
+    } catch (_) {
+    } finally {
+      BiometricTokenStore.switchingAccounts = false;
+    }
+    if (!mounted) return;
+    Navigator.pop(context);
+    context.go('/auth/login');
+  }
+
   Future<void> _tap(RememberedAccount a) async {
     if (a.userId == widget.currentUid || _busy) return;
     setState(() => _busy = true);
@@ -146,7 +177,7 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
           }),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () { Navigator.pop(context); context.go('/auth/login'); },
+          onPressed: _busy ? null : _addAnotherAccount,
           icon: const Icon(Icons.add_rounded),
           label: const Text('Add another account'),
         ),

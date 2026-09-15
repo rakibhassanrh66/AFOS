@@ -6,6 +6,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
+import '../../../core/utils/offline_cache.dart';
 import '../../notifications/data/repositories/notification_service.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../uploads/data/upload_batch.dart';
@@ -32,6 +33,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
   List<Map<String, dynamic>> _notices = [];
   StreamSubscription? _sub;
   bool _loading = true;
+  Object? _error;
 
   // Matches the notices_category_check constraint exactly (uppercase) —
   // found live-testing that this table predates the rule builder and only
@@ -42,12 +44,26 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
   @override
   void initState() {
     super.initState();
-    // dashboard_screen.dart's own notices preview already limits its
-    // equivalent stream to 3 — this full management screen needs more than a
-    // preview but was streaming the ENTIRE notices table with no cap at all.
-    _sub = SupabaseConfig.client.from('notices').stream(primaryKey: ['id'])
-        .order('created_at', ascending: false).limit(100).listen((rows) {
+    _subscribe();
+  }
+
+  // dashboard_screen.dart's own notices preview already limits its
+  // equivalent stream to 3 — this full management screen needs more than a
+  // preview but was streaming the ENTIRE notices table with no cap at all.
+  // Also a raw stream with no cache or timeout, unlike every other list
+  // screen -- offline (or a dead connection that never drops the transport)
+  // left this one loading forever with nothing to show and nothing to retry.
+  void _subscribe() {
+    setState(() { _loading = true; _error = null; });
+    _sub?.cancel();
+    _sub = cachedListStream(
+      cacheKey: 'notices_manage',
+      liveStream: () => SupabaseConfig.client.from('notices').stream(primaryKey: ['id'])
+          .order('created_at', ascending: false).limit(100),
+    ).listen((rows) {
       if (mounted) setState(() { _notices = rows; _loading = false; });
+    }, onError: (e) {
+      if (mounted) setState(() { _error = e; _loading = false; });
     });
   }
 
@@ -220,7 +236,10 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
         ),
         Expanded(child: _loading
           ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
-          : _notices.isEmpty
+          : (_error != null && _notices.isEmpty)
+              ? EmptyState(icon: Icons.wifi_off_rounded, title: 'Could not load notices',
+                  subtitle: friendlyError(_error!), actionLabel: 'Retry', onAction: _subscribe)
+              : _notices.isEmpty
               ? const EmptyState(icon: Icons.campaign_outlined, title: 'Nothing published yet',
                   subtitle: 'Create a notice, rule, or announcement')
               : AdaptiveList(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), itemCount: _notices.length,

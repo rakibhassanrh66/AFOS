@@ -20,7 +20,6 @@ import mobile_scanner
 import open_file_mac
 import package_info_plus
 import passkeys_darwin
-import printing
 import record_macos
 import shared_preferences_foundation
 import sqflite_darwin
@@ -44,7 +43,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   OpenFilePlugin.register(with: registry.registrar(forPlugin: "OpenFilePlugin"))
   FPPPackageInfoPlusPlugin.register(with: registry.registrar(forPlugin: "FPPPackageInfoPlusPlugin"))
   PasskeysPlugin.register(with: registry.registrar(forPlugin: "PasskeysPlugin"))
-  PrintingPlugin.register(with: registry.registrar(forPlugin: "PrintingPlugin"))
   RecordMacOsPlugin.register(with: registry.registrar(forPlugin: "RecordMacOsPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))

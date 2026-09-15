@@ -42,8 +42,30 @@ Stream<List<Map<String, dynamic>>> _cachedListStreamImpl({
 }) async* {
   final cached = LocalCacheService.instance.getList(cacheKey);
   if (cached != null) yield cached.data;
-  if (!ConnectivityService.instance.isOnline.value) return;
-  await for (final rows in liveStream()) {
+  if (!ConnectivityService.instance.isOnline.value) {
+    // Same reasoning as cachedListFetch: silently completing with zero
+    // events is indistinguishable from "you own nothing" to a StreamBuilder.
+    if (cached == null) throw const OfflineNoDataException();
+    return;
+  }
+  // `isOnline` can be stale -- a WiFi network that died without a transport
+  // transition (dead uplink, killed router) still reads as online, and the
+  // subscription below would then hang with nothing to show forever, which
+  // is exactly what an infinite skeleton loader looks like. Bound only the
+  // wait for the FIRST event: `.stream()` emits an initial snapshot the
+  // moment it actually connects, so silence past this window means the
+  // connection never happened -- not that the data is genuinely unchanged.
+  // Once real rows have arrived, later silence is just quiet data and must
+  // never time out a subscription a screen may hold open for a long time.
+  var gotFirst = false;
+  final bounded = liveStream().timeout(const Duration(seconds: 12), onTimeout: (sink) {
+    if (!gotFirst && cached == null) {
+      sink.addError(const OfflineNoDataException());
+      sink.close();
+    }
+  });
+  await for (final rows in bounded) {
+    gotFirst = true;
     unawaited(LocalCacheService.instance.putList(cacheKey, rows));
     yield rows;
   }
@@ -86,7 +108,11 @@ Future<List<Map<String, dynamic>>> cachedListFetch({
     }
   }
   try {
-    final fresh = await liveFetch();
+    // Bounded so a network that accepts the connection but leads nowhere (dead
+    // WiFi uplink, captive portal) fails into the cache fallback below within
+    // seconds instead of hanging on the platform's own socket timeout, which
+    // is what "offline" actually looked like before this existed.
+    final fresh = await liveFetch().timeout(const Duration(seconds: 12));
     await LocalCacheService.instance.putList(cacheKey, fresh);
     return fresh;
   } catch (_) {
@@ -113,7 +139,7 @@ Future<Map<String, dynamic>?> cachedMapFetch({
     return LocalCacheService.instance.getMap(cacheKey)?.data;
   }
   try {
-    final fresh = await liveFetch();
+    final fresh = await liveFetch().timeout(const Duration(seconds: 12));
     await LocalCacheService.instance.putMap(cacheKey, fresh);
     return fresh;
   } catch (_) {

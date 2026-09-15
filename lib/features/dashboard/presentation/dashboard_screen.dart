@@ -158,6 +158,11 @@ class _DashboardState extends State<DashboardScreen> {
             .map((rows) => rows.map((r) => Map<String, dynamic>.from(r)).toList()),
       ).listen((rows) {
         if (mounted) setState(() { _notices = rows; _noticesLoading = false; });
+      }, onError: (_) {
+        // No onError left this preview shimmering forever on a genuinely
+        // offline, never-cached first load -- the error is real (see
+        // cachedListStream), it just has nothing useful to show here.
+        if (mounted) setState(() => _noticesLoading = false);
       });
       unawaited(_loadQuickStats(profileRaw, uid));
       // Resolved before anything below the fold settles, so the band never

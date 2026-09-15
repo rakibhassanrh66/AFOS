@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/supabase_config.dart';
 import '../../../core/utils/postgrest_filters.dart';
@@ -153,28 +154,55 @@ class _IssueBookTabState extends State<_IssueBookTab> {
   Map<String, dynamic>? _selectedStudent, _selectedBook;
   bool _issuing = false;
 
+  // Both searches used to fire a live query on every keystroke -- typing a
+  // 6-letter name meant 6 Supabase round trips, most of them abandoned before
+  // they even returned. Debounced like user_directory_screen.dart's search;
+  // each field also gets a request token so a slow response for an OLDER
+  // query (typed, then backspaced over) can't land after a newer one and
+  // overwrite its results with stale data.
+  Timer? _studentDebounce, _bookDebounce;
+  int _studentRequest = 0, _bookRequest = 0;
+
   @override
-  void dispose() { _studentCtrl.dispose(); _bookCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _studentDebounce?.cancel();
+    _bookDebounce?.cancel();
+    _studentCtrl.dispose();
+    _bookCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onStudentChanged(String q) {
+    _studentDebounce?.cancel();
+    _studentDebounce = Timer(const Duration(milliseconds: 300), () => _searchStudents(q));
+  }
+
+  void _onBookChanged(String q) {
+    _bookDebounce?.cancel();
+    _bookDebounce = Timer(const Duration(milliseconds: 300), () => _searchBooks(q));
+  }
 
   Future<void> _searchStudents(String q) async {
     if (q.trim().isEmpty) { setState(() => _studentResults = []); return; }
+    final request = ++_studentRequest;
     try {
       final res = await SupabaseConfig.client.from('profiles')
           .select('id, full_name, university_id').eq('role', 'student')
           // orIlike, not interpolation — see postgrest_filters.dart: a comma or
           // parenthesis in the typed name corrupted the or= grammar.
           .or(orIlike(const ['full_name', 'university_id'], q)).limit(8) as List;
-      if (mounted) setState(() => _studentResults = res.cast());
+      if (mounted && request == _studentRequest) setState(() => _studentResults = res.cast());
     } catch (_) {}
   }
 
   Future<void> _searchBooks(String q) async {
     if (q.trim().isEmpty) { setState(() => _bookResults = []); return; }
+    final request = ++_bookRequest;
     try {
       final res = await SupabaseConfig.client.from('books')
           .select('id, title, author, available_copies').gt('available_copies', 0)
           .or(orIlike(const ['title', 'author', 'isbn'], q)).limit(8) as List;
-      if (mounted) setState(() => _bookResults = res.cast());
+      if (mounted && request == _bookRequest) setState(() => _bookResults = res.cast());
     } catch (_) {}
   }
 
@@ -227,7 +255,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
           _SelectedChip(label: '${_selectedStudent!['full_name']} (${_selectedStudent!['university_id']})',
               onClear: () => setState(() => _selectedStudent = null))
         else ...[
-          TextField(controller: _studentCtrl, onChanged: _searchStudents,
+          TextField(controller: _studentCtrl, onChanged: _onStudentChanged,
               style: TextStyle(color: textPrimary),
               decoration: InputDecoration(hintText: 'Search name or university ID', filled: true,
                   fillColor: AppColors.glassFill(context),
@@ -244,7 +272,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
           _SelectedChip(label: '${_selectedBook!['title']} (${_selectedBook!['available_copies']} left)',
               onClear: () => setState(() => _selectedBook = null))
         else ...[
-          TextField(controller: _bookCtrl, onChanged: _searchBooks,
+          TextField(controller: _bookCtrl, onChanged: _onBookChanged,
               style: TextStyle(color: textPrimary),
               decoration: InputDecoration(hintText: 'Search title, author or ISBN', filled: true,
                   fillColor: AppColors.glassFill(context),

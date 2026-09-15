@@ -142,8 +142,11 @@ class TransportImportService {
         .where((e) => !keep.contains('${e['schedule_type']}|${e['route_number']}'))
         .map((e) => e['id'])
         .toList();
-    for (final id in staleIds) {
-      await client.from('transport_routes').delete().eq('id', id);
+    // One delete for every stale route, not one query per row -- an import
+    // that retires a whole semester's worth of routes used to issue as many
+    // DELETEs as there were rows to drop.
+    if (staleIds.isNotEmpty) {
+      await client.from('transport_routes').delete().inFilter('id', staleIds);
     }
 
     // Everything that is NOT this semester stops being live.
