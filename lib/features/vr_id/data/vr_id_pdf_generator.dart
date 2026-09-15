@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../config/supabase_config.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Generates a VR-ID verification PDF (photo + name + full academic
 /// detail) from the raw row `verify_vr_id_scan` returns, uploads it to the
@@ -53,14 +54,14 @@ class VrIdPdfGenerator {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Header(level: 0, child: pw.Text('AFOS VR-ID Verification')),
-            pw.SizedBox(height: 12),
+            pw.SizedBox(height: AppSpace.md),
             if (photo != null) pw.Center(child: pw.Container(
                 width: 120, height: 120,
                 decoration: const pw.BoxDecoration(shape: pw.BoxShape.circle),
                 child: pw.ClipOval(child: pw.Image(photo, fit: pw.BoxFit.cover)))),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: AppSpace.lg),
             pw.Text('VERIFIED', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: AppSpace.lg),
             pw.TableHelper.fromTextArray(headers: ['Field', 'Value'], data: rows),
           ],
         ),

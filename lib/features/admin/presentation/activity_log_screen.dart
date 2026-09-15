@@ -13,6 +13,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 /// What happened under you.
 ///
@@ -182,7 +183,7 @@ class _LogRow extends StatelessWidget {
           ),
           child: Icon(icon, size: 18, color: color),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
@@ -191,7 +192,7 @@ class _LogRow extends StatelessWidget {
                   color: AppColors.textPrimaryOf(context),
                   fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             Text(
               // "by X" and "to Y" are the two facts an oversight reader is
               // actually after; a row that only says what changed makes them
@@ -220,7 +221,7 @@ class _LogRow extends StatelessWidget {
             ],
           ]),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         if (when != null)
           Text(
             AppFormatters.relativeTime(when),

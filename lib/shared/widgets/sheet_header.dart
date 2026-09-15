@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
+import '../../config/theme/spacing.dart';
 
 /// The standard header for bottom sheets — a title (+ optional subtitle and
 /// trailing action) drop it at the top of a sheet body so every sheet shares
@@ -42,7 +43,7 @@ class SheetHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) ...[const SizedBox(width: 12), trailing!],
+          if (trailing != null) ...[const SizedBox(width: AppSpace.md), trailing!],
         ],
       ),
     );

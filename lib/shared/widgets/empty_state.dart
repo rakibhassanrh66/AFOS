@@ -2,6 +2,7 @@ import '../../config/theme/depth.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
+import '../../config/theme/spacing.dart';
 
 class EmptyState extends StatelessWidget {
   final IconData icon;
@@ -38,12 +39,12 @@ class EmptyState extends StatelessWidget {
           Text(title,
               style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context)),
               textAlign: TextAlign.center),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(subtitle,
               style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
               textAlign: TextAlign.center),
           if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xl),
             ElevatedButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
         ]),

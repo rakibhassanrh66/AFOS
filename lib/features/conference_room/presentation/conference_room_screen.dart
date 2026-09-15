@@ -17,6 +17,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Teacher/staff-facing conference room booking — request purpose/date/
 /// time, super_admin approves and assigns the actual room number.
 class ConferenceRoomScreen extends StatefulWidget {
@@ -233,18 +234,18 @@ class _NewRequestFormState extends State<_NewRequestForm> {
       Text('Request a Conference Room', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height: 20),
       AfosTextField(hint: 'Purpose (e.g. Department meeting)', controller: _purposeCtrl, maxLines: 2),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       OutlinedButton.icon(onPressed: _pickDate, icon: const Icon(Icons.event_outlined),
           label: Text(_date == null ? 'Pick date' : _date!.toIso8601String().split('T').first)),
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpace.md),
       Row(children: [
         Expanded(child: OutlinedButton.icon(onPressed: () => _pickTime(true), icon: const Icon(Icons.access_time),
             label: Text(_start == null ? 'Start time' : _start!.format(context)))),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(child: OutlinedButton.icon(onPressed: () => _pickTime(false), icon: const Icon(Icons.access_time),
             label: Text(_end == null ? 'End time' : _end!.format(context)))),
       ]),
-      const SizedBox(height: 24),
+      const SizedBox(height: AppSpace.xl),
       AfosButton(label: 'Submit Request', loading: _saving, onTap: _submit),
     ]));
   }

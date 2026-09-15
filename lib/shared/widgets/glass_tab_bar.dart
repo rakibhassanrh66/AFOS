@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
 import 'pressable.dart';
+import '../../config/theme/spacing.dart';
 
 /// A single glass tab item.
 class GlassTab {
@@ -211,7 +212,7 @@ class _Segment extends StatelessWidget {
                   scale: selected ? 1.05 : 1.0,
                   child: Icon(tab.icon, size: 16, color: fg),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 label,
               ]),
       ),

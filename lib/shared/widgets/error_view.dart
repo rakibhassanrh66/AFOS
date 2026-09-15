@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
+import '../../config/theme/spacing.dart';
 
 class ErrorView extends StatelessWidget {
   final String message;
@@ -12,7 +13,7 @@ class ErrorView extends StatelessWidget {
       padding: const EdgeInsets.all(32),
       child: Column(mainAxisSize:MainAxisSize.min, children:[
         const Icon(Icons.error_outline, color:AppColors.red, size:48),
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
         Text(message, style:TextStyle(color:AppColors.textSecondaryOf(context)), textAlign:TextAlign.center),
         if(onRetry!=null) ...[
           const SizedBox(height:20),

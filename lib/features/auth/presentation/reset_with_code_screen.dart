@@ -16,6 +16,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../data/repositories/auth_repository.dart';
 import 'widgets/auth_brand_panel.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Code-first password reset.
 ///
@@ -126,13 +127,13 @@ class _ResetWithCodeScreenState extends State<ResetWithCodeScreen> {
                         ).animate()
                             .scale(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
                             .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: AppSpace.xl),
                         Text('Set a new password',
                             style: AppTextStyles.displayMedium.copyWith(color: textPrimary))
                             .animate(delay: AppMotion.sequenceDelay(context, 3))
                             .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                             .slideX(begin: -0.06, curve: AppMotion.standard),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppSpace.sm),
                         Text(
                           _isLinkPath
                               ? 'Choose a new password for your AFOS account.'
@@ -177,7 +178,7 @@ class _ResetWithCodeScreenState extends State<ResetWithCodeScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: AppSpace.lg),
                         ],
 
                         AfosTextField(
@@ -185,7 +186,7 @@ class _ResetWithCodeScreenState extends State<ResetWithCodeScreen> {
                           prefixIcon: Icons.lock_outline, obscure: true,
                           validator: AppValidators.password,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpace.lg),
                         AfosTextField(
                           hint: 'Confirm new password', controller: _confCtrl,
                           prefixIcon: Icons.lock_outline, obscure: true,
@@ -193,7 +194,7 @@ class _ResetWithCodeScreenState extends State<ResetWithCodeScreen> {
                         ),
 
                         if (_error != null) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpace.md),
                           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             const Icon(Icons.error_outline, color: AppColors.red, size: 16),
                             const SizedBox(width: 6),
@@ -202,7 +203,7 @@ class _ResetWithCodeScreenState extends State<ResetWithCodeScreen> {
                           ]),
                         ],
 
-                        const SizedBox(height: 24),
+                        const SizedBox(height: AppSpace.xl),
                         AfosButton(label: 'Update password', loading: _busy, onTap: _submit),
                         const SizedBox(height: 10),
                         Center(

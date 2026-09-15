@@ -20,6 +20,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
   @override State<NotificationCenterScreen> createState() => _NotifState();
@@ -235,7 +236,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                                     borderRadius: AppDepth.radius(1)),
                                 child: Icon(NotificationVisuals.iconOf(cat), color: color, size: 20),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: AppSpace.md),
                               Expanded(child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
@@ -251,7 +252,7 @@ class _NotifState extends State<NotificationCenterScreen> {
                                 Text(n['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
                                     maxLines: 2, overflow: TextOverflow.ellipsis),
                                 if (time != null) ...[
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: AppSpace.xs),
                                   Text(AppFormatters.relativeTime(time),
                                       style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textMutedOf(context))),
                                 ],

@@ -13,6 +13,7 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/attendance_repository.dart';
+import '../../../config/theme/spacing.dart';
 
 /// A student's own attendance record. Read-only, by design.
 ///
@@ -84,7 +85,7 @@ class _MyAttendanceScreenState extends State<MyAttendanceScreen> {
               ? const Padding(
                   padding: EdgeInsets.all(16),
                   child: Column(children: [
-                    ShimmerCard(height: 110), SizedBox(height: 12),
+                    ShimmerCard(height: 110), SizedBox(height: AppSpace.md),
                     ShimmerCard(height: 110),
                   ]))
               : RefreshIndicator(
@@ -175,7 +176,7 @@ class _CourseAttendance extends StatelessWidget {
                 color: color),
           ),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         ClipRRect(
           borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
           child: LinearProgressIndicator(
@@ -229,7 +230,7 @@ class _AttendanceRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(children: [
         Icon(Icons.circle, size: 8, color: color),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(
               date == null ? '—' : AppFormatters.date(date),

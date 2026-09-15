@@ -14,6 +14,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../data/repositories/course_offering_repository.dart';
 import '../../../core/layout/immersive_scope.dart';
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 
 /// The group for ONE section of a course — keyed on the offering, so a
 /// teacher running four sections gets four separate rooms rather than one
@@ -386,7 +387,7 @@ class _InputBar extends StatelessWidget {
             onSubmitted: (_) => onSend(),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         GestureDetector(
           onTap: onSend,
           // 48, not 44: the constitution's touch floor, and this is the one

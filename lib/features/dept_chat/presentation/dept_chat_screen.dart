@@ -100,9 +100,9 @@ class _EmptyChannels extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
     Icon(Icons.chat_bubble_outline_rounded, color: AppColors.textMutedOf(context), size: 56),
-    const SizedBox(height: 16),
+    const SizedBox(height: AppSpace.lg),
     Text('No channels for $dept yet', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-    const SizedBox(height: 8),
+    const SizedBox(height: AppSpace.sm),
     Text('Channels are created by department admins', style: TextStyle(color: AppColors.textMutedOf(context), fontSize: 12)),
   ]));
 }
@@ -180,13 +180,13 @@ class _ChannelTileState extends State<_ChannelTile> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('#$name', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context))),
               Text(widget.channel['description'] ?? 'Department channel', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.xs),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: AppDepth.radius(0)),
                   child: Text(audienceLabel, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700))),
             ])),
             // The chevron sat flush against the audience pill.
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(context)),
           ]),
         ),
@@ -361,7 +361,7 @@ class _ChatRoomState extends State<_ChatRoomScreen> {
         backgroundColor: AppColors.surfaceOf(context),
         title: Text('#$name', style: AppTextStyles.headlineMed.copyWith(color: AppColors.textPrimaryOf(context))),
         iconTheme: IconThemeData(color: AppColors.textPrimaryOf(context)),
-        actions: [Icon(Icons.push_pin_outlined, color: AppColors.textSecondaryOf(context)), const SizedBox(width: 16)],
+        actions: [Icon(Icons.push_pin_outlined, color: AppColors.textSecondaryOf(context)), const SizedBox(width: AppSpace.lg)],
         bottom: PreferredSize(preferredSize: const Size.fromHeight(0.5),
             child: Divider(height: 0.5, color: AppColors.borderOf(context))),
       ),
@@ -515,7 +515,7 @@ class _InputBar extends StatelessWidget {
                 filled: true, fillColor: AppColors.surfaceOf(context)),
             onSubmitted: (_) => onSend(),
         )),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         _SendButton(onSend: onSend),
       ]),
     );

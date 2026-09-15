@@ -13,6 +13,7 @@ import '../../../core/layout/nav_insets.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/stop_offsets_repository.dart';
 import '../data/stop_time_calculator.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Admin screen for recording **per-stop bus timings** on one route.
 ///
@@ -114,7 +115,7 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
             'Only an estimate to start from — correct any stop afterwards.',
             style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(dialogCtx)),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           TextField(
             controller: ctrl,
             keyboardType: TextInputType.number,
@@ -214,14 +215,14 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
                     icon: const Icon(Icons.school_rounded, size: 15),
                     label: const Text('Fill to-campus', style: TextStyle(fontSize: 12)),
                   )),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Expanded(child: OutlinedButton.icon(
                     onPressed: () => _promptSpaceEvenly(inbound: false),
                     icon: const Icon(Icons.home_rounded, size: 15),
                     label: const Text('Fill from-campus', style: TextStyle(fontSize: 12)),
                   )),
                 ]),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 for (var i = 0; i < widget.stops.length; i++)
                   SurfaceCard(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -249,7 +250,7 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
                         if (i == 0)
                           Text('origin', style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
                       ]),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpace.sm),
                       Row(children: [
                         Expanded(child: _MinuteField(
                           controller: _toCampus[i],
@@ -266,7 +267,7 @@ class _ManageStopTimesScreenState extends State<ManageStopTimesScreen> {
                       ]),
                     ]),
                   ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 AfosButton(
                   label: 'Save timings',
                   icon: Icons.save_rounded,

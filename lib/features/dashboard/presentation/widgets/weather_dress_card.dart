@@ -113,7 +113,7 @@ class WeatherDressCard extends StatelessWidget {
                           .copyWith(color: AppColors.textSecondaryOf(context))),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.xs),
               Text(_suggestion,
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
             ]),

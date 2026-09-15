@@ -17,6 +17,7 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../exam_seat/data/exam_routine_pdf_parser.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/upload_batch.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Imports an official exam routine PDF.
 ///
@@ -250,24 +251,24 @@ class _ExamRoutineUploadState extends State<ExamRoutineUploadScreen> {
                 'Select the examination routine PDF. Everything it reads is '
                 'shown for review before anything is written.',
                 style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             AfosButton(
                 label: 'Pick Routine PDF',
                 icon: Icons.upload_file_rounded,
                 onTap: _pick),
             if (_file != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               SurfaceCard(
                   child: Text(_file!.name,
                       style: AppTextStyles.bodyMedium
                           .copyWith(color: textPrimary))),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosButton(label: 'Read It', loading: _parsing, onTap: _parse),
             ],
             if (parsed != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               _Preview(parsed: parsed),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               SwitchListTile.adaptive(
                 value: _publish,
                 onChanged: (v) => setState(() => _publish = v),
@@ -281,19 +282,19 @@ class _ExamRoutineUploadState extends State<ExamRoutineUploadScreen> {
                         .copyWith(color: textSecondary)),
                 contentPadding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               AfosButton(
                   label: 'Confirm & Import',
                   loading: _uploading,
                   onTap: _upload),
             ],
             if (_result != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               SurfaceCard(
                   child: Row(children: [
                 const Icon(Icons.check_circle_outline_rounded,
                     color: AppColors.green, size: 18),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 Expanded(
                     child: Text(_result!,
                         style: AppTextStyles.bodyMedium
@@ -301,7 +302,7 @@ class _ExamRoutineUploadState extends State<ExamRoutineUploadScreen> {
               ])),
             ],
             if (_error != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               Text(_error!, style: const TextStyle(color: AppColors.red)),
             ],
           ],
@@ -342,13 +343,13 @@ class _Preview extends StatelessWidget {
               if (h.department != null) h.department!,
             ].join(' · '),
             style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text(
             '${parsed.entries.length} exams · ${dates.length} dates · '
             '${parsed.startsOn?.day}/${parsed.startsOn?.month} to '
             '${parsed.endsOn?.day}/${parsed.endsOn?.month}',
             style: AppTextStyles.numericSmall.copyWith(color: textSecondary)),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         for (final d in dates)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
@@ -368,7 +369,7 @@ class _Preview extends StatelessWidget {
             ]),
           ),
         if (parsed.warnings.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('${parsed.warnings.length} warning'
               '${parsed.warnings.length == 1 ? '' : 's'}',
               style: AppTextStyles.labelSmall.copyWith(

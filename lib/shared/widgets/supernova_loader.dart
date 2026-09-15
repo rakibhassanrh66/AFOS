@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
+import '../../config/theme/spacing.dart';
 
 /// The app's single branded loading animation — a glossy rotating/pulsing
 /// starburst used everywhere a plain spinner used to sit (buttons, uploads,
@@ -122,7 +123,7 @@ class SupernovaBusy extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       const SupernovaLoader(size: 64),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       Text(label, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 13, fontWeight: FontWeight.w600)),
     ]);
   }

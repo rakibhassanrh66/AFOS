@@ -10,6 +10,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/pill_badge.dart';
 import '../../../shared/widgets/user_details_sheet.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../config/theme/spacing.dart';
 import 'widgets/offering_card.dart' show offeringStatusColor;
 
 /// What the teacher is actually being asked to decide, on a page of its own.
@@ -101,14 +102,14 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
                 color: offeringStatusColor(status),
                 maxWidth: double.infinity),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             'Batch ${offering['batch'] ?? '—'}'
             '${requestedAt == null ? '' : ' · asked ${AppFormatters.dateTime(requestedAt)}'}',
             style: AppTextStyles.labelSmall
                 .copyWith(color: AppColors.textSecondaryOf(context)),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
 
           // The single question this page exists to answer, before the identity
           // detail rather than after it.
@@ -132,7 +133,7 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
             ),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           UserDetailsSheet(
             profile: student,
             extraRows: {
@@ -143,7 +144,7 @@ class _JoinRequestDetailScreenState extends State<JoinRequestDetailScreen> {
             },
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xl),
           JoinRequestActions(
             status: status,
             archived: archived,

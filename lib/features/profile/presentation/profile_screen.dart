@@ -16,6 +16,7 @@ import '../../advising/presentation/widgets/teacher_link_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 /// The identity destination for the bottom nav — the profile card that used to
 /// live inside Settings, now its own in-shell screen (avatar + identity fields
 /// + an entry point into the full editor at /complete-profile).
@@ -69,7 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         reviewStatus: _user?.avatarReviewStatus,
                         reviewReason: _user?.avatarReviewReason,
                         onChanged: (url) => _load())),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     LabelValueRow(label: 'Name', value: _user?.fullName ?? '', icon: Icons.person_outline_rounded),
                     LabelValueRow(label: 'Student ID', value: _user?.studentId ?? '', icon: Icons.badge_outlined),
                     LabelValueRow(label: 'Email', value: _user?.email ?? '', icon: AppIcons.emailOutline),
@@ -91,7 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               if (_user?.isStudent == true) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 TeacherLinkCard(
                     kind: LinkKind.advisor, onChanged: _load),
                 // Final year project belongs to the last two years. DIU runs

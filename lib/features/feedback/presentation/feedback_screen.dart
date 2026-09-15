@@ -22,6 +22,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 /// Open to every user (unlike ManageFeedbackScreen, which is the
 /// super_admin-only moderation queue for the same `feedback` table) — a
 /// place to share an idea or contribution plan and see the status of what
@@ -78,11 +79,11 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               const SizedBox(height: 6),
               Text('Have an idea to make the app better, or a plan you want to contribute? Share it here — attach a document if you have one.',
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Title (optional)', controller: titleCtrl),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(hint: 'Tell us what you think...', controller: ctrl, maxLines: 4),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               OutlinedButton.icon(
                 onPressed: () async {
                   // withData: true -- on web, PlatformFile.path is always

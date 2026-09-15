@@ -173,11 +173,11 @@ class _RegisterBodyState extends State<_RegisterBody> {
               child: Padding(
             padding:const EdgeInsets.symmetric(horizontal:20, vertical:8),
             child: Column(children:[
-              const SizedBox(height:8),
+              const SizedBox(height: AppSpace.sm),
               // 156 = 52 at a 3x device pixel ratio. See login_screen for why.
               Center(child: Image.asset('assets/images/diu_logo.png', height:52, cacheWidth: 156,
                   errorBuilder: (_, __, ___) => const SizedBox.shrink())),
-              const SizedBox(height:12),
+              const SizedBox(height: AppSpace.md),
               _StepIndicator(step:_step)
                 .animate()
                 .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
@@ -250,13 +250,13 @@ class _RegisterBodyState extends State<_RegisterBody> {
                   ),
                 ),
               ),
-              const SizedBox(height:16),
+              const SizedBox(height: AppSpace.lg),
               BlocBuilder<AuthBloc,AuthState>(
                 builder:(ctx,state) => Row(children:[
                   if(_step>0) Expanded(child: AfosButton(
                     label:'Back', outlined:true,
                     onTap:(){ AppHaptics.selection(); setState(()=>_step--); })),
-                  if(_step>0) const SizedBox(width:12),
+                  if(_step>0) const SizedBox(width: AppSpace.md),
                   Expanded(child: AfosButton(
                     label: _step==2?'Create Account':'Next →',
                     loading: state is AuthLoading,
@@ -334,7 +334,7 @@ class _RegisterBodyState extends State<_RegisterBody> {
                   )),
                 ]),
               ),
-              const SizedBox(height:12),
+              const SizedBox(height: AppSpace.md),
             ]),
               ),
             );
@@ -450,9 +450,9 @@ class _Step1 extends StatelessWidget {
       Text('Personal Info', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height:6),
       Text('Tell us who you are', style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-      const SizedBox(height:24),
+      const SizedBox(height: AppSpace.xl),
       _AccountTypeToggle(value:accountType, onChanged:onAccountType),
-      const SizedBox(height:24),
+      const SizedBox(height: AppSpace.xl),
       // MOVED UP, and given a name.
       //
       // This sat LAST on the step, below two text fields, with no label of any
@@ -462,12 +462,12 @@ class _Step1 extends StatelessWidget {
       // snackbar refusing to let them continue. Both segmented choices now sit
       // together above the typing, where the step opens.
       Text('Gender', style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-      const SizedBox(height:8),
+      const SizedBox(height: AppSpace.sm),
       _GenderToggle(value:gender, onChanged:onGender, hasError:genderMissing),
-      const SizedBox(height:24),
+      const SizedBox(height: AppSpace.xl),
       AfosTextField(hint:'Full Name', controller:nameCtrl, prefixIcon:Icons.person_outline,
         validator:(v)=>AppValidators.required(v,f:'Full name')),
-      const SizedBox(height:16),
+      const SizedBox(height: AppSpace.lg),
       AfosTextField(
         // No worked example in the hint any more. "(e.g. 221-15-5678)" read as
         // the required shape rather than as one instance of it, and the
@@ -526,7 +526,7 @@ class _GenderToggle extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         option('Male', 'male'),
-        const SizedBox(width:12),
+        const SizedBox(width: AppSpace.md),
         option('Female', 'female'),
       ]),
       if (hasError) ...[
@@ -592,7 +592,7 @@ class _Step2 extends StatelessWidget {
       const SizedBox(height:6),
       Text(isStudent ? 'Your department and program' : isStaff ? 'Your designation' : 'Your department',
           style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-      const SizedBox(height:24),
+      const SizedBox(height: AppSpace.xl),
       // Staff never sees this: `departments` is the purely ACADEMIC list
       // (CSE, EEE, BBA, Civil, ...) used for student programs/courses — a
       // staff member (IT, accounts, admin, ...) has no correct answer in it.
@@ -622,7 +622,7 @@ class _Step2 extends StatelessWidget {
             // so there is no validator to run.
             validator: (v) => v == null ? 'Select your department' : null,
           ),
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
       ],
       if(isStudent) ...[
         if(loadingPrograms)
@@ -638,7 +638,7 @@ class _Step2 extends StatelessWidget {
               child:Text(p.name, overflow:TextOverflow.ellipsis))).toList(),
             onChanged: onProgram,
           ),
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
         Row(children:[
           // Format-checked, not just non-empty: these go into the signup
           // metadata that handle_new_user copies into students.batch_label/
@@ -648,12 +648,12 @@ class _Step2 extends StatelessWidget {
           Expanded(child: AfosTextField(hint:'Batch (e.g. 61)', controller:batchCtrl,
             prefixIcon:Icons.groups_outlined,
             validator:AppValidators.batch)),
-          const SizedBox(width:12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: AfosTextField(hint:'Section (e.g. A)', controller:sectionCtrl,
             prefixIcon:Icons.class_outlined,
             validator:AppValidators.section)),
         ]),
-        const SizedBox(height:24),
+        const SizedBox(height: AppSpace.xl),
         Text('Semester: ${sem.toInt()} of $semRange', style:AppTextStyles.titleMedium.copyWith(color: textPrimary)),
         Slider(value: sem.clamp(1, semRange.toDouble()), min:1, max:semRange.toDouble(),
           divisions: semRange>1 ? semRange-1 : 1,
@@ -686,10 +686,10 @@ class _Step2 extends StatelessWidget {
         // fill, one of them must be filled.
         Text('Where do you work?',
             style:AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-        const SizedBox(height:4),
+        const SizedBox(height: AppSpace.xs),
         Text('Pick your academic department if you belong to one, or type your office below.',
             style:AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-        const SizedBox(height:12),
+        const SizedBox(height: AppSpace.md),
         if(loadingDepts)
           const Center(child:Padding(padding:EdgeInsets.all(16), child:CircularProgressIndicator()))
         else
@@ -703,7 +703,7 @@ class _Step2 extends StatelessWidget {
               child:Text(d.name, overflow:TextOverflow.ellipsis))).toList(),
             onChanged: onDept,
           ),
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
         AfosTextField(
           hint:'Office / Section (e.g. Registrar Office)',
           controller:officeCtrl,
@@ -759,14 +759,14 @@ class _Step3 extends StatelessWidget {
       Text('Account Setup', style:AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
       const SizedBox(height:6),
       Text('Create your login credentials', style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-      const SizedBox(height:24),
+      const SizedBox(height: AppSpace.xl),
       AfosTextField(hint:'University email (edu.bd)', controller:emailCtrl,
         prefixIcon:Icons.email_outlined, keyboardType:TextInputType.emailAddress,
         validator:AppValidators.email),
-      const SizedBox(height:16),
+      const SizedBox(height: AppSpace.lg),
       AfosTextField(hint:'Password (min 8 chars)', controller:passCtrl,
         prefixIcon:Icons.lock_outline, obscure:true, validator:AppValidators.password),
-      const SizedBox(height:16),
+      const SizedBox(height: AppSpace.lg),
       AfosTextField(hint:'Confirm password', controller:confCtrl,
         prefixIcon:Icons.lock_outline, obscure:true,
         validator:(v)=>AppValidators.confirmPassword(v,passCtrl.text)),

@@ -5,6 +5,7 @@ import '../../../../config/theme/app_text_styles.dart';
 import '../../../../config/theme/depth.dart';
 import '../../../../config/theme/liquid_glass_tokens.dart';
 import '../../../../config/theme/motion.dart';
+import '../../../../config/theme/spacing.dart';
 
 /// The left-hand branding panel shown next to the auth forms on medium/
 /// expanded (tablet/desktop) widths -- on a phone-width screen the auth
@@ -87,7 +88,7 @@ class AuthBrandPanel extends StatelessWidget {
                   .fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
                   .slideY(begin: -0.5, end: 0,
                       duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard),
-                const SizedBox(height: 32),
+                const SizedBox(height: AppSpace.xxl),
                 Text('All Facilities,\nOne System',
                     style: AppTextStyles.displayLarge.copyWith(color: Colors.white, fontSize: 36, height: 1.08))
                   .animate(delay: AppMotion.sequenceDelay(context, 2))

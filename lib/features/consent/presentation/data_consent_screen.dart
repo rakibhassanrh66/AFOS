@@ -8,6 +8,7 @@ import '../../../config/theme/motion.dart';
 import '../../../core/services/consent_service.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../config/theme/spacing.dart';
 
 /// One-time, device-local data notice shown before a user ever reaches login.
 /// Every category listed here is grounded in what the app's own dependencies
@@ -47,13 +48,13 @@ class _DataConsentScreenState extends State<DataConsentScreen> {
                 Text('Before you continue',
                     style: AppTextStyles.displayMedium.copyWith(color: textPrimary))
                     .animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text(
                   "Here's what AFOS collects on this device and why — a one-time notice, "
                   'not a form to fill in.',
                   style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xl),
                 for (final item in _items)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -71,10 +72,10 @@ class _DataConsentScreenState extends State<DataConsentScreen> {
                             alignment: Alignment.center,
                             child: Icon(item.icon, color: item.color, size: 20),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: AppSpace.md),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(item.title, style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: AppSpace.xs),
                             Text(item.body, style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                           ])),
                         ]),

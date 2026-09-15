@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
 import '../../core/haptics/app_haptics.dart';
+import '../../config/theme/spacing.dart';
 
 /// One destination in the floating bottom nav.
 class BottomNavDest {
@@ -347,7 +348,7 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Expanded(
           child: Center(
             child: AnimatedOpacity(
@@ -387,7 +388,7 @@ class _NavItem extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
       ]),
     );
   }

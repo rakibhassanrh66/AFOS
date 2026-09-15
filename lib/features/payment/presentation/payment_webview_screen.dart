@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../config/app_config.dart';
 import '../../../config/supabase_config.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../config/theme/spacing.dart';
 
 class PaymentWebViewScreen extends StatefulWidget {
   final String category;
@@ -26,10 +27,10 @@ class _WebPaymentFallback extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.open_in_new_rounded, color: AppColors.textSecondaryOf(context), size: 40),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         Text('Pay $category outside the app', textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w600, fontSize: 16)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Text('The payment portal opens in a new browser tab on web.', textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondaryOf(context))),
         const SizedBox(height: 20),

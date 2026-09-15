@@ -17,6 +17,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Staff/admin-side book checkout — real DIU library policy requires a
 /// physical sign-in/handover, so borrowing was never meant to be pure
 /// student self-service. Previously there was no way for ANYONE to issue a
@@ -250,7 +251,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
       padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Student', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         if (_selectedStudent != null)
           _SelectedChip(label: '${_selectedStudent!['full_name']} (${_selectedStudent!['university_id']})',
               onClear: () => setState(() => _selectedStudent = null))
@@ -267,7 +268,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
         ],
         const SizedBox(height: 20),
         Text('Book', style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         if (_selectedBook != null)
           _SelectedChip(label: '${_selectedBook!['title']} (${_selectedBook!['available_copies']} left)',
               onClear: () => setState(() => _selectedBook = null))
@@ -282,7 +283,7 @@ class _IssueBookTabState extends State<_IssueBookTab> {
               subtitle: Text('${b['author'] ?? ''} · ${b['available_copies']} available', style: TextStyle(color: textSecondary)),
               onTap: () => setState(() { _selectedBook = b; _bookResults = []; _bookCtrl.clear(); }))),
         ],
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         AfosButton(label: 'Issue Book (7-day loan)', loading: _issuing,
             onTap: (_selectedStudent != null && _selectedBook != null) ? _issue : () {}),
       ]),

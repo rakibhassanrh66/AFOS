@@ -15,6 +15,7 @@ import '../../../config/theme/liquid_glass_tokens.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../core/services/web_title.dart';
 import '../../notifications/presentation/notification_popover.dart';
+import '../../../config/theme/spacing.dart';
 
 class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -99,7 +100,7 @@ class AfosAppBar extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
           child: Row(children: [
-            const SizedBox(width: 4),
+            const SizedBox(width: AppSpace.xs),
             IconButton(tooltip: 'Menu', 
               icon: BlocBuilder<ShellBloc,ShellState>(
                 builder:(_,state) => AnimatedSwitcher(
@@ -184,7 +185,7 @@ class _WebPageHeader extends StatelessWidget implements PreferredSizeWidget {
                   color: textPrimary, fontWeight: FontWeight.w700)),
         ),
         if (isSuperAdmin) ...[
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -209,7 +210,7 @@ class _WebPageHeader extends StatelessWidget implements PreferredSizeWidget {
         const Spacer(),
         ...?actions,
         _NotificationBell(color: textPrimary),
-        const SizedBox(width: 4),
+        const SizedBox(width: AppSpace.xs),
       ]),
     );
 

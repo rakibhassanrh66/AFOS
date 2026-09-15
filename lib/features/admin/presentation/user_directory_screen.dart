@@ -437,7 +437,7 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsetsDirectional.only(end: 16),
           itemCount: entries.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
           itemBuilder: (context, i) {
             final e = entries[i];
             return Center(
@@ -484,7 +484,7 @@ class _UserDirectoryScreenState extends State<UserDirectoryScreen>
                   border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
         ),
         _filterBar(context),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Expanded(
           child: _loading && _firstLoad
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
@@ -587,7 +587,7 @@ class _FacetOption extends StatelessWidget {
             size: 20,
             color: selected ? AppColors.holoBlue : AppColors.textSecondaryOf(context),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Text(label,
                 style: AppTextStyles.bodyMedium.copyWith(

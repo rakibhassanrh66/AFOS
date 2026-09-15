@@ -10,6 +10,7 @@ import '../../../config/theme/depth.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/utils/error_formatter.dart';
 import '../../../shared/widgets/afos_button.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Completing a Lost & Found handover by scanning the claimant's VR-ID.
 ///
@@ -138,7 +139,7 @@ class _HandoverScanScreenState extends State<HandoverScanScreen> {
                     textAlign: TextAlign.center,
                     style: AppTextStyles.titleMedium
                         .copyWith(color: Colors.white)),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text(
                   'Ask them to open AFOS → My VR-ID. Scanning confirms that '
                   'YOU received "${widget.itemTitle}" from them.',
@@ -202,7 +203,7 @@ class _HandoverScanScreenState extends State<HandoverScanScreen> {
               Text('Handover confirmed',
                   style: AppTextStyles.headlineLarge
                       .copyWith(color: AppColors.textPrimaryOf(context))),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Text(
                 widget.postType == 'lost'
                     ? '"${widget.itemTitle}" is recorded as returned to you by '
@@ -213,7 +214,7 @@ class _HandoverScanScreenState extends State<HandoverScanScreen> {
                 style: AppTextStyles.bodyMedium
                     .copyWith(color: AppColors.textSecondaryOf(context)),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpace.xl),
               AfosButton(
                 label: 'Done',
                 onTap: () => Navigator.of(context).pop(true),

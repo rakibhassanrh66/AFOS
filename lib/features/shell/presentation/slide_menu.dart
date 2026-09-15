@@ -25,6 +25,7 @@ import '../../../shared/widgets/logout_tile.dart';
 import '../../../shared/widgets/pressable.dart';
 import '../../../shared/widgets/profile_identity_header.dart';
 import '../../../shared/widgets/radial_logout_menu.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Re-exported from the capability model so the two cannot drift.
 ///
@@ -557,7 +558,7 @@ class _MenuTileState extends State<_MenuTile> {
                         borderRadius: AppDepth.radius(1)),
                 child:Icon(item.icon,color: isActive ? Colors.white : item.accent,size:18)),
               ),
-              const SizedBox(width:12),
+              const SizedBox(width: AppSpace.md),
               // Expanded + ellipsis, not a bare Text: long labels ("Upload
               // Routine/Transport", "Feedback & Contributions") were
               // painting straight past the rounded hover/active box.
@@ -620,7 +621,7 @@ class _QuickRailTile extends StatelessWidget {
                   color: item.accent.withValues(alpha: active ? 0.22 : 0.15),
                   borderRadius: AppDepth.radius(1)),
                 child: Icon(item.icon, color: item.accent, size: 18)),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.md),
               // Same reasoning as _MenuTile: the accent already marks active
               // via the icon tile, the fill and the left border -- the label
               // stays solid ink rather than repeating it in a lower-contrast
@@ -665,7 +666,7 @@ class _NoAreasNotice extends StatelessWidget {
             Row(children: [
               const Icon(Icons.info_outline_rounded,
                   size: 16, color: AppColors.amber),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text('No work areas assigned yet',
                     style: AppTextStyles.titleMedium.copyWith(

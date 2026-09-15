@@ -20,6 +20,7 @@ import '../data/exam_seat_view.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Shows which room(s) the student's own batch+section is assigned for
 /// each exam — confirmed against a real DIU seat-plan document that this
 /// is genuinely all it publishes (room capacity per section, split across
@@ -189,14 +190,14 @@ class _SessionCard extends StatelessWidget {
                     borderRadius: AppDepth.radius(1),
                     boxShadow: [BoxShadow(color: AppColors.orange.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: const Icon(Icons.event_note_rounded, color: Colors.white, size: 20)),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(session.courseTitle ?? 'Exam', style: AppTextStyles.titleLarge.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
               if ((session.courseCode ?? '').isNotEmpty)
                 Text(session.courseCode!, style: AppTextStyles.monoSmall.copyWith(color: textSecondary)),
             ])),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           if (session.date != null) Row(children: [
             Icon(Icons.calendar_today_rounded, size: 14, color: textSecondary),
             const SizedBox(width: 6),
@@ -206,7 +207,7 @@ class _SessionCard extends StatelessWidget {
             // room they were in is a real thing — but they must not read as
             // still to come.
             if (session.isPast()) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Text('Completed',
                   style: AppTextStyles.labelSmall.copyWith(
                       color: textSecondary, fontWeight: FontWeight.w700)),
@@ -218,9 +219,9 @@ class _SessionCard extends StatelessWidget {
             Text('Slot ${session.slotLabel ?? ''} · ${session.slotStart} – ${session.slotEnd}',
                 style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
           ])),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('Your section\'s room(s)', style: AppTextStyles.labelSmall.copyWith(color: textSecondary, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           // An empty Wrap rendered as nothing at all under that heading, so a
           // routine with no seat plan yet looked identical to a rendering
           // fault. The room is the one thing this screen exists to answer:

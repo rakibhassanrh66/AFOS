@@ -3,6 +3,7 @@ import '../../config/theme/motion.dart';
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import 'supernova_loader.dart';
+import '../../config/theme/spacing.dart';
 
 class AfosButton extends StatefulWidget {
   final String label;
@@ -106,7 +107,7 @@ class _AfosButtonState extends State<AfosButton> {
               // deformed Sign In. Flexible alone fixes the long-label overflow;
               // the size mode must not be touched.
               : Row(mainAxisAlignment:MainAxisAlignment.center, children:[
-                  if(widget.icon!=null) ...[Icon(widget.icon,color:widget.outlined?bg:fg,size:18), const SizedBox(width:8)],
+                  if(widget.icon!=null) ...[Icon(widget.icon,color:widget.outlined?bg:fg,size:18), const SizedBox(width: AppSpace.sm)],
                   // Flexible, not a bare Text: a long label ('Confirm Approval
                   // and Notify Student') took its full intrinsic width and blew
                   // straight through the button on a 320dp phone -- at DEFAULT

@@ -7,6 +7,7 @@ import '../../../../config/theme/depth.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/role_labels.dart';
 import '../../../../shared/widgets/glass_sheet.dart';
+import '../../../../config/theme/spacing.dart';
 
 /// One row in a user list — the Pending queue, the Code-Failed queue, and
 /// every per-role directory screen all share this, so approving, deleting or
@@ -153,7 +154,7 @@ class UserCard extends StatelessWidget {
                   ? Text(((user['full_name'] as String?)?.isNotEmpty == true ? (user['full_name'] as String)[0] : '?').toUpperCase(),
                       style: TextStyle(color: color, fontWeight: FontWeight.bold))
                   : null),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(user['full_name'] ?? 'Unknown', style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -229,7 +230,7 @@ class UserCard extends StatelessWidget {
           else
             const Spacer(),
           if (createdAt != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             // Flexible + ellipsis: this is unbounded text at the end of a Row,
             // so at a large text scale it overflowed the card rather than
             // shortening.
@@ -250,7 +251,7 @@ class UserCard extends StatelessWidget {
               Expanded(child: OutlinedButton(onPressed: onReject,
                   style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
                   child: const Text('Reject'))),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
             ],
             Expanded(child: ElevatedButton(onPressed: onApprove,
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),

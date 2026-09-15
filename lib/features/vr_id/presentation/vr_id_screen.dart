@@ -30,6 +30,7 @@ import '../data/vr_id_pdf_generator.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 class VrIdScreen extends StatefulWidget {
   const VrIdScreen({super.key});
   @override State<VrIdScreen> createState() => _VrIdState();
@@ -130,7 +131,7 @@ class _VrIdState extends State<VrIdScreen> with SingleTickerProviderStateMixin {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const AfosAppBar(title: 'VR-ID'),
       body: Column(children: [
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         AnimatedBuilder(
           animation: _tab,
           builder: (ctx, _) => GlassTabBar(
@@ -186,11 +187,11 @@ class _MyVrIdTab extends StatelessWidget {
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               const Icon(Icons.school_rounded, color: AppColors.blue, size: 18),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Text('DIU · AFOS VR-ID', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12, letterSpacing: 1)),
             ]),
             CacheFreshnessBadge(cacheKey: 'vr_id_profile_${user!.id}', isMap: true),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             Container(width: 64, height: 64, decoration: BoxDecoration(
                 shape: BoxShape.circle, color: AppColors.blue.withValues(alpha:0.1),
                 border: Border.all(color: AppColors.blue.withValues(alpha:0.4), width: 2)),
@@ -201,16 +202,16 @@ class _MyVrIdTab extends StatelessWidget {
             const SizedBox(height: 10),
             Text(user!.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
             Text(user!.department, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             token.isNotEmpty ? AnimatedSwitcher(
               duration: AppMotion.durationOf(context, AppMotion.base),
               child: QrImageView(key: ValueKey(token), data: token,
                   version: QrVersions.auto, size: 180,
                   backgroundColor: Colors.white, padding: const EdgeInsets.all(10)),
             ) : const SupernovaLoader(size: 40, color: AppColors.blue),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Text(user!.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.refresh_rounded, size: 14, color: countdownColor),
               const SizedBox(width: 6),
@@ -230,12 +231,12 @@ class _MyVrIdTab extends StatelessWidget {
                     style: TextStyle(color: AppColors.amber, fontSize: 11, fontWeight: FontWeight.w600))),
               ]),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Flexible(child: _Badge(user!.department, AppColors.blue)),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Flexible(child: _Badge(_secondaryLabel(user!), AppColors.green)),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Flexible(child: _Badge(user!.role, AppColors.gold)),
             ]),
           ]),
@@ -342,15 +343,15 @@ class _VerifiedView extends StatelessWidget {
               ? CachedNetworkImage(imageUrl: user.avatarUrl!, fit: BoxFit.cover, memCacheWidth: 200,
                   errorWidget: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.green, size: 44))
               : const Icon(Icons.person_rounded, color: AppColors.green, size: 44))),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       Text(user.fullName, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
       Text(user.studentId, style: AppTextStyles.monoMedium.copyWith(color: AppColors.textSecondaryOf(context))),
       Text('${user.department} · ${_secondaryLabel(user)}', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       AfosButton(label: 'Open Verification PDF', icon: Icons.picture_as_pdf_rounded,
           onTap: () => VrIdPdfGenerator.generateAndOpen(rawUser)),
     ],
-    const SizedBox(height: 16),
+    const SizedBox(height: AppSpace.lg),
     AfosButton(label: 'Scan Again', icon: Icons.qr_code_scanner_rounded, onTap: onReset),
   ]));
 }
@@ -359,7 +360,7 @@ class _WebScanPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
     Icon(Icons.smartphone_rounded, color: AppColors.textMutedOf(context), size: 56),
-    const SizedBox(height: 16),
+    const SizedBox(height: AppSpace.lg),
     Text('Scanning is supported on mobile only', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
   ]));
 }
@@ -421,7 +422,7 @@ class _AccessLogTabState extends State<_AccessLogTab> {
           Container(width: 36, height: 36, decoration: BoxDecoration(
               color: AppColors.green.withValues(alpha:0.1), borderRadius: AppDepth.radius(0)),
               child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.green, size: 18)),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Scanned by $scanner', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(ctx))),
             Text(log['location_note'] ?? 'Campus', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),

@@ -21,6 +21,7 @@ import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
 import '../../../shared/widgets/stat_tile.dart';
+import '../../../config/theme/spacing.dart';
 class ManageConferenceRoomsScreen extends StatefulWidget {
   const ManageConferenceRoomsScreen({super.key});
   @override State<ManageConferenceRoomsScreen> createState() => _ManageConferenceRoomsScreenState();
@@ -81,7 +82,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
             padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Assign Room', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Room number (e.g. Conf Room 4-201)', controller: roomCtrl),
               const SizedBox(height: 20),
               AfosButton(label: 'Confirm Approval', loading: saving, onTap: () async {
@@ -119,7 +120,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
             padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Reject Request', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Reason (e.g. room unavailable)', controller: reasonCtrl, maxLines: 3),
               const SizedBox(height: 20),
               AfosButton(label: 'Confirm Rejection', loading: saving, onTap: () async {
@@ -217,7 +218,7 @@ class _ManageConferenceRoomsScreenState extends State<ManageConferenceRoomsScree
                               Expanded(child: OutlinedButton(onPressed: () => _reject(r),
                                   style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
                                   child: const Text('Reject'))),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: AppSpace.sm),
                               Expanded(child: ElevatedButton(onPressed: () => _approve(r),
                                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
                                   child: const Text('Approve'))),

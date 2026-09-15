@@ -21,6 +21,7 @@ import 'payment_webview_screen.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
   @override State<PaymentScreen> createState() => _PaymentState();
@@ -226,11 +227,11 @@ class _PayCardState extends State<_PayCard> {
                   boxShadow: [BoxShadow(color: cat.color.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: Icon(cat.icon, color: Colors.white, size: 26),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               Text(cat.label,
                   style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
                   textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.xs),
               Text('Check balance →',
                   textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyMedium.copyWith(color: cat.color, fontSize: 11)),
@@ -298,7 +299,7 @@ class _HistoryTab extends StatelessWidget {
                 color: AppColors.holoBlue.withValues(alpha:0.1), borderRadius: AppDepth.radius(1)),
             child: const Icon(Icons.receipt_outlined, color: AppColors.holoBlue, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // Both lines were unbounded. A long category wrapped under the
             // amount column instead of ending, and with no gap between the two
@@ -313,7 +314,7 @@ class _HistoryTab extends StatelessWidget {
           // The row went Expanded -> amount with nothing in between, so the
           // category ran straight into the money. Everything else on this
           // screen keeps 12.
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             // A right-aligned column of money. Proportional digits make the
             // amounts fail to line up down the list; same face, same size,

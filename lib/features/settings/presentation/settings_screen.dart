@@ -417,7 +417,7 @@ class _SettingsState extends State<SettingsScreen> {
                         ? 'Set your teacher initials (as used in the class routine PDF) to see only your own classes.'
                         : 'Set your batch and section (as used in the class routine PDF) to see only your own classes.',
                         style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     if (_isFacultyRole)
                       AfosTextField(hint: 'Teacher initials e.g. AS, FNN', controller: _teacherInitialCtrl)
                     else Row(children: [
@@ -432,13 +432,13 @@ class _SettingsState extends State<SettingsScreen> {
               ],
 
               if (_isStudentRole) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 _Section(title: 'Class Representative', children: [
                   Padding(padding: const EdgeInsets.all(12), child: _buildCrSection(context)),
                 ]),
               ],
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── Appearance ──────────────────────────────────────────────
               _Section(title: 'Appearance', children: [
@@ -446,19 +446,19 @@ class _SettingsState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Theme', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     BlocBuilder<ThemeBloc, ThemeState>(
                       builder: (ctx, state) => Row(children: [
                         Expanded(child: _ThemeChip(
                             label: 'Light', icon: Icons.light_mode_rounded,
                             selected: state.mode == ThemeMode.light,
                             onTap: () => ctx.read<ThemeBloc>().add(ToggleLight()))),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpace.sm),
                         Expanded(child: _ThemeChip(
                             label: 'Dark', icon: Icons.dark_mode_rounded,
                             selected: state.mode == ThemeMode.dark,
                             onTap: () => ctx.read<ThemeBloc>().add(ToggleDark()))),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpace.sm),
                         Expanded(child: _ThemeChip(
                             label: 'Auto', icon: Icons.brightness_auto_rounded,
                             selected: state.mode == ThemeMode.system,
@@ -467,7 +467,7 @@ class _SettingsState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 20),
                     Text('Accent Color', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     BlocBuilder<ThemeBloc, ThemeState>(
                       builder: (ctx, state) => Wrap(spacing: 10, runSpacing: 10, children: _accentSwatches.map((c) {
                         final selected = state.accentColor.toARGB32() == c.toARGB32();
@@ -496,7 +496,7 @@ class _SettingsState extends State<SettingsScreen> {
                 ),
               ]),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── Notification Sound ───────────────────────────────────────
               _Section(title: 'Notification Sound', children: [
@@ -512,7 +512,7 @@ class _SettingsState extends State<SettingsScreen> {
                 }).toList())),
               ]),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── Chat Background ──────────────────────────────────────────
               _Section(title: 'Chat Background', children: [
@@ -529,14 +529,14 @@ class _SettingsState extends State<SettingsScreen> {
                 }).toList())),
               ]),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── Campus Safety ─────────────────────────────────────────────
               _Section(title: 'Campus Safety', children: [
                 Padding(padding: const EdgeInsets.all(12), child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Location Sharing', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpace.xs),
                     Text('Lets nearby users and staff be alerted if you ever need emergency help. You can still send your own SOS with this off.',
                         style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                   ])),
@@ -545,7 +545,7 @@ class _SettingsState extends State<SettingsScreen> {
                 ])),
               ]),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── Feedback ─────────────────────────────────────────────────
               // The doctrine requires every haptic to sit behind a user
@@ -558,7 +558,7 @@ class _SettingsState extends State<SettingsScreen> {
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Haptic feedback', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpace.xs),
                     Text('A short vibration when an action commits — a choice landing, something saved, something refused.',
                         style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                   ])),
@@ -581,7 +581,7 @@ class _SettingsState extends State<SettingsScreen> {
               ]),
 
               if (_biometricSupported) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 // ── Security ────────────────────────────────────────────────
                 _Section(title: 'Security', children: [
                   Padding(padding: const EdgeInsets.all(12), child: Row(children: [
@@ -589,7 +589,7 @@ class _SettingsState extends State<SettingsScreen> {
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Fingerprint / Face ID login', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpace.xs),
                       Text('Unlock AFOS with biometrics next time instead of typing your password. Your session stays only on this device.',
                           style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
                     ])),
@@ -599,7 +599,7 @@ class _SettingsState extends State<SettingsScreen> {
                 ]),
               ],
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── Account ──────────────────────────────────────────────────
               // Switch Account deliberately lives only on the Unlock screen
@@ -615,7 +615,7 @@ class _SettingsState extends State<SettingsScreen> {
                 // Every user was being shown a button for an internal repair.
               ]),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // ── App Info ─────────────────────────────────────────────────
               if (_availableUpdate != null)
@@ -637,7 +637,7 @@ class _SettingsState extends State<SettingsScreen> {
                 const _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
               ]),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpace.xl),
 
               // ── Logout ───────────────────────────────────────────────────
               // Builder so the tile has its OWN context for the burst origin.
@@ -681,7 +681,7 @@ class _SettingsState extends State<SettingsScreen> {
             style: const TextStyle(color: AppColors.red, fontSize: 12))),
       Text('Be the point of contact between your section and teachers.',
           style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpace.md),
       AfosButton(label: 'Apply to be CR', loading: _crBusy, onTap: _applyForCr),
     ]);
   }
@@ -695,7 +695,7 @@ class _SettingsState extends State<SettingsScreen> {
               Text('Change Password', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
               const SizedBox(height: 20),
               AfosTextField(hint: 'Current password', controller: oldCtrl, obscure: true),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(hint: 'New password (min 8 chars)', controller: newCtrl, obscure: true),
               const SizedBox(height: 20),
               AfosButton(label: 'Update Password', onTap: () async {
@@ -731,11 +731,11 @@ class _SettingsState extends State<SettingsScreen> {
               const SizedBox(height: 6),
               Text('Have an idea to make the app better, or a plan you want to contribute? Share it here — attach a document if you have one.',
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Title (optional)', controller: titleCtrl),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(hint: 'Tell us what you think...', controller: ctrl, maxLines: 4),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               OutlinedButton.icon(
                 onPressed: () async {
                   // withData: true -- on web, PlatformFile.path is always
@@ -880,7 +880,7 @@ class _UpdateBanner extends StatelessWidget {
                   style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
             ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         // No progress bar here any more. The download reports its stages in
         // the update sheet, which can explain them; a bar on a banner behind a
         // sheet would be the same fact in two places, drifting.

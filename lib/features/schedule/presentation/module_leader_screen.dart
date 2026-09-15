@@ -20,6 +20,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/teaching_assignment_repository.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 const _adminRoles = ['admin', 'dept_admin', 'super_admin'];
 
@@ -124,7 +125,7 @@ class _ModuleLeaderScreenState extends State<ModuleLeaderScreen> {
           currentIndex: _tab.clamp(0, tabs.length - 1),
           onChanged: (i) => setState(() => _tab = i),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Expanded(
           child: switch (_tab) {
             1 => _MyAssignmentsTab(repo: _repo),
@@ -389,11 +390,11 @@ class TeachingAssignmentCard extends StatelessWidget {
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
         ],
         if (hint != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(hint, style: dim.copyWith(color: color)),
         ],
         if (status == 'pending') ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           // Wrap, not Row: at a large text scale these two buttons together are
           // wider than the card, and a Row answers that by clipping the Accept
           // button off the right edge — leaving the teacher looking at an
@@ -698,7 +699,7 @@ class AllocationCard extends StatelessWidget {
         // Explains the state above, so "UNANSWERED" does not just read as a
         // stranger word for "awaiting".
         if (response == 'pending' && claimed) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(10),
@@ -719,7 +720,7 @@ class AllocationCard extends StatelessWidget {
         // uniqueness index ignores declined rows -- so allocating it again
         // needs no withdrawal step.
         if (response == 'declined') ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(10),
@@ -884,10 +885,10 @@ class _AssignSheetState extends State<_AssignSheet> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Allocate teaching',
             style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text('${widget.department} · the teacher is notified straight away',
             style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         if (_loading)
           const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
         else ...[
@@ -906,11 +907,11 @@ class _AssignSheetState extends State<_AssignSheet> {
             ],
             onChanged: (v) => setState(() => _teacherId = v),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosTextField(hint: 'Course code (e.g. CSE221)', controller: _codeCtrl),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosTextField(hint: 'Course title (optional)', controller: _titleCtrl),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'theory', label: Text('Theory')),
@@ -919,18 +920,18 @@ class _AssignSheetState extends State<_AssignSheet> {
             selected: {_courseType},
             onSelectionChanged: (s) => setState(() => _courseType = s.first),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Row(children: [
             Expanded(child: AfosTextField(hint: 'Batch', controller: _batchCtrl)),
             const SizedBox(width: 10),
             Expanded(child: AfosTextField(hint: 'Section', controller: _sectionCtrl)),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosTextField(
               hint: 'Semester (1–12)',
               controller: _semesterCtrl,
               keyboardType: TextInputType.number),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosTextField(hint: 'Note to the teacher (optional)', controller: _noteCtrl, maxLines: 2),
           const SizedBox(height: 20),
           AfosButton(label: 'Allocate', loading: _saving, onTap: _save),
@@ -1140,10 +1141,10 @@ class _AppointSheetState extends State<_AppointSheet> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Appoint a module leader',
             style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text('They keep their teacher role and can allocate this department\'s courses.',
             style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         Row(children: [
           Expanded(child: AfosTextField(hint: 'Department code', controller: _deptCtrl)),
           const SizedBox(width: 10),
@@ -1154,7 +1155,7 @@ class _AppointSheetState extends State<_AppointSheet> {
                 : const Text('Find'),
           ),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         if (_teachers.isNotEmpty)
           DropdownButtonFormField<String>(
             initialValue: _teacherId,

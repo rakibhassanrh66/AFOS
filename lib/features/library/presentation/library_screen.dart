@@ -23,6 +23,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
   @override State<LibraryScreen> createState() => _LibraryState();
@@ -233,10 +234,10 @@ class _BorrowedTab extends StatelessWidget {
     if (error != null) {
       return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Text('Couldn\'t load: $error', textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         TextButton(onPressed: onRefresh, child: const Text('Retry')),
       ])));
     }
@@ -306,7 +307,7 @@ class _BookCard extends StatelessWidget {
                     borderRadius: AppDepth.radius(0),
                     boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: AppDepth.litOffset(3))]),
                 child: const Icon(Icons.book_rounded, color: Colors.white, size: 28)),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(book['title'] ?? 'Unknown',
                   style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
@@ -317,13 +318,13 @@ class _BookCard extends StatelessWidget {
                   style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600)),
             ])),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           ClipRRect(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
               child: LinearProgressIndicator(
                   value: progress, minHeight: 6,
                   backgroundColor: AppColors.borderOf(context),
                   valueColor: AlwaysStoppedAnimation(statusColor))),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Row(children: [
             Expanded(child: OutlinedButton(
                 onPressed: () => onRenew(borrow['id'], borrow['book_id']),
@@ -434,11 +435,11 @@ class _SearchTab extends StatelessWidget {
                       borderRadius: AppDepth.radius(0),
                       boxShadow: [BoxShadow(color: AppColors.blue.withValues(alpha: 0.25), blurRadius: 6, offset: AppDepth.litOffset(2))]),
                   child: const Icon(Icons.book_rounded, color: Colors.white, size: 24)),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.md),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(b['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 2),
                 Text(b['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
@@ -487,9 +488,9 @@ class _SearchTab extends StatelessWidget {
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(book['title'] ?? '', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpace.xs),
                     Text(book['author'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: (avail ? AppColors.green : AppColors.red).withValues(alpha: 0.12),
                             borderRadius: AppDepth.radius(0)),

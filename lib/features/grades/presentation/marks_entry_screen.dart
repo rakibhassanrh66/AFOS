@@ -209,8 +209,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               ? const Padding(
                   padding: EdgeInsets.all(16),
                   child: Column(children: [
-                    ShimmerCard(height: 90), SizedBox(height: 12),
-                    ShimmerCard(height: 64), SizedBox(height: 12),
+                    ShimmerCard(height: 90), SizedBox(height: AppSpace.md),
+                    ShimmerCard(height: 64), SizedBox(height: AppSpace.md),
                     ShimmerCard(height: 64),
                   ]))
               : _offerings.isEmpty
@@ -257,7 +257,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _offerings.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
             itemBuilder: (ctx, i) {
               final o = _offerings[i];
               final c = o['courses'] as Map<String, dynamic>? ?? const {};
@@ -309,7 +309,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             icon: const Icon(Icons.sync_rounded, size: 17),
             label: const Text('Fill attendance'),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: AppSpace.xs),
           FilledButton(
             onPressed: (_busy || _locked || _roster.isEmpty) ? null : _submit,
             style: FilledButton.styleFrom(backgroundColor: AppColors.green),
@@ -439,7 +439,7 @@ class _StudentMarksCard extends StatelessWidget {
               Text(total.toStringAsFixed(total % 1 == 0 ? 0 : 1),
                   style: AppTextStyles.numericLarge.copyWith(
                       fontSize: 18, fontWeight: FontWeight.w700, color: color)),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Flexible(child: PillBadge(label: letter ?? '—', color: color)),
               Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
                   color: AppColors.textSecondaryOf(context)),

@@ -17,6 +17,7 @@ import '../../../core/auth/role_session.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// super_admin-only review queue for the feedback/contribution box — the
 /// underlying `feedback` table previously had zero SELECT policy at all,
 /// so every submission anyone ever sent was write-only and unreadable by
@@ -91,7 +92,7 @@ class _ManageFeedbackState extends State<ManageFeedbackScreen> {
           Text('The person who sent this will see your reply on their own '
               'Feedback screen.',
               style: TextStyle(color: AppColors.textSecondaryOf(dCtx))),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           TextField(
             controller: ctrl,
             maxLines: 4,

@@ -74,6 +74,7 @@ import '../../core/auth/permission_session.dart';
 import '../../core/auth/role_session.dart';
 import '../../core/navigation/back_press_tracker.dart';
 import '../../core/utils/last_route.dart';
+import '../theme/spacing.dart';
 
 const _adminRoles = ['admin', 'super_admin', 'dept_admin'];
 
@@ -486,9 +487,9 @@ class AppRouter {
     errorBuilder: (c, s) => Scaffold(
       body: Center(child: Column(mainAxisSize:MainAxisSize.min, children:[
         const Icon(Icons.error_outline, color: AppColors.red, size: 48),
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
         Text('Page not found', style: TextStyle(color: AppColors.textSecondaryOf(c))),
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
         // Padding, because the app theme sets a button `minimumSize` of
         // `Size(double.infinity, 52)` — so an unconstrained ElevatedButton here
         // ran the full width of the screen and touched both bezels. Seen on

@@ -130,7 +130,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
             Container(padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(color: AppColors.green.withValues(alpha: 0.12), shape: BoxShape.circle),
                 child: const Icon(Icons.meeting_room_rounded, color: AppColors.green, size: 22)),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(child: Text('Claim $building · $room', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
           ]),
           const SizedBox(height: 10),
@@ -138,14 +138,14 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
             decoration: BoxDecoration(color: AppColors.glassFill(sheetCtx), borderRadius: AppDepth.radius(1)),
             child: Row(children: [
               Icon(Icons.schedule_rounded, size: 15, color: AppColors.textSecondaryOf(sheetCtx)),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Text('${AppFormatters.time12(period.start)}–${AppFormatters.time12(period.end)} · ${_dayNames[_day]}',
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(sheetCtx), fontWeight: FontWeight.w600)),
             ])),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text('First come, first served — this claim is visible to everyone and auto-expires in 24 hours.',
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           TextField(controller: purposeCtrl, style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx)),
               decoration: InputDecoration(hintText: 'Purpose (e.g. Makeup class for CSE221)',
                   filled: true, fillColor: AppColors.glassFill(sheetCtx),
@@ -248,7 +248,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
             _LegendDot(color: AppColors.textMutedOf(context), label: 'In class'),
           ]),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Expanded(child: _loading
             ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())
             : _rooms.isEmpty || _periods.isEmpty
@@ -292,7 +292,7 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('$building · $roomNumber', style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             // A 5px bar: the pill rung is the only radius that reads as
             // intentional at this height — the 8px flush rung would square it off.
             ClipRRect(borderRadius: BorderRadius.circular(LiquidGlass.radiusPill),
@@ -307,11 +307,11 @@ class _RoomAvailabilityScreenState extends State<RoomAvailabilityScreen> {
                           v > 0.5 ? AppColors.green : v > 0.2 ? AppColors.amber : AppColors.red)),
                 )),
           ])),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Text('$freeHere/$totalHere free', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
               style: TextStyle(color: textSecondary, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600)),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Wrap(spacing: 8, runSpacing: 8, children: _periods.map((period) {
           final occ = _occupant(building, roomNumber, period);
           final claim = _claim(building, roomNumber, period);
@@ -385,7 +385,7 @@ class _PeriodChipState extends State<_PeriodChip> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(widget.icon, size: 12, color: color),
-          const SizedBox(width: 4),
+          const SizedBox(width: AppSpace.xs),
           Flexible(child: Text(widget.label, textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
               style: TextStyle(color: color, fontSize: 10.5, height: 1.0, fontWeight: FontWeight.w700),
               maxLines: 1, overflow: TextOverflow.ellipsis)),

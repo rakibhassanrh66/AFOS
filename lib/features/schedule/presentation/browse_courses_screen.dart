@@ -20,6 +20,7 @@ import 'course_group_screen.dart';
 import 'widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Student-facing: the courses running this term for their own batch and
 /// section, with a fallback view of everything in the department (which is
@@ -193,7 +194,7 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
                       : null,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: GlassChip(
                   label: 'All $_department',
@@ -294,7 +295,7 @@ class _BrowseCoursesScreenState extends State<BrowseCoursesScreen> {
     if (status == 'approved') {
       return Row(mainAxisSize: MainAxisSize.min, children: [
         const PillBadge(label: 'ENROLLED', color: AppColors.green),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Icon(Icons.forum_outlined, size: 16, color: AppColors.textSecondaryOf(context)),
       ]);
     }
@@ -347,7 +348,7 @@ class UnlistedEnrollmentsHeader extends StatelessWidget {
                       .copyWith(color: AppColors.textPrimaryOf(context))),
             ),
           ]),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
               'Courses you asked to join or were enrolled in that are no longer '
               'shown above — usually because the teacher ended them.',

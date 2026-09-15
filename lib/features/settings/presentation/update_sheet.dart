@@ -8,6 +8,7 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/services/app_update_service.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_sheet.dart';
+import '../../../config/theme/spacing.dart';
 
 /// The update experience, as one surface instead of a tile and a snackbar.
 ///
@@ -154,7 +155,7 @@ class _UpdateSheetState extends State<_UpdateSheet> {
           ),
         ],
 
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         _StageFooter(
           stage: _stage,
           progress: _progress,
@@ -309,7 +310,7 @@ class _StageFooter extends StatelessWidget {
                 label: 'Download & install',
                 icon: Icons.download_rounded,
                 onTap: onStart),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             TextButton(
               onPressed: onClose,
               child: Text('Not now', style: TextStyle(color: textSecondary)),
@@ -319,7 +320,7 @@ class _StageFooter extends StatelessWidget {
             Text('${(progress * 100).clamp(0, 100).toStringAsFixed(0)}%',
                 style: AppTextStyles.headlineLarge
                     .copyWith(color: AppColors.textPrimaryOf(context))),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             Text('Downloading — you can leave this open',
                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
           ]),
@@ -327,7 +328,7 @@ class _StageFooter extends StatelessWidget {
             Text('Checking the file',
                 style: AppTextStyles.titleMedium
                     .copyWith(color: AppColors.textPrimaryOf(context))),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             Text('Making sure the download finished and is a real app file',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
@@ -345,7 +346,7 @@ class _StageFooter extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // The one refusal the app cannot catch for you.
             //
             // A signature mismatch is rejected by Android's package installer
@@ -384,7 +385,7 @@ class _StageFooter extends StatelessWidget {
             const SizedBox(height: 14),
             AfosButton(
                 label: 'Try again', icon: Icons.refresh_rounded, onTap: onStart),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             TextButton(
               onPressed: onClose,
               child: Text('Close', style: TextStyle(color: textSecondary)),

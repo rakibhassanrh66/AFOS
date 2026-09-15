@@ -31,6 +31,7 @@ import 'join_requests_screen.dart';
 import 'widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 String _normKey(Object? v) => (v as String? ?? '').trim().toUpperCase();
 
@@ -200,7 +201,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
                           child: TextButton(
                               onPressed: () => Navigator.pop(sheetCtx, false),
                               child: const Text('Keep it'))),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       Expanded(
                           child: FilledButton(
                               style: FilledButton.styleFrom(backgroundColor: AppColors.red),
@@ -428,7 +429,7 @@ class _ManageCourseOfferingsScreenState extends State<ManageCourseOfferingsScree
         const SizedBox(height: 20),
         Icon(Icons.how_to_reg_rounded,
             size: 40, color: AppColors.green.withValues(alpha: 0.8)),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Text(
           pending == 0
               ? 'No students are waiting'
@@ -694,7 +695,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
             children: [
               Text('New Course Offering',
                   style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.xs),
               Text('Sent to admin for approval before it appears on the schedule',
                   style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
               const SizedBox(height: 10),
@@ -716,14 +717,14 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                 const SizedBox(height: 6),
                 Text('Tap one to fill this form in. You can still edit anything after.',
                     style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 for (final a in _assignments)
                   _AssignmentChoice(
                     assignment: a,
                     selected: _fromAssignment?['id'] == a['id'],
                     onTap: () => _applyAssignment(a),
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
               ],
 
               AfosTextField(
@@ -766,12 +767,12 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                     ],
                   ),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(
                   hint: 'Course title',
                   controller: _titleCtrl,
                   validator: (v) => _required(v, 'Course title')),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                   child: AfosTextField(
@@ -808,7 +809,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                   ]),
                 ),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                     child: AfosTextField(
@@ -822,7 +823,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                         controller: _sectionCtrl,
                         validator: AppValidators.section)),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(
                 hint: 'Semester (1-12)',
                 controller: _semesterCtrl,
@@ -832,7 +833,7 @@ class _CreateOfferingFormState extends State<_CreateOfferingForm> {
                   return (n == null || n < 1 || n > 12) ? 'Must be 1–12' : null;
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(
                   hint: 'Course outline (optional)', controller: _outlineCtrl, maxLines: 3),
 
@@ -911,7 +912,7 @@ class _CourseSuggestionRow extends StatelessWidget {
                         .copyWith(color: AppColors.textSecondaryOf(context))),
               ]),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             if (credits != null)
               Text('$credits cr',
                   style: AppTextStyles.labelSmall
@@ -949,7 +950,7 @@ class _DepartmentNotice extends StatelessWidget {
       child: Row(children: [
         Icon(missing ? Icons.error_outline_rounded : Icons.apartment_rounded,
             size: 16, color: color),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(
             missing
@@ -986,7 +987,7 @@ class EndedHeader extends StatelessWidget {
                 style: AppTextStyles.titleMedium
                     .copyWith(color: AppColors.textPrimaryOf(context))),
           ]),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
               'These are hidden from your class lists, from Attendance and '
               'Results, and from students. Restore one to bring it back.',

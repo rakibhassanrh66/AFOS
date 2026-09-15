@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
+import '../../config/theme/spacing.dart';
 
 /// A single "label … value" row — one component replacing the four near-identical
 /// `_InfoTile` / `_InfoRow` / `_ReadOnlyRow` / `_DetailRow` implementations. The
@@ -111,7 +112,7 @@ class LabelValueRow extends StatelessWidget {
                   .copyWith(color: AppColors.textSecondaryOf(context)),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Text(
               value,

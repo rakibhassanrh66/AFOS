@@ -11,6 +11,7 @@ import '../../../shared/widgets/afos_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Reached only via a Supabase password-recovery link (bootstrap.dart's
 /// AuthChangeEvent.passwordRecovery listener routes here) -- there was
@@ -89,31 +90,31 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       ).animate()
                           .scale(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
                           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: AppSpace.xl),
                       Text('Set a new password', style: AppTextStyles.displayMedium.copyWith(color: textPrimary))
                           .animate(delay: AppMotion.sequenceDelay(context, 3))
                           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                           .slideX(begin: -0.06, curve: AppMotion.standard),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpace.sm),
                       Text('Choose a new password for your AFOS account.',
                           style: AppTextStyles.bodyMedium.copyWith(color: textSecondary))
                           .animate(delay: AppMotion.sequenceDelay(context, 5))
                           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: AppSpace.xxl),
                       AfosTextField(hint: 'New password', controller: _passCtrl,
                           prefixIcon: Icons.lock_outline, obscure: true,
                           validator: AppValidators.password)
                           .animate(delay: AppMotion.sequenceDelay(context, 7))
                           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                           .slideY(begin: 0.08, curve: AppMotion.standard),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       AfosTextField(hint: 'Confirm new password', controller: _confCtrl,
                           prefixIcon: Icons.lock_outline, obscure: true,
                           validator: (v) => v != _passCtrl.text ? 'Passwords don\'t match' : null)
                           .animate(delay: AppMotion.sequenceDelay(context, 8))
                           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                           .slideY(begin: 0.08, curve: AppMotion.standard),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: AppSpace.xl),
                       AfosButton(label: 'Update password', loading: _loading, onTap: _submit)
                           .animate(delay: AppMotion.sequenceDelay(context, 9))
                           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))

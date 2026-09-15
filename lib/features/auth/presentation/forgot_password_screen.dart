@@ -16,6 +16,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/responsive.dart';
 import 'widgets/auth_brand_panel.dart';
+import '../../../config/theme/spacing.dart';
 
 class ForgotPasswordScreen extends StatelessWidget {
   const ForgotPasswordScreen({super.key});
@@ -91,24 +92,24 @@ class _ForgotBodyState extends State<_ForgotBody> {
                               ).animate()
           .scale(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                              const SizedBox(height:24),
+                              const SizedBox(height: AppSpace.xl),
                               Text('Reset Password', style:AppTextStyles.displayMedium.copyWith(color: textPrimary))
                                 .animate(delay: AppMotion.sequenceDelay(context, 3))
                                 .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                                 .slideX(begin:-0.06, curve: AppMotion.standard),
-                              const SizedBox(height:8),
+                              const SizedBox(height: AppSpace.sm),
                               Text("Enter your email. We'll send a reset link.",
                                 style:AppTextStyles.bodyMedium.copyWith(color: textSecondary))
                                 .animate(delay: AppMotion.sequenceDelay(context, 5))
         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                              const SizedBox(height:32),
+                              const SizedBox(height: AppSpace.xxl),
                               AfosTextField(hint:'Email address', controller:_ctrl,
                                 prefixIcon:Icons.email_outlined, keyboardType:TextInputType.emailAddress,
                                 validator:AppValidators.loginEmail)
                                 .animate(delay: AppMotion.sequenceDelay(context, 7))
                                 .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                                 .slideY(begin:0.08, curve: AppMotion.standard),
-                              const SizedBox(height:24),
+                              const SizedBox(height: AppSpace.xl),
                               BlocBuilder<AuthBloc,AuthState>(
                                 builder:(ctx,state) => AfosButton(
                                   label:'Send Reset Link',
@@ -161,16 +162,16 @@ class _SuccessView extends StatelessWidget {
       ).animate()
           .scale(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
           .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-      const SizedBox(height:24),
+      const SizedBox(height: AppSpace.xl),
       Text('Check your inbox', style:AppTextStyles.displayMedium.copyWith(color: textPrimary), textAlign:TextAlign.center)
         .animate(delay: AppMotion.sequenceDelay(context, 3))
         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-      const SizedBox(height:12),
+      const SizedBox(height: AppSpace.md),
       Text('We sent a password reset link to your email.',
         style:AppTextStyles.bodyMedium.copyWith(color: textSecondary), textAlign:TextAlign.center)
         .animate(delay: AppMotion.sequenceDelay(context, 5))
         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-      const SizedBox(height:32),
+      const SizedBox(height: AppSpace.xxl),
       AfosButton(label:'Back to Login', onTap:()=>GoRouter.of(context).go('/auth/login'))
         .animate(delay: AppMotion.sequenceDelay(context, 7))
         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),

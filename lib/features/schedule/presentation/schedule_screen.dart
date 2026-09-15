@@ -585,7 +585,7 @@ class _ExamCard extends StatelessWidget {
         Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: AppDepth.radius(0)),
             child: Text(examType.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800))),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(exam['subject'] ?? exam['subject_code'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 3),
@@ -658,7 +658,7 @@ class _RoutineHeaderBanner extends StatelessWidget {
               style: AppTextStyles.headlineLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.3),
             ),
             if (subLine.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Text(subLine, textAlign: TextAlign.center,
                   style: AppTextStyles.labelSmall.copyWith(color: Colors.white.withValues(alpha: 0.85))),
             ],
@@ -735,7 +735,7 @@ class _ClassCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text('CR · ${slot.subject} · Batch ${slot.batch} · Section ${slot.section}',
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               TextField(controller: msgCtrl, maxLines: 3, style: TextStyle(color: AppColors.textPrimaryOf(sheetCtx)),
                   decoration: const InputDecoration(hintText: 'Message for the class...')),
               const SizedBox(height: 20),

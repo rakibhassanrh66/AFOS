@@ -19,6 +19,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/sos_repository.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 /// Reached from the SOS push notification's deep link ('/sos/:id') or from
 /// manage_sos_screen.dart's oversight list. Shows the sender's live
 /// position (flutter_map/OSM -- no Google Maps key needed, same as
@@ -197,9 +198,9 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
           : _error != null || _alert == null
               ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   Text(_error ?? 'Alert not found', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   TextButton(onPressed: _load, child: const Text('Retry')),
                 ])))
               : _buildContent(context, textPrimary, textSecondary),
@@ -220,7 +221,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         CircleAvatar(radius: 24, backgroundColor: AppColors.red.withValues(alpha: 0.15),
             backgroundImage: sender['avatar_url'] != null ? CachedNetworkImageProvider(sender['avatar_url'], maxWidth: 128, maxHeight: 128) : null,
             child: sender['avatar_url'] == null ? const Icon(Icons.person, color: AppColors.red) : null),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Flexible(child: Text(sender['full_name'] ?? 'Unknown', style: AppTextStyles.titleLarge.copyWith(color: textPrimary),
@@ -238,7 +239,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
                 maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
         // The registered address can be long and ran into the status pill.
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
                 color: (status == 'active' ? AppColors.red : AppColors.green).withValues(alpha: 0.15),
@@ -247,10 +248,10 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
                 style: TextStyle(color: status == 'active' ? AppColors.red : AppColors.green, fontWeight: FontWeight.w700, fontSize: 11))),
       ]),
       if (a['message'] != null) ...[
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Text(a['message'], style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
       ],
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       ClipRRect(borderRadius: AppDepth.radius(2), child: SizedBox(height: 220,
           child: FlutterMap(
             options: MapOptions(initialCenter: point, initialZoom: 16),
@@ -274,14 +275,14 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
               ]),
             ],
           ))),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       Row(children: [
         Expanded(child: OutlinedButton.icon(
             onPressed: () => _openDirections(lat, lng),
             icon: const Icon(Icons.directions_rounded, size: 18),
             label: const Text('Directions'))),
         if (sender['phone'] != null) ...[
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: OutlinedButton.icon(
               onPressed: () => _call(sender['phone']),
               icon: const Icon(Icons.call_rounded, size: 18),
@@ -289,14 +290,14 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         ],
       ]),
       if (voicePath != null) ...[
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         OutlinedButton.icon(
             onPressed: _playingVoice ? null : () => _playVoice(voicePath),
             icon: Icon(_playingVoice ? Icons.graphic_eq_rounded : Icons.play_arrow_rounded, size: 18),
             label: Text(_playingVoice ? 'Playing voice note…' : 'Play voice note')),
       ],
       if (!_isOwner && status == 'active') ...[
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         SizedBox(width: double.infinity, child: _hasResponded
             ? OutlinedButton.icon(
                 onPressed: _responding ? null : _toggleRespond,
@@ -312,7 +313,7 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         const SizedBox(height: 20),
         Text('${_responses.length} ${_responses.length == 1 ? 'person is' : 'people are'} on the way',
             style: AppTextStyles.labelSmall.copyWith(color: textSecondary, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         ..._responses.map((r) {
           final p = _responderProfiles[r['responder_id']];
           return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
@@ -325,13 +326,13 @@ class _SosAlertDetailScreenState extends State<SosAlertDetailScreen> {
         }),
       ],
       if (_canResolve && status == 'active') ...[
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         Row(children: [
           Expanded(child: ElevatedButton(
               onPressed: _resolving ? null : () => _resolve('resolved'),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, minimumSize: const Size(0, 44)),
               child: const Text('Mark Resolved'))),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: OutlinedButton(
               onPressed: _resolving ? null : () => _resolve('false_alarm'),
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.textSecondaryOf(context), minimumSize: const Size(0, 44)),

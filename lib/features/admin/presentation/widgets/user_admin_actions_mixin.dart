@@ -9,6 +9,7 @@ import '../../../../core/utils/role_labels.dart';
 import '../../../notifications/data/repositories/notification_service.dart';
 import '../../../../shared/widgets/glass_sheet.dart';
 import 'user_card.dart';
+import '../../../../config/theme/spacing.dart';
 
 /// Every per-user action Manage Users offers — delete, change role, appoint a
 /// manager, delegate a permission — shared between the landing screen's
@@ -136,7 +137,7 @@ mixin UserAdminActions<T extends StatefulWidget> on State<T> {
         padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 20, 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Assign a role', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
               isSuperAdmin
                   ? 'Takes effect immediately — access is enforced by the database (RLS).'
@@ -145,7 +146,7 @@ mixin UserAdminActions<T extends StatefulWidget> on State<T> {
                     'authority over other people, so only a super-admin can '
                     'assign them.',
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           ...(isSuperAdmin ? assignableRoles : delegateAssignableRoles).map((r) {
             final sel = r == current;
             final c = UserCard.roleColors[r] ?? AppColors.textSecondary;
@@ -375,12 +376,12 @@ mixin UserAdminActions<T extends StatefulWidget> on State<T> {
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Permissions for ${user['full_name'] ?? 'this user'}',
                       style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpace.xs),
                   Text('Delegates ONE specific admin area without changing their role — '
                       'e.g. grant "transport: upload" so they can update bus routes without being made an admin. '
                       'Takes effect immediately, enforced by the database.',
                       style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   for (final p in catalog)
                     CheckboxListTile(
                       dense: true,
@@ -400,7 +401,7 @@ mixin UserAdminActions<T extends StatefulWidget> on State<T> {
                       subtitle: Text('scope: ${p['scope']}',
                           style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
                     ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   SizedBox(width: double.infinity, child: FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: AppColors.holoviolet),
                       onPressed: () => Navigator.pop(sheetCtx, true),

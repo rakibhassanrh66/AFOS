@@ -298,7 +298,7 @@ class _ClubInputBar extends StatelessWidget {
                     borderSide: const BorderSide(color: AppColors.pink, width: 1.5)),
                 filled: true, fillColor: AppColors.surfaceOf(context)),
             onSubmitted: (_) => onSend())),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         _ClubSendButton(onSend: onSend),
       ]),
     );

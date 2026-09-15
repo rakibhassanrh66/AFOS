@@ -28,6 +28,7 @@ import '../../transport/presentation/transport_import_preview_screen.dart';
 import '../../uploads/data/upload_batch.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 /// PDFs are parsed to text lines right here on-device (Syncfusion's PDF
 /// text extractor), not on the server — a multi-page routine PDF has
 /// thousands of positioned text runs, which reliably blew past the edge
@@ -400,11 +401,11 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
             const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
           else if (_isSuperAdmin) ...[
             Text('Department', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             Text('Applies to class routine and legacy schedule uploads — transport is university-wide. '
                 'As super admin you can upload on behalf of any department.',
                 style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             DropdownButtonFormField<DepartmentOption>(
               initialValue: _selectedDept,
               isExpanded: true,
@@ -430,7 +431,7 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
                   border: Border.all(color: AppColors.borderOf(context))),
               child: Row(children: [
                 Icon(Icons.lock_outline_rounded, size: 16, color: textSecondary),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 Expanded(child: Text(
                     'Uploading for your department: ${_myDeptName ?? "not set — update your profile first"}',
                     style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
@@ -447,20 +448,20 @@ class _AdminUploadState extends State<AdminUploadRoutineScreen> {
                   border: Border.all(color: AppColors.glassBorder(context))),
               child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.add_circle_outline, color: textSecondary, size: 32),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text('Tap to select PDF or Excel files (multiple allowed)',
                     style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
               ])),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           ..._pending.map((p) => _PendingCard(
               pending: p,
               onModeChanged: (m) => setState(() => p.mode = m),
               onRemove: () => _removeFile(p),
               onUploadOne: () => _uploadOne(p))),
           if (_pending.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             AfosButton(label: 'Upload All (${_pending.length})', loading: _uploadingAll, onTap: _uploadAll,
                 color: AppColors.holoBlue),
           ],
@@ -498,7 +499,7 @@ class _PendingCard extends StatelessWidget {
           ])),
           IconButton(tooltip: 'Remove this row', icon: const Icon(Icons.close_rounded, size: 18), onPressed: onRemove),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         SizedBox(width: double.infinity, child: DropdownButtonFormField<String>(
           initialValue: pending.mode,
           isExpanded: true,

@@ -11,6 +11,7 @@ import '../../../shared/widgets/account_switcher_sheet.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
+import '../../../config/theme/spacing.dart';
 
 /// The biometric lock screen shown on cold start when quick-login is enabled.
 /// It gates access to an already-valid, on-device session: a passing biometric
@@ -122,9 +123,9 @@ class _UnlockScreenState extends State<UnlockScreen> {
                                   .animate(onPlay: (c) => c.repeat(reverse: true))
                                   .scaleXY(begin: 1.0, end: 1.08, duration: 1200.ms, curve: AppMotion.inOut),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpace.xl),
                     Text('Unlock AFOS', style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     Text(_failed
                         ? 'Authentication cancelled or failed. Try again, or use your password.'
                         : 'Confirm it’s you to continue.',
@@ -137,7 +138,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
                       loading: _busy,
                       onTap: _unlock,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     TextButton(
                       onPressed: _busy ? null : _fallbackToPassword,
                       child: Text('Use password instead',

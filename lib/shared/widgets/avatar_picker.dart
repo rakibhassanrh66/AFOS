@@ -10,6 +10,7 @@ import '../../core/utils/image_pick_policy.dart';
 import 'glass_sheet.dart';
 import 'pill_badge.dart';
 import 'supernova_loader.dart';
+import '../../config/theme/spacing.dart';
 
 /// Shared avatar upload/display widget — pulled out of Settings so the
 /// Edit Profile screen can offer the same photo change flow instead of
@@ -142,7 +143,7 @@ class _AvatarPickerState extends State<AvatarPicker> {
         const Padding(padding: EdgeInsets.only(top: 8),
             child: PillBadge(label: 'PENDING REVIEW', color: AppColors.amber)),
       if (!_saving && widget.reviewStatus == 'rejected') ...[
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         GestureDetector(onTap: _showOptions,
             child: const PillBadge(label: 'REJECTED — TAP TO RETRY', color: AppColors.red)),
         if ((widget.reviewReason ?? '').trim().isNotEmpty)

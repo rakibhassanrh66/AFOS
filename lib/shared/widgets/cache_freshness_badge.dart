@@ -4,6 +4,7 @@ import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
 import '../../core/services/connectivity_service.dart';
 import '../../core/services/local_cache_service.dart';
+import '../../config/theme/spacing.dart';
 
 /// Phase E of the offline policy (docs/OFFLINE_POLICY.md): the global
 /// [OfflineBanner] says "you're offline" once for the whole app, but doesn't
@@ -37,7 +38,7 @@ class CacheFreshnessBadge extends StatelessWidget {
             padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.history_rounded, size: 12, color: AppColors.textSecondaryOf(context)),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpace.xs),
               Text('Cached · updated ${timeago.format(cachedAt)}',
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
             ]),

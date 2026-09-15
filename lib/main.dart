@@ -10,6 +10,7 @@ import 'config/routes/app_router.dart';
 import 'config/theme/dark_theme.dart';
 import 'config/theme/light_theme.dart';
 import 'features/settings/bloc/theme_bloc.dart';
+import 'config/theme/spacing.dart';
 
 /// THE APP ALWAYS RENDERS SOMETHING. THAT IS THE RULE THIS ENFORCES.
 ///
@@ -113,7 +114,7 @@ class _StartupFailureApp extends StatelessWidget {
               children: [
                 const Icon(Icons.error_outline_rounded,
                     color: Color(0xFFF87171), size: 44),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 const Text(
                   'AFOS could not start',
                   style: TextStyle(
@@ -121,7 +122,7 @@ class _StartupFailureApp extends StatelessWidget {
                       fontSize: 22,
                       fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 const Text(
                   'Something failed while setting the app up. Close AFOS and '
                   'open it again. If it keeps happening, clear the app’s '

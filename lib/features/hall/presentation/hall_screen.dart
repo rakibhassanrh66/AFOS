@@ -143,9 +143,9 @@ class _MyApplicationTab extends StatelessWidget {
       child: Column(children: [
         const SizedBox(height: 40),
         Icon(Icons.cancel_outlined, color: AppColors.textMutedOf(context), size: 64),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         Text('Application Cancelled', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Text('You can submit a new application from the Apply tab',
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), textAlign: TextAlign.center),
       ]));
@@ -208,10 +208,10 @@ class _MyApplicationTab extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   const Icon(Icons.apartment, color: AppColors.green),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Text('Your Room', style: AppTextStyles.titleLarge.copyWith(color: AppColors.green)),
                 ]),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 _InfoRow('Room',     app!['assigned_room'] ?? '-'),
                 _InfoRow('Floor',    '${app!['assigned_floor'] ?? '-'}'),
                 _InfoRow('Building', app!['assigned_building'] ?? '-'),
@@ -257,7 +257,7 @@ class _MyApplicationTab extends StatelessWidget {
         ],
 
         if (status == 'pending' || status == 'reviewing') ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xl),
           SizedBox(width: double.infinity, child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
             onPressed: () => _cancelApplication(context),
@@ -307,10 +307,10 @@ class _MyApplicationTab extends StatelessWidget {
               padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Request Cancellation', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text('This needs admin approval since your seat is already allocated — explain why you need to cancel.',
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 AfosTextField(hint: 'Reason for cancellation', controller: reasonCtrl, maxLines: 3),
                 const SizedBox(height: 20),
                 AfosButton(
@@ -501,20 +501,20 @@ class _ApplyTabState extends State<_ApplyTab> {
                 decoration: BoxDecoration(color: AppColors.glassFill(context), borderRadius: AppDepth.radius(0)),
                 child: Text(a, style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11)))).toList()),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Row(children: [
             Expanded(child: _PrefChip('Single', _pref, (v) => setState(() => _pref = v))),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(child: _PrefChip('Shared', _pref, (v) => setState(() => _pref = v))),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           AfosTextField(
             hint: 'Reason for applying...',
             controller: _reasonCtrl,
             maxLines: 3,
             validator: (v) => v == null || v.isEmpty ? 'Reason required' : null,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xl),
           AfosButton(label: 'Submit Application', loading: _loading, onTap: _submit),
         ]),
       ),
@@ -630,7 +630,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
             items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
             onChanged: (v) => setState(() => _category = v!),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           AfosTextField(
             hint: 'Describe the issue...',
             controller: _descCtrl,
@@ -641,7 +641,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
           AfosButton(label: 'Submit Complaint', loading: _loading, onTap: _submit),
           const SizedBox(height: 28),
           Text('My Complaints', style: AppTextStyles.titleLarge.copyWith(color: textPrimary)),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           if (_listLoading)
             const Padding(padding: EdgeInsets.only(top: 8), child: ShimmerList(count: 2))
           else if (_complaints.isEmpty)
@@ -664,7 +664,7 @@ class _ComplaintsTabState extends State<_ComplaintsTab> {
                             textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                             style: TextStyle(color: _statusColor(status), fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                   ]),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpace.xs),
                   Text(c['description'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
                   if ((c['resolution'] as String?)?.isNotEmpty ?? false)
                     Padding(padding: const EdgeInsets.only(top: 6), child: Text('Response: ${c['resolution']}',

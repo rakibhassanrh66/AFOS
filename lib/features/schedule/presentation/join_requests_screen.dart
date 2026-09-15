@@ -22,6 +22,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
 import '../data/repositories/course_offering_repository.dart';
 import 'join_request_detail_screen.dart';
+import '../../../config/theme/spacing.dart';
 
 String _normKey(Object? v) => (v as String? ?? '').trim().toUpperCase();
 
@@ -221,7 +222,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                           hint: 'Reason (optional, shown to them)',
                           controller: reasonCtrl,
                           maxLines: 2),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       Row(children: [
                         Expanded(
                             child: TextButton(
@@ -410,11 +411,11 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
               ? const Padding(
                   padding: EdgeInsets.all(16),
                   child: Column(children: [
-                    ShimmerCard(height: 150), SizedBox(height: 12),
+                    ShimmerCard(height: 150), SizedBox(height: AppSpace.md),
                     ShimmerCard(height: 150),
                   ]))
               : Column(children: [
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpace.sm),
                   GlassTabBar(
                     margin: const EdgeInsets.symmetric(horizontal: 12),
                     currentIndex: _Filter.values.indexOf(_filter),
@@ -730,7 +731,7 @@ class JoinRequestCard extends StatelessWidget {
               _StudentAvatar(
                   name: student['full_name'] as String?,
                   avatarUrl: student['avatar_url'] as String?),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
@@ -799,7 +800,7 @@ class JoinRequestCard extends StatelessWidget {
                   'This course has ended — it cannot take anyone new until it is restored.',
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.red)),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             _actions(status, archived),
           ]),
         ),
@@ -1003,7 +1004,7 @@ class BatchMatchNotice extends StatelessWidget {
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 15, color: color),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(message, style: AppTextStyles.labelSmall.copyWith(color: color)),
         ),

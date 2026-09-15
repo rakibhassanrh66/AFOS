@@ -20,6 +20,7 @@ import '../../../shared/widgets/afos_button.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../data/repositories/auth_repository.dart';
 import 'widgets/auth_brand_panel.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Proves the user controls the DIU mailbox they registered with.
 ///
@@ -426,10 +427,10 @@ class VerifyEmailPane extends StatelessWidget {
   List<Widget> _linkBody(BuildContext context) => [
         _badge(context, error == null ? Icons.verified_outlined : Icons.error_outline,
             error == null ? AppColors.holoTeal : AppColors.red),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         Text(error == null ? 'Confirming your account' : 'That link didn\'t work',
             style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Text(
           // The server's rejection is deliberately one generic string for both
           // redemption paths (so it cannot be used to tell them apart), but on
@@ -441,7 +442,7 @@ class VerifyEmailPane extends StatelessWidget {
                   'the most recent email.',
           style: AppTextStyles.bodyMedium.copyWith(color: error == null ? textSecondary : AppColors.red),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         if (busy)
           const Center(child: Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
@@ -449,7 +450,7 @@ class VerifyEmailPane extends StatelessWidget {
           ))
         else if (error != null) ...[
           AfosButton(label: 'Try again', onTap: onRetryToken),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Center(
             child: TextButton(
               onPressed: () => context.go('/auth/register'),
@@ -464,16 +465,16 @@ class VerifyEmailPane extends StatelessWidget {
   /// that cannot succeed.
   List<Widget> _lostBody(BuildContext context) => [
         _badge(context, Icons.link_off_rounded, AppColors.amber),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         Text('Pick up where you left off',
             style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Text(
           'We can\'t tell which sign-up this is. Start the form again and we\'ll '
           'send a fresh code — nothing you entered has been lost from your side.',
           style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         AfosButton(label: 'Back to sign up', onTap: () => context.go('/auth/register')),
         const SizedBox(height: 10),
         Center(
@@ -486,13 +487,13 @@ class VerifyEmailPane extends StatelessWidget {
 
   List<Widget> _codeBody(BuildContext context) => [
         _badge(context, Icons.mark_email_unread_outlined, AppColors.holoTeal),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         Text('Check your email',
             style: AppTextStyles.displayMedium.copyWith(color: textPrimary))
             .animate(delay: AppMotion.sequenceDelay(context, 3))
             .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
             .slideX(begin: -0.06, curve: AppMotion.standard),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         RichText(
           text: TextSpan(
             style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
@@ -506,7 +507,7 @@ class VerifyEmailPane extends StatelessWidget {
         // Honest about the overflow lane rather than showing a spinner that
         // implies the mail is already in flight when it is sitting in a queue.
         if (lane == 'queued') ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('We\'re sending a lot of mail right now, so this one may take an extra moment.',
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.amber)),
         ],
@@ -589,7 +590,7 @@ class VerifyEmailPane extends StatelessWidget {
 
         const SizedBox(height: 20),
         AfosButton(label: 'Confirm account', loading: busy, onTap: onSubmit),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
 
         Center(
           child: TextButton(
@@ -600,7 +601,7 @@ class VerifyEmailPane extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Center(
           child: Text('The code expires in $_expiryText and works once.',
               textAlign: TextAlign.center,
@@ -615,19 +616,19 @@ class VerifyEmailPane extends StatelessWidget {
         // button, not a support address, because the alternative for someone
         // no mail can reach was nothing at all.
         if (manualFallback) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xl),
           Divider(color: textSecondary.withValues(alpha: 0.18), height: 1),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Text('No email, even after a few minutes?',
               style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             'Check your spam folder first. If there\'s nothing there, ask a '
             'university administrator to confirm your details and approve the '
             'account by hand.',
             style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosButton(
             label: 'Ask an administrator to approve me',
             outlined: true,
@@ -664,10 +665,10 @@ class VerifyEmailPane extends StatelessWidget {
   List<Widget> _mailFailedBody(BuildContext context) => [
         _badge(context, _quotaExhausted ? Icons.schedule_send_outlined : Icons.unsubscribe_outlined,
             AppColors.amber),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         Text(_quotaExhausted ? 'Our email limit is reached for today' : 'We couldn\'t email you',
             style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         if (_quotaExhausted)
           Text(
             'This is our end, not you — nothing is wrong with your address or '
@@ -689,14 +690,14 @@ class VerifyEmailPane extends StatelessWidget {
               ],
             ),
           ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         if (manualFallback) ...[
           AfosButton(
             label: 'Ask an administrator to approve me',
             loading: reviewBusy,
             onTap: onRequestReview,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(
             'An administrator confirms your details by hand and approves the '
             'account. You\'ll be able to sign in with the password you just chose.',
@@ -720,7 +721,7 @@ class VerifyEmailPane extends StatelessWidget {
           ]),
         ],
 
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Center(
           child: TextButton(
             onPressed: () => context.go('/auth/login'),
@@ -748,9 +749,9 @@ class VerifyEmailPane extends StatelessWidget {
     final tgUser = tg.startsWith('@') ? tg.substring(1) : tg;
 
     return [
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       Divider(color: AppColors.borderOf(context), height: 1),
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpace.md),
       Text('Need it sooner?',
           style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
       const SizedBox(height: 6),
@@ -788,10 +789,10 @@ class VerifyEmailPane extends StatelessWidget {
   /// administrator can now see you" would be a claim this client cannot make.
   List<Widget> _submittedBody(BuildContext context) => [
         _badge(context, Icons.how_to_reg_outlined, AppColors.holoBlue),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         Text('Request sent',
             style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         RichText(
           text: TextSpan(
             style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
@@ -805,13 +806,13 @@ class VerifyEmailPane extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         Text(
           'The password you chose is already saved with the request. When the '
           'account is approved, sign in with it.',
           style: AppTextStyles.labelSmall.copyWith(color: textSecondary),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         AfosButton(label: 'Back to sign in', onTap: () => context.go('/auth/login')),
         const SizedBox(height: 10),
 

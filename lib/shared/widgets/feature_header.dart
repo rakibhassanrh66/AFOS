@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
+import '../../config/theme/spacing.dart';
 
 /// The glossy gradient hero header used at the top of most feature screens —
 /// one component replacing the ~15 inline `Container(gradient: …)` headers each
@@ -127,7 +128,7 @@ class FeatureHeader extends StatelessWidget {
                       // Column wrapper further down — so it only appears here
                       // when the header is wide enough to seat both.
                       if (trailing != null && wide) ...[
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpace.md),
                         Flexible(child: trailing!),
                       ],
                       ],
@@ -139,7 +140,7 @@ class FeatureHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         row,
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppSpace.md),
                         Align(alignment: Alignment.centerLeft, child: trailing!),
                       ],
                     );

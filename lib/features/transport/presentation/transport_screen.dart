@@ -34,6 +34,7 @@ import 'manage_stop_times_screen.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/network/cached_tile_provider.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Reads a route row's per-trip objects ({time, note, status}) for one
 /// direction into typed [Trip]s, dropping blanks.
 List<Trip> _tripsOf(Map r, String key) =>
@@ -114,7 +115,7 @@ class _ArriveEarlyNote extends StatelessWidget {
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Icon(Icons.alarm_on_rounded, size: 15, color: AppColors.holoBlue),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(child: Text(_kArriveEarlyMsg,
             style: AppTextStyles.labelSmall.copyWith(
                 color: AppColors.holoBlue, fontWeight: FontWeight.w600, height: 1.3))),
@@ -229,7 +230,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
           constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.72),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(widget.title, style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         TextField(
           controller: _searchCtrl,
           onChanged: (v) => setState(() => _query = v),
@@ -249,7 +250,7 @@ class _PickerSheetState<T> extends State<_PickerSheet<T>> {
             border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Flexible(child: filtered.isEmpty
           ? Padding(padding: const EdgeInsets.symmetric(vertical: 28),
               child: Center(child: Text('No matches for "${_query.trim()}"',
@@ -646,7 +647,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     if (stopNames.isEmpty) {
       return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.signpost_outlined, size: 40, color: textSecondary),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Text('No stop data uploaded yet', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
       ])));
     }
@@ -656,10 +657,10 @@ class _FindRouteTabState extends State<_FindRouteTab> {
     return ListView(padding: EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16 + NavInsets.of(context)), children: [
       Text('Where are you, and where are you going?',
           style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-      const SizedBox(height: 4),
+      const SizedBox(height: AppSpace.xs),
       Text('Pick a stop to see its route — add a destination to narrow it down.',
           style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(color: AppColors.surfaceOf(context),
@@ -779,7 +780,7 @@ class _FindRouteTabState extends State<_FindRouteTab> {
           child: Center(child: Text(m.routeNumber,
               textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
               style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.bold)))),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: Text(_displayRouteName(m.routeName), style: AppTextStyles.titleMedium.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
@@ -923,7 +924,7 @@ class _StopAnswerCard extends StatelessWidget {
           : '$stop is on this route.';
       lines.add(Text(position, style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)));
       if (toStr.isNotEmpty && origin != null) {
-        lines.add(const SizedBox(height: 4));
+        lines.add(const SizedBox(height: AppSpace.xs));
         lines.add(Text(
           'The bus starts from $origin at $toStr, so it reaches $stop a little later.',
           style: AppTextStyles.labelSmall.copyWith(color: textSecondary, height: 1.35),
@@ -962,7 +963,7 @@ class _StopAnswerCard extends StatelessWidget {
     // all still "coming soon" rendered a card containing nothing but the
     // advisory — a boarding rule for a time that isn't shown anywhere.
     if (lines.isNotEmpty) {
-      lines.add(const SizedBox(height: 8));
+      lines.add(const SizedBox(height: AppSpace.sm));
       lines.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Icon(Icons.alarm_on_rounded, size: 13, color: AppColors.holoBlue),
         const SizedBox(width: 6),
@@ -993,7 +994,7 @@ class _StopAnswerCard extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 4),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 14, color: accent),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: RichText(
               text: TextSpan(children: [
@@ -1063,7 +1064,7 @@ class _StopDropdown extends StatelessWidget {
         Container(width: 36, height: 36, alignment: Alignment.center,
             decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
             child: Icon(icon, size: 18, color: AppColors.holoTeal)),
-        const SizedBox(width: 16),
+        const SizedBox(width: AppSpace.lg),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
               style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10.5, height: 1.0,
@@ -1175,11 +1176,11 @@ class _MyRouteTabState extends State<_MyRouteTab> {
       Text('Select your route',
           style:AppTextStyles.headlineLarge.copyWith(color:AppColors.textPrimaryOf(context))),
       if (_autoSuggested && selected != null) ...[
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text('Suggested based on your registered address — pick a different one if this isn\'t right.',
             style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
       ],
-      const SizedBox(height:12),
+      const SizedBox(height: AppSpace.md),
       Container(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
         decoration: BoxDecoration(color: AppColors.surfaceOf(context),
@@ -1189,7 +1190,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
           Container(width: 36, height: 36, alignment: Alignment.center,
               decoration: BoxDecoration(color: AppColors.holoTeal.withValues(alpha: 0.12), shape: BoxShape.circle),
               child: const Icon(Icons.directions_bus_filled_rounded, size: 18, color: AppColors.holoTeal)),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppSpace.lg),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('ROUTE', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                 style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 10.5, height: 1.0,
@@ -1229,11 +1230,11 @@ class _MyRouteTabState extends State<_MyRouteTab> {
         ]),
       ),
       if(selected!=null) ...[
-        const SizedBox(height:16),
+        const SizedBox(height: AppSpace.lg),
         Row(children: [
           _LiveStatusBadge(status: widget.liveStatus[selected['id']]),
         ]),
-        const SizedBox(height:8),
+        const SizedBox(height: AppSpace.sm),
         if (toDsc.isNotEmpty || fromDsc.isNotEmpty) ...[
           _NextDepartureCard(
             toDsc: toDsc, fromDsc: fromDsc,
@@ -1244,7 +1245,7 @@ class _MyRouteTabState extends State<_MyRouteTab> {
                 : selected['route_number'] as String?,
           ),
           const _ArriveEarlyNote(margin: EdgeInsets.only(top: 10)),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
         ],
         if (stops.isNotEmpty) Container(
             padding: const EdgeInsets.all(14),
@@ -1259,13 +1260,13 @@ class _MyRouteTabState extends State<_MyRouteTab> {
               ]),
               const SizedBox(height: 10),
               _StopsTimeline(stops: stops),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
                   onPressed: () => _openInGoogleMaps(context, stops),
                   icon: const Icon(Icons.directions_rounded, size: 18),
                   label: const Text('Open in Google Maps'))),
             ])),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         if (toDsc.isNotEmpty) _ScheduleCard(title: 'To DSC', times: toDsc, icon: Icons.login_rounded, accent: AppColors.holoTeal),
         if (fromDsc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
             child: _ScheduleCard(title: 'From DSC', times: fromDsc, icon: Icons.logout_rounded, accent: AppColors.holoBlue)),
@@ -1517,7 +1518,7 @@ class _ScheduleCard extends StatelessWidget {
             child: Text('${times.length}', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w800)),
           ),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         if (plain.isNotEmpty)
           Wrap(spacing: 8, runSpacing: 8, children: plain.map((t) => _TimePill(trip: t, accent: accent)).toList()),
         if (noted.isNotEmpty) ...[
@@ -1580,7 +1581,7 @@ class _StopsTimeline extends StatelessWidget {
           ),
           Expanded(child: Container(width: 2, color: isLast ? Colors.transparent : line)),
         ])),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(child: Padding(
           padding: EdgeInsets.symmetric(vertical: endpoint ? 5 : 4.5),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1645,7 +1646,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
                   style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx)))),
               _LiveStatusBadge(status: liveStatus[route['id']]),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             if (stopNames.isNotEmpty) ...[
               Row(children: [
                 const Icon(Icons.alt_route_rounded, size: 15, color: AppColors.holoTeal),
@@ -1654,7 +1655,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
               ]),
               const SizedBox(height: 10),
               _StopsTimeline(stops: stopNames),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
             ],
             if (toDsc.isNotEmpty) _ScheduleCard(title: 'To DSC', times: toDsc, icon: Icons.login_rounded, accent: AppColors.holoTeal),
             // NO `navContentClearance` here: this is a modal bottom sheet, not a
@@ -1671,7 +1672,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
               Text('No trip data uploaded for this route yet', style: TextStyle(color: AppColors.textSecondaryOf(sheetCtx))),
             if (toDsc.isNotEmpty || fromDsc.isNotEmpty)
               const _ArriveEarlyNote(margin: EdgeInsets.only(top: 12)),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xl),
             SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: () { Navigator.pop(sheetCtx); onViewOnMap(route['id'] as String); },
                 icon: const Icon(Icons.map_rounded, size: 18),
@@ -1752,7 +1753,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
         ),
         child: Row(children: [
           const Icon(Icons.event_available_rounded, size: 16, color: AppColors.amber),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(child: Text("It's Friday — the Friday schedule applies today.",
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.amber, fontWeight: FontWeight.w700))),
         ]),
@@ -1787,7 +1788,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
           Text('No route matches "${_query.trim()}"',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textSecondaryOf(context))),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text('Try a stop name, or a route number like R4.',
               textAlign: TextAlign.center,
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.textMutedOf(context))),
@@ -1874,7 +1875,7 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
             child: Center(child: Text(r['route_number']??'?',
                 textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                 style: const TextStyle(color: Colors.white, height: 1.0, fontWeight: FontWeight.w800, fontSize: 15)))),
-        const SizedBox(width:12),
+        const SizedBox(width: AppSpace.md),
         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Row(children: [
             Expanded(child: Text(_displayRouteName(r['route_name'] as String? ?? ''),style:AppTextStyles.titleMedium.copyWith(color:AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
@@ -1884,11 +1885,11 @@ class _AllRoutesTabState extends State<_AllRoutesTab> {
           const SizedBox(height: 3),
           Row(children: [
             Icon(Icons.route_rounded, size: 12, color: AppColors.textSecondaryOf(context)),
-            const SizedBox(width: 4),
+            const SizedBox(width: AppSpace.xs),
             Expanded(child: Text(subtitle,style:AppTextStyles.bodyMedium.copyWith(color:AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
         ])),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Icon(Icons.chevron_right,color:AppColors.textSecondaryOf(context)),
       ]),
     );
@@ -2377,7 +2378,7 @@ class _MapTabState extends State<_MapTab> {
           // the first case, so opening the Map tab directly left the user on a
           // bare map of Dhaka with no idea what to do.
           if (!hasRoute || showNoPathNote) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             _MapInfoPanel(
               routeLabel: hasRoute
                   ? '${widget.route!['route_number']} — ${_displayRouteName(widget.route!['route_name'] as String? ?? 'Route')}'
@@ -2393,7 +2394,7 @@ class _MapTabState extends State<_MapTab> {
           // silently restore it would be worse than the original bug, because
           // now it would be intermittent.
           if (hasRoute && !showNoPathNote && !_routeIsSnapped && routePoints.length >= 2) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             DecoratedBox(
               decoration: BoxDecoration(
                 color: AppColors.amber.withValues(alpha: 0.12),
@@ -2404,7 +2405,7 @@ class _MapTabState extends State<_MapTab> {
                 padding: const EdgeInsets.all(12),
                 child: Row(children: [
                   const Icon(Icons.timeline_rounded, size: 18, color: AppColors.amber),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Expanded(
                     child: Text(
                       'Approximate route — showing straight lines between stops '
@@ -2572,7 +2573,7 @@ class _MapInfoPanel extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(hasRoute ? Icons.route_rounded : Icons.touch_app_rounded, size: 16, color: AppColors.holoTeal),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(child: Text(hasRoute ? routeLabel! : 'No route selected',
               maxLines: 1, overflow: TextOverflow.ellipsis,
               style: AppTextStyles.titleMedium.copyWith(color: textPrimary, fontWeight: FontWeight.w700))),
@@ -2585,7 +2586,7 @@ class _MapInfoPanel extends StatelessWidget {
               : 'Pick a route in All Routes to preview it here.',
           style: AppTextStyles.labelSmall.copyWith(color: textSecondary, height: 1.35),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         SizedBox(width: double.infinity, child: hasRoute && stopNames.isNotEmpty
             ? FilledButton.icon(
                 onPressed: () => _openInGoogleMaps(context, stopNames),

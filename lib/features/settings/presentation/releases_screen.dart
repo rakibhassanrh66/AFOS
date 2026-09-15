@@ -14,6 +14,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 /// Public version history / changelog -- pulls from app_releases (a real
 /// table, not a hardcoded list, so future releases can be added without a
 /// redeploy) rather than just showing the single current build number the
@@ -79,7 +80,7 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
                           const SizedBox(height: 28),
                           Text('Release history', style: AppTextStyles.headlineMed.copyWith(color: textPrimary))
                               .animate().fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpace.md),
                           for (var i = 0; i < _releases.length; i++)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
@@ -88,7 +89,7 @@ class _ReleasesScreenState extends State<ReleasesScreen> {
                                   .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                                   .slideY(begin: 0.06, curve: AppMotion.standard),
                             ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpace.md),
                         ]),
                       ),
                     )),
@@ -130,9 +131,9 @@ class _HeroLatest extends StatelessWidget {
           ]),
           const SizedBox(height: 14),
           Text(release['title'] ?? '', style: AppTextStyles.displayMedium.copyWith(color: textPrimary)),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(_formatDate(release['release_date']), style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           for (final h in highlights)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -211,7 +212,7 @@ class _ReleaseRowState extends State<_ReleaseRow> {
                     style: AppTextStyles.bodyMedium.copyWith(color: textSecondary))),
                 // Platform column
                 _PlatformIcons(platforms: (r['platforms'] as List?)?.cast<String>() ?? const []),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpace.md),
                 // Title column
                 Expanded(child: Text(r['title'] ?? '',
                     style: AppTextStyles.titleMedium.copyWith(color: textPrimary),

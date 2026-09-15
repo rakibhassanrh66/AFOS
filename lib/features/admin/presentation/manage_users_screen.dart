@@ -33,6 +33,7 @@ import 'widgets/user_admin_actions_mixin.dart';
 import 'widgets/user_card.dart';
 import 'widgets/user_group_tree.dart';
 import '../../../shared/widgets/stat_tile.dart';
+import '../../../config/theme/spacing.dart';
 /// Super-admin-only: every user in the system with role + join date, an
 /// approval queue for new (unverified) signups, and full delete-everywhere
 /// (auth + storage + every owned row, via the delete-user edge function —
@@ -399,7 +400,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
             padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Reject photo', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
               const SizedBox(height: 20),
               AfosButton(label: 'Confirm Rejection', onTap: () async {
@@ -489,7 +490,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
             padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Reject CR Request', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
               const SizedBox(height: 20),
               AfosButton(label: 'Confirm Rejection', onTap: () async {
@@ -780,11 +781,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                           Text('${r['full_name'] ?? 'Unnamed'}',
                               style: AppTextStyles.titleMedium
                                   .copyWith(color: AppColors.textPrimaryOf(ctx))),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppSpace.xs),
                           Text('${r['email']}',
                               style: AppTextStyles.bodyMedium
                                   .copyWith(color: AppColors.textSecondaryOf(ctx))),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: AppSpace.sm),
                           Wrap(spacing: 8, runSpacing: 8, children: [
                             GlassChip(label: roleLabel('${r['account_type']}'), selected: false,
                                 color: AppColors.holoviolet, onTap: () {}),
@@ -801,7 +802,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                             style: AppTextStyles.labelSmall
                                 .copyWith(color: AppColors.textSecondaryOf(ctx)),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpace.md),
                           Row(children: [
                             Expanded(child: AfosButton(
                                 label: 'Approve manually', onTap: () => _approveStuck(r))),
@@ -858,7 +859,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                                 backgroundImage: (r['avatar_pending_url'] as String?)?.isNotEmpty == true
                                     ? CachedNetworkImageProvider(r['avatar_pending_url'], maxWidth: 256, maxHeight: 256)
                                     : null),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: AppSpace.md),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('${r['full_name'] ?? 'Unnamed'}',
                                   style: AppTextStyles.titleMedium
@@ -874,7 +875,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                             style: AppTextStyles.labelSmall
                                 .copyWith(color: AppColors.textSecondaryOf(ctx)),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpace.md),
                           Row(children: [
                             Expanded(child: AfosButton(
                                 label: 'Approve', onTap: () => _approveAvatar(r))),
@@ -909,7 +910,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                                   Expanded(child: OutlinedButton(onPressed: () => _rejectCr(r),
                                       style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
                                       child: const Text('Reject'))),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: AppSpace.sm),
                                   Expanded(child: ElevatedButton(onPressed: () => _approveCr(r),
                                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
                                       child: const Text('Approve'))),
@@ -954,7 +955,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen>
                         Text('$count', style: AppTextStyles.titleMedium.copyWith(
                             color: AppColors.textSecondaryOf(ctx),
                             fontFeatures: const [FontFeature.tabularFigures()])),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpace.sm),
                         Icon(Icons.chevron_right_rounded, color: AppColors.textSecondaryOf(ctx), size: 20),
                       ]),
                     );
@@ -1018,7 +1019,7 @@ class _InspectionBanner extends StatelessWidget {
             ]),
           ),
           if (hasWork) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             Container(
               padding: const EdgeInsetsDirectional.fromSTEB(8, 2, 8, 2),
               decoration: BoxDecoration(
@@ -1032,7 +1033,7 @@ class _InspectionBanner extends StatelessWidget {
                       fontFeatures: const [FontFeature.tabularFigures()])),
             ),
           ],
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Icon(Icons.chevron_right_rounded,
               color: AppColors.textSecondaryOf(context), size: 20),
         ]),

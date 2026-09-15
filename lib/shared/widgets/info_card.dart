@@ -4,6 +4,7 @@ import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
 import '../../config/theme/liquid_glass_tokens.dart';
 import 'surface_card.dart';
+import '../../config/theme/spacing.dart';
 
 /// The app's standard glass content card for lists/feeds — one component
 /// replacing the ~9 hand-rolled `_NoticeCard`/`_ClassCard`/`_BookCard`/… raw
@@ -97,7 +98,7 @@ class InfoCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _defaultRow(context, includeTrailing: false),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Align(alignment: Alignment.centerLeft, child: trailing),
         ],
       );
@@ -121,7 +122,7 @@ class InfoCard extends StatelessWidget {
             ),
             child: Icon(icon, color: accent, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
         ],
         Expanded(
           child: Column(

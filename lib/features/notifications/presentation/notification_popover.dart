@@ -12,6 +12,7 @@ import '../../../core/utils/formatters.dart';
 import 'notification_visuals.dart';
 
 import '../../../core/layout/nav_insets.dart';
+import '../../../config/theme/spacing.dart';
 /// Compact floating notification panel, anchored under the app-bar bell.
 ///
 /// The bell deliberately does NOT navigate to the full-screen center any
@@ -368,7 +369,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
             padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 8),
             child: Row(children: [
               Icon(AppIcons.notifications, size: 18, color: glass.accentSecondary),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
                   unread > 0 ? 'Notifications ($unread new)' : 'Notifications',
@@ -407,7 +408,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           const Icon(Icons.error_outline_rounded,
                               size: 34, color: AppColors.red),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: AppSpace.sm),
                           Text(_error!,
                               textAlign: TextAlign.center,
                               style: AppTextStyles.bodyMedium.copyWith(
@@ -422,7 +423,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.notifications_none_rounded,
                               size: 34, color: AppColors.textMutedOf(context)),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: AppSpace.sm),
                           Text("You're all caught up.",
                               style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.textSecondaryOf(context))),
@@ -523,7 +524,7 @@ class _NotificationPopoverState extends State<_NotificationPopover> {
                 Text('See all notifications',
                     style: AppTextStyles.bodyMedium.copyWith(
                         color: glass.accentSecondary, fontWeight: FontWeight.w600)),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpace.xs),
                 Icon(Icons.arrow_forward_rounded,
                     size: 14, color: glass.accentSecondary),
               ]),

@@ -9,6 +9,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../../shared/widgets/afos_button.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../config/theme/spacing.dart';
 
 /// In-app browser for a DIU student-portal page, styled to sit inside AFOS
 /// rather than look like a browser someone bolted on.
@@ -176,12 +177,12 @@ class _ErrorPane extends StatelessWidget {
         padding: NavInsets.content(context, h: 28, top: 28, bottom: 28),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.public_off_rounded, size: 44, color: AppColors.amber),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Text('Portal unavailable',
               style: AppTextStyles.headlineLarge
                   .copyWith(color: AppColors.textPrimaryOf(context)),
               textAlign: TextAlign.center),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(message,
               style: AppTextStyles.bodyMedium
                   .copyWith(color: AppColors.textSecondaryOf(context)),
@@ -212,12 +213,12 @@ class _Fallback extends StatelessWidget {
         padding: NavInsets.content(context, h: 28, top: 28, bottom: 28),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.open_in_browser_rounded, size: 44, color: AppColors.holoBlue),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Text(title,
               style: AppTextStyles.headlineLarge
                   .copyWith(color: AppColors.textPrimaryOf(context)),
               textAlign: TextAlign.center),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           // webview_flutter ships no web implementation here, so embedding on
           // web throws "WebViewPlatform.instance null" immediately.
           Text('Open this DIU page in a new tab to sign in.',

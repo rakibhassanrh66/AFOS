@@ -7,6 +7,7 @@ import '../../core/services/outbox_service.dart';
 import 'glass_sheet.dart';
 
 import '../../core/layout/nav_insets.dart';
+import '../../config/theme/spacing.dart';
 class OfflineBanner extends StatefulWidget {
   final Widget child;
   const OfflineBanner({super.key, required this.child});
@@ -46,7 +47,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
           width: double.infinity, color: AppColors.amber, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.wifi_off, size: 16, color: Colors.white),
-            SizedBox(width: 8),
+            SizedBox(width: AppSpace.sm),
             Flexible(child: Text(
                 "No internet — showing cached data. New actions will be saved and sent when you're back online.",
                 style: TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.center)),
@@ -123,10 +124,10 @@ class _PendingActionsSheetState extends State<_PendingActionsSheet> {
     final textSecondary = AppColors.textSecondaryOf(context);
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Queued actions', style: TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text("Sent automatically once you're back online.",
               style: TextStyle(color: textSecondary, fontSize: 12)),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           if (items.isEmpty)
             Padding(padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: Text('Nothing queued', style: TextStyle(color: textSecondary))))

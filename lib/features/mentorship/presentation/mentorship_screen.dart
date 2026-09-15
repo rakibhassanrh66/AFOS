@@ -28,6 +28,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 class MentorshipScreen extends StatefulWidget {
   const MentorshipScreen({super.key});
   @override State<MentorshipScreen> createState() => _MentorshipState();
@@ -247,7 +248,7 @@ class _MentorshipState extends State<MentorshipScreen> with SingleTickerProvider
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(ctx))),
               const SizedBox(height: 20),
               AfosTextField(hint: 'What topic do you need help with?', controller: topicCtrl, maxLines: 3),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosButton(label: 'Request Session', onTap: () async {
                 if (topicCtrl.text.trim().isEmpty) return;
                 // Capture the messenger before popping the sheet + awaiting, so
@@ -306,12 +307,12 @@ class _MentorList extends StatelessWidget {
                   Text(profile['full_name'] ?? '', style: AppTextStyles.titleLarge.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   Text(m['title'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   Text(profile['department'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpace.sm),
                   if (specs.isNotEmpty) Wrap(spacing: 6, runSpacing: 4, children: specs.map((s) =>
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(color: AppColors.blue.withValues(alpha:0.1), borderRadius: AppDepth.radius(1)),
                           child: Text(s, style: const TextStyle(color: AppColors.blue, fontSize: 10)))).toList()),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   Row(children: [
                     Container(width: 8, height: 8, decoration: BoxDecoration(
                         color: (m['is_accepting_bookings'] as bool? ?? true) ? AppColors.green : AppColors.red,
@@ -363,13 +364,13 @@ class _SessionsTab extends StatelessWidget {
                     color: AppColors.blue.withValues(alpha:0.1), borderRadius: AppDepth.radius(1),
                     shape: BoxShape.rectangle),
                     child: const Icon(AppIcons.mentorship, color: AppColors.blue, size: 22)),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpace.md),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(mentor['full_name'] ?? 'Faculty', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                   Text(s['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ])),
                 // Same gap this row already keeps on the icon side.
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpace.md),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: _statusColor(status).withValues(alpha:0.12), borderRadius: AppDepth.radius(1)),
                     child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
@@ -522,20 +523,20 @@ class _MyMentorProfileTabState extends State<_MyMentorProfileTab> {
       if (widget.profile == null)
         Text('Set up your mentor profile so students can find and book you.',
             style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-      if (widget.profile == null) const SizedBox(height: 16),
+      if (widget.profile == null) const SizedBox(height: AppSpace.lg),
       AfosTextField(hint: 'Title (e.g. Senior Lecturer)', controller: _titleCtrl),
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpace.md),
       AfosTextField(hint: 'Short bio', controller: _bioCtrl, maxLines: 3),
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpace.md),
       AfosTextField(hint: 'Specializations (comma separated)', controller: _specCtrl),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       Row(children: [
         Text('Accepting new requests', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
         const Spacer(),
         Switch(value: _accepting, activeThumbColor: AppColors.blue,
             onChanged: (v) => setState(() => _accepting = v)),
       ]),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppSpace.lg),
       AfosButton(label: widget.profile == null ? 'Become a Mentor' : 'Save Changes',
           loading: _saving, onTap: _save),
     ]));
@@ -609,7 +610,7 @@ class _OversightTab extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(b['topic'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
                 if (mentorId != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpace.sm),
                   Align(alignment: Alignment.centerRight, child: TextButton.icon(
                       onPressed: () => _banMentor(context, mentorId, mentorProfile['full_name'] ?? 'this mentor'),
                       icon: const Icon(Icons.block, size: 16, color: AppColors.red),

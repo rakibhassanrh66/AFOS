@@ -19,6 +19,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/marks_repository.dart';
 import 'marks_entry_screen.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 const _publisherRoles = ['admin', 'dept_admin', 'super_admin', 'exam_controller'];
 
@@ -140,8 +141,8 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
               ? const Padding(
                   padding: EdgeInsets.all(16),
                   child: Column(children: [
-                    ShimmerCard(height: 120), SizedBox(height: 12),
-                    ShimmerCard(height: 70), SizedBox(height: 12),
+                    ShimmerCard(height: 120), SizedBox(height: AppSpace.md),
+                    ShimmerCard(height: 70), SizedBox(height: AppSpace.md),
                     ShimmerCard(height: 70),
                   ]))
               : RefreshIndicator(
@@ -291,12 +292,12 @@ class _SemesterHeader extends StatelessWidget {
         Text(semester > 0 ? 'Semester $semester' : 'Other',
             style: AppTextStyles.titleMedium
                 .copyWith(color: AppColors.textPrimaryOf(context))),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Divider(
               color: AppColors.borderOf(context), thickness: 0.5, height: 1),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         if (v != null)
           PillBadge(label: 'SGPA ${v.toStringAsFixed(2)}', color: color),
       ]),
@@ -394,7 +395,7 @@ class _CgpaCard extends StatelessWidget {
           Text(value?.toStringAsFixed(2) ?? '—',
               style: AppTextStyles.numericLarge.copyWith(
                   color: accent, fontSize: 42, height: 1.0, fontWeight: FontWeight.w800)),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Padding(
             padding: const EdgeInsets.only(bottom: 5),
             child: Text('/ 4.00',
@@ -404,7 +405,7 @@ class _CgpaCard extends StatelessWidget {
           const Spacer(),
           if (honour != null) PillBadge(label: honour, color: AppColors.gold),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Text(
             value == null
                 ? 'No published results yet'
@@ -428,7 +429,7 @@ class _CgpaCard extends StatelessWidget {
                   'Three consecutive semesters below 2.00 means removal from the program.'),
         ],
         if (hasF) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           const _Notice(
               color: AppColors.amber,
               icon: Icons.error_outline_rounded,
@@ -457,7 +458,7 @@ class _Notice extends StatelessWidget {
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 15, color: color),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text(text, style: AppTextStyles.labelSmall.copyWith(color: color)),
           ),
@@ -635,13 +636,13 @@ class _ResultApprovalScreenState extends State<ResultApprovalScreen> {
                 color: AppColors.purple),
           ),
         ]),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text(
             'Batch ${offering['batch'] ?? ''} · Section ${offering['section'] ?? ''}'
             ' · by ${teacher['full_name'] ?? 'Unknown'}',
             style: AppTextStyles.labelSmall
                 .copyWith(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         // Wrap + rowAction, not a bare Row: the theme gives OutlinedButton
         // `minimumSize: Size(double.infinity, 52)`, so 'Return' demanded the
         // whole row and pushed 'Approve & publish' off the right edge — the

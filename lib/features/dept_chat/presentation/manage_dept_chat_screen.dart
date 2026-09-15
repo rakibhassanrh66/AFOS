@@ -11,6 +11,7 @@ import '../../shell/presentation/top_app_bar.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Super Admin / admin cross-department moderation view — the regular
 /// DeptChatScreen hard-filters to the viewer's own department for every
 /// role (dept_chat_screen.dart:31-33), so there was previously no way for
@@ -86,14 +87,14 @@ class _ManageDeptChatScreenState extends State<ManageDeptChatScreen> {
                                       colors: [AppColors.indigo, AppColors.blue]),
                                   borderRadius: AppDepth.radius(1)),
                               child: const Icon(Icons.tag_rounded, color: Colors.white, size: 20)),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: AppSpace.md),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${ch['department'] ?? ''} · #${ch['channel_name'] ?? ''}',
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.titleMedium.copyWith(color: textPrimary)),
                             Text(audienceLabel, style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
                           ])),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: AppSpace.sm),
                           Icon(Icons.chevron_right_rounded, color: textSecondary),
                         ]),
                       ),
@@ -171,7 +172,7 @@ class _ModerateChatRoomState extends State<_ModerateChatRoomScreen> {
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('${profile['full_name'] ?? 'Unknown'} · ${profile['role'] ?? ''}',
                               style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppSpace.xs),
                           Text(m['content'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textPrimary)),
                         ])),
                         IconButton(tooltip: 'Delete this message', icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.red),

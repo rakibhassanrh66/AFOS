@@ -19,6 +19,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Super Admin / admin / staff hall-application review — the student side
 /// (hall_screen.dart) could always apply/cancel, but until this screen there
 /// was nowhere for anyone to actually approve/reject an application (the
@@ -125,12 +126,12 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(status == 'resolved' ? 'Resolve Complaint' : 'Dismiss Complaint',
                     style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text('${complaint['profiles']?['full_name'] ?? 'Student'} · ${complaint['category'] ?? ''}',
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
                 const SizedBox(height: 20),
                 AfosTextField(hint: 'Response to student', controller: responseCtrl, maxLines: 3),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xl),
                 AfosButton(
                   label: 'Confirm',
                   loading: saving,
@@ -199,16 +200,16 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
               padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Approve Application', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text('${app['profiles']?['full_name'] ?? 'Student'} · ${app['preferred_hall'] ?? ''}',
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
                 const SizedBox(height: 20),
                 AfosTextField(hint: 'Building', controller: buildingCtrl),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 AfosTextField(hint: 'Room number', controller: roomCtrl),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 AfosTextField(hint: 'Floor', controller: floorCtrl, keyboardType: TextInputType.number),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xl),
                 AfosButton(
                   label: 'Confirm Approval',
                   loading: saving,
@@ -258,12 +259,12 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
               padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Reject Application', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text(app['profiles']?['full_name'] ?? 'Student',
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(sheetCtx))),
                 const SizedBox(height: 20),
                 AfosTextField(hint: 'Reason (e.g. no seat available)', controller: reasonCtrl, maxLines: 3),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xl),
                 AfosButton(
                   label: 'Confirm Rejection',
                   loading: saving,
@@ -434,9 +435,9 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
             : _appsError != null
                 ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     Text('Couldn\'t load applications: $_appsError', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     TextButton(onPressed: _load, child: const Text('Retry')),
                   ])))
                 : _visible.isEmpty
@@ -484,7 +485,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                                 OutlinedButton(onPressed: () => _reject(a),
                                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red), minimumSize: const Size(64, 36)),
                                     child: const Text('Reject')),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: AppSpace.sm),
                                 ElevatedButton(onPressed: () => _approve(a),
                                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white, minimumSize: const Size(64, 36)),
                                     child: const Text('Approve')),
@@ -497,7 +498,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                                 OutlinedButton(onPressed: () => _denyCancellation(a),
                                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red), minimumSize: const Size(64, 36)),
                                     child: const Text('Deny')),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: AppSpace.sm),
                                 ElevatedButton(onPressed: () => _approveCancellation(a),
                                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white, minimumSize: const Size(64, 36)),
                                     child: const Text('Approve Cancellation')),
@@ -531,9 +532,9 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
           : _complaintsError != null
               ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   Text('Couldn\'t load complaints: $_complaintsError', textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   TextButton(onPressed: _loadComplaints, child: const Text('Retry')),
                 ])))
               : _visibleComplaints.isEmpty
@@ -569,7 +570,7 @@ class _ManageHallScreenState extends State<ManageHallScreen> with SingleTickerPr
                               OutlinedButton(onPressed: () => _resolveComplaint(c, 'dismissed'),
                                   style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red), minimumSize: const Size(64, 36)),
                                   child: const Text('Dismiss')),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: AppSpace.sm),
                               ElevatedButton(onPressed: () => _resolveComplaint(c, 'resolved'),
                                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white, minimumSize: const Size(64, 36)),
                                   child: const Text('Resolve')),

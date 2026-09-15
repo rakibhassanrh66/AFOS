@@ -19,6 +19,7 @@ import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
 import '../../../shared/widgets/stat_tile.dart';
+import '../../../config/theme/spacing.dart';
 /// Super-admin-only: approve/reject club membership requests and officer
 /// post (secretary/vice_president/president) requests. Regular admins have
 /// no route here — clubs.president_id carries real notification-broadcast
@@ -211,7 +212,7 @@ class _ManageClubsScreenState extends State<ManageClubsScreen> with SingleTicker
             padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
               const SizedBox(height: 20),
               AfosButton(label: 'Confirm', onTap: () async {
@@ -313,7 +314,7 @@ class _RequestCard extends StatelessWidget {
           Expanded(child: OutlinedButton(onPressed: isBusy ? null : onReject,
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.red, side: const BorderSide(color: AppColors.red)),
               child: const Text('Reject'))),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(child: ElevatedButton(onPressed: isBusy ? null : onApprove,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.green, foregroundColor: Colors.white),
               child: isBusy

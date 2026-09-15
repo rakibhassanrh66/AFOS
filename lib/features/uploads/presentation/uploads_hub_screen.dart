@@ -25,6 +25,7 @@ import '../../../shared/widgets/surface_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/upload_backup_pdf.dart';
 import '../data/upload_batch.dart';
+import '../../../config/theme/spacing.dart';
 
 /// One place for everything the university loads into AFOS.
 ///
@@ -284,7 +285,7 @@ class _UploadsHubState extends State<UploadsHubScreen> {
               else
                 for (var i = 0; i < kinds.length; i++)
                   _KindCard(kind: kinds[i], index: i),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpace.xl),
               Row(children: [
                 Expanded(
                   child: Text('Upload history',
@@ -308,7 +309,7 @@ class _UploadsHubState extends State<UploadsHubScreen> {
                           'backup first.',
                   style:
                       AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               if (!_loading && _history.length > 1 && (_kindsInHistory.length > 1 || _departmentsInHistory.length > 1)) ...[
                 if (_kindsInHistory.length > 1)
                   Padding(
@@ -340,7 +341,7 @@ class _UploadsHubState extends State<UploadsHubScreen> {
                             onTap: () => setState(() => _filterDept = d)),
                     ]),
                   ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
               ],
               if (_bulkNote != null)
                 Padding(
@@ -426,7 +427,7 @@ class _KindCard extends StatelessWidget {
             ),
             child: Icon(kind.icon, color: kind.accent, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,7 +499,7 @@ class _HistoryRow extends StatelessWidget {
                   style: AppTextStyles.bodyMedium.copyWith(
                       color: textPrimary, fontWeight: FontWeight.w700)),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -510,7 +511,7 @@ class _HistoryRow extends StatelessWidget {
                       color: colour, fontWeight: FontWeight.w700)),
             ),
           ]),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
               [
                 if ((batch.sourceFile ?? '').isNotEmpty) batch.sourceFile!,
@@ -620,7 +621,7 @@ class _BatchSheetState extends State<_BatchSheet> {
           children: [
             Text(_b.kindLabel,
                 style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             _row('File', _b.sourceFile ?? '—', textPrimary, textSecondary),
             _row('Uploaded by', _b.uploader ?? 'Unknown', textPrimary,
                 textSecondary),
@@ -637,7 +638,7 @@ class _BatchSheetState extends State<_BatchSheet> {
             for (final e in _b.summary.entries)
               if (e.key != 'rowsRemoved')
                 _row(e.key, '${e.value}', textPrimary, textSecondary),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             if (!_b.isReverted) ...[
               Text(
                   _b.hasBackup
@@ -647,7 +648,7 @@ class _BatchSheetState extends State<_BatchSheet> {
                           'document is what is left of it.',
                   style:
                       AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosButton(
                   label: _b.hasBackup ? 'Download backup again' : 'Download backup',
                   icon: Icons.download_rounded,
@@ -668,11 +669,11 @@ class _BatchSheetState extends State<_BatchSheet> {
               ],
             ],
             if (_note != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               Text(_note!, style: const TextStyle(color: AppColors.green)),
             ],
             if (_error != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               Text(_error!, style: const TextStyle(color: AppColors.red)),
             ],
           ]),
@@ -728,7 +729,7 @@ class _BulkBar extends StatelessWidget {
           onPressed: busy ? null : onClear,
           child: const Text('Clear'),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         AfosButton(
           label: 'Back up & remove',
           icon: Icons.delete_sweep_outlined,

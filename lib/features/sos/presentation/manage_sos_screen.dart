@@ -19,6 +19,7 @@ import '../data/repositories/sos_repository.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Admin/staff oversight of every SOS alert system-wide -- same filter-tab
 /// + refetch-on-any-change pattern as manage_hall_screen.dart, since
 /// sos_alerts.stream() can't embed the sender's profile either.
@@ -117,7 +118,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                 child: Row(children: [
                   Icon(enabled ? Icons.campaign_rounded : Icons.campaign_outlined,
                       color: enabled ? AppColors.red : AppColors.textSecondaryOf(context)),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpace.md),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Campus SOS for everyone',
                         style: AppTextStyles.titleMedium.copyWith(
@@ -186,7 +187,7 @@ class _ManageSosScreenState extends State<ManageSosScreen> {
                                 ])),
                                 // 12 on the left of this Expanded, nothing on the right — a long
                                 // name ellipsised straight into the status pill.
-                                const SizedBox(width: 12),
+                                const SizedBox(width: AppSpace.md),
                                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                         color: (status == 'active' ? AppColors.red : AppColors.green).withValues(alpha: 0.15),

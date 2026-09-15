@@ -17,6 +17,7 @@ import '../data/exam_room_pdf_parser.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../config/theme/spacing.dart';
 /// admin/dept_admin/super_admin/exam_controller: upload one or more real
 /// exam seat-plan PDFs. Confirmed against an actual DIU sample document —
 /// these publish room *capacity* per batch+section (a section spans
@@ -229,27 +230,27 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
         Text('Upload the official exam seat-plan PDF(s) — you can select several at once '
                 '(e.g. one per exam date). Each is parsed for room/seat allocations per batch+section.',
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         AfosButton(label: 'Pick PDF(s)', icon: Icons.upload_file_rounded, onTap: _pickFiles),
         if (_files.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           SurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: _files.map((f) => Padding(padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Text(f.name, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimaryOf(context))))).toList())),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosButton(label: 'Parse ${_files.length} File(s)', loading: _parsing, onTap: _parseAll),
         ],
         if (_parsedRows.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           SurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               const Icon(AppIcons.examSeat, color: AppColors.gold, size: 18),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(child: Text(
                   '${_parsedRows.length} room allocations · $distinctSections sections · $distinctDates exam date(s)',
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)))),
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             // Shown before anything is written — the same reason the transport
             // importer previews its parse first. This is the only chance to
             // catch a Faculty/Dept. column that read as blank or as something
@@ -269,11 +270,11 @@ class _ManageExamSeatsScreenState extends State<ManageExamSeatsScreen> {
                       color: departments.isEmpty || missing ? AppColors.amber : AppColors.textSecondaryOf(context)));
             }),
           ])),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           AfosButton(label: 'Confirm & Upload', loading: _uploading, onTap: _upload),
         ],
         if (_error != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Text(_error!, style: const TextStyle(color: AppColors.red)),
         ],
       ])),

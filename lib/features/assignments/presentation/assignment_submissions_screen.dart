@@ -15,6 +15,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../data/repositories/assignments_repository.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 /// What a class handed in, and where the teacher marks it.
 ///
@@ -331,7 +332,7 @@ class _SubmissionCardState extends State<_SubmissionCard> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 FilledButton(
                   onPressed: _save,
                   style: FilledButton.styleFrom(backgroundColor: AppColors.green),

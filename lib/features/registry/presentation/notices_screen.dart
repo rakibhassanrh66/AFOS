@@ -18,6 +18,7 @@ import '../../../shared/widgets/feature_header.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Everything the university has published, for the people it was published to.
 ///
@@ -115,7 +116,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0),
             itemCount: _categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
             itemBuilder: (ctx, i) {
               final c = _categories[i];
               final on = c == _filter;
@@ -144,7 +145,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Expanded(
           child: _loading
               ? const Padding(padding: EdgeInsets.all(16), child: ShimmerList())

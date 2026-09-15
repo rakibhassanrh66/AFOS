@@ -26,6 +26,7 @@ import 'assignment_submissions_screen.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({super.key});
   @override State<AssignmentsScreen> createState() => _AssignmentsScreenState();
@@ -226,7 +227,7 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
         padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('New Assignment', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(context))),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           if (_loading) const Center(child: SupernovaBusy(label: 'Loading your classes'))
           else if (_sections.isEmpty)
             // Classes come from approved course_offerings now, not the
@@ -241,9 +242,9 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
                 items: _sections.map((s) => DropdownMenuItem(value: s,
                     child: Text('${s['subjectCode']} — Batch ${s['batch']} Sec ${s['section']}'))).toList(),
                 onChanged: (v) => setState(() => _selectedSection = v)),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             AfosTextField(hint: 'Title', controller: _titleCtrl),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // A hint that asks for what a student actually needs. "Description
             // / question" invited a one-line prompt; the students reading it
             // then have no idea what to hand in or how it is marked.
@@ -251,7 +252,7 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
                 hint: 'Instructions — what to do, what to hand in, how it is marked',
                 controller: _descCtrl,
                 maxLines: 5),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // The mark ceiling is per-assignment because a weekly problem sheet
             // and a term paper are not worth the same; a DB trigger rejects a
             // mark above whatever is set here.
@@ -259,10 +260,10 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
                 hint: 'Marks this assignment is out of',
                 controller: _maxMarksCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true)),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             OutlinedButton.icon(onPressed: _pickDeadline, icon: const Icon(Icons.event_outlined),
                 label: Text(_deadline == null ? 'Pick deadline' : AppFormatters.dateTime(_deadline!))),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // The brief itself — a question paper, a spec, a dataset. Until
             // now the only way to set an assignment was to type it into the
             // box above, so anything that was already a PDF had to be
@@ -448,9 +449,9 @@ class _StudentAssignmentsTabState extends State<_StudentAssignmentsTab> {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${existing == null ? 'Submit' : 'Update'}: ${a['title']}',
                   style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Your answer / notes', controller: ctrl, maxLines: 5),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               // Coursework is usually a file, not a paragraph typed on a phone.
               // Same picker config the feedback sheet already uses.
               OutlinedButton.icon(

@@ -18,6 +18,7 @@ import '../../shell/presentation/top_app_bar.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Faculties/Departments registry — read is open to any authenticated user
 /// (public_read_* policies), but only super_admin has an RLS path to write
 /// (super_admin_all), so the add/edit/delete affordances are hidden for
@@ -123,10 +124,10 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                 style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
             const SizedBox(height: 20),
             AfosTextField(hint: 'Name', controller: nameCtrl),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             AfosTextField(hint: 'Code', controller: codeCtrl),
             if (_isDepartments) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               DropdownButtonFormField<String>(
                 initialValue: facultyId,
                 decoration: const InputDecoration(labelText: 'Faculty'),
@@ -134,7 +135,7 @@ class _RegistryListScreenState extends State<RegistryListScreen> {
                 onChanged: (v) => setSheetState(() => facultyId = v),
               ),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xl),
             AfosButton(
               label: existing == null ? 'Create' : 'Save',
               loading: saving,

@@ -30,6 +30,7 @@ import 'club_chat_screen.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 IconData categoryIcon(String? category) => switch (category) {
       'Tech' => Icons.memory_rounded,
       'Sports' => Icons.sports_soccer_rounded,
@@ -324,9 +325,9 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
             padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Notice for $clubName', style: AppTextStyles.headlineLarge.copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               AfosTextField(hint: 'Title', controller: titleCtrl),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               AfosTextField(hint: 'Message', controller: msgCtrl, maxLines: 3),
               const SizedBox(height: 20),
               AfosButton(label: 'Send to All Members', onTap: () async {
@@ -376,15 +377,15 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
               padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, MediaQuery.of(sheetCtx).viewInsets.bottom + 24),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Create Event for $clubName', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 AfosTextField(hint: 'Event title', controller: titleCtrl),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 AfosTextField(hint: 'Description', controller: descCtrl, maxLines: 3),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 AfosTextField(hint: 'Venue', controller: venueCtrl),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 AfosTextField(hint: 'Max seats (optional)', controller: seatsCtrl, keyboardType: TextInputType.number),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.event_rounded, color: AppColors.pink),
@@ -462,7 +463,7 @@ class _ClubsState extends State<ClubsScreen> with SingleTickerProviderStateMixin
           ...options.map((r) => ListTile(
               title: Text(r.replaceAll('_', ' ').toUpperCase()),
               onTap: () { Navigator.pop(sheetCtx); _requestPost(clubId, r); })),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
         ])));
   }
 
@@ -650,7 +651,7 @@ class _ClubList extends StatelessWidget {
                   child: Text(c['category'] ?? '', textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                       style: const TextStyle(color: AppColors.pink, fontSize: 11, height: 1.0, fontWeight: FontWeight.w600))),
             ])),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             // Faculty get "Supervise" where a student gets "Join" — the two
             // are mutually exclusive, and a teacher had no entry point at all
             // before this.
@@ -745,13 +746,13 @@ class _MyClubsTab extends StatelessWidget {
                   Container(width: 44, height: 44, decoration: BoxDecoration(
                       color: AppColors.pink.withValues(alpha: 0.15), borderRadius: AppDepth.radius(0)),
                       child: Icon(categoryIcon(club['category'] as String?), color: AppColors.pink, size: 24)),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpace.md),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(club['name'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(club['category'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ])),
                   // Same gap this row already keeps on the icon side.
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpace.md),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: (isPresident ? AppColors.gold : AppColors.blue).withValues(alpha: 0.1), borderRadius: AppDepth.radius(0)),
                       child: Text(role.replaceAll('_', ' ').toUpperCase(),
@@ -768,7 +769,7 @@ class _MyClubsTab extends StatelessWidget {
                       onPressed: () => onSendNotice(clubId, club['name'] ?? 'Club'),
                       icon: const Icon(Icons.campaign_outlined, size: 16),
                       label: const Text('Send Club Notice'))),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpace.sm),
                   SizedBox(width: double.infinity, child: OutlinedButton.icon(
                       onPressed: () => onCreateEvent(clubId, club['name'] ?? 'Club'),
                       icon: const Icon(Icons.event_rounded, size: 16),
@@ -783,7 +784,7 @@ class _MyClubsTab extends StatelessWidget {
                   const SizedBox(height: 14),
                   Text('Pending Membership Requests (${myPendingRequests.length})',
                       style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context), fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpace.sm),
                   ...myPendingRequests.map((r) {
                     final requestId = r['id'] as String;
                     final student = r['profiles'] as Map<String, dynamic>? ?? {};
@@ -851,7 +852,7 @@ class _EventsTab extends StatelessWidget {
                         Text(date != null ? _month(date.month) : '',
                             style: const TextStyle(color: AppColors.indigo, fontSize: 10)),
                       ])),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpace.md),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(e['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(e['venue'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),

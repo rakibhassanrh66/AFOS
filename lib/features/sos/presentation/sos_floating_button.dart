@@ -18,6 +18,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/location_helper.dart';
 import '../../../core/utils/responsive.dart';
 import '../data/repositories/sos_repository.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Visibility gate for the persistent SOS button. The floating button is shown
 /// only when a super-admin has switched the campus-emergency SOS feature ON
@@ -316,7 +317,7 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
         padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.sos_rounded, color: AppColors.red, size: 40),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('Sending SOS in $_remaining s', style: AppTextStyles.headlineMed.copyWith(color: textPrimary)),
           const SizedBox(height: 6),
           Text('Your location will be shared with nearby people and staff.',
@@ -333,7 +334,7 @@ class _SosConfirmSheetState extends State<_SosConfirmSheet> {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(_recording ? Icons.stop_circle_rounded : Icons.mic_rounded,
                     color: _recording ? AppColors.red : AppColors.blue, size: 20),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 Text(_recording ? 'Recording… ${_recordSeconds}s (tap to stop)'
                         : _recordedPath != null ? 'Voice note added' : 'Add a voice note (optional)',
                     style: TextStyle(color: _recording ? AppColors.red : AppColors.blue, fontWeight: FontWeight.w600)),

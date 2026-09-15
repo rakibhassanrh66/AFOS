@@ -19,6 +19,7 @@ import '../../../shared/widgets/shimmer_card.dart';
 
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Super Admin / admin / teacher content management for notices, rules,
 /// and announcements — creating one here immediately writes to Supabase
 /// (the list below is a live stream, so every open dashboard/notifications
@@ -123,12 +124,12 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                       child: Text(c[0] + c.substring(1).toLowerCase()))).toList(),
                   onChanged: (v) => setSheetState(() => category = v ?? category),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 AfosTextField(hint: 'Title', controller: titleCtrl),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 AfosTextField(hint: 'Details', controller: bodyCtrl, maxLines: 5),
                 if (existing == null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                   DropdownButtonFormField<String?>(
                     initialValue: notifyRole,
                     decoration: InputDecoration(hintText: 'Notify', filled: true,
@@ -145,7 +146,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
                     onChanged: (v) => setSheetState(() => notifyRole = v),
                   ),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xl),
                 AfosButton(
                   label: existing == null ? 'Publish' : 'Save Changes',
                   loading: saving,
@@ -278,7 +279,7 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
           // row with a longer title.
           Text(n['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: textPrimary),
               maxLines: 2, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(n['body'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary),
               maxLines: 3, overflow: TextOverflow.ellipsis),
         ]));

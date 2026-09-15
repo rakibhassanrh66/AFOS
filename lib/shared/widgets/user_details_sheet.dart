@@ -4,6 +4,7 @@ import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_text_styles.dart';
 import '../../core/utils/role_labels.dart';
 import 'glass_sheet.dart';
+import '../../config/theme/spacing.dart';
 
 /// Tap-to-reveal identity card shown from a chat bubble's sender name/avatar
 /// -- the bubble itself keeps its anonymized display string (see
@@ -95,7 +96,7 @@ class UserDetailsSheet extends StatelessWidget {
                       style: const TextStyle(color: AppColors.blue, fontSize: 26, fontWeight: FontWeight.w800))
                   : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Row(mainAxisSize: MainAxisSize.min, children: [
               Flexible(child: Text(fullName?.isNotEmpty == true ? fullName! : 'Unknown',
                   style: AppTextStyles.headlineMed.copyWith(color: textPrimary), overflow: TextOverflow.ellipsis)),
@@ -155,7 +156,7 @@ class _DetailRow extends StatelessWidget {
             style: AppTextStyles.bodyMedium
                 .copyWith(color: AppColors.textSecondaryOf(context))),
       ),
-      const SizedBox(width: 16),
+      const SizedBox(width: AppSpace.lg),
       Expanded(
         flex: 6,
         child: Text(value,

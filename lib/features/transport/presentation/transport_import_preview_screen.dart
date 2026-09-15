@@ -10,6 +10,7 @@ import '../../../shared/widgets/pill_badge.dart';
 import '../data/models/transport_schedule.dart';
 import '../data/transport_import_service.dart';
 import '../data/transport_time_parser.dart';
+import '../../../config/theme/spacing.dart';
 
 /// What the review screen hands back to the uploader: the (possibly
 /// admin-edited) routes to actually write, the optional broadcast message, and
@@ -115,7 +116,7 @@ class _TransportImportPreviewScreenState extends State<TransportImportPreviewScr
               margin: const EdgeInsets.only(bottom: 12),
             ),
             _SummaryBar(validation: _validation),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             for (final entry in bySection.entries) ...[
               Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 8),
@@ -134,12 +135,12 @@ class _TransportImportPreviewScreenState extends State<TransportImportPreviewScr
                   ),
                 ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             // The optional broadcast notice. Lives in the scrollable list (not the
             // pinned bar) so the keyboard can lift it into view on its own via the
             // Scaffold's default resize.
             _BroadcastMessageField(controller: _messageCtrl),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
           ])),
           _ConfirmBar(
             validation: _validation,
@@ -174,12 +175,12 @@ class _BroadcastMessageField extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           const Icon(Icons.campaign_rounded, size: 18, color: AppColors.holoTeal),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Text('Message to everyone (optional)',
               style: AppTextStyles.titleMedium.copyWith(
                   color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w700)),
         ]),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text('Sent as a notification to all users with this update. Leave empty to send the standard "schedule updated" notice.',
             style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
         const SizedBox(height: 10),
@@ -287,7 +288,7 @@ class _RoutePreviewCard extends StatelessWidget {
           ),
         ]),
         if (route.stops.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(route.stops.join('  ›  '),
               maxLines: 2, overflow: TextOverflow.ellipsis,
               style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
@@ -297,7 +298,7 @@ class _RoutePreviewCard extends StatelessWidget {
         const SizedBox(height: 6),
         _TripRow(label: 'From DSC', trips: route.fromDscTrips),
         if (messages.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           for (final m in messages)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -455,7 +456,7 @@ class _RouteEditSheetState extends State<_RouteEditSheet> {
             child: ListView(shrinkWrap: true, children: [
               _label(context, 'Route name'),
               _textField(context, _nameCtrl, hint: 'e.g. Dhanmondi <> DSC'),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               _label(context, 'Stops (in order, pickup → campus)'),
               for (var i = 0; i < _stops.length; i++)
                 _StopRow(
@@ -490,7 +491,7 @@ class _RouteEditSheetState extends State<_RouteEditSheet> {
                 ),
                 child: Row(children: [
                   const Icon(Icons.flag_rounded, size: 14, color: AppColors.holoTeal),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Text('$kCanonicalDestination · destination (fixed)',
                       style: AppTextStyles.labelSmall.copyWith(color: AppColors.holoTeal, fontWeight: FontWeight.w600)),
                 ]),
@@ -521,7 +522,7 @@ class _RouteEditSheetState extends State<_RouteEditSheet> {
               label: 'Cancel', outlined: true, color: textSecondary,
               onTap: () => Navigator.of(context).pop(null),
             )),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(flex: 2, child: AfosButton(
               label: 'Save fix',
               color: AppColors.green,
@@ -583,7 +584,7 @@ class _StopRow extends StatelessWidget {
             child: Text('${index + 1}', style: const TextStyle(color: AppColors.holoTeal, fontSize: 10, fontWeight: FontWeight.bold)),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(child: TextField(
           controller: controller,
           style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 13),
@@ -686,7 +687,7 @@ class _TripEditRowState extends State<_TripEditRow> {
             visualDensity: VisualDensity.compact,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: AppSpace.xs),
           Text('Coming soon (time not set yet)',
               style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
         ]),
@@ -725,7 +726,7 @@ class _ConfirmBar extends StatelessWidget {
             label: 'Cancel', outlined: true, color: AppColors.textSecondaryOf(context),
             onTap: onCancel,
           )),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(flex: 2, child: AfosButton(
             label: 'Confirm & Import',
             color: validation.hasErrors ? AppColors.amber : AppColors.green,

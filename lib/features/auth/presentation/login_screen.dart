@@ -23,6 +23,7 @@ import '../../../core/utils/pending_credentials_store.dart';
 import '../../../core/utils/last_route.dart';
 import '../../../core/utils/responsive.dart';
 import 'widgets/auth_brand_panel.dart';
+import '../../../config/theme/spacing.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -331,7 +332,7 @@ class _FormPane extends StatelessWidget {
                   child: Form(
                     key: formKey,
                     child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-                      const SizedBox(height:16),
+                      const SizedBox(height: AppSpace.lg),
                       // Logo
                       // cacheWidth, because the source is 1086x1196 and decodes
                       // to ~5 MB of ARGB to paint an 88px logo. 264 = 88 at a
@@ -340,17 +341,17 @@ class _FormPane extends StatelessWidget {
                       Center(child: Image.asset('assets/images/diu_logo.png', height:88, cacheWidth: 264,
                           errorBuilder: (_, __, ___) => Row(mainAxisSize:MainAxisSize.min, children:[
                             logoLetter('A', AppColors.holoBlue, context),
-                            const SizedBox(width:8),
+                            const SizedBox(width: AppSpace.sm),
                             logoLetter('F', AppColors.gold, context),
-                            const SizedBox(width:8),
+                            const SizedBox(width: AppSpace.sm),
                             logoLetter('O', AppColors.teal, context),
-                            const SizedBox(width:8),
+                            const SizedBox(width: AppSpace.sm),
                             logoLetter('S', AppColors.holoTeal, context),
                           ])))
                         .animate()
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.slow), curve: AppMotion.standard)
                         .slideY(begin:-0.3, curve: AppMotion.standard),
-                      const SizedBox(height:32),
+                      const SizedBox(height: AppSpace.xxl),
                       // Centered to match the logo above and the university
                       // footer below — the enclosing Column is
                       // CrossAxisAlignment.start (correct for the form fields
@@ -360,12 +361,12 @@ class _FormPane extends StatelessWidget {
                         .animate(delay: AppMotion.sequenceDelay(context, 3))
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                         .slideX(begin:-0.08, curve: AppMotion.standard),
-                      const SizedBox(height:4),
+                      const SizedBox(height: AppSpace.xs),
                       Center(child: Text('Sign in to your AFOS account',
                         style:AppTextStyles.bodyMedium.copyWith(color: textSecondary)))
                         .animate(delay: AppMotion.sequenceDelay(context, 5))
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                      const SizedBox(height:32),
+                      const SizedBox(height: AppSpace.xxl),
                       AfosTextField(
                         hint:'Email address', controller:emailCtrl,
                         prefixIcon:Icons.email_outlined,
@@ -379,7 +380,7 @@ class _FormPane extends StatelessWidget {
                       ).animate(delay: AppMotion.sequenceDelay(context, 7))
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base))
                         .slideY(begin:0.08, curve: AppMotion.standard),
-                      const SizedBox(height:16),
+                      const SizedBox(height: AppSpace.lg),
                       AfosTextField(
                         hint:'Password', controller:passCtrl,
                         prefixIcon:Icons.lock_outline, obscure:true,
@@ -403,7 +404,7 @@ class _FormPane extends StatelessWidget {
                               style: AppTextStyles.labelSmall.copyWith(color: AppColors.holoBlue))),
                         ]),
                       ],
-                      const SizedBox(height:8),
+                      const SizedBox(height: AppSpace.sm),
                       Align(
                         alignment:Alignment.centerRight,
                         child: TextButton(
@@ -412,7 +413,7 @@ class _FormPane extends StatelessWidget {
                             style:TextStyle(color:AppColors.holoBlue, fontSize:13, fontWeight:FontWeight.w600)),
                         ),
                       ),
-                      const SizedBox(height:16),
+                      const SizedBox(height: AppSpace.lg),
                       BlocBuilder<AuthBloc,AuthState>(
                         builder:(ctx,state) => AfosButton(
                           label:'Sign in to AFOS',
@@ -454,7 +455,7 @@ class _FormPane extends StatelessWidget {
                         ),
                       ]).animate(delay: AppMotion.sequenceDelay(context, 12))
                         .fadeIn(duration: AppMotion.durationOf(context, AppMotion.base)),
-                      const SizedBox(height:12),
+                      const SizedBox(height: AppSpace.md),
                       Center(child: Text('Daffodil International University',
                         style:AppTextStyles.labelSmall.copyWith(color: textSecondary)))
                         .animate(delay: AppMotion.sequenceDelay(context, 13))

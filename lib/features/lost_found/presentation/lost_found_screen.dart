@@ -224,10 +224,10 @@ class _FeedTab extends StatelessWidget {
           : error != null
               ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 40),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   Text('Couldn\'t load: $error', textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondaryOf(context))),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   TextButton(onPressed: onRefresh, child: const Text('Retry')),
                 ])))
               : posts.isEmpty
@@ -300,7 +300,7 @@ class _PostCard extends StatelessWidget {
               content: Column(mainAxisSize: MainAxisSize.min, children: [
                 Text('Describe matching details (color, marks, contents, receipt, etc.) so the poster can verify it\'s yours.',
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(dctx))),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 TextField(controller: msgCtrl, maxLines: 3,
                     decoration: const InputDecoration(hintText: 'Matching details...', border: OutlineInputBorder())),
               ]),
@@ -394,7 +394,7 @@ class _PostCard extends StatelessWidget {
             Expanded(child: Text(post['location_text'] ?? '', style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
           if (!_isOwnPost && post['status'] == 'active') ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             // Was 30dp tall — the primary action on the card, under the touch floor.
             SizedBox(width: double.infinity, height: AppSpace.minTouchTarget, child: OutlinedButton(
                 onPressed: () => _openClaimDialog(context),
@@ -479,7 +479,7 @@ class _PostTabState extends State<_PostTab> {
       child: Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: _TypeChip('I Lost Something', 'lost', _type, (v) => setState(() => _type = v))),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(child: _TypeChip('I Found Something', 'found', _type, (v) => setState(() => _type = v))),
         ]),
         const SizedBox(height: 20),
@@ -521,7 +521,7 @@ class _PostTabState extends State<_PostTab> {
                     const SizedBox(height: 6),
                     Text('Add photo (optional)', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
                   ]))),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpace.xl),
         AfosButton(label: 'Post ${_type == 'lost' ? 'Lost' : 'Found'} Item',
             loading: _loading, onTap: _submit),
       ])),
@@ -620,7 +620,7 @@ class _MyPostsTabState extends State<_MyPostsTab> {
               Row(children: [
                 Container(width: 10, height: 50, decoration: BoxDecoration(
                     color: color, borderRadius: BorderRadius.circular(LiquidGlass.radiusPill))),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpace.md),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(p['title'] ?? '', style: AppTextStyles.titleMedium.copyWith(color: AppColors.textPrimaryOf(context))),
                   // Raw status strings leaked to the user ('awaiting_handover'),
@@ -1075,10 +1075,10 @@ class _MyClaimsTabState extends State<_MyClaimsTab> {
                       child: Text(status.toUpperCase(), textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
                           style: TextStyle(color: statusColor, fontSize: 10, height: 1.0, fontWeight: FontWeight.w700))),
                 ]),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text(c['message'] ?? '', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context)),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Row(children: [
                   // Only once the handover panel is gone: while it is showing,
                   // Call and Message are right there and better.

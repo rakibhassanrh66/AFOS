@@ -19,6 +19,7 @@ import '../../schedule/data/repositories/course_offering_repository.dart';
 import '../../schedule/presentation/widgets/offering_card.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Admin-facing approval queue for teacher-declared course offerings.
 /// Approving publishes one `schedule_slots` row per declared meeting, so it
@@ -127,7 +128,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
                       const SizedBox(height: 14),
                       AfosTextField(
                           hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       Row(children: [
                         Expanded(
                             child: TextButton(
@@ -248,10 +249,10 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
                       Text('Decline $label?',
                           style: AppTextStyles.headlineLarge
                               .copyWith(color: AppColors.textPrimaryOf(sheetCtx))),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                       AfosTextField(
                           hint: 'Reason (optional)', controller: reasonCtrl, maxLines: 2),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       Row(children: [
                         Expanded(
                             child: TextButton(
@@ -429,7 +430,7 @@ class _ManageCourseOfferingsAdminScreenState extends State<ManageCourseOfferings
               ),
             ]),
             if (!approved && reason.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.xs),
               Text('Reason: $reason',
                   style: AppTextStyles.labelSmall.copyWith(color: AppColors.red),
                   maxLines: 3, overflow: TextOverflow.ellipsis),

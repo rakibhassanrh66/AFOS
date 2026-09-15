@@ -462,7 +462,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     // and it never says "suspended" or "blocked" — words that
                     // read as an accusation for what is usually forgetfulness.
                     if (_photoWindowClosed) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -509,7 +509,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           _avatarReviewStatus = url == null ? 'none' : 'pending';
                           _avatarReviewReason = null;
                         }))),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     // Future tense, same doctrine as the phone/address notice
                     // below: state the requirement, never fake a check that
                     // has not happened. A real admin looks at every photo.
@@ -524,7 +524,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Icon(Icons.photo_camera_outlined, size: 16,
                               color: AppColors.textSecondaryOf(context)),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: AppSpace.sm),
                           Expanded(child: Text(
                             'Upload a real, formal photo of yourself within 48 hours of '
                             'your account being approved — an administrator reviews it '
@@ -533,13 +533,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                                 color: AppColors.textSecondaryOf(context)))),
                         ]),
                       ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     if (_studentId.isNotEmpty) _ReadOnlyRow(label: 'Student/University ID', value: _studentId),
                     if (_email.isNotEmpty) _ReadOnlyRow(label: 'Email', value: _email),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     AfosTextField(hint: 'Full name', controller: _nameCtrl,
                         validator: (v) => AppValidators.required(v, f: 'Full name')),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     // The check is NOT built. This is written in the FUTURE
                     // tense on purpose: a mock that pretended to verify would
                     // be a false claim shown to a real person, and the
@@ -555,7 +555,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Icon(Icons.verified_user_outlined, size: 16,
                             color: AppColors.textSecondaryOf(context)),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpace.sm),
                         Expanded(child: Text(
                           'These details will be checked later — by a code sent to '
                           'your number, and by a direct call from the university. '
@@ -564,37 +564,37 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                               color: AppColors.textSecondaryOf(context)))),
                       ]),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     AfosTextField(hint: 'Phone number', controller: _phoneCtrl,
                         keyboardType: TextInputType.phone,
                         validator: (v) => AppValidators.required(v, f: 'Phone')),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     // Required now. It was optional, and 3 of 14 people had
                     // one -- an emergency contact nobody filled in is not an
                     // emergency contact.
                     AfosTextField(hint: 'Emergency contact (name + phone)',
                         controller: _emergencyCtrl,
                         validator: (v) => AppValidators.required(v, f: 'Emergency contact')),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     Text('Permanent address', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpace.xs),
                     Text('Used to alert nearby people if you ever need emergency help.',
                         style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     _AddressDropdown(
                       hint: 'Division',
                       value: _division,
                       items: BdGeography.divisions,
                       onChanged: (v) => setState(() { _division = v; _district = null; _upazila = null; _thana = null; }),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     _AddressDropdown(
                       hint: 'District',
                       value: _district,
                       items: BdGeography.districtsOf(_division),
                       onChanged: (v) => setState(() { _district = v; _upazila = null; _thana = null; }),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     _AddressDropdown(
                       hint: 'Upazila',
                       value: _upazila,
@@ -606,7 +606,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     // reveals the real DMP thana list as a 4th level instead
                     // of the address stopping one level short.
                     if (BdGeography.isDhakaMahanagar(_division, _district, _upazila)) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                       _AddressDropdown(
                         hint: 'Thana',
                         value: _thana,
@@ -614,17 +614,17 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         onChanged: (v) => setState(() => _thana = v),
                       ),
                     ],
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     Text('Gender', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     Row(children: [
                       Expanded(child: _GenderChip(label: 'Male', selected: _gender == 'male',
                           onTap: () => setState(() => _gender = 'male'))),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpace.md),
                       Expanded(child: _GenderChip(label: 'Female', selected: _gender == 'female',
                           onTap: () => setState(() => _gender = 'female'))),
                     ]),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpace.lg),
                     // Staff never sees this: `_departments` is the purely
                     // ACADEMIC list (CSE, EEE, BBA, ...) — a staff member (IT,
                     // accounts, admin, ...) has no correct answer in it. Their
@@ -650,21 +650,21 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         // simply not working.
                         validator: (v) => v == null ? 'Select a department' : null,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                     ],
                     if (_isTeacher) ...[
                       AfosTextField(
                         hint: 'Your initial (e.g. FNB)',
                         controller: _initialCtrl,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                       Text(
                         'Students find you by this. Set it and they can name you '
                         'as their advisor or project supervisor.',
                         style: AppTextStyles.labelSmall.copyWith(
                             color: AppColors.textSecondaryOf(context)),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                     ],
                     if (_isTeacher)
                       AfosTextField(hint: 'Designation (e.g. Lecturer)', controller: _designationCtrl,
@@ -691,7 +691,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       Row(children: [
                         Expanded(child: AfosTextField(hint: 'Batch (e.g. 61)', controller: _batchCtrl,
                             validator: AppValidators.batch)),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpace.md),
                         Expanded(child: AfosTextField(hint: 'Section (e.g. A)', controller: _sectionCtrl,
                             validator: AppValidators.section)),
                       ]),
@@ -700,7 +700,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       Slider(value: _sem, min: 1, max: 12, divisions: 11,
                           activeColor: AppColors.holoBlue, label: '${_sem.toInt()}',
                           onChanged: (v) => setState(() => _sem = v)),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       // The term admitted in. There is no column this can be
                       // derived from -- the university IDs on file are not
                       // consistently formatted, so no term code can be parsed
@@ -722,7 +722,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                             validator: (v) => v == null ? 'Admission season is required' : null,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpace.md),
                         Expanded(
                           child: AfosTextField(hint: 'Admission year',
                               controller: _admissionYearCtrl,
@@ -737,7 +737,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       ]),
                     ],
                     if (!_isAdminTier) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       _JoinDateField(
                         value: _joinedOn,
                         errorText: _joinedOnError,
@@ -747,10 +747,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     ],
                     const SizedBox(height: 20),
                     Text('Current location', style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpace.xs),
                     Text('Required so nearby bus stops and emergency alerts can find you.',
                         style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     if (_capturedPosition != null || _hasExistingLocation)
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -761,7 +761,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         ),
                         child: Row(children: [
                           const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: AppSpace.sm),
                           Expanded(child: Text('Location confirmed',
                               style: AppTextStyles.bodyMedium.copyWith(color: textPrimary))),
                           Flexible(
@@ -781,7 +781,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         ),
                         child: Row(children: [
                           Icon(Icons.info_outline_rounded, size: 18, color: textSecondary),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: AppSpace.sm),
                           Expanded(child: Text('Location skipped — add it later from Transport.',
                               style: AppTextStyles.bodyMedium.copyWith(color: textSecondary))),
                           Flexible(
@@ -810,7 +810,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         // permission handling is reliable enough to stay a
                         // hard requirement; browser prompts are not.
                         if (kIsWeb) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppSpace.xs),
                           TextButton(
                             onPressed: _capturingLocation
                                 ? null
@@ -819,7 +819,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           ),
                         ],
                       ]),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpace.xl),
                     AfosButton(label: 'Save & Continue', loading: _saving, onTap: _save),
                     // The skip only exists while the window is open, and it
                     // says when it closes. A grace nobody can see is not a
@@ -827,13 +827,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     // wall with no explanation, which is how 13 of 19 accounts
                     // ended up unable to reach any other screen.
                     if (RoleSession.insideGrace) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                       AfosButton(
                         label: 'Finish this later',
                         outlined: true,
                         onTap: () => context.go('/home'),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpace.sm),
                       Text(
                         _graceNotice(),
                         textAlign: TextAlign.center,
@@ -918,7 +918,7 @@ class _JoinDateField extends StatelessWidget {
           child: Row(children: [
             Icon(Icons.badge_outlined, size: 18,
                 color: AppColors.textSecondaryOf(context)),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             Expanded(
               child: Text(
                 value == null

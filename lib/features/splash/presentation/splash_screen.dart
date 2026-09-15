@@ -11,6 +11,7 @@ import '../../../config/theme/motion.dart';
 import '../../../core/auth/biometric_lock.dart';
 import '../../../core/services/consent_service.dart';
 import '../../../core/utils/last_route.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Splash motion concept: a clock-style sweep reveals the wordmark
 /// right-to-left (a rotating clock hand wiping the dial open), then the whole
@@ -334,7 +335,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               AnimatedOpacity(
                 opacity: _showTagline ? 1 : 0, duration: LiquidGlass.motionStandard, curve: LiquidGlass.motionCurve,
                 child: const Text('Daffodil International University',

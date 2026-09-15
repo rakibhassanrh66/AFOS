@@ -7,6 +7,7 @@ import '../../config/theme/app_text_styles.dart';
 import '../../core/auth/biometric_lock.dart';
 import 'empty_state.dart';
 import 'glass_sheet.dart';
+import '../../config/theme/spacing.dart';
 
 /// Switches the live Supabase session to a different remembered account —
 /// signs the current one out, restores the target's stored session, and
@@ -123,10 +124,10 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
       padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Switch Account', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text('Accounts with fingerprint / Face ID quick-login enabled on this device',
             style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         if (_accounts.isEmpty)
           const Padding(padding: EdgeInsets.symmetric(vertical: 12),
               child: EmptyState(icon: Icons.people_outline_rounded,
@@ -153,7 +154,7 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
                           child: (a.avatarUrl?.isNotEmpty ?? false) ? null
                               : Text((a.fullName?.isNotEmpty ?? false) ? a.fullName![0].toUpperCase() : a.email[0].toUpperCase(),
                                   style: const TextStyle(color: AppColors.blue, fontWeight: FontWeight.bold))),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpace.md),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(a.fullName?.isNotEmpty == true ? a.fullName! : a.email,
                             style: AppTextStyles.titleMedium.copyWith(color: textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -175,7 +176,7 @@ class _AccountSwitcherBodyState extends State<_AccountSwitcherBody> {
               ),
             );
           }),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         OutlinedButton.icon(
           onPressed: _busy ? null : _addAnotherAccount,
           icon: const Icon(Icons.add_rounded),

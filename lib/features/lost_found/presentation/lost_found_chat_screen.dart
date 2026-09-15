@@ -10,6 +10,7 @@ import '../../../core/utils/error_formatter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/shimmer_card.dart';
 import '../../shell/presentation/top_app_bar.dart';
+import '../../../config/theme/spacing.dart';
 
 /// The 24-hour thread between the two people in one handover.
 ///
@@ -244,7 +245,7 @@ class _LostFoundChatScreenState extends State<LostFoundChatScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               IconButton.filled(
                 onPressed: _sending ? null : _send,
                 style: IconButton.styleFrom(backgroundColor: AppColors.holoviolet),

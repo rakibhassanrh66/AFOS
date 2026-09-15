@@ -197,8 +197,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               ? const Padding(
                   padding: EdgeInsets.all(16),
                   child: Column(children: [
-                    ShimmerCard(height: 90), SizedBox(height: 12),
-                    ShimmerCard(height: 64), SizedBox(height: 12),
+                    ShimmerCard(height: 90), SizedBox(height: AppSpace.md),
+                    ShimmerCard(height: 64), SizedBox(height: AppSpace.md),
                     ShimmerCard(height: 64),
                   ]))
               : _offerings.isEmpty
@@ -241,7 +241,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _offerings.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
             itemBuilder: (ctx, i) {
               final o = _offerings[i];
               final c = o['courses'] as Map<String, dynamic>? ?? const {};
@@ -367,7 +367,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               Text('$attended/$total',
                   style: AppTextStyles.titleMedium.copyWith(
                       color: pct >= 0.75 ? AppColors.green : AppColors.amber)),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpace.xs),
               Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondaryOf(ctx), size: 20),
             ]),
@@ -580,11 +580,11 @@ class _NewSessionFormState extends State<_NewSessionForm> {
           children: [
             Text('Take Attendance',
                 style: AppTextStyles.headlineLarge.copyWith(color: textPrimary)),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             Text('Everyone starts marked present — change only the ones who '
                 'were not there.',
                 style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             InkWell(
               onTap: _pickDate,
               borderRadius: BorderRadius.circular(LiquidGlass.radiusControl),
@@ -609,12 +609,12 @@ class _NewSessionFormState extends State<_NewSessionForm> {
                 ]),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             AfosTextField(hint: 'Topic (optional)', controller: _topicCtrl),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Row(children: [
               const Icon(Icons.groups_2_outlined, size: 16, color: AppColors.purple),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Text('Register for $group',
                   style: AppTextStyles.labelSmall.copyWith(color: textSecondary)),
             ]),

@@ -7,6 +7,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/theme/depth.dart';
 import '../../../config/theme/motion.dart';
 import '../../../core/navigation/nav_destinations.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Ctrl/Cmd+K — jump to anywhere in the app from the keyboard.
 ///
@@ -268,7 +269,7 @@ class _Row extends StatelessWidget {
         padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0),
         child: Row(children: [
           Icon(destination.icon, size: 18, color: destination.color),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Text(destination.label,
                 maxLines: 1,

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/supabase_config.dart';
 import 'upload_batch.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Produces the backup a person must take before an upload can be removed.
 ///
@@ -156,11 +157,11 @@ class UploadBackupPdf {
                     color: PdfColors.grey600))),
         build: (ctx) => [
           pw.Header(level: 0, child: pw.Text('AFOS — Upload Backup')),
-          pw.SizedBox(height: 4),
+          pw.SizedBox(height: AppSpace.xs),
           pw.Text(
               'Everything the following upload wrote, taken before it is removed.',
               style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: AppSpace.md),
           pw.TableHelper.fromTextArray(
             cellStyle: const pw.TextStyle(fontSize: 9),
             headerStyle:
@@ -178,7 +179,7 @@ class UploadBackupPdf {
               if (batch.note != null) ['Note', batch.note!],
             ],
           ),
-          pw.SizedBox(height: 16),
+          pw.SizedBox(height: AppSpace.lg),
           for (final entry in tables.entries) ..._section(entry.key, entry.value),
           if (tables.isEmpty)
             pw.Text('This upload has no rows left to back up.',
@@ -209,7 +210,7 @@ class UploadBackupPdf {
             'Showing the first $_maxRowsListed of ${rows.length}. '
             'The remainder are counted above but not listed.',
             style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-      pw.SizedBox(height: 4),
+      pw.SizedBox(height: AppSpace.xs),
       pw.TableHelper.fromTextArray(
         cellStyle: const pw.TextStyle(fontSize: 7.5),
         headerStyle: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),

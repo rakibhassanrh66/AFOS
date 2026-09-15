@@ -15,6 +15,7 @@ import '../data/repositories/sos_repository.dart';
 import '../../../core/services/realtime_channel.dart';
 import '../../../core/layout/nav_insets.dart';
 import '../../web/presentation/widgets/adaptive_list.dart';
+import '../../../config/theme/spacing.dart';
 /// Active SOS alerts within 5km of the current user -- gated entirely by
 /// sos_alerts' nearby_select_sos_alerts RLS policy (live-verified), not
 /// client-side filtering. Anyone reachable here is someone who could
@@ -83,7 +84,7 @@ class _NearbySosScreenState extends State<NearbySosScreen> {
             : _error != null
                 ? ListView(children: [Padding(padding: EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24 + NavInsets.of(context)), child: Column(children: [
                     Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: textSecondary)),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
                     TextButton(onPressed: _load, child: const Text('Retry')),
                   ]))])
                 : _alerts.isEmpty

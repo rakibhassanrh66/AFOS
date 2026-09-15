@@ -8,6 +8,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../core/auth/role_session.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/supernova_loader.dart';
+import '../../../config/theme/spacing.dart';
 
 /// Shown to any account with profiles.is_verified = false — new signups
 /// only (existing accounts were grandfathered to verified=true when this
@@ -95,10 +96,10 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             padding: const EdgeInsets.all(28),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SupernovaLoader(size: 48, color: AppColors.gold),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpace.xl),
               Text('Waiting for approval', style: AppTextStyles.headlineLarge.copyWith(color: textPrimary),
                   textAlign: TextAlign.center),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               Text(
                 'A super admin needs to verify your account before you can use AFOS. '
                 'This page will move on automatically as soon as you\'re approved — '

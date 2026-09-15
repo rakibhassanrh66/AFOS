@@ -10,6 +10,7 @@ import '../../../../core/layout/nav_insets.dart';
 import '../../../../shared/widgets/pill_badge.dart';
 import '../../../../shared/widgets/shimmer_card.dart';
 import '../../data/repositories/course_offering_repository.dart';
+import '../../../../config/theme/spacing.dart';
 
 /// Sat=0 .. Fri=6 — the DIU convention `schedule_slots.day_of_week` uses.
 /// NOT ISO weekday order; keep in step with schedule_screen's `_dayLabels`.
@@ -114,7 +115,7 @@ class OfferingCard extends StatelessWidget {
           // negotiation.
           Row(children: [
             Icon(Icons.person_outline_rounded, size: 14, color: textSecondary),
-            const SizedBox(width: 4),
+            const SizedBox(width: AppSpace.xs),
             Expanded(
               child: Text(
                 teacher['full_name'] as String? ?? 'Faculty',
@@ -156,9 +157,9 @@ class OfferingCard extends StatelessWidget {
             ),
           ],
 
-          if (footer != null) ...[const SizedBox(height: 8), footer!],
+          if (footer != null) ...[const SizedBox(height: AppSpace.sm), footer!],
           if (trailing != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Align(alignment: Alignment.centerRight, child: trailing!),
           ],
         ]),

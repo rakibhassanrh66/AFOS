@@ -613,7 +613,7 @@ class _DashboardState extends State<DashboardScreen> {
                     padding: const EdgeInsets.all(16),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       _Greeting(user: _user, loading: _loading),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       _adminTierRoles.contains(_user?.role)
                           ? _AdminPendingGrid(pending: _adminPending, categories: _adminCategories, loading: _statsLoading)
                           : _QuickChips(chips: _quickChips, loading: _statsLoading),
@@ -626,7 +626,7 @@ class _DashboardState extends State<DashboardScreen> {
                 // instant the profile is complete, same contract as the exam
                 // pulse band below.
                 if (_missingFields > 0) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                   MyCompletenessRing(
                     missing: _missingFields,
                     total: _totalFields,
@@ -645,11 +645,11 @@ class _DashboardState extends State<DashboardScreen> {
                   ),
                 ],
                 if (_weather != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                   WeatherDressCard(weather: _weather!, gender: _gender),
                 ],
                 if ((_user?.role == 'student' || _user?.role == 'teacher')) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                   // The break wins over the class card. Both cannot be true,
                   // and the class card would be reading last term's routine.
                   if (_semesterBreak != null)
@@ -658,18 +658,18 @@ class _DashboardState extends State<DashboardScreen> {
                     _ClassStatusCard(status: _classStatus),
                 ],
                 if (_adminTierRoles.contains(_user?.role) && _adminFeatured != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                   _FeaturedCard(module: _adminFeatured!.$1, reason: _adminFeatured!.$2),
                 ] else if (_user?.role != 'super_admin' && _featured != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                   _FeaturedCard(module: _featured!.$1, reason: _featured!.$2),
                 ],
                 if (_adminTierRoles.contains(_user?.role) && _insights != null) ...[
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpace.xl),
                   AdminInsightsPanel(data: _insights),
                 ],
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpace.xl),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Expanded(child: Text('Modules', style: AppTextStyles.headlineLarge
                     .copyWith(color: AppColors.textPrimaryOf(context)),
@@ -683,7 +683,7 @@ class _DashboardState extends State<DashboardScreen> {
                   Text('${_visibleModules.length} found',
                       style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondaryOf(context))),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               TextField(
                   onChanged: (v) => setState(() => _search = v),
                   style: TextStyle(color: AppColors.textPrimaryOf(context)),
@@ -691,7 +691,7 @@ class _DashboardState extends State<DashboardScreen> {
                       prefixIcon: const Icon(Icons.search_rounded),
                       filled: true, fillColor: AppColors.glassFill(context),
                       border: OutlineInputBorder(borderRadius: AppDepth.radius(1), borderSide: BorderSide.none))),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               // THE EXAMINATION BAND.
               //
               // Immediately after the search field and immediately before the
@@ -744,11 +744,11 @@ class _DashboardState extends State<DashboardScreen> {
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Expanded(child: Row(children: [
                   const Icon(AppIcons.notices, size: 18, color: AppColors.red),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Flexible(child: Text('Latest Notices', style: AppTextStyles.headlineLarge
                       .copyWith(color: AppColors.textPrimaryOf(context)),
                       maxLines: 1, overflow: TextOverflow.ellipsis)),
@@ -761,7 +761,7 @@ class _DashboardState extends State<DashboardScreen> {
                           style: TextStyle(color: AppColors.holoBlue))),
                 ),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               if (_noticesLoading) const ShimmerList(count: 3, itemHeight: 80)
               else if (_notices.isEmpty)
                 Padding(
@@ -770,7 +770,7 @@ class _DashboardState extends State<DashboardScreen> {
                       style: TextStyle(color: AppColors.textSecondaryOf(context))))
               else ..._notices.asMap().entries.map((e) =>
                   _NoticeCard(notice: e.value, index: e.key)),
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpace.xxl),
             ]),
           )),
           // CustomScrollView, unlike ListView/GridView, does NOT adopt
@@ -795,7 +795,7 @@ class _Greeting extends StatelessWidget {
         SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ShimmerCard(width: 200, height: 28, radius: 6),
-          SizedBox(height: 8),
+          SizedBox(height: AppSpace.sm),
           ShimmerCard(width: 140, height: 18, radius: 4),
         ])),
       ]);
@@ -822,7 +822,7 @@ class _Greeting extends StatelessWidget {
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
         Text(user?.firstName ?? 'Student', style: AppTextStyles.displayMedium
             .copyWith(color: AppColors.textPrimaryOf(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Text(AppFormatters.fullDate(DateTime.now()),
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryOf(context))),
       ])),
@@ -864,7 +864,7 @@ class _FeaturedCard extends StatelessWidget {
               Text(reason, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 14),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             ])),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             Icon(Icons.arrow_forward_rounded, color: fg),
           ]),
         ),
@@ -945,9 +945,9 @@ class _ClassStatusCard extends StatelessWidget {
               Text('${status.current!.building} · ${status.current!.roomNumber} · until ${fmtTime(status.current!.endTime)}',
                   style: AppTextStyles.bodyMedium.copyWith(color: textSecondary)),
               if (nextSubtitle != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 Divider(color: AppColors.borderOf(context), height: 1),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
               ],
             ],
             if (nextSubtitle != null) ...[
@@ -1242,7 +1242,7 @@ class _NoticeCard extends StatelessWidget {
             Container(width: 34, height: 34,
                 decoration: BoxDecoration(color: c.withValues(alpha: 0.14), borderRadius: AppDepth.radius(0)),
                 child: Icon(_catIcon(cat), color: c, size: 17)),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
