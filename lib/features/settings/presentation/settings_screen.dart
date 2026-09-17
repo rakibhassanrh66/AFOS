@@ -635,6 +635,11 @@ class _SettingsState extends State<SettingsScreen> {
                     Icons.system_update_rounded, AppColors.teal,
                     _checkingUpdate ? () {} : _checkForUpdateManually),
                 const _InfoTile('University', AppConfig.university, AppIcons.schoolOutline),
+                // The credits/dedication screen. Sits under App Info rather
+                // than in its own section because that is where people already
+                // look for "who made this".
+                _ActionTile('Who built this', Icons.favorite_outline_rounded, AppColors.green,
+                    () => context.push('/about')),
               ]),
 
               const SizedBox(height: AppSpace.xl),

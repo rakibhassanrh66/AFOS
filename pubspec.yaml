@@ -1,7 +1,7 @@
 name: afos_v7
 description: AFOS - All Facilities One System for Daffodil International University
 publish_to: 'none'
-version: 2.13.2+5029
+version: 2.14.0+5030
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
@@ -98,6 +98,18 @@ flutter:
     # already over its size budget. Naming the files keeps it on disk for the
     # icon generator and out of the bundle.
     - assets/images/diu_logo.png
+    # The two portraits on the About screen. Named file-by-file for the
+    # same reason as diu_logo above: declaring `assets/profile/` would ship
+    # anything that ever lands in that folder — including the originals.
+    #
+    # These are 512px re-encodes, and the `_512` in the name is the contract.
+    # The sources beside them are 1414px/519KB and 640px/93KB; they are drawn
+    # at 96dp and 40dp, so the full-size pair cost 510 KB of APK for pixels no
+    # screen can show. This build is ALREADY over the 28 MB per-ABI budget
+    # (29.9 / 33.3 / 35.8), so that is not a rounding error. Regenerate with
+    # System.Drawing at quality 88 if either portrait is ever replaced.
+    - assets/profile/rakib_512.jpg
+    - assets/profile/eva_512.jpg
     - assets/sounds/
     # DM Sans + JetBrains Mono, BUNDLED rather than downloaded at runtime.
     #

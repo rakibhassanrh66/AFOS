@@ -460,15 +460,37 @@ class _SlideMenuState extends State<SlideMenu> {
     await applyLogoutChoice(tileCtx, choice);
   }
 
+  /// The version line, which is also the way in to the credits.
+  ///
+  /// The footer is where people already press when they want to know who made
+  /// an app, so it is the honest place for it rather than a hidden gesture.
+  /// [Pressable] gives it the same press answer and commit haptic as every
+  /// other control, and the whole block is one 48dp-tall target.
   Widget _buildFooter(BuildContext context) {
     final textSecondary = AppColors.textSecondaryOf(context);
-    return Container(
-      padding:const EdgeInsets.all(16),
-      child:Column(children:[
-        Text('AFOS v${AppConfig.appVersion}', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
-        const SizedBox(height:2),
-        Text('Daffodil International University', style:AppTextStyles.labelSmall.copyWith(color: textSecondary)),
-      ]),
+    return Pressable(
+      onTap: () {
+        context.read<ShellBloc>().add(CloseMenu());
+        context.push('/about');
+      },
+      child: Semantics(
+        button: true,
+        label: 'AFOS version ${AppConfig.appVersion}. Who built this',
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: AppSpace.minTouchTarget),
+          padding:const EdgeInsets.all(16),
+          child:Column(mainAxisSize: MainAxisSize.min, children:[
+            Text('AFOS v${AppConfig.appVersion}', style:AppTextStyles.monoSmall.copyWith(color: textSecondary)),
+            const SizedBox(height:2),
+            Text('Daffodil International University', style:AppTextStyles.labelSmall.copyWith(color: textSecondary)),
+            const SizedBox(height: AppSpace.xs),
+            Text('Who built this', textAlign: TextAlign.center,
+                style:AppTextStyles.labelSmall.copyWith(
+                    color: AppColors.green, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
     );
   }
 }

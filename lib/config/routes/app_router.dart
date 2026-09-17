@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_colors.dart';
 
+import '../../features/about/presentation/about_screen.dart';
 import '../../features/admin/presentation/manage_clubs_screen.dart';
 import '../../features/admin/presentation/manage_conference_rooms_screen.dart';
 import '../../features/admin/presentation/manage_course_offerings_admin_screen.dart';
@@ -400,6 +401,7 @@ class AppRouter {
           GoRoute(path: '/notifications', pageBuilder: (c,s) => slideRightPage(const NotificationCenterScreen(), s)),
           GoRoute(path: '/settings',      pageBuilder: (c,s) => slideRightPage(const SettingsScreen(), s)),
           GoRoute(path: '/releases',      pageBuilder: (c,s) => slideRightPage(const ReleasesScreen(), s)),
+          GoRoute(path: '/about',         pageBuilder: (c,s) => slideRightPage(const AboutScreen(), s)),
           GoRoute(path: '/feedback',      pageBuilder: (c,s) => slideRightPage(const FeedbackScreen(), s)),
           // The hub keeps the historical path so every delegated grant, menu
           // entry and deep link that already pointed at "the upload screen"

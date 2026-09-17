@@ -129,6 +129,20 @@ void main() {
         'exam_pulse_band.dart',
         'glass_bottom_nav.dart',
         'update_sheet.dart',
+        // flip_profile_card.dart carries BOTH exempt shapes, each verified by
+        // reading it and by a test of its own ("under reduced motion the card
+        // still turns — just instantly", about_screen_test.dart):
+        //   * its AnimationController holds AppMotion.slow and is re-pointed at
+        //     durationOf() inside _flip(), before it is ever driven — the same
+        //     pattern as splash and glass_bottom_nav above;
+        //   * animatedHeight() passes AppMotion.base to an AnimatedSize only on
+        //     the branch where motion is ALLOWED, and returns the child
+        //     unwrapped otherwise. It cannot use durationOf here:
+        //     RenderAnimatedSize drives its controller from inside
+        //     performLayout, so Duration.zero makes it re-dirty itself mid-
+        //     layout and assert. Removing the widget is the only legal way to
+        //     express "no size animation".
+        'flip_profile_card.dart',
       };
       final bare = RegExp(r'duration:\s*AppMotion\.(instant|tight|base|slow|hero)\b');
       final offenders = <String>[];
