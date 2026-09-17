@@ -1,0 +1,57 @@
+# Write the in-app "What's New" row for a release that is already published.
+#
+# WHY THIS EXISTS, and why it is NOT the thing main.yml forbids.
+#
+# main.yml carries a standing note: the app_releases row is written BY HAND
+# after each release, deliberately, do not automate it again. That note is about
+# GENERATING THE TEXT. A previous step derived highlights from commit subjects
+# and produced things like "fix: PostgREST profiles embeds on
+# enrollments/course_offerings (v2.5.3)" — shown to students. Commit subjects are
+# written for `git log`; release notes are written for someone deciding whether
+# to install. Deriving one from the other cannot work, and nothing here does it.
+#
+# This workflow derives NOTHING. Every word is typed into the dispatch form by a
+# person. What it automates is the DELIVERY — the one step that needs a
+# service-role credential, which is the reason releases kept shipping with the
+# row missing and users never being told. v2.13.2 shipped with no row at all;
+# v2.14.0 sat published and unannounced for the same reason.
+#
+# workflow_dispatch ONLY. It cannot fire on a push, a tag, or a schedule, so it
+# can never announce something nobody chose to announce.
+name: Announce release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version WITHOUT the +build (e.g. 2.14.0)'
+        required: true
+      release_date:
+        description: 'Release date, YYYY-MM-DD'
+        required: true
+      title:
+        description: 'Short title shown in What''s New'
+        required: true
+      highlights:
+        description: 'One highlight per line. Written for a student, not a developer.'
+        required: true
+      platforms:
+        description: 'Comma-separated: android, web, ios'
+        required: true
+        default: 'android, web'
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Insert the app_releases row
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VERSION: ${{ inputs.version }}
+          RELEASE_DATE: ${{ inputs.release_date }}
+          TITLE: ${{ inputs.title }}
+          HIGHLIGHTS: ${{ inputs.highlights }}
+          PLATFORMS: ${{ inputs.platforms }}
+        run: python3 .github/scripts/announce_release.py
