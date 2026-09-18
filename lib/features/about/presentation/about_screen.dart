@@ -34,8 +34,8 @@ class AboutScreen extends StatelessWidget {
   // the right unit of change for it.
 
   static const _quote =
-      'Iss, protidin notun notun website ar app hoy — ar notun app download, '
-      'install, log-in er jhamela.';
+      'Iss, protidin notun notun website ar app hoy, ar notun notun app '
+      'download, install, log-in er jhamela.';
 
   static const _quoteTranslation =
       'Every day it\'s another website, another app. And every time, the same '
@@ -45,32 +45,77 @@ class AboutScreen extends StatelessWidget {
       'She said it as a complaint. I took it as a spec.\n\n'
       'AFOS is one login for the whole campus, and it only exists because of '
       'that one sentence. Two and a half years of academic life, handed back '
-      'as something that actually works — dedicated to her, by name.';
+      'as something that actually works, and dedicated to her by name.';
 
   static const _evaStory =
-      'Eva is on the Exterminators team with me, and the honest version is '
-      'that AFOS does not exist without her.\n\n'
-      'I came into university life as an outsider. I did not know where the '
-      'resources were, who to ask, or how to read half of what was put in '
-      'front of me. She was the bridge. She found what was actually '
-      'available, and she sat with me until maths I could not read became '
-      'maths I could solve. I am not going to pretend that was a small thing.\n\n'
-      'She was carrying a CGPA close to 3.90 and still could not continue her '
-      'FYDP — medical problems and money, both at once. She asked the '
-      'administration for help. She did not get any.\n\n'
-      'So if anything ever comes to this project, the first claim on it is '
-      'hers. Not as charity. As payment for work that was never on anyone\'s '
-      'payroll.\n\n'
-      'And if you take one thing from this screen, take her name. Wish '
-      'her well. She earned it long before any of this was written.';
+      '**Israt Habiba Eva.** The person this entire application is dedicated '
+      'to.\n\n'
+      'This application originally came into the developer\'s mind because of '
+      'something she said. It was just a simple sentence from her. But '
+      'sometimes a simple sentence stays in someone\'s mind longer than '
+      'expected.\n\n'
+      'That sentence caught the developer\'s attention and made him think '
+      'differently. Instead of building another ordinary application, he '
+      'thought: **why not build something for her?** And that thought slowly '
+      'became this application. What started from a simple conversation '
+      'eventually became a **two and a half year academic gift dedicated to '
+      'Eva**, carrying her name, her contribution, and a part of the journey '
+      'they shared.\n\n'
+      'But Eva is not here simply because the application is dedicated to '
+      'her. She is part of the reason the developer was able to keep moving '
+      'forward.\n\n'
+      'Eva is a fellow member of the developer team, **Exterminators**. '
+      'Alongside the developer, she helped find the resources available for '
+      'the team\'s work and contributions. She helped with academic '
+      'materials, she helped the developer learn, read, understand and solve '
+      'mathematics, and she became someone he could turn to when the academic '
+      'side of the journey became difficult.\n\n'
+      'The developer has always been somewhat of an outsider to academic '
+      'life. Eva became a bridge: a bridge to the academic help, knowledge '
+      'and understanding that he could not always reach on his own.\n\n'
+      'Her contribution was not always something that could be measured by a '
+      'line of code, a project submission, or a position on a team. Sometimes '
+      'contribution is simply being there when someone needs help '
+      'understanding something. Sometimes it is finding the right resource. '
+      'Sometimes it is sitting beside someone and helping them solve a '
+      'problem. And sometimes it is simply making someone believe that they '
+      'can continue. **Eva did those things.**\n\n'
+      'She is a **Computer Science and Engineering major** and an **FDE '
+      '(Forward Deployed Engineer)**, with an excellent academic record and a '
+      'CGPA close to **3.90**. Despite that achievement, she could not '
+      'continue her FYDP because of medical and financial difficulties. She '
+      'also reached out to the administration and requested help, but '
+      'unfortunately she could not find the support she needed to continue.\n\n'
+      'That part of her story should not be remembered as a failure, because '
+      'a person\'s contribution is not erased simply because circumstances '
+      'forced them to stop. Her work, her effort, her knowledge and the help '
+      'she gave throughout this journey still remain. And that is why this '
+      'application carries her name.\n\n'
+      'If anyone chooses to contribute through this application, whatever is '
+      'received will be sent to Eva. **Not because she needs to be remembered '
+      'as someone who received a donation.** But because she deserves to be '
+      'recognised for what she actually contributed. It is a small way of '
+      'saying: I saw what you did. I remember the help you gave. And this '
+      'exists because you were part of the journey.\n\n'
+      'So if you contribute anything, let it be understood as **respect for '
+      'her effort, recognition of her contribution, and motivation for the '
+      'journey ahead.** Nobody is obliged to give anything. If you do not '
+      'feel like it, do not, and nothing changes.\n\n'
+      'Because behind this application there is a developer who built it. But '
+      'behind the reason **why he chose to dedicate it**, there is Eva.\n\n'
+      '**This application carries her name. Her effort is part of its story. '
+      'And her contribution is the reason this dedication exists.**\n\n'
+      'Let us wish **Israt Habiba Eva** well for everything she has '
+      'contributed, everything she has overcome, and everything that is still '
+      'waiting for her ahead.';
 
   static const _rakibStory =
       '**CGPA lower than 2.79, failed in a course, barely managed to pass.** '
       'The reason? Memorizing things is not my style. I can only do things '
       'when I understand them and can see them with my own eyes.\n\n'
       'I missed so many quizzes, missed too many club activities and '
-      'organizations, and was kicked out of clubs for telling the truth and '
-      'standing up for the rights of new members and trying to do something '
+      'organization events, and was kicked out of clubs for telling the truth '
+      'and standing up for the rights of new members and trying to do something '
       'new. I was criticized by the whole batch because I could not copy '
       'others and could not manage my CGPA like them.\n\n'
       'And I come from down, very down. You cannot even imagine how far down '
@@ -92,26 +137,33 @@ class AboutScreen extends StatelessWidget {
   /// somebody.
   static const _evaDid = <({String title, String detail})>[
     (
-      title: 'Found what was there to find',
-      detail: 'Worked out what the university actually offered, and where it '
-          'was kept. None of it was obvious from outside.'
+      title: 'Found the resources',
+      detail: 'Worked out what the university and the team actually had '
+          'available, and where it was kept. None of it was obvious from '
+          'outside.'
     ),
     (
-      title: 'Taught the maths',
-      detail: 'Sat through it until maths that could not be read became maths '
-          'that could be solved. Repeatedly, and without being asked twice.'
+      title: 'Taught the mathematics',
+      detail: 'Sat with the work until mathematics that could not be read '
+          'became mathematics that could be solved. Repeatedly, and without '
+          'being asked twice.'
     ),
     (
       title: 'Was the bridge to academic life',
       detail: 'For someone who came into it from outside and had nobody else '
-          'to ask. That is the contribution this app is named for.'
+          'to ask. That is the contribution this application is named for.'
     ),
   ];
 
   static const _evaCreds = <({String short, String long})>[
-    (short: 'CSE', long: 'Computer Science and Engineering — her major'),
+    (short: 'CSE', long: 'Computer Science and Engineering, her major'),
     (short: 'FDE', long: 'Forward Deployed Engineer'),
     (short: 'CGPA', long: 'Close to 3.90, carried the whole way'),
+    (
+      short: 'FYDP',
+      long: 'Final Year Design Project, which she could not '
+          'continue'
+    ),
     (short: 'Exterminators', long: 'Team member, alongside the developer'),
   ];
 

@@ -404,12 +404,15 @@ class _AboutSupportCardState extends State<AboutSupportCard> {
           Text(
             'Nobody is being asked for anything. AFOS is free, and it stays '
             'free.\n\n'
-            'But it cost something to build — time, nights, and a stretch of '
+            'But it cost something to build: time, nights, and a stretch of '
             'two people\'s lives. If you got something out of it and you want '
             'to put a little weight behind that, even one taka lands as a '
             'thank-you. Read it as recognition that a developer\'s effort is '
             'real work, not as charity. And whatever arrives, Eva has the '
-            'first claim on it.',
+            'first claim on it.\n\n'
+            'No one is forced to give anything. Contribute only if you '
+            'genuinely feel like it. If you do not, nothing changes and '
+            'nothing is lost.',
             style: AppTextStyles.bodyLarge
                 .copyWith(color: textSecondary, height: 1.65),
           ),
@@ -500,7 +503,7 @@ class _AboutSupportCardState extends State<AboutSupportCard> {
                               child: Text(
                                 'Send something only if you actually want to. '
                                 'Nobody from AFOS will ever message you asking '
-                                'for money — if someone does, it is not us.',
+                                'for money. If someone does, it is not us.',
                                 style: AppTextStyles.labelSmall
                                     .copyWith(color: textMuted, height: 1.5),
                               ),
